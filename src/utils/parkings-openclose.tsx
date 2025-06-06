@@ -1,7 +1,8 @@
 import React from "react";
 import moment from "moment";
 
-import type { ParkingDetailsType, DayPrefix, UitzonderingenOpeningstijden } from "~/types/index";
+import type { DayPrefix } from "~/types/index";
+import type { ParkingDetailsType, UitzonderingenOpeningstijden } from "~/types/parking";
 
 const getOpenTimeKey = (day: DayPrefix): keyof ParkingDetailsType => {
   return ('Open_' + day) as keyof ParkingDetailsType;
@@ -158,6 +159,18 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
   return result;
 };
 
+export const hasCustomOpeningTimesComingWeek = (parkingdata: ParkingDetailsType): boolean => {
+  // Get custom opening times for today and the next 6 days
+  for (let i = 0; i < 7; i++) {
+    const day = moment().add(i, 'days');
+    const [customOpenTime, customCloseTime] = getTodaysCustomOpeningTimes(day, parkingdata.uitzonderingenopeningstijden);
+    if (customOpenTime !== null || customCloseTime !== null) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export const formatOpeningTimes = (
   parkingdata: ParkingDetailsType,
   day: DayPrefix,
@@ -176,9 +189,13 @@ export const formatOpeningTimes = (
     'za': 6,  // Saturday
     'zo': 7   // Sunday
   };
-  const weekdayDate = moment().isoWeekday(dayToNumber[day]);
+
+  // for weekdays before today, add 7 days to get to the next week
+  const todayIsoWeekday = moment().isoWeekday();
+  const weekdayDate = moment().isoWeekday(dayToNumber[day] + (todayIsoWeekday > dayToNumber[day] ? 7 : 0));
 
   const [customOpenTime, customCloseTime] = getTodaysCustomOpeningTimes(weekdayDate, parkingdata.uitzonderingenopeningstijden);
+  const isCustomOpenTime = customOpenTime !== null || customCloseTime !== null;
 
   const opentime = (customOpenTime) || parkingdata[getOpenTimeKey(day)];
   const closetime = (customCloseTime) || parkingdata[getDichtTimeKey(day)];
@@ -211,7 +228,7 @@ export const formatOpeningTimes = (
 
   return (
     <>
-      <div className={isToday ? "font-bold" : ""}>{label}</div>
+      <div className={isToday ? "font-bold" : ""}>{label}{isCustomOpenTime ? " *" : ""}</div>
       <div className="text-right">{value}</div>
     </>
   );

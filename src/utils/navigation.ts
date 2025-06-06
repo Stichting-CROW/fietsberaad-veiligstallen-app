@@ -34,7 +34,7 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
   if(items.length === 0 && itemsFietsberaad) {
     items = filterPrimaryItems(itemsFietsberaad);
   }
-  console.debug("#### primary items", items);
+  // console.debug("#### primary items", items);
   return items;
 }
 

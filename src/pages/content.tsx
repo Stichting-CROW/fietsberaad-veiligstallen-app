@@ -36,7 +36,7 @@ import { getParkingsFromDatabase } from "~/utils/prisma";
 import {
   setActiveMunicipalityInfo,
 } from "~/store/mapSlice";
-import { ParkingDetailsType } from "~/types";
+import { ParkingDetailsType } from "~/types/parking";
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
   try {

@@ -552,7 +552,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
     };
 
     const showArticlesBox = activeArticleMunicipality !== undefined && activeArticleTitle !== undefined;
-    console.debug("@@@@ HomeComponent - showArticlesBox", showArticlesBox, activeArticleMunicipality, activeArticleTitle);
+    // console.debug("@@@@ HomeComponent - showArticlesBox", showArticlesBox, activeArticleMunicipality, activeArticleTitle);
 
     let filteredFietsenstallingen: any[] = [];
     if (fietsenstallingen) {

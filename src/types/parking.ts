@@ -26,6 +26,15 @@ export type UpdateParkingSectionsData = {
     parkingSections: ParkingSections
 }
 
+export type UitzonderingOpeningstijden = {
+  ID: string,
+  fietsenstallingsID: string,
+  openingDateTime: Date,
+  closingDateTime: Date,
+}
+
+export type UitzonderingenOpeningstijden = UitzonderingOpeningstijden[];
+
 export type ParkingSections = ParkingSection[];
 
 export type ParkingDetailsType = {
@@ -66,6 +75,8 @@ export type ParkingDetailsType = {
     BerekentStallingskosten: boolean,
     fietsenstalling_type: fietsenstallingtypen[],
     fietsenstalling_secties: ParkingSections,
+    uitzonderingenopeningstijden: UitzonderingenOpeningstijden,
+
     // abonnementen: abonnementsvorm_fietsenstalling[],
     abonnementsvorm_fietsenstalling: {
         SubscriptionTypeID: number,
@@ -152,6 +163,14 @@ export const selectParkingDetailsType = {
           },
         },
       },
+    },
+    uitzonderingenopeningstijden: {
+      select: {
+        ID: true,
+        openingDateTime: true,
+        closingDateTime: true,
+        fietsenstallingsID: true,
+      }
     },
     abonnementsvorm_fietsenstalling: {
       select: {
