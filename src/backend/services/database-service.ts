@@ -1,11 +1,11 @@
 import { getTransactionCacheStatus, updateTransactionCache, clearTransactionCache, createTransactionCacheTable, dropTransactionCacheTable, createTransactionParentIndices, dropTransactionParentIndices } from "~/backend/services/database/TransactionsCacheActions";
 import { getBezettingCacheStatus, updateBezettingCache, clearBezettingCache, createBezettingCacheTable, dropBezettingCacheTable, createBezettingParentIndices, dropBezettingParentIndices } from "~/backend/services/database/BezettingCacheActions";
 import { getStallingsduurCacheStatus, updateStallingsduurCache, clearStallingsduurCache, createStallingsduurCacheTable, dropStallingsduurCacheTable, createStallingsduurParentIndices, dropStallingsduurParentIndices } from "~/backend/services/database/StallingsduurCacheActions";
-import { getUserContactRoleTableStatus, updateUserContactRoleTable, clearUserContactRoleTable, createUserContactRoleTable, dropUserContactRoleTable } from "~/backend/services/database/UserContactTableActions";
+import { getUserContactRoleTableStatus, updateUserContactRoleTable, clearUserContactRoleTable, createUserContactRoleTable, checkUserContactRoleTable,dropUserContactRoleTable } from "~/backend/services/database/UserContactTableActions";
 import { getUserStatusTableStatus, updateUserStatusTable, clearUserStatusTable, createUserStatusTable, dropUserStatusTable } from "~/backend/services/database/UserStatusTableActions";
 
 export type CacheActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status' | 'createparentindices' | 'dropparentindices';
-export type UserContactRoleActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status';
+export type UserContactRoleActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status' | 'checktable';
 export type UserStatusActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status';
 
 export interface CacheResult {
@@ -40,7 +40,7 @@ export interface CacheStatus {
 }
 
 export interface UserContactRoleParams {
-  action: CacheActions;
+  action: UserContactRoleActions;
 }
 export interface UserContactRoleResult {
   success: boolean;
@@ -193,6 +193,10 @@ const DatabaseService = {
       }
       case 'droptable': { // TODO: remove when this table has been implemented in the prisma scripts and primary database
         const status = await dropUserContactRoleTable(params);
+        return { success: status!==undefined, message: "", status };
+      }
+      case 'checktable': {
+        const status = await checkUserContactRoleTable(params);
         return { success: status!==undefined, message: "", status };
       }
       default: {

@@ -73,6 +73,12 @@ export default async function handle(
         }
         const parsed = parseResult.data;
 
+        if(parsed.SiteID===null) {
+          console.error("SiteID is required");
+          res.status(400).json({error: "SiteID is required"});
+          return;
+        }
+
         const newUserID = generateID();
 
         // Hash the password
@@ -80,7 +86,7 @@ export default async function handle(
 
         // determine the groupID based on the siteID
         let groupID: VSUserGroupValues | undefined = undefined;
-        if(parsed.SiteID===null) {
+        if(parsed.SiteID===activeContactId) {
           groupID = VSUserGroupValues.Intern;
         } else {
           const contact = await prisma.contacts.findFirst({
@@ -160,6 +166,39 @@ export default async function handle(
           });
         }
 
+        // get all related sites for the user
+        const relatedSites = await prisma.contact_contact.findMany({
+          where: {
+            parentSiteID: parsed.SiteID,
+          },
+        });
+
+        relatedSites.forEach(async (site) => {
+          await prisma.security_users_sites.create({
+            data: {
+              UserID: newUserID,
+              SiteID: site.childSiteID,
+              IsContact: false,
+            },
+          });
+
+          await prisma.user_contact_role.upsert({
+            where: {
+              UserID: newUserID, ContactID: site.childSiteID
+            },  
+            update: {
+              NewRoleID: parsed.RoleID,
+            },
+            create: {
+              ID: generateID(),
+              UserID: newUserID, 
+              ContactID: site.childSiteID,
+              NewRoleID: VSUserRoleValuesNew.None,
+              isOwnOrganization: false,
+            },
+          });
+        });
+
         // fetch the new user with the full info
         const createdUser = await prisma.security_users.findFirst({
           where: {
@@ -181,8 +220,6 @@ export default async function handle(
           res.status(500).json({error: "Error creating security user: no own organization ID found"});
           return;
         }
-
-
 
         const newUserData: VSUserWithRolesNew = {
           UserID: createdUser.UserID, 

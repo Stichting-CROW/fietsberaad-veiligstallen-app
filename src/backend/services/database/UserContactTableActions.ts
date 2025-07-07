@@ -281,3 +281,22 @@ export const dropUserContactRoleTable = async (params: UserContactRoleParams ) =
 
   return getUserContactRoleTableStatus(params);
 }
+
+export const checkUserContactRoleTable = async (params: UserContactRoleParams) => {
+  // delete all records that do not have a matching user
+  const sqlBase = `SELECT ucr.ID, c.ID as ContactID, su.UserID FROM user_contact_role ucr LEFT JOIN security_users su ON (su.UserID=ucr.UserID) LEFT JOIN contacts c ON (c.ID=ucr.ContactID)`
+
+  const badRecordsUsers = await prisma.$queryRawUnsafe<{ ID: string, ContactID: string, UserID: string }[]>(sqlBase + ` WHERE isnull(su.UserID)`);
+  const badRecordsContacts = await prisma.$queryRawUnsafe<{ ID: string, ContactID: string, UserID: string }[]>(sqlBase + ` WHERE isnull(c.ID)`);
+  
+
+  console.log("*** checkUserContactRoleTable BAD RECORDS (users)", badRecordsUsers.length);
+  console.log("*** checkUserContactRoleTable BAD RECORDS (contacts)", badRecordsContacts.length);
+
+  const status = await getUserContactRoleTableStatus(params);
+  if(status) {
+    return status;
+  }
+
+  return false;
+}

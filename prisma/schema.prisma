@@ -362,8 +362,8 @@ model contact_contact {
 
   // exploitants are in the parentSiteID column
   // organizations are in the childSiteID column
-  isManagingContacts  contacts? @relation(fields: [parentSiteID], references: [ID], name: "isManagingContacts")
-  isManagedByContacts contacts? @relation(fields: [childSiteID], references: [ID], name: "isManagedByContacts")
+  isManagingContacts  contacts? @relation(fields: [parentSiteID], references: [ID], name: "isManagingContacts", onDelete: Cascade)
+  isManagedByContacts contacts? @relation(fields: [childSiteID], references: [ID], name: "isManagedByContacts", onDelete: Cascade)
 
   @@unique([parentSiteID, childSiteID], map: "parentSiteID")
   @@index([childSiteID], map: "childSiteID")
@@ -472,6 +472,8 @@ model contacts {
 
   isManagingContacts  contact_contact[] @relation("isManagingContacts")
   isManagedByContacts contact_contact[] @relation("isManagedByContacts")
+
+  user_contact_roles user_contact_role[] @relation("ContactUserContactRole")
 
   @@unique([ItemType, CompanyName], map: "ItemType")
   @@index([CompanyName], map: "CompanyName")
@@ -1195,7 +1197,7 @@ model security_users_sites {
   UserID         String         @default("") @db.VarChar(35)
   SiteID         String         @db.VarChar(35)
   IsContact      Boolean        @default(dbgenerated("b'0'")) @db.Bit(1)
-  security_users security_users @relation(fields: [UserID], references: [UserID], onUpdate: Restrict, map: "security_users_sites_ibfk_1")
+  security_users security_users @relation(fields: [UserID], references: [UserID], onUpdate: Restrict, map: "security_users_sites_ibfk_1", onDelete: Cascade)
 
   @@unique([UserID, SiteID], map: "UserID")
 }
@@ -1817,7 +1819,8 @@ model user_contact_role {
   NewRoleID String @db.VarChar(16) @default("none") 
   isOwnOrganization Boolean @default(true)
 
-  security_user security_users @relation(fields: [UserID], references: [UserID]) 
+  security_user security_users @relation(fields: [UserID], references: [UserID], onDelete: Cascade)
+  contact contacts @relation("ContactUserContactRole", fields: [ContactID], references: [ID], onDelete: Cascade)
 
   @@unique([UserID, ContactID], map: "UserID_ContactID") 
 }

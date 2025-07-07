@@ -36,7 +36,7 @@ export default async function handle(
           ID: { in: sites }
         },
         select: compact ? gemeenteLijstSelect : gemeenteSelect
-      })) as unknown as VSContactGemeente[];
+      }));
 
       if(compact) {
         const data: VSContactGemeenteInLijst[] = [];
