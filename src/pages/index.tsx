@@ -1,10 +1,8 @@
 import { type NextPage } from "next";
 import type { Metadata } from "next";
 
-import { getParkingsFromDatabase } from "~/utils/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
-import type { fietsenstallingen } from "~/generated/prisma-client";
 import { type Session } from "next-auth";
 import HomeComponent from "~/components/HomeComponent";
 
@@ -15,14 +13,9 @@ export async function getServerSideProps(context: any) {
       context.res,
       authOptions,
     );
-    const fietsenstallingen: fietsenstallingen[] =
-      await getParkingsFromDatabase([], session);
-
-    // TODO: Don't include: EditorCreated, EditorModified
 
     return {
       props: {
-        fietsenstallingen,
         online: true,
         message: "",
       },
@@ -31,7 +24,6 @@ export async function getServerSideProps(context: any) {
     console.error("index.getServerSideProps - error: ", ex.message);
     return {
       props: {
-        fietsenstallingen: [],
         online: false,
         message: ex.message,
       },
@@ -40,13 +32,12 @@ export async function getServerSideProps(context: any) {
 }
 
 interface HomeProps {
-  fietsenstallingen: fietsenstallingen[],
   online: boolean,
   message: string,
 }
 
-const Home: NextPage<HomeProps> = ({ fietsenstallingen, online, message }) => {
-  return <HomeComponent fietsenstallingen={fietsenstallingen} online={online} message={message} url_municipality={undefined} url_municipalitypage={undefined} />
+const Home: NextPage<HomeProps> = ({ online, message }) => {
+  return <HomeComponent online={online} message={message} url_municipality={undefined} url_municipalitypage={undefined} />
 };
 
 export const metadata: Metadata = {
