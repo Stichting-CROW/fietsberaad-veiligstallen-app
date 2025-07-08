@@ -95,9 +95,16 @@ export const convertToTimegroupSeries = async (
           timestamp = moment(timegroup, 'YYYY-Q').valueOf();
         } else if (params.reportGrouping === 'per_year') {
           timestamp = moment(timegroup, 'YYYY').valueOf();
+        } else if (params.reportGrouping === 'per_bucket') {
+          timestamp = parseInt(timegroup);
         } else {
           timestamp = moment(timegroup).valueOf();
         }
+
+        if(timestamp === null) {
+          console.warn("++++++ convertToTimegroupSeries - timestamp is null ++++++", timestamp, timegroup);
+        }
+
         return [timestamp, Number(value)];
       }),
       groups: Object.keys(stalling.data)
@@ -107,27 +114,55 @@ export const convertToTimegroupSeries = async (
   return series;
 }
 
-export const getFunctionForPeriod = (reportGrouping: ReportGrouping, timeIntervalInMinutes: number, fieldname: string, useCache = true) => {
-  if (false === useCache) {
-    if (reportGrouping === "per_year") return `YEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE))`;
-    if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
-    if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
-    if (reportGrouping === "per_week") return `CONCAT(YEAR(${fieldname}), '-', WEEKOFYEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
-    if (reportGrouping === "per_weekday") return `WEEKDAY(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE))`;
-    if (reportGrouping === "per_day") return `CONCAT(YEAR(${fieldname}), '-', DAYOFYEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)) + 1)`;
+// export const getFunctionForPeriod = (reportGrouping: ReportGrouping, timeIntervalInMinutes: number, fieldname: string, useCache = true) => {
+//   if (false === useCache) {
+//     if (reportGrouping === "per_year") return `YEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE))`;
+//     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
+//     if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
+//     if (reportGrouping === "per_week") return `CONCAT(YEAR(${fieldname}), '-', WEEKOFYEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)))`;
+//     if (reportGrouping === "per_weekday") return `WEEKDAY(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE))`;
+//     if (reportGrouping === "per_day") return `CONCAT(YEAR(${fieldname}), '-', DAYOFYEAR(DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)) + 1)`;
+//     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
+//     if (reportGrouping === "per_bucket") return `bucket`;
+//   } else {
+//     if (reportGrouping === "per_year") return `YEAR(${fieldname})`;
+//     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(${fieldname}))`;
+//     if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(${fieldname}))`;
+//     if (reportGrouping === "per_week") return `CONCAT(YEAR(${fieldname}), '-', WEEKOFYEAR(${fieldname}))`;
+//     if (reportGrouping === "per_weekday") return `WEEKDAY(${fieldname})`;
+//     if (reportGrouping === "per_day") return `CONCAT(YEAR(${fieldname}), '-', DAYOFYEAR(${fieldname}) + 1)`;
+//     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
+//     if (reportGrouping === "per_bucket") return `bucket`;
+//   }
+// }
+export const getFunctionForPeriod = (
+  reportGrouping: ReportGrouping,
+  timeIntervalInMinutes: number,
+  fieldname: string,
+  useCache = true
+) => {
+  const shiftedField = `DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)`;
+
+  if (useCache === false) {
+    if (reportGrouping === "per_year") return `YEAR(${shiftedField})`;
+    if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${shiftedField}), '-', QUARTER(${shiftedField}))`;
+    if (reportGrouping === "per_month") return `CONCAT(YEAR(${shiftedField}), '-', MONTH(${shiftedField}))`;
+    if (reportGrouping === "per_week") return `DATE_FORMAT(${shiftedField}, '%x-%v')`;
+    if (reportGrouping === "per_weekday") return `WEEKDAY(${shiftedField})`;
+    if (reportGrouping === "per_day") return `CONCAT(YEAR(${shiftedField}), '-', DAYOFYEAR(${shiftedField}) + 1)`;
     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
     if (reportGrouping === "per_bucket") return `bucket`;
   } else {
     if (reportGrouping === "per_year") return `YEAR(${fieldname})`;
     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(${fieldname}))`;
     if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(${fieldname}))`;
-    if (reportGrouping === "per_week") return `CONCAT(YEAR(${fieldname}), '-', WEEKOFYEAR(${fieldname}))`;
+    if (reportGrouping === "per_week") return `DATE_FORMAT(${fieldname}, '%x-%v')`;
     if (reportGrouping === "per_weekday") return `WEEKDAY(${fieldname})`;
     if (reportGrouping === "per_day") return `CONCAT(YEAR(${fieldname}), '-', DAYOFYEAR(${fieldname}) + 1)`;
     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
     if (reportGrouping === "per_bucket") return `bucket`;
   }
-}
+};
 
 export const getReportTitle = (reportType: ReportType) => {
   if (reportType === "transacties_voltooid") return "Transacties per periode";
@@ -228,13 +263,14 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
     if (!keyToLabelMap) {
       return false;
     }
+
     const series = await convertToTimegroupSeries(results, params, keyToLabelMap);
 
     return {
       title: getReportTitle(params.reportType),
       options: {
         xaxis: {
-          type: 'string',
+          type: ['per_bucket', 'per_weekday'].includes(params.reportGrouping) || true ? 'categories' : 'datetime',
           categories: Object.values(keyToLabelMap),
           title: {
             text: getXAxisTitle(params.reportGrouping),
