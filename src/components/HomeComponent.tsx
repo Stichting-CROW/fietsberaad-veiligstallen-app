@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
+import type { ParkingDetailsType } from "~/types/parking";
 
 import {
   setIsParkingListVisible,
@@ -52,22 +53,23 @@ import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
 
 import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
-import { type fietsenstallingen } from "~/generated/prisma-client";
 import InfomodalComponent from "./InfomodalComponent";
+import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 
-interface HomeComponentProps {
-    fietsenstallingen: fietsenstallingen[],
+export interface HomeComponentProps {
     online: boolean,
     message: string,
     url_municipality: string | undefined,
     url_municipalitypage: string | undefined
 }
 
-const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, url_municipalitypage }: HomeComponentProps) => {
+const HomeComponent = ({ online, message, url_municipality, url_municipalitypage }: HomeComponentProps) => {
     const router = useRouter();
     const { query } = useRouter();
     const { data: session } = useSession();
-  
+
+    const { fietsenstallingen: allparkingdata, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadFietsenstallingen } = useFietsenstallingen(undefined);
+
     const currentLatLong = useSelector(
       (state: AppState) => state.map.currentLatLng,
     );
@@ -157,7 +159,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
           }
         }
 
-        if(articlechanged) {
+        if(articlechanged && url_municipalitypage!== undefined) {
           dispatch(setActiveArticle({
             articleTitle: url_municipalitypage,
             municipality: activeMunicipalityInfo?.UrlName 
@@ -203,6 +205,11 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
     }, [currentLatLng]);
+
+    useEffect(() => {
+      console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
+      reloadFietsenstallingen();
+    }, [activeTypes2]);
     
     const renderLogo = () => {
       const activecontact = activeMunicipalityInfo;
@@ -276,7 +283,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
         >
           <ParkingFacilityBrowser
             showSearchBar={true}
-            fietsenstallingen={fietsenstallingen}
+            allparkingdata={allparkingdata}
             onShowStallingDetails={(id: string | undefined) => {
               updateStallingId(id);
             }}
@@ -304,7 +311,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             onClick={() => {
               dispatch(setIsParkingListVisible(false));
             }}
-            className="mr-3 block flex justify-center flex-col"
+            className="mr-3 flex justify-center flex-col"
           >
             {renderLogo()}
           </Link>
@@ -445,7 +452,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
               <Overlay>
                 <ParkingFacilityBrowser
                   showSearchBar={false}
-                  fietsenstallingen={fietsenstallingen}
+                  allparkingdata={allparkingdata}
                   onShowStallingDetails={(id: any) => {
                     updateStallingId(id);
                   }}
@@ -463,9 +470,6 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
           <ArticleComponent
               municipality={municipality}
               page={page}
-              fietsenstallingen={fietsenstallingen}
-              isSm={isSm}
-              onFilterChange={(info) => {console.log("#### HomeComponent - onFilterChange", info)}}
             />
         </div>
       )
@@ -499,7 +503,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
     // const isLg = typeof window !== "undefined" && window.innerWidth < 768;
   
     const isCardListVisible = !isParkingListVisible && !isFilterBoxVisible;
-  
+
     if (online === false) {
       return (
         <>
@@ -539,13 +543,13 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
     const showArticlesBox = activeArticleMunicipality !== undefined && activeArticleTitle !== undefined;
     // console.debug("@@@@ HomeComponent - showArticlesBox", showArticlesBox, activeArticleMunicipality, activeArticleTitle);
 
-    let filteredFietsenstallingen: any[] = [];
-    if (fietsenstallingen) {
+    let filteredFietsenstallingen: ParkingDetailsType[] = [];
+    if (allparkingdata) {
       const showNew = activeTypes2 && activeTypes2.includes("show_submissions");
       const aFilter = (x: any) => (showNew ? (x.Status === "new") : (x.Status !== "new"));
-      filteredFietsenstallingen = fietsenstallingen.filter(aFilter);
+      filteredFietsenstallingen = allparkingdata.filter(aFilter);
     }
-  
+
     return (
       <>
         <main className="flex-grow">
@@ -555,8 +559,8 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             <Parking
               id={"parking-modal"}
               stallingId={activeParkingId}
-              fietsenstallingen={fietsenstallingen}
               onStallingIdChanged={newId => {
+                console.log("HomeComponent - onStallingIdChanged", newId);
                 updateStallingId(newId);
               }}
               onClose={handleCloseParking}
@@ -583,7 +587,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             "
             >
               <CardList
-                fietsenstallingen={fietsenstallingen}
+                allparkingdata={allparkingdata}
                 onShowStallingDetails={(id: any) => {
                   updateStallingId(id);
                 }}
@@ -602,7 +606,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
                 className="absolute right-0 z-10 p-4"
                 style={{top: "64px"}}
               >
-                <FilterBox filterArticles={false} showFilterAanmeldingen={true}/>
+                <FilterBox filterArticles={false} showFilterAanmeldingen={session && session.user ? true : false}/>
               </div>
               <FooterNav onStallingAanmelden={handleStallingAanmelden} />
             </div>
