@@ -1,41 +1,9 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { type NextPage } from "next/types";
-import { type GetServerSidePropsContext } from 'next';
-import { getServerSession } from "next-auth/next"
-import { type Session } from "next-auth";
-import { authOptions } from '~/pages/api/auth/[...nextauth]'
-import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import moment from "moment";
-
-import { getParkingsFromDatabase } from "~/utils/prisma";
-import { getMunicipalities } from "~/utils/municipality";
 
 import ReportTable from "~/utils/reports/report-table";
 import { noReport, type ReportContent } from "~/utils/reports/types";
-import { createOpeningTimesReport } from "~/utils/reports/openingtimes";
-import { createFixBadDataReport } from "~/utils/reports/baddata";
-import { createStallingtegoedReport } from "~/utils/reports/stallingtegoed";
-
-export async function getServerSideProps(context: GetServerSidePropsContext) {
-    try {
-        const session = await getServerSession(context.req, context.res, authOptions) as Session
-        const fietsenstallingen = await getParkingsFromDatabase([], session);
-
-        return {
-            props: {
-                fietsenstallingen,
-                user: session?.user?.email || false,
-            },
-        };
-    } catch (ex: any) {
-        return {
-            props: {
-                fietsenstallingen: [],
-                user: false
-            },
-        };
-    }
-}
 
 const downloadCSV = (csv: string, filename: string) => {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -85,7 +53,7 @@ const convertToCSV = (objArray: any[], columns: string[], hiddenColumns: string[
     return str;
 };
 
-const Report: NextPage = ({ fietsenstallingen }: any) => {
+const Report: NextPage = () => {
     let filterSettings = {
         selectedReport: 'openclose',
         filterType: '',
@@ -110,42 +78,6 @@ const Report: NextPage = ({ fietsenstallingen }: any) => {
     const [reportContent, setReportContent] = useState<ReportContent | undefined>(noReport);
     const [loading, setLoading] = useState<boolean>(false);
 
-    const [contacts, setContacts] = useState<any | undefined>(undefined);
-    const [municipalities, setMunicipalities] = useState<any | contacts>(undefined);
-
-    const abortControllerRef = useRef<AbortController | null>(null);
-
-    const launchReport = (createReportFunction: (filtered: any) => Promise<ReportContent>) => {
-        setLoading(true);
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
-        const signal = abortControllerRef.current.signal;
-
-        setTimeout(async () => {
-            if (signal.aborted) return;
-
-            const filtered = fietsenstallingen.filter((parkingdata: fietsenstallingen) => {
-                return (filterType === '' || parkingdata.Type === filterType) &&
-                    (isNs === 'all' || (isNs === 'true' && parkingdata.EditorCreated === "NS-connector") || (isNs === 'false' && parkingdata.EditorCreated !== "NS-connector"));
-            });
-
-            setReportContent(await createReportFunction(filtered));
-
-            setLoading(false);
-        }, 500);
-    }
-
-    useEffect(() => {
-        const go = async () => {
-            const response = await getMunicipalities();
-            setContacts(response);
-        };
-
-        go();
-    }, []);
-
     useEffect(() => {
         const updateReport = async () => {
             const filterSettings = {
@@ -156,33 +88,104 @@ const Report: NextPage = ({ fietsenstallingen }: any) => {
                 showData
             }
             localStorage.setItem('filterSetings', JSON.stringify(filterSettings));
+            
             switch (selectedReport) {
                 case 'openclose':
-                    launchReport((filtered: any): Promise<ReportContent> => {
-                        return createOpeningTimesReport(filtered, moment(filterDateTime), showData);
-                    });
+                    // Use the new protected API route
+                    setLoading(true);
+                    try {
+                        const response = await fetch('/api/protected/dev-reports/openingtimes', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                filterType,
+                                isNs,
+                                filterDateTime,
+                                showData
+                            }),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Error: ${response.statusText}`);
+                        }
+
+                        const reportContent = await response.json();
+                        setReportContent(reportContent);
+                    } catch (error) {
+                        console.error('Error fetching opening times report:', error);
+                        setReportContent(noReport);
+                    } finally {
+                        setLoading(false);
+                    }
                     break;
                 case 'baddata':
-                    launchReport((filtered: any): Promise<ReportContent> => {
-                        return createFixBadDataReport(filtered, contacts, showData);
-                    });
+                    // Use the new protected API route
+                    setLoading(true);
+                    try {
+                        const response = await fetch('/api/protected/dev-reports/baddata', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                filterType,
+                                isNs,
+                                showData
+                            }),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Error: ${response.statusText}`);
+                        }
+
+                        const reportContent = await response.json();
+                        setReportContent(reportContent);
+                    } catch (error) {
+                        console.error('Error fetching bad data report:', error);
+                        setReportContent(noReport);
+                    } finally {
+                        setLoading(false);
+                    }
                     break;
                 case 'stallingstegoed':
-                    launchReport((filtered: any): Promise<ReportContent> => {
-                        return createStallingtegoedReport(filtered, contacts, showData);
-                    });
+                    // Use the new protected API route
+                    setLoading(true);
+                    try {
+                        const response = await fetch('/api/protected/dev-reports/stallingstegoed', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                filterType,
+                                isNs,
+                                showData
+                            }),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Error: ${response.statusText}`);
+                        }
+
+                        const reportContent = await response.json();
+                        setReportContent(reportContent);
+                    } catch (error) {
+                        console.error('Error fetching stallingstegoed report:', error);
+                        setReportContent(noReport);
+                    } finally {
+                        setLoading(false);
+                    }
                     break;
                 default:
-                    launchReport((_filtered: any): Promise<ReportContent> => {
-                        return Promise.resolve(noReport);
-                    });
+                    setReportContent(noReport);
                     break;
             }
         }
 
         updateReport();
-    }, [selectedReport, filterType, isNs, filterDateTime, showData, contacts]);
-
+    }, [selectedReport, filterType, isNs, filterDateTime, showData]);
 
     const handleDownloadCSV = () => {
         if (reportContent) {
@@ -211,13 +214,9 @@ const Report: NextPage = ({ fietsenstallingen }: any) => {
         setShowData(event.target.checked);
     };
 
-    const availabletypes = fietsenstallingen.reduce((acc: string[], parkingdata: fietsenstallingen) => {
-        const type = parkingdata.Type || "unknown";
-        if (!acc.includes(type)) {
-            acc.push(type);
-        }
-        return acc;
-    }, []);
+    // For now, we'll use a static list of types. In a real implementation, 
+    // you might want to fetch this from an API endpoint
+    const availabletypes = ["Buurtstalling", "Stationsstalling", "Overig"];
 
     return (
         <div className="flex h-screen flex-col border-green-400">
