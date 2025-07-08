@@ -1,4 +1,4 @@
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import moment from "moment";
 
 import { getParkingColor } from "~/utils/theme";
@@ -15,7 +15,7 @@ function ParkingFacilityBlock({
   compact,
   openParkingHandler,
   expandParkingHandler,
-  showButtons,
+  showButtons
 }: {
   id?: any,
   parking: ParkingDetailsType,
@@ -24,7 +24,9 @@ function ParkingFacilityBlock({
   expandParkingHandler?: Function,
   showButtons?: false
 }) {
-  const { push } = useRouter();
+  if(!parking) {
+    return null;
+  }
 
   const locationDescription = `${parking.Location || ""}${parking.Location && parking.Plaats ? ", " : ""
     }${parking.Plaats ? parking.Plaats : ''}`;
