@@ -1,13 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
+import { type VSFietsenstallingLijst, fietsenstallingLijstSelect } from "~/types/fietsenstallingen";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
-import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
 
-export type FietsenstallingenResponse = {
-  data?: ParkingDetailsType[];
+export type FietsenstallingenCompactResponse = {
+  data?: VSFietsenstallingLijst[];
   error?: string;
 };
 
@@ -19,10 +19,10 @@ export default async function handle(
   const validationResult = await validateUserSession(session, "any");
   
   let whereClause: Prisma.fietsenstallingenWhereInput = {
+    StallingsID: { not: null },
     Title: { // Never include Systeemstalling
       not: 'Systeemstalling'
-    },
-    StallingsID: { not: null },
+    }
   };
   if ('error' in validationResult === false) {
     const { GemeenteID } = req.query;
@@ -35,18 +35,9 @@ export default async function handle(
       // GET all fietsenstallingen user can access
       const fietsenstallingen = (await prisma.fietsenstallingen.findMany({
         where: whereClause,
-        select: selectParkingDetailsType
-      })) as unknown as ParkingDetailsType[];
+        select: fietsenstallingLijstSelect
+      })) as unknown as VSFietsenstallingLijst[];
      
-      // Loop all fietsenstallingen and console.log any that has a BigInt in any of its fields
-      // fietsenstallingen.forEach(fietsenstalling => {
-      //   Object.keys(fietsenstalling).forEach(key => {
-      //     if (typeof fietsenstalling[key] === 'bigint') {
-      //       console.log(`BigInt found in field: ${key}`);
-      //     }
-      //   });
-      // });
-      
       // Convert all BigInt fields to strings
       fietsenstallingen.forEach((fietsenstalling) => {
         Object.keys(fietsenstalling).forEach(key => {

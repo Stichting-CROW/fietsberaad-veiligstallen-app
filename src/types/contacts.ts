@@ -102,8 +102,6 @@ export interface VSContactExploitant {
       "CompanyLogo" |
       "CompanyLogo2"
   > & {
-          fietsenstallingen_fietsenstallingen_SiteIDTocontacts?: VSParking[];
-      } & {
           isManagingContacts?: {
               ID: number;
               childSiteID: string;
@@ -124,6 +122,12 @@ export interface VSContactExploitant {
         ThemeColor1: true,
         ThemeColor2: true,
         fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+          where: {
+            StallingsID: { not: null },
+            Title: {
+              not: 'Systeemstalling'
+            }
+          },
           select: {
             ID: true,
             Title: true,
@@ -178,6 +182,12 @@ export interface VSContactExploitant {
       Notes: true,
       DateRegistration: true,
       fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+        where: {
+          StallingsID: { not: null },
+          Title: {
+            not: 'Systeemstalling'
+          }
+        },
         select: {
           ID: true,
           Title: true,
