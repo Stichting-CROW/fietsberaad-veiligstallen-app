@@ -37,12 +37,7 @@ import {
 import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/utils/nomatim";
 import toast from "react-hot-toast";
 import { type VSservice } from "~/types/services";
-
-type connectFietsenstallingType = {
-  connect: {
-    id: string;
-  };
-};
+import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -60,7 +55,7 @@ export type ParkingEditUpdateStructure = {
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
-  fietsenstalling_type?: connectFietsenstallingType;
+  Type?: string;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -88,15 +83,19 @@ const NoClickOverlay = () => {
   );
 };
 
+interface ParkingEditProps {
+  parkingdata: ParkingDetailsType;
+  onClose: (closeModal: boolean) => void;
+  onChange: () => void;
+  showAbonnementen?: boolean;
+}
+
 const ParkingEdit = ({
   parkingdata,
   onClose,
   onChange,
-}: {
-  parkingdata: ParkingDetailsType;
-  onClose: (closeModal: boolean) => void;
-  onChange: Function;
-}) => {
+  showAbonnementen = false,
+}: ParkingEditProps) => {
   const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
   // const [waarschuwing, setWaarschuwing] = React.useState<string>('');
   // const [allowSave, setAllowSave] = React.useState<boolean>(true);
@@ -146,8 +145,6 @@ const ParkingEdit = ({
     string | undefined
   >(undefined); // textveld afwijkende openingstijden
 
-  type StallingType = { id: string; name: string; sequence: number };
-  const [allTypes, setAllTypes] = React.useState<StallingType[]>([]);
   const [newStallingType, setNewStallingType] = React.useState<
     string | undefined
   >(undefined);
@@ -157,6 +154,9 @@ const ParkingEdit = ({
   >(undefined);
 
   const { data: session } = useSession() as { data: Session | null };
+
+  // Use the hook for fietsenstallingtypen
+  const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -170,24 +170,6 @@ const ParkingEdit = ({
 
     updateServices().catch(err => {
       console.error("get all services error", err);
-    });
-  }, []);
-
-  React.useEffect(() => {
-    const updateStallingTypes = async () => {
-      try {
-        const response = await fetch(`/api/protected/fietsenstallingtypen`);
-        const json = await response.json() as StallingType[];
-        if (!json) return;
-
-        setAllTypes(json);
-      } catch (err) {
-        console.error("get all types error", err);
-      }
-    }
-
-    updateStallingTypes().catch(err => {
-      console.error("get all types error", err);
     });
   }, []);
 
@@ -374,7 +356,7 @@ const ParkingEdit = ({
     }
 
     if (newStallingType !== undefined) {
-      update.fietsenstalling_type = { connect: { id: newStallingType } };
+      update.Type = newStallingType;
     }
 
     if (undefined !== newOpening) {
@@ -725,9 +707,9 @@ const ParkingEdit = ({
 
     const handleAddressLookup = async () => {
       const latlng = await geocodeAddress(
-        newLocation !== undefined ? newLocation : parkingdata.Location,
-        newPostcode !== undefined ? newPostcode : parkingdata.Postcode,
-        newPlaats !== undefined ? newPlaats : parkingdata.Plaats,
+        newLocation !== undefined ? newLocation : parkingdata.Location || "", 
+        newPostcode !== undefined ? newPostcode : parkingdata.Postcode || "",
+        newPlaats !== undefined ? newPlaats : parkingdata.Plaats || "",
       );
       if (false !== latlng) {
         setNewCoordinaten(latlng.lat + "," + latlng.lon);
@@ -764,7 +746,7 @@ const ParkingEdit = ({
           (parkingdata.Title === "" &&
             (newTitle === "" || newTitle === undefined)) ||
           (newTitle && newTitle.startsWith("Nieuwe stalling")) ||
-          (!newTitle && parkingdata.Title.startsWith("Nieuwe stalling"))
+          (!newTitle && (parkingdata.Title||"").startsWith("Nieuwe stalling"))
         ) {
           setNewTitle("Nieuwe stalling " + (location + " " + plaats).trim());
         }
@@ -879,22 +861,28 @@ const ParkingEdit = ({
           <HorizontalDivider className="my-4" />
 
           <SectionBlock heading="Soort stalling">
-            <select
-              value={
-                newStallingType !== undefined
-                  ? newStallingType
-                  : parkingdata.fietsenstalling_type?.id
-              }
-              onChange={event => {
-                setNewStallingType(event.target.value);
-              }}
-            >
-              {allTypes.map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            {fietsenstallingtypenLoading ? (
+              <div>Laden...</div>
+            ) : fietsenstallingtypenError ? (
+              <div className="text-red-500">Fout bij laden: {fietsenstallingtypenError}</div>
+            ) : (
+              <select
+                value={
+                  newStallingType !== undefined
+                    ? newStallingType
+                    : parkingdata.Type || "bewaakt"
+                }
+                onChange={event => {
+                  setNewStallingType(event.target.value);
+                }}
+              >
+                {allTypes.map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </SectionBlock>
 
           <HorizontalDivider className="my-4" />
@@ -1076,20 +1064,6 @@ const ParkingEdit = ({
         <ParkingViewAbonnementen parkingdata={parkingdata} />
       </div>
     );
-    return (
-      <div className="mt-10 flex w-full justify-between">
-        <SectionBlockEdit>
-          <div className="ml-2 grid grid-cols-3">
-            <div className="col-span-2">Jaarbonnement fiets</div>
-            <div className="text-right sm:text-center">&euro;80,90</div>
-            <div className="col-span-2">Jaarabonnement bromfiets</div>
-            <div className="text-right sm:text-center">&euro;262.97</div>
-          </div>
-        </SectionBlockEdit>
-
-        {/*<button>Koop abonnement</button>*/}
-      </div>
-    );
   };
 
   const renderTabBeheerder = (visible = false) => {
@@ -1264,7 +1238,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
-        {hasID && isLoggedIn && (
+        {showAbonnementen && hasID && isLoggedIn && (
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
@@ -1277,7 +1251,7 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
-      {renderTabAbonnementen(
+      {showAbonnementen && renderTabAbonnementen(
         selectedTab === "tab-abonnementen" && hasID && isLoggedIn,
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}
