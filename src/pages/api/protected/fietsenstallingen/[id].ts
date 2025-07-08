@@ -1,14 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
-import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
+import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { fietsenstallingSchema, getDefaultNewFietsenstalling } from "~/types/fietsenstallingen";
-import { type VSFietsenstalling, fietsenstallingSelect, fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
+import { fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
+import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
 
 export type FietsenstallingResponse = {
-  data?: VSFietsenstalling;
+  data?: ParkingDetailsType;
   error?: string;
 };
 
@@ -58,12 +60,11 @@ export default async function handle(
         return;
       }
 
-      const fietsenstalling = (await prisma.fietsenstallingen.findFirst({
-        where: {
-          ID: id,
-        },
-        select: fietsenstallingSelect
-      })) as unknown as VSFietsenstalling;
+      const fietsenstalling = await prisma.fietsenstallingen.findFirst({
+        where: { ID: id },
+        select: selectParkingDetailsType
+      });
+
       res.status(200).json({data: fietsenstalling});
       break;
     }
@@ -146,7 +147,7 @@ export default async function handle(
           thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
         }
 
-        const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: fietsenstallingSelect}) as unknown as VSFietsenstalling;
+        const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
         if(!newFietsenstalling) {
           console.error("Error creating new fietsenstalling:", newData);
           res.status(500).json({error: "Error creating new fietsenstalling"});
@@ -173,7 +174,7 @@ export default async function handle(
 
         const parsed = parseResult.data;
         const updatedFietsenstalling = await prisma.fietsenstallingen.update({
-          select: fietsenstallingSelect,
+          select: selectParkingDetailsType,
           where: { ID: id },
           data: {
             StallingsID: parsed.StallingsID ?? undefined,
