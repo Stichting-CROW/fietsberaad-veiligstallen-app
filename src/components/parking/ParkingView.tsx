@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 
 import { openRoute } from "~/utils/map/index";
-import { useRouter } from "next/navigation";
 
 // Import components
 import PageTitle from "~/components/PageTitle";
@@ -18,9 +17,6 @@ import ParkingViewBeheerder from "~/components/parking/ParkingViewBeheerder";
 import ParkingViewServices from "~/components/parking/ParkingViewServices";
 
 import { type ParkingDetailsType } from "~/types/parking";
-import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
-import { createVeiligstallenOrgOpwaardeerLinkForMunicipality } from "~/utils/parkings";
-
 
 import { getMunicipalities } from "~/utils/municipality";
 import { useDispatch, useSelector } from "react-redux";
@@ -31,18 +27,17 @@ import { type ReportBikepark } from "../beheer/reports/ReportsFilter";
 
 const ParkingView = ({
   parkingdata,
-  fietsenstallingen,
   onEdit = undefined,
   onToggleStatus = undefined,
   isLoggedIn,
 }: {
   parkingdata: ParkingDetailsType;
-  fietsenstallingen: fietsenstallingen[];
   onEdit: Function | undefined;
   onToggleStatus: Function | undefined;
   isLoggedIn: boolean;
 }) => {
   const [urlOpwaarderen, setUrlOpwaarderen] = useState<string>("");
+
   const dispatch = useDispatch();
 
   const municipalities = useSelector(
@@ -75,17 +70,14 @@ const ParkingView = ({
       return;
     }
 
-    if (!municipalities) {
-      setUrlOpwaarderen("");
-      return;
-    }
-
-    const municipality = municipalities.find((m: contacts) => m.ID === parkingdata.SiteID) as any as contacts | undefined;
-    if (municipality) {
-      const url = createVeiligstallenOrgOpwaardeerLinkForMunicipality(municipality, fietsenstallingen);
-      setUrlOpwaarderen(url);
-    }
-  }, [municipalities, parkingdata, fietsenstallingen]);
+    // Fetch the opwaardeer link from the new API
+    fetch(`/api/protected/opwaardeerlink/municipality/${parkingdata.SiteID}`)
+      .then(res => res.json())
+      .then(data => {
+        setUrlOpwaarderen(data.url || "");
+      })
+      .catch(() => setUrlOpwaarderen(""));
+  }, [parkingdata]);
 
   const renderAddress = () => {
     const location = parkingdata.Location || "";
@@ -122,7 +114,7 @@ const ParkingView = ({
     "onbewaakt",
     "toezicht",
     "geautomatiseerd",
-  ].includes(parkingdata.Type);
+  ].includes(parkingdata.Type || "");
   const showTarief = false;
 
   let status = "";
@@ -151,7 +143,7 @@ const ParkingView = ({
   >
     Stallingstegoed<br ></br>opwaarderen
   </Button>
-
+  
   return (
     <>
       <div
@@ -178,7 +170,7 @@ const ParkingView = ({
                 Bewerken
               </Button>
             ) : null}
-            {isLoggedIn && onToggleStatus !== undefined && ["0", "1"].includes(parkingdata.Status) ? (
+            {isLoggedIn && onToggleStatus !== undefined && parkingdata.Status && ["0", "1"].includes(parkingdata.Status) ? (
               <Button
                 key="b-2"
                 className="mt-3 ml-3 sm:mt-0 hidden sm:block"
@@ -279,44 +271,59 @@ const ParkingView = ({
 
       </div>
 
-      <div data-name="content-bottom" className="">
-        <h2 className="
-          text-2xl
-          font-poppinssemi
-          font-normal
-          mb-6
-        "
-        >
-          Statistieken
-        </h2>
-
-        {isLoggedIn && <Reports bikeparks={[
+    { isLoggedIn && <Reports bikeparks={[
           {
-            GemeenteID: parkingdata.SiteID,
-            Title: parkingdata.Title,
-            id: parkingdata.StallingsID,
+            GemeenteID: parkingdata.SiteID || "",
+            Title: parkingdata.Title || "---",
+            ID: parkingdata.StallingsID || "",
             StallingsID: parkingdata.StallingsID || "---",
-            hasData: true,
+            Type: parkingdata.Type || "",
+            Location: parkingdata.Location || "",
+            Plaats: parkingdata.Plaats || "",
+            Postcode: parkingdata.Postcode || "",
+            Coordinaten: parkingdata.Coordinaten || "",
+            Image: parkingdata.Image || "",
+            Description: parkingdata.Description || "",
+            ExploitantID: parkingdata.ExploitantID || "",
+            Capacity: parkingdata.Capacity || 0,
+            Status: parkingdata.Status || "",
+            SiteID: parkingdata.SiteID || "",
           }
-        ]} />}
-
-      </div>
+        ]}  /> }
     </>
   );
 };
 
 const Reports = ({ bikeparks }: { bikeparks: ReportBikepark[] }) => {
+  const [hasReportData, setHasReportData] = useState<boolean>(false);
+
   const showAbonnementenRapporten = true;
   const firstDate = new Date("2018-03-01");
   const lastDate = new Date(); lastDate.setHours(0, 0, 0, 0); // set time to midnight
 
   return (
-    <ReportComponent
-      showAbonnementenRapporten={showAbonnementenRapporten}
-      firstDate={firstDate}
-      lastDate={lastDate}
-      bikeparks={bikeparks || []}
-    />
+     <div data-name="content-bottom" className={`mt-0 ${hasReportData ? 'block' : 'hidden'} h-[350px]`}>
+        <h2 className="
+          text-2xl
+          font-poppinssemi
+          font-normal
+          mb-0
+        "
+        >
+          Statistieken
+        </h2>      
+        <div data-name="content-bottom-reports" className="h-full">
+        <ReportComponent
+          showAbonnementenRapporten={showAbonnementenRapporten}
+          firstDate={firstDate}
+          lastDate={lastDate}
+          bikeparks={bikeparks || []}
+          onDataLoaded={(hasReportData: boolean) => {
+            setHasReportData(hasReportData);
+          }}
+      />
+     </div>
+     </div>
   )
 }
 
