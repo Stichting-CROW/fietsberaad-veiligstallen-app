@@ -8,7 +8,7 @@ export const getNewRoleLabel = (roleId: VSUserRoleValuesNew): string => {
         case VSUserRoleValuesNew.RootAdmin:
             return "Super admin";
         case VSUserRoleValuesNew.None:
-            return "-";
+            return "Geen rechten";
         case VSUserRoleValuesNew.Admin:
             return "Admin";
         case VSUserRoleValuesNew.Editor:
