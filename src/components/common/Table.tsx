@@ -14,22 +14,31 @@ interface TableProps<T> {
   options?: {
     hideHeaders?: boolean;
   };
+  sortableColumns?: string[];
+  sortColumn?: string;
+  onSort?: (header: string) => void;
 }
 
-export function Table<T>({ columns, data, className = '', onRowClick, options = {} }: TableProps<T>) {
+export function Table<T>({ columns, data, className = '', onRowClick, options = {}, sortableColumns = [], sortColumn, onSort }: TableProps<T>) {
   return (
     <div className="overflow-x-auto">
       <table className={`min-w-full bg-white ${className}`}>
         {!options.hideHeaders && <thead>
           <tr>
-            {columns.map((column, index) => (
-              <th 
-                key={index} 
-                className={`py-2 px-4 text-left ${column.className || ''}`}
-              >
-                {column.header}
-              </th>
-            ))}
+            {columns.map((column, index) => {
+              const isSortable = sortableColumns.includes(column.header);
+              const isSorted = sortColumn === column.header;
+              return (
+                <th 
+                  key={index} 
+                  className={`py-2 px-4 text-left ${column.className || ''} ${isSortable ? 'cursor-pointer select-none' : ''}`}
+                  onClick={isSortable && onSort ? () => onSort(column.header) : undefined}
+                >
+                  {column.header}
+                  {isSorted && <span className="ml-1">▲</span>}
+                </th>
+              );
+            })}
           </tr>
         </thead>}
         <tbody>
