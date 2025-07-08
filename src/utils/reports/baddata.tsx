@@ -1,9 +1,9 @@
-import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
+import type { contacts } from "~/generated/prisma-client";
 import { type ReportContent } from "./types";
 import { type ParkingDetailsType } from "~/types/parking";
 import { createVeiligstallenOrgLink } from "~/utils/parkings";
 
-export const createFixBadDataReport = async (fietsenstallingen: fietsenstallingen[], contacts: contacts[], showData = true): Promise<ReportContent> => {
+export const createFixBadDataReport = async (fietsenstallingen: ParkingDetailsType[], contacts: contacts[], showData = true): Promise<ReportContent> => {
     // Alles op een rij:
     // 1. fietsenstallingen.StallingsID: not null & unique
     // 2. fietsenstallingen.SiteID: not null & foreign key naar contacts.id (is al geimplementeerd)
@@ -40,7 +40,10 @@ export const createFixBadDataReport = async (fietsenstallingen: fietsenstallinge
                 {
                     name: "Original",
                     action: async (data) => {
-                        const stalling = fietsenstallingen.find((fs) => fs.ID === data.ID) as any as ParkingDetailsType;
+                        const stalling = fietsenstallingen.find((fs) => fs.ID === data.ID);
+                        if (!stalling) {
+                            return;
+                        }
                         const url = await createVeiligstallenOrgLink(stalling);
                         window.open(url, '_blank');
                     },
@@ -60,7 +63,11 @@ export const createFixBadDataReport = async (fietsenstallingen: fietsenstallinge
                 {
                     name: "Edit",
                     action: async (data) => {
-                        const stalling = fietsenstallingen.find((fs) => fs.ID === data.ID) as any as ParkingDetailsType;
+                        const stalling = fietsenstallingen.find((fs) => fs.ID === data.ID);
+                        if (!stalling) {
+                            return;
+                        }
+                        
                         const url = `/?stallingid=${stalling.ID}`;
                         window.open(url, '_blank');
                     },
@@ -92,24 +99,23 @@ export const createFixBadDataReport = async (fietsenstallingen: fietsenstallinge
         }
     }
 
-    fietsenstallingen.forEach((fietsenstalling: fietsenstallingen) => {
-        const parkingdata = fietsenstalling as any as ParkingDetailsType;
+    fietsenstallingen.forEach((parkingdata: ParkingDetailsType) => {
 
         let checkStallingsID = null; // ok
-        if (fietsenstalling.StallingsID === null) {
+        if (parkingdata.StallingsID === null) {
             checkStallingsID = <span className="font-bold bg-red-400 text-white p-2">NULL</span>
         } else {
-            const count = countMap.get(fietsenstalling.StallingsID) || 0;
+            const count = countMap.get(parkingdata.StallingsID) || 0;
             if (count > 1) {
                 checkStallingsID = <span className="font-bold bg-red-400 text-white p-2">DUPLICATE</span>
             }
         }
 
         let checkSiteID = null; // ok
-        if (fietsenstalling.SiteID === null) {
+        if (parkingdata.SiteID === null) {
             checkSiteID = <span className="font-bold bg-red-400 text-white p-2">NULL</span>
         } else {
-            const thecontact = contacts.find((contact) => contact.ID === fietsenstalling.SiteID);
+            const thecontact = contacts.find((contact) => contact.ID === parkingdata.SiteID);
             if (!thecontact) {
                 checkSiteID = <span className="font-bold bg-red-400 text-white p-2">NOT FOUND</span>
             }
@@ -117,8 +123,8 @@ export const createFixBadDataReport = async (fietsenstallingen: fietsenstallinge
 
 
         let checkExploitantID = null; // ok
-        if (fietsenstalling.ExploitantID !== null) {
-            const thecontact = contacts.find((contact) => contact.ID === fietsenstalling.ExploitantID);
+        if (parkingdata.ExploitantID !== null) {
+            const thecontact = contacts.find((contact) => contact.ID === parkingdata.ExploitantID);
             if (!thecontact) {
                 checkExploitantID = <span className="font-bold bg-red-400 text-white p-2">NOT FOUND</span>
             }
