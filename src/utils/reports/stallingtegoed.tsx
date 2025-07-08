@@ -1,9 +1,8 @@
-import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import { type ReportContent } from "./types";
 import { type ParkingDetailsType } from "~/types/parking";
 import { createVeiligstallenOrgOpwaardeerLinkForMunicipality, createVeiligstallenOrgLink } from "~/utils/parkings";
 
-export const createStallingtegoedReport = async (fietsenstallingen: fietsenstallingen[], contacts: contacts[], showData: boolean): Promise<ReportContent> => {
+export const createStallingstegoedReport = async (fietsenstallingen: ParkingDetailsType[], contacts: {ID: string, UrlName: string}[], showData: boolean): Promise<ReportContent> => {
     const alwaysvisibleColumns = [
         "Title",
         "Plaats",
@@ -105,15 +104,11 @@ export const createStallingtegoedReport = async (fietsenstallingen: fietsenstall
             </button>)
     }
 
-    for (const fietsenstalling of fietsenstallingen) {
-        // fietsenstallingen.forEach((fietsenstalling: fietsenstallingen) => {
-        const parkingdata = fietsenstalling as any as ParkingDetailsType;
+    for (const parkingdata of fietsenstallingen) {
         const isNS = parkingdata.EditorCreated === "NS-connector"
 
-
-        const municipality: contacts = contacts.find((c: contacts) => c.ID === parkingdata.SiteID) as any as contacts;
-        const url = municipality ? createVeiligstallenOrgOpwaardeerLinkForMunicipality(municipality, fietsenstallingen) : "";
-        const toonOpwaarderen = url !== "";
+        const municipality = contacts.find((c) => c.ID === parkingdata.SiteID);
+        const url = municipality ? createVeiligstallenOrgOpwaardeerLinkForMunicipality(municipality.ID, municipality.UrlName, fietsenstallingen) : "";
 
         report.data.records.push({
             "ID": parkingdata.ID,
@@ -121,8 +116,8 @@ export const createStallingtegoedReport = async (fietsenstallingen: fietsenstall
             "Plaats": parkingdata.Plaats,
             "Type": parkingdata.Type,
             "isNs": isNS ? "NS" : "",
-            "button_opwaarderen": toonOpwaarderen ? getOpwaarderenButton(parkingdata.ID, url) : null,
-            "link_url": toonOpwaarderen ? url : "",
+            "button_opwaarderen": url!=="" ? getOpwaarderenButton(parkingdata.ID, url) : null,
+            "link_url": url,
             "UrlName": municipality ? municipality.UrlName : "",
             "BerekentStallingskosten": parkingdata.BerekentStallingskosten ? "Stalling berekent kosten stallingstransacties" : "FMS berekent kosten stallingstransacties",
         });

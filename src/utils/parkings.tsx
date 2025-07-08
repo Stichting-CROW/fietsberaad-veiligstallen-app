@@ -1,7 +1,6 @@
 import { type Session } from "next-auth";
 import { reverseGeocode } from "~/utils/nomatim";
 import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
-import type { VSservice } from "~/types/services";
 import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
 
@@ -198,12 +197,12 @@ export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetails
   return visible ? `https://veiligstallen.nl/${municipality}/stallingstegoed` : '';
 }
 
-export const createVeiligstallenOrgOpwaardeerLinkForMunicipality = (municipality: contacts, fietsenstallingen: fietsenstallingen[]): string => {
-  if (municipality === undefined) { return '' }
+export const createVeiligstallenOrgOpwaardeerLinkForMunicipality = (municipalityID: string, urlName: string | null, fietsenstallingen: ParkingDetailsType[]): string => {
+  if (urlName === null) { return '' }
 
   // check if there are any parkings for this SiteID and BerekentStallingskosten === false -> yes? create URL
-  const others = fietsenstallingen.filter((fs) => (municipality.ID === fs.SiteID) && (fs.BerekentStallingskosten === false));
-  const visible = others.length > 0
+  const others = fietsenstallingen.filter((fs) => (municipalityID === fs.SiteID) && (fs.BerekentStallingskosten === false));
+  const opwaardeerUrl = urlName !== null &&others.length > 0 ? `https://veiligstallen.nl/${urlName}/stallingstegoed` : '';
 
-  return visible ? `https://veiligstallen.nl/${municipality.UrlName}/stallingstegoed` : '';
+  return opwaardeerUrl;
 }

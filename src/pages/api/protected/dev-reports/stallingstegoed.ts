@@ -68,7 +68,7 @@ export default async function handler(
     });
 
     // Create the report content
-    const reportContent = await createStallingtegoedReport(fietsenstallingen, contacts, showData);
+    const reportContent = await createStallingstegoedReport(fietsenstallingen, contacts, showData);
 
     return res.status(200).json(reportContent);
   } catch (error) {
@@ -78,7 +78,7 @@ export default async function handler(
 }
 
 // Move the report creation logic here from the utils file
-const createStallingstegoedReport = async (fietsenstallingen: any[], contacts: any[], showData: boolean): Promise<ReportContent> => {
+const createStallingstegoedReport = async (fietsenstallingen: any[], contacts: {ID: string, UrlName: string}[], showData: boolean): Promise<ReportContent> => {
     const alwaysvisibleColumns = [
         "Title",
         "Plaats",

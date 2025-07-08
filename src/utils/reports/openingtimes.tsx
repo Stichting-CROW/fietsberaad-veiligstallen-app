@@ -1,11 +1,10 @@
-import type { fietsenstallingen } from "~/generated/prisma-client";
 import { type ReportContent } from "./types";
 import { type ParkingDetailsType } from "~/types/parking";
 import moment from "moment";
 import { formatOpeningTimes, formatOpeningToday } from "~/utils/parkings-openclose";
 import { createVeiligstallenOrgLink } from "~/utils/parkings";
 
-export const createOpeningTimesReport = async (fietsenstallingen: fietsenstallingen[], timestamp: moment.Moment, showData: boolean): Promise<ReportContent> => {
+export const createOpeningTimesReport = async (fietsenstallingen: ParkingDetailsType[], timestamp: moment.Moment, showData: boolean): Promise<ReportContent> => {
   const alwaysvisibleColumns = [
     "Title",
     "Plaats",
@@ -103,8 +102,7 @@ export const createOpeningTimesReport = async (fietsenstallingen: fietsenstallin
     }
   }
 
-  fietsenstallingen.forEach((fietsenstalling: fietsenstallingen) => {
-    const parkingdata = fietsenstalling as any as ParkingDetailsType;
+  fietsenstallingen.forEach((parkingdata) => {
     const isNS = parkingdata.EditorCreated === "NS-connector"
     const wkday = timestamp.day();
 
