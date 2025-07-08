@@ -14,21 +14,25 @@ export interface CardData {
 }
 
 const Card: React.FC<CardData> = ({
-  parking,
+  parkingdata,
   compact = true,
   expandParking,
   clickParking,
   showButtons = false
 }: {
-  parking: ParkingDetailsType,
+  parkingdata: ParkingDetailsType,
   compact: boolean,
   expandParking?: () => void,
   clickParking?: () => void,
   showButtons: boolean
 }) => {
+  if(!parkingdata) { 
+    return null;
+  }
+
   return (
     <div
-      key={`card-${parking.ID}`}
+      key={`card-${parkingdata.ID}`}
       className={`
         ${CardStyles.base}
         keen-slider__slide
@@ -38,8 +42,8 @@ const Card: React.FC<CardData> = ({
       `}
     >
       <ParkingFacilityBlock
-        parking={parking}
-        key={parking.ID}
+        parkingdata={parkingdata}
+        key={parkingdata.ID}
         compact={compact}
         showButtons={showButtons}
         expandParkingHandler={expandParking}

@@ -13,7 +13,7 @@ import {
 } from "~/store/mapSlice";
 
 interface Props {
-  fietsenstallingen: ParkingDetailsType[];
+  allparkingdata: ReportBikepark[];
   onShowStallingDetails?: (id: string) => void;
 }
 
@@ -44,12 +44,12 @@ const sliderProps = {
 
 
 const CardList: React.FC<Props> = ({
-  fietsenstallingen,
+  allparkingdata,
   onShowStallingDetails
 }: Props) => {
   const dispatch = useDispatch();
 
-  const [visibleParkings, setVisibleParkings] = useState<ParkingDetailsType[]>(fietsenstallingen);
+  const [visibleParkings, setVisibleParkings] = useState<ParkingDetailsType[]>(allparkingdata);
 
   const mapVisibleFeatures = useSelector(
     (state: AppState) => (state.map ).visibleFeatures as MapFeature[]
@@ -65,17 +65,18 @@ const CardList: React.FC<Props> = ({
 
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {
-    if (!fietsenstallingen) return;
+    if (!allparkingdata) return;
     if (!mapVisibleFeatures) return;
 
-    const allParkings = fietsenstallingen;
+    const allParkings = allparkingdata;
     const visibleParkingIds = mapVisibleFeatures.map(x => x.id);
     // Only keep parkings that are visible on the map
     const filtered = allParkings.filter((x) => visibleParkingIds.indexOf(x.ID) > -1);
+
     // Set filtered parkings into a state variable
     setVisibleParkings(filtered);
   }, [
-    fietsenstallingen,
+    allparkingdata,
     mapVisibleFeatures,
     mapVisibleFeatures.length
   ])
@@ -138,9 +139,10 @@ const CardList: React.FC<Props> = ({
 
   // const slideChangedHandler = (index: number) => {
   //   // Find related parking
-  //   const foundParking = fietsenstallingen[index];
+  //   const foundParking = allparkingdata[index];
   //   dispatch(setSelectedParkingId(foundParking.ID));
   // }
+  if(!visibleParkings) return null;
 
   const isCardListVisible = true;
 
@@ -151,11 +153,15 @@ const CardList: React.FC<Props> = ({
       ${isCardListVisible ? 'opacity-100' : 'opacity-0'}
     `}>
       <div ref={sliderRef} className={`card-list__slides keen-slider px-5`}>
-        {visibleParkings.map((parking) => {
+        {visibleParkings && visibleParkings.map((parking, idx) => {
+          if(!parking) {
+             console.log("CardList - parking undefined:", parking, "idx:", idx);
+          }
+
           return (
             <Card
               key={`c-${parking.ID}`}
-              parking={parking}
+              parkingdata={parking}
               compact={true}
               showButtons={selectedParkingId === parking.ID}
               expandParking={expandParking}
