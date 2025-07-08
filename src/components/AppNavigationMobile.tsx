@@ -122,8 +122,8 @@ const AppNavigationMobile = ({
       ? `Welkom in ${activeMunicipalityInfo.CompanyName}`
       : `Welkom bij VeiligStallen`;
 
-  const primaryMenuItems = getPrimary(articlesMunicipality, articlesFietsberaad, mapZoom < 12);
-  const secundaryMenuItems = getSecondary(articlesMunicipality, articlesFietsberaad, mapZoom < 12);
+  const primaryMenuItems = getPrimary(articlesMunicipality, articlesFietsberaad, activeMunicipalityInfo!==undefined);
+  const secundaryMenuItems = getSecondary(articlesMunicipality, articlesFietsberaad, activeMunicipalityInfo!==undefined);
   const footerMenuItems = getFooter(articlesFietsberaad);
   
   return (
