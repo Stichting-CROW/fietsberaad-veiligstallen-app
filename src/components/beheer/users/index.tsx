@@ -26,6 +26,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
+  const [sortColumn, setSortColumn] = useState<string | undefined>(undefined);
 
   const { users, isLoading: isLoadingUsers, error: errorUsers, reloadUsers } = useUsers(props.siteID ?? undefined);
   const { data: session } = useSession();
@@ -139,6 +140,10 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     }
   };
 
+  const handleSort = (header: string) => {
+    setSortColumn((prev) => (prev === header ? undefined : header));
+  };
+
   const filteredusers = users
     .filter((user) => 
       (!userFilter || userFilter === "") || 
@@ -154,19 +159,47 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       } else {
         return !isArchived;
       }
-    })
-    .sort((a, b) => {
-      // First sort by Type: Intern first, then Extern
-      const aType = a.isOwnOrganization ? 'Intern' : 'Extern';
-      const bType = b.isOwnOrganization ? 'Intern' : 'Extern';
-      
-      if (aType !== bType) {
-        return aType === 'Intern' ? -1 : 1;
-      }
-      
-      // Then sort by DisplayName
-      return (a.DisplayName || "").localeCompare(b.DisplayName || "");
     });
+
+  const sortedUsers = React.useMemo(() => {
+    if (!sortColumn) {
+      // Default sorting: type, org, name
+      return [...filteredusers].sort((a, b) => {
+        const aType = a.isOwnOrganization ? 'Intern' : 'Extern';
+        const bType = b.isOwnOrganization ? 'Intern' : 'Extern';
+        if (aType !== bType) {
+          return aType === 'Intern' ? -1 : 1;
+        }
+        const aOrg = props.contacts.find(contact => contact.ID === a.ownOrganizationID)?.CompanyName || "";
+        const bOrg = props.contacts.find(contact => contact.ID === b.ownOrganizationID)?.CompanyName || "";
+        if (aOrg !== bOrg) {
+          return aOrg.localeCompare(bOrg);
+        }
+        return (a.DisplayName || "").localeCompare(b.DisplayName || "");
+      });
+    }
+    if (sortColumn === 'Naam') {
+      return [...filteredusers].sort((a, b) => (a.DisplayName || "").localeCompare(b.DisplayName || ""));
+    }
+    if (sortColumn === 'E-mail') {
+      return [...filteredusers].sort((a, b) => (a.UserName || "").localeCompare(b.UserName || ""));
+    }
+    if (sortColumn === 'Organisatie') {
+      return [...filteredusers].sort((a, b) => {
+        const aOrg = props.contacts.find(contact => contact.ID === a.ownOrganizationID)?.CompanyName || "";
+        const bOrg = props.contacts.find(contact => contact.ID === b.ownOrganizationID)?.CompanyName || "";
+        return aOrg.localeCompare(bOrg);
+      });
+    }
+    if (sortColumn === 'Rol') {
+      return [...filteredusers].sort((a, b) => {
+        const aRole = roles.find((r) => r.value === a.securityProfile?.roleId)?.label || '';
+        const bRole = roles.find((r) => r.value === b.securityProfile?.roleId)?.label || '';
+        return aRole.localeCompare(bRole);
+      });
+    }
+    return filteredusers;
+  }, [filteredusers, sortColumn, props.contacts, roles]);
 
   const title = "Gebruikers";
 
@@ -333,8 +366,11 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
 
         <Table 
           columns={columns}
-          data={filteredusers}
+          data={sortedUsers}
           className="mt-4"
+          sortableColumns={['Naam', 'E-mail', 'Organisatie', 'Rol']}
+          sortColumn={sortColumn}
+          onSort={handleSort}
         />
 
       </div>
