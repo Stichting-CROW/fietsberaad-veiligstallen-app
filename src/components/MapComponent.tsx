@@ -31,6 +31,7 @@ import useWindowDimensions from "~/hooks/useWindowDimensions";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
+import type { ParkingDetailsType } from "~/types/parking";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -62,10 +63,10 @@ interface GeoJsonFeature {
   };
 }
 
-const createGeoJson = (input: GeoJsonFeature[]) => {
+const createGeoJson = (input: ParkingDetailsType[]) => {
   const features: GeoJsonFeature[] = [];
 
-  input.forEach((x: any) => {
+  input.forEach((x) => {
     if (!x.Coordinaten) return;
 
     const coords = convertCoordinatenToCoords(x.Coordinaten);
@@ -92,7 +93,7 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
   };
 };
 
-function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: any[] }) {
+function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetailsType[] }) {
 
   // this is where the map instance will be stored after initialization
   const [stateMap, setStateMap] = React.useState<maplibregl.Map>();
