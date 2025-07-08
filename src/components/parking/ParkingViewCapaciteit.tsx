@@ -15,7 +15,7 @@ type capacitydata = {
   };
 };
 
-const calculateCapacityData = (parking: ParkingDetailsType): capacitydata | null => {
+const calculateCapacityData = (parkingdata: ParkingDetailsType): capacitydata | null => {
   try {
     const capacity: capacitydata = {
       unknown: false,
@@ -23,14 +23,14 @@ const calculateCapacityData = (parking: ParkingDetailsType): capacitydata | null
       detailed: {},
     };
 
-    if (parking === null) {
+    if (parkingdata === null) {
       capacity.unknown = true
-    } else if (parking.fietsenstalling_secties.length === 0) {
+    } else if (parkingdata.fietsenstalling_secties.length === 0) {
       capacity.unknown = false;
-      capacity.total = parking.Capacity || 0;
+      capacity.total = parkingdata.Capacity || 0;
     } else {
       // Get parking section (new: 1 per parking, to make it easy)
-      parking.fietsenstalling_secties.forEach((sectie) => {
+      parkingdata.fietsenstalling_secties.forEach((sectie) => {
         // Get capactity per modality for this parking section
         sectie.secties_fietstype.forEach(data => {
           const name = data.fietstype.Name;
