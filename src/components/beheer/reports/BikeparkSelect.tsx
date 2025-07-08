@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { type ReportBikepark } from './ReportsFilter'; // Adjust the import path if necessary
+import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 
 interface BikeparkSelectProps {
-  bikeparks: ReportBikepark[];
+  bikeparks: VSFietsenstallingLijst[];
   selectedBikeparkIDs: string[];
   setSelectedBikeparkIDs: React.Dispatch<React.SetStateAction<string[]>>;
 }
@@ -22,10 +22,11 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
   const buttonClasses = "w-16 h-8 text-sm border-2 border-gray-300 rounded-md";
 
   const toggleSelectAll = () => {
-    if (selectedBikeparkIDs.length > 0 && selectedBikeparkIDs.length < bikeparks.length) {
-      setSelectedBikeparkIDs(bikeparks.map(park => park.StallingsID));
+    const validBikeparkIDs = bikeparks.filter(bp => bp.StallingsID!==null).map(bp => bp.StallingsID as string);
+    if (selectedBikeparkIDs.length > 0 && selectedBikeparkIDs.length < validBikeparkIDs.length) {
+      setSelectedBikeparkIDs(validBikeparkIDs);
     } else {
-      const newSelection = bikeparks.filter((park => selectedBikeparkIDs.includes(park.StallingsID) === false)).map(park => park.StallingsID);
+      const newSelection = bikeparks.filter((park => selectedBikeparkIDs.includes(park.StallingsID as string) === false)).map(park => park.StallingsID as string);
       setSelectedBikeparkIDs(newSelection);
     }
   };
@@ -39,7 +40,7 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
     if (selectedBikeparkIDs.length === 0) {
       return "Geen stallingen";
     } else if (selectedBikeparkIDs.length === 1) {
-      return bikeparks.find(park => park.StallingsID === selectedBikeparkIDs[0])?.Title.trim();
+      return bikeparks.find(park => park.StallingsID === selectedBikeparkIDs[0])?.Title?.trim() || "";
     } else if (selectedBikeparkIDs.length < bikeparks.length) {
       return `${selectedBikeparkIDs.length} Stallingen`;
     } else {
@@ -115,13 +116,13 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
               <label>
                 <input
                   type="checkbox"
-                  checked={selectedBikeparkIDs.includes(park.StallingsID)}
-                  value={park.StallingsID}
+                  checked={selectedBikeparkIDs.includes(park.StallingsID as string)}
+                  value={park.StallingsID as string}
                   onChange={() =>
                     setSelectedBikeparkIDs((prev) =>
-                      prev.includes(park.StallingsID)
-                        ? prev.filter((id) => id !== park.StallingsID)
-                        : [...prev, park.StallingsID]
+                      prev.includes(park.StallingsID as string)
+                        ? prev.filter((id) => id !== park.StallingsID as string)
+                        : [...prev, park.StallingsID as string]
                     )
                   }
                 />

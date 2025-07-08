@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import BikeparkSelect from '../reports/BikeparkSelect'; // Adjust the import path if necessary
-import { type ReportBikepark } from '../reports/ReportsFilter'; // Adjust the import path if necessary
 import { type CacheParams, type CacheStatus, type CacheActions, type CacheResult } from "~/backend/services/database-service";
 import moment from 'moment';
+import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 
 interface CacheTableComponentProps {
   title: string;
   cacheEndpoint: string;
   firstDate: Date;
   lastDate: Date;
-  bikeparks: ReportBikepark[] | undefined;
+  bikeparks: VSFietsenstallingLijst[] | undefined;
 }
 
 const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheEndpoint,firstDate, lastDate, bikeparks }) => {

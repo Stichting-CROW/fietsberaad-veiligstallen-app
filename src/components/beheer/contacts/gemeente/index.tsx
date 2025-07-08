@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/router';
 import GemeenteEdit from "~/components/contact/GemeenteEdit";
-import type { fietsenstallingtypen } from '@prisma/client';
+import type { VSFietsenstallingType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import GemeenteFilter from '~/components/beheer/common/GemeenteFilter';
 import { getParkingDetails } from "~/utils/parkings";
@@ -15,7 +15,7 @@ import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { Table } from '~/components/common/Table';
 
 type GemeenteComponentProps = { 
-  fietsenstallingtypen: fietsenstallingtypen[]  
+  fietsenstallingtypen: VSFietsenstallingType[]  
 };
 
 const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {

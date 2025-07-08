@@ -5,9 +5,8 @@ import ParkingEdit from '~/components/parking/ParkingEdit';
 import { getParkingDetails } from "~/utils/parkings";
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
-import type { ReportBikepark } from '~/components/beheer/reports/ReportsFilter';
 import { useSession } from 'next-auth/react';
-import { Table, Column } from '~/components/common/Table';
+import { Table } from '~/components/common/Table';
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
@@ -24,7 +23,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
 
   // Use the useFietsenstallingen hook to fetch parkings
-  const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID, false);
+  const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID);
 
   useEffect(() => {
     if (status === 'unauthenticated') {

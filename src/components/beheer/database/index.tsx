@@ -1,5 +1,6 @@
 import React from 'react';
-import { type ReportBikepark } from '../reports/ReportsFilter'; // Adjust the import path if necessary
+// import { type ReportBikepark } from '../reports/ReportsFilter'; // Adjust the import path if necessary
+import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 import CacheTableComponent from './CacheTable';
 import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
@@ -7,7 +8,7 @@ import UserStatusTableComponent from './UserStatusTable';
 interface DatabaseComponentProps {
   firstDate: Date;
   lastDate: Date;
-  bikeparks: ReportBikepark[] | undefined;
+  bikeparks: VSFietsenstallingLijst[] | undefined;
 }
 
 const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDate, bikeparks }) => {
