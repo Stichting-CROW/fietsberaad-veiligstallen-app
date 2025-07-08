@@ -3,7 +3,7 @@ import { VSMenuTopic } from "~/types";
 import type { VSContactExploitant, VSContactGemeente } from "~/types/contacts";
 import type { VSUserWithRolesNew } from "~/types/users";
 import Link from "next/link";
-import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
+import { useFietsenstallingenCompact } from "~/hooks/useFietsenstallingenCompact";
 import { useGemeenten } from "~/hooks/useGemeenten";
 import { useUsers } from "~/hooks/useUsers";
 import { useExploitanten } from "~/hooks/useExploitanten";
@@ -20,7 +20,7 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
     const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError } = useExploitanten(selectedGemeenteID ?? "");
 
 
-    const { fietsenstallingen, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID ?? "");
+    const { fietsenstallingen, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadFietsenstallingen } = useFietsenstallingenCompact(selectedGemeenteID ?? "");
 
 
     const [nameFilter, setNameFilter] = useState<string>("");
@@ -35,17 +35,15 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
                 gemeente.CompanyName?.toLowerCase().includes(nameFilter.toLowerCase())
             )
             .filter((gemeente) => {
-                const numNietSysteemStallingen = 
-                    (fietsenstallingen?.
-                    filter((stalling) => stalling.Title !== 'Systeemstalling').length) || 0;
+                const numStallingen = fietsenstallingen?.length || 0;
                 // const hasUsers = users.some((user) => 
                 //     user.sites.some((site) => site.SiteID === gemeente.ID)
                 // );
                 // const hasExploitanten = gemeente.isManagedByContacts?.length || 0 > 0;
 
                 return (
-                    (numNietSysteemStallingen === 0 && showGemeentenWithoutStallingen !== "no" || 
-                     numNietSysteemStallingen > 0 && showGemeentenWithoutStallingen !== "only") // &&
+                    (numStallingen === 0 && showGemeentenWithoutStallingen !== "no" || 
+                     numStallingen > 0 && showGemeentenWithoutStallingen !== "only") // &&
                     // (!hasUsers && showGemeentenWithoutUsers !== "no" || 
                     // hasUsers && showGemeentenWithoutUsers !== "only") &&
                     // (!hasExploitanten && showGemeentenWithoutExploitanten !== "no" ||
@@ -61,13 +59,6 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
 
     const selectGemeenteHandler = (gemeenteID: string) => {
         setSelectedGemeenteID(gemeenteID);
-
-        if(gemeenteID) {
-            const selectedGemeente = gemeenten.find((gemeente) => gemeente.ID === gemeenteID);
-            if(selectedGemeente) {
-                console.log(selectedGemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts);
-            }
-        }
     }
 
     const resetFilters = () => {
@@ -282,9 +273,7 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
 
                     <div className="text-xl font-bold mb-4">Fietsenstallingen</div>
                     <ul className="list-disc list-inside">
-                        {selectedGemeente
-                            .fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.
-                            filter((stalling) => stalling.Title !== 'Systeemstalling')
+                        {fietsenstallingen
                             .map((stalling) => (
                             <li key={stalling.ID}>{stalling.Title} [{stalling.Type}]</li>
                         ))}

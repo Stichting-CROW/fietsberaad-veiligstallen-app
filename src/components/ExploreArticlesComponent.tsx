@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { type VSArticle } from "~/types/articles";
 import { type VSContactGemeenteInLijst } from "~/types/contacts";
+import { useSelector } from 'react-redux';
+import type { RootState } from '~/store/rootReducer';
 
 import { 
     getArticlesForMunicipality,
@@ -12,6 +14,7 @@ import {
 import ArticlesComponent from '~/components/ArticleComponent';
 import { hasContent } from "~/utils/articles";
 import Modal from './Modal';
+import ArticleFilters, { ArticleFiltersState } from '~/components/common/ArticleFilters';
 
 interface ExploreMenuComponent {
     gemeenten: VSContactGemeenteInLijst[];
@@ -20,10 +23,12 @@ interface ExploreMenuComponent {
 const ExploreArticlesComponent = (props: ExploreMenuComponent) => {   
 
     const { gemeenten } = props;
-    const [ selectedGemeenteID, setSelectedGemeenteID] = useState<string>("1");
-    const [ selectedStatus, setSelectedStatus] = useState<"All"|"Yes"|"No">("Yes");
-    const [ selectedNavigation, setSelectedNavigation] = useState<"All"|"Main"|"NotMain">("All");
-    const [ showArticlesWithoutContent, setShowArticlesWithoutContent] = useState<"All"|"Content"|"NoContent">("Content");
+    const [filters, setFilters] = useState<ArticleFiltersState>({
+        gemeenteId: '1',
+        status: 'Yes',
+        navigation: 'All',
+        content: 'All',
+    });
 
     const [ selectedZoom, setSelectedZoom] = useState<"gemeente"|"fietsberaad">("gemeente");
 
@@ -32,12 +37,15 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
 
     const [selectedArticleID, setSelectedArticleID] = useState<string>("");
 
+    const activeMunicipalityInfo = useSelector((state: RootState) => state.map.activeMunicipalityInfo);
+    const [gemeenteReadOnly, setGemeenteReadOnly] = useState(false);
+
     useEffect(() => {
         void (async () => {
-            const articles = await getArticlesForMunicipality(selectedGemeenteID==="" ? null : selectedGemeenteID);
+            const articles = await getArticlesForMunicipality(filters.gemeenteId==="" ? null : filters.gemeenteId);
             setMunicipalityArticles(articles);
         })();
-    }, [selectedGemeenteID, selectedZoom]);
+    }, [filters.gemeenteId, selectedZoom]);
 
     useEffect(() => {
         void (async () => {
@@ -48,90 +56,26 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
 
     useEffect(() => {
         setSelectedArticleID("");
-    }, [municipalityArticles, fietsberaadArticles, selectedGemeenteID, selectedZoom, selectedStatus, selectedNavigation]);
+    }, [municipalityArticles, fietsberaadArticles, filters.gemeenteId, selectedZoom, filters.status, filters.navigation]);
+
+    useEffect(() => {
+        if (activeMunicipalityInfo?.ID && activeMunicipalityInfo.ID !== '1') {
+            setFilters(f => ({ ...f, gemeenteId: activeMunicipalityInfo.ID }));
+            setGemeenteReadOnly(true);
+        } else {
+            setGemeenteReadOnly(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeMunicipalityInfo?.ID]);
 
     const resetFilters = () => {
-        setSelectedGemeenteID("1");
+        setFilters({
+            gemeenteId: '1',
+            status: 'Yes',
+            navigation: 'All',
+            content: 'All',
+        });
         setSelectedZoom("gemeente");
-        setSelectedStatus("Yes");
-        setSelectedNavigation("All");
-        setShowArticlesWithoutContent("All");
-    }
-
-    const renderFilter = () => {
-        return (
-            <div className="">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-bold">Filter Paginas</h1>
-                    <button 
-                        className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
-                        onClick={resetFilters}
-                    >
-                        Reset Filters
-                    </button>
-                </div>
-                <form className="space-y-4">
-                <div className="flex flex-col">
-                        <label htmlFor="gemeente" className="text-sm font-medium text-gray-700">Selecteer Gemeente:</label>
-                        <select 
-                            id="gemeente" 
-                            name="gemeente" 
-                            className="mt-1 p-2 border border-gray-300 rounded-md" 
-                            value={selectedGemeenteID}
-                            onChange={(e) => setSelectedGemeenteID(e.target.value)}
-                        >
-                            <option value="">Alles</option>
-                            {gemeenten.map((gemeente) => (
-                                <option value={gemeente.ID} key={gemeente.ID}>{gemeente.CompanyName}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex flex-col">
-                        <label htmlFor="status" className="text-sm font-medium text-gray-700">Selecteer Pagina Status</label>
-                        <select 
-                            id="status" 
-                            name="status" 
-                            className="mt-1 p-2 border border-gray-300 rounded-md" 
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value as "All"|"Yes"|"No")}
-                        >
-                            <option value="All">All</option>
-                            <option value="Yes">Actief</option>
-                            <option value="No">Niet Actief</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col">
-                        <label htmlFor="navigation" className="text-sm font-medium text-gray-700">Type</label>
-                        <select 
-                            id="navigation" 
-                            name="navigation" 
-                            className="mt-1 p-2 border border-gray-300 rounded-md" 
-                            value={selectedNavigation}
-                            onChange={(e) => setSelectedNavigation(e.target.value as "All"|"Main"|"NotMain")}
-                        >
-                            <option value="All">Alle</option>
-                            <option value="Main">Navigatie</option>
-                            <option value="NotMain">Andere</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col">
-                        <label htmlFor="status" className="text-sm font-medium text-gray-700">Met/zonder inhoud</label>
-                        <select 
-                            id="status" 
-                            name="status" 
-                            className="mt-1 p-2 border border-gray-300 rounded-md" 
-                            value={showArticlesWithoutContent}
-                            onChange={(e) => setShowArticlesWithoutContent(e.target.value as "All"|"Content"|"NoContent")}
-                        >
-                            <option value="All">Alle</option>
-                            <option value="Content">Alleen met inhoud</option>
-                            <option value="NoContent">Alleen zonder inhoud</option>
-                        </select>
-                    </div>
-
-                </form>
-            </div>
-        );
     }
 
     const renderMenuItems = (key: string, title: string, items: VSArticle[]) => { 
@@ -152,7 +96,7 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
     }
 
     const renderMenus = () => {
-        if (selectedGemeenteID === "") return null;
+        if (filters.gemeenteId === "") return null;
 
         const primaryitems = getPrimary(filterNavItems(municipalityArticles), filterNavItems(fietsberaadArticles), selectedZoom === "gemeente");
         const secondaryitems = getSecondary(filterNavItems(municipalityArticles), filterNavItems(fietsberaadArticles), selectedZoom === "gemeente");
@@ -209,9 +153,9 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
         const filteredArticles = municipalityArticles?.filter(
             x => { 
                 const articleHasContent = hasContent(x);
-                return( (selectedStatus === "All" || x.Status === (selectedStatus === "Yes" ? "1" : "0")) &&
-                        (selectedNavigation === "All" || (selectedNavigation === "Main" && x.Navigation === "main") || (selectedNavigation === "NotMain" && x.Navigation !== "main")) &&
-                        (showArticlesWithoutContent === "All" || (articleHasContent && showArticlesWithoutContent === "Content") || (!articleHasContent && showArticlesWithoutContent === "NoContent"))); 
+                return( (filters.status === "All" || x.Status === (filters.status === "Yes" ? "1" : "0")) &&
+                        (filters.navigation === "All" || (filters.navigation === "Main" && x.Navigation === "main") || (filters.navigation === "NotMain" && x.Navigation !== "main")) &&
+                        (filters.content === "All" || (articleHasContent && filters.content === "Content") || (!articleHasContent && filters.content === "NoContent"))); 
             }
         );
         // if (!filteredArticles || filteredArticles.length === 0) return { 
@@ -263,7 +207,12 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
         <div className="w-full mx-gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 mb-4">
                 <div className="mx-4 p-4 border-2 rounded-xl border-gray-300">
-                    {renderFilter()}
+                    <ArticleFilters
+                        gemeenten={gemeenten}
+                        filters={filters}
+                        onChange={setFilters}
+                        gemeenteReadOnly={gemeenteReadOnly}
+                    />
                 </div>
                 <div className="mx-4 p-4 border-2 rounded-xl border-gray-300">
                     { renderMenus() }                    

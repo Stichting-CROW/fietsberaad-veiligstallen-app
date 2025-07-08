@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 
 import { VSUserRoleValuesNew, type VSUserWithRolesNew } from "~/types/users";
 import { useAllUsers } from "~/hooks/useAllUsers";
-import { useGemeenten } from "~/hooks/useGemeenten";
+import { useGemeentenInLijst } from "~/hooks/useGemeenten";
 import { useExploitanten } from "~/hooks/useExploitanten";
 import { LoadingSpinner } from "./beheer/common/LoadingSpinner";
 import { ExploreUserDetailsComponent } from "./ExploreUserDetailsComponent";
@@ -18,7 +18,7 @@ const ExploreUsersComponent = () => {
 
     const { users, isLoading: isLoadingUsers, error: errorUsers } = useAllUsers();
 
-    const { gemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeenten();
+    const { gemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
     const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
 
     const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
