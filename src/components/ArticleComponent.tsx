@@ -1,25 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { useDispatch } from "react-redux";
-import type { fietsenstallingen } from "~/generated/prisma-client";
 import { type VSArticle } from "~/types/articles";
 
 import Faq from "~/components/Faq";
 import PageTitle from "~/components/PageTitle";
-
-import { setTypes } from "~/store/filterArticlesSlice";
+import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 
 interface ArticleComponentProps {
-  isSm: boolean;
   municipality: string;
   page: string;
-  fietsenstallingen: fietsenstallingen[]
-  onFilterChange?: (filter: string[] | undefined) => void;
 }
 
-const ArticleComponent = ({isSm, municipality, page, fietsenstallingen, onFilterChange}: ArticleComponentProps): React.ReactNode => {
-    const dispatch = useDispatch();
-    // const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
-  const [pageContent, setPageContent] = useState<VSArticle | undefined>(undefined);
+const ArticleComponent = ({municipality, page}: ArticleComponentProps): React.ReactNode => {
+  const [pageContent, setPageContent] = useState<VSArticle | undefined | false>(undefined);
 
   // Get article content based on slug
   useEffect(() => {
@@ -29,11 +21,15 @@ const ArticleComponent = ({isSm, municipality, page, fietsenstallingen, onFilter
           `/api/protected/?Title=${page}&SiteID=${municipality}&findFirst=true`
         );
         const json = await response.json();
-        if (!json) return;
+        if (!json) { 
+          setPageContent(false);
+          return;
+        }
         // If result is an array with 1 node: Get node only
         const pageContentToSet: VSArticle = json && json.SiteID ? json : json[0];
         setPageContent(pageContentToSet);
       } catch (err) {
+        setPageContent(false);
         console.error(err);
       }
     })();
@@ -42,10 +38,15 @@ const ArticleComponent = ({isSm, municipality, page, fietsenstallingen, onFilter
     page,
   ]);
 
-  if (!pageContent) {
-    return (<div className="p-10">
-      Geen pagina-inhoud gevonden. <a href="javascript:history.back();" className="underline">Ga terug</a>
-    </div>);
+  if (pageContent === undefined) {
+    return <LoadingSpinner />;
+  }
+
+  if (pageContent === false) {
+    return (
+      <div className="p-10">
+        Geen pagina-inhoud gevonden. <a href="javascript:history.back();" className="underline">Ga terug</a>
+      </div>);
   }
 
   const isFaq = pageContent.Title === 'FAQ';
