@@ -69,12 +69,9 @@ export default async function handle(
         );
 
         for(const gemeente of gemeenten) {
-          const numNietSysteemStallingen = 
-            (gemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.
-            filter((stalling) => stalling.Title !== 'Systeemstalling').length) || 0;
-
           const hasUsers = contactIdsWithUsers.has(gemeente.ID);
           const hasExploitanten = (gemeente.isManagedByContacts?.length || 0) > 0;
+          const hasStallingen = gemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts.length > 0;
           
           data.push({
             ID: gemeente.ID,
@@ -82,7 +79,7 @@ export default async function handle(
             CompanyLogo: gemeente.CompanyLogo,
             ThemeColor1: gemeente.ThemeColor1,
             ThemeColor2: gemeente.ThemeColor2,
-            hasStallingen: numNietSysteemStallingen > 0,
+            hasStallingen,
             hasUsers,
             hasExploitanten
           })
