@@ -5,6 +5,7 @@ import { setAuthState } from "~/store/authSlice";
 import { AppState } from "~/store/store";
 import { useRouter } from 'next/router'
 import Link from 'next/link'
+import { useSession } from "next-auth/react";
 
 // Import components
 import Modal from "src/components/Modal";
@@ -26,11 +27,19 @@ function WelcomeToMunicipality({
   buttonClickHandler?: Function
 }) {
   const { push } = useRouter();
+  const { data: session } = useSession();
 
-  if(! municipalityInfo) {
-    return <div>
-      Leuk dat je VeiligStallen gebruikt!
-    </div>
+  const mapZoom = useSelector(
+    (state: AppState) => state.map.zoom
+  );
+
+  if(session?.user) {
+    console.log("NO WELCOME");
+    return null;
+  }
+
+  if(mapZoom===undefined || mapZoom < 12 || ! municipalityInfo || municipalityInfo.CompanyName === "FIETSBERAAD") {
+    return null;
   }
 
   return <div className="
