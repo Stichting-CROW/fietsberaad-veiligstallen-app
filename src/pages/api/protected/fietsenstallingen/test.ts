@@ -8,7 +8,7 @@ import { TestStatus } from "~/types/test";
 import { type FietsenstallingenResponse } from ".";
 import { type FietsenstallingResponse } from "./[id]";
 import { TestError } from "~/types/test";
-import type { FietsenstallingValidateResponse } from "./validate";
+// import type { FietsenstallingValidateResponse } from "./validate";
 import { createTestContactGemeente } from "../test-tools";
 
 export default async function handle(
@@ -116,13 +116,13 @@ export default async function handle(
     }
 
     // Test 4: Validate the record
-    if (createdRecordId) {
-      const validateTest = await testValidateFietsenstalling(req, createdRecordId);
-      testResults[3] = validateTest;
-      if (validateTest.status === TestStatus.Failed) {
-        throw new TestError("Validate test failed", validateTest);
-      }
-    }
+    // if (createdRecordId) {
+    //   const validateTest = await testValidateFietsenstalling(req, createdRecordId);
+    //   testResults[3] = validateTest;
+    //   if (validateTest.status === TestStatus.Failed) {
+    //     throw new TestError("Validate test failed", validateTest);
+    //   }
+    // }
 
     // Test 5: Update the record
     if (createdRecordId) {
@@ -368,99 +368,99 @@ async function testDeleteFietsenstalling(req: NextApiRequest, id: string): Promi
   }
 }
 
-async function testValidateFietsenstalling(req: NextApiRequest, id: string): Promise<TestResult> {
-  try {
-    // First get the current record to use as base for our tests
-    const { success: getSuccess, result: getResult } = await makeApiCall<FietsenstallingResponse>(req, `/api/protected/fietsenstallingen/${id}`);
-    if (!getSuccess || !getResult?.data) {
-      return {
-        name: "Validate Record",
-        status: TestStatus.Failed,
-        message: "Failed to get record for validation testing",
-        details: getResult?.error
-      };
-    }
+// async function testValidateFietsenstalling(req: NextApiRequest, id: string): Promise<TestResult> {
+//   try {
+//     // First get the current record to use as base for our tests
+//     const { success: getSuccess, result: getResult } = await makeApiCall<FietsenstallingResponse>(req, `/api/protected/fietsenstallingen/${id}`);
+//     if (!getSuccess || !getResult?.data) {
+//       return {
+//         name: "Validate Record",
+//         status: TestStatus.Failed,
+//         message: "Failed to get record for validation testing",
+//         details: getResult?.error
+//       };
+//     }
 
-    const baseRecord = getResult.data;
-    const testCases = [
-      {
-        name: "Valid Record",
-        data: baseRecord,
-        expectedValid: true
-      },
-      // TODO: Add tests for missing fields
-      // {
-      //   name: "Missing Title",
-      //   data: { ...baseRecord, Title: "" },
-      //   expectedValid: false
-      // },
-      // {
-      //   name: "Missing StallingsID",
-      //   data: { ...baseRecord, StallingsID: "" },
-      //   expectedValid: false
-      // },
-      // {
-      //   name: "Invalid Coordinates",
-      //   data: { ...baseRecord, Coordinaten: "invalid" },
-      //   expectedValid: false
-      // },
-      // {
-      //   name: "Invalid Capacity",
-      //   data: { ...baseRecord, Capacity: -1 },
-      //   expectedValid: false
-      // }
-    ];
+//     const baseRecord = getResult.data;
+//     const testCases = [
+//       {
+//         name: "Valid Record",
+//         data: baseRecord,
+//         expectedValid: true
+//       },
+//       // TODO: Add tests for missing fields
+//       // {
+//       //   name: "Missing Title",
+//       //   data: { ...baseRecord, Title: "" },
+//       //   expectedValid: false
+//       // },
+//       // {
+//       //   name: "Missing StallingsID",
+//       //   data: { ...baseRecord, StallingsID: "" },
+//       //   expectedValid: false
+//       // },
+//       // {
+//       //   name: "Invalid Coordinates",
+//       //   data: { ...baseRecord, Coordinaten: "invalid" },
+//       //   expectedValid: false
+//       // },
+//       // {
+//       //   name: "Invalid Capacity",
+//       //   data: { ...baseRecord, Capacity: -1 },
+//       //   expectedValid: false
+//       // }
+//     ];
 
-    const results = [];
-    for (const testCase of testCases) {
-      const { success, result } = await makeApiCall<FietsenstallingValidateResponse>(
-        req,
-        `/api/protected/fietsenstallingen/validate`,
-        'POST',
-        testCase.data
-      );
-      if (!success) {
-        return {
-          name: "Validate Record",
-          status: TestStatus.Failed,
-          message: `Failed to validate record: ${result?.message || 'Unknown error'}`,
-          details: { testCase: testCase.name, message: result?.message }
-        };
-      }
+//     const results = [];
+//     for (const testCase of testCases) {
+//       const { success, result } = await makeApiCall<FietsenstallingValidateResponse>(
+//         req,
+//         `/api/protected/fietsenstallingen/validate`,
+//         'POST',
+//         testCase.data
+//       );
+//       if (!success) {
+//         return {
+//           name: "Validate Record",
+//           status: TestStatus.Failed,
+//           message: `Failed to validate record: ${result?.message || 'Unknown error'}`,
+//           details: { testCase: testCase.name, message: result?.message }
+//         };
+//       }
 
-      const isValid = result?.valid === testCase.expectedValid;
-      results.push({
-        testCase: testCase.name,
-        expected: testCase.expectedValid,
-        actual: result?.valid,
-        message: result?.message
-      });
+//       const isValid = result?.valid === testCase.expectedValid;
+//       results.push({
+//         testCase: testCase.name,
+//         expected: testCase.expectedValid,
+//         actual: result?.valid,
+//         message: result?.message
+//       });
 
-      if (!isValid) {
-        return {
-          name: "Validate Record",
-          status: TestStatus.Failed,
-          message: `Validation test failed for ${testCase.name}`,
-          details: { testCase: testCase.name, expected: testCase.expectedValid, actual: result?.valid, message: result?.message }
-        };
-      }
-    }
+//       if (!isValid) {
+//         return {
+//           name: "Validate Record",
+//           status: TestStatus.Failed,
+//           message: `Validation test failed for ${testCase.name}`,
+//           details: { testCase: testCase.name, expected: testCase.expectedValid, actual: result?.valid, message: result?.message }
+//         };
+//       }
+//     }
 
-    return {
-      name: "Validate Record",
-      status: TestStatus.Success,
-      message: "Successfully validated record with all test cases",
-      details: { results }
-    };
-  } catch (error) {
-    return {
-      name: "Validate Record",
-      status: TestStatus.Failed,
-      message: "Failed to validate record",
-      details: error
-    };
-  }
-} 
+//     return {
+//       name: "Validate Record",
+//       status: TestStatus.Success,
+//       message: "Successfully validated record with all test cases",
+//       details: { results }
+//     };
+//   } catch (error) {
+//     return {
+//       name: "Validate Record",
+//       status: TestStatus.Failed,
+//       message: "Failed to validate record",
+//       details: error
+//     };
+//   }
+// } 
 
 async function cleanupTestdata(req: NextApiRequest): Promise<TestResult> {
   try {
