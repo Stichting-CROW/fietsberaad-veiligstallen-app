@@ -18,8 +18,6 @@ const useArticlesBasis = <T extends VSArticleInLijst | VSArticle>() => {
     SiteID?: string;
   } = {}) => {
     try {
-      console.debug('Fetching articles version:', version);
-      
       setIsLoading(true);
       setError(null);
       // Type-level check for compact flag
