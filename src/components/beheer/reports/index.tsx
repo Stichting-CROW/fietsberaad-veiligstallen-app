@@ -11,6 +11,7 @@ import type { VSContactGemeente } from "~/types/contacts";
 
 import Chart from './Chart';
 import { useSession } from "next-auth/react";
+import { getXAxisFormatter } from "~/backend/services/reports/ReportAxisFunctions";
 
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
@@ -19,6 +20,7 @@ interface ReportComponentProps {
   bikeparks: ReportBikepark[];
   error?: string;
   warning?: string;
+  onDataLoaded?: (hasReportData: boolean) => void;
 }
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
@@ -28,6 +30,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   bikeparks,
   error,
   warning,
+  onDataLoaded,
 }) => {
   const { data: session } = useSession()
 
@@ -88,6 +91,9 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         const data = await response.json();
         setReportData(data);
         setErrorState("");
+        
+        const hasReportData = data.series.some((series: any) => series.data.length > 0);
+        onDataLoaded && onDataLoaded(hasReportData);
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
           console.error(error);
@@ -151,7 +157,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         }
         const data = await response.json() as AvailableDataDetailedResult[] | false;
         if (data) {
-          setBikeparksWithData(bikeparks.filter(bp => data.map(d => d.locationID).includes(bp.StallingsID)));
+          setBikeparksWithData(bikeparks.filter(bp => data.map(d => d.locationID).includes(bp.StallingsID||"")));
         } else {
           setErrorState("Unable to fetch list of bikeparks with data");
         }
@@ -220,7 +226,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   return (
     <div className="noPrint w-full h-full" id="ReportComponent">
-      <div className="flex flex-col space-y-4 p-4 h-full">
+      <div className="flex flex-col space-y-2 p-2 h-full">
 
         {/* <div className="flex-none">
           <GemeenteFilter
@@ -326,8 +332,9 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                     markers: {
                     },
                     xaxis: {
-                      type: 'datetime',
+                      type: 'categories',
                       labels: {
+                        formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                         datetimeUTC: false
                       },
                       title: {
