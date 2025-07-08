@@ -1,77 +1,35 @@
 import { Prisma } from "~/generated/prisma-client";
-import { prisma } from "~/server/db";
-import { type Session } from "next-auth";
 
-const getParkingsFromDatabase = async (sites: string[] | undefined, session: Session | null = null) => {
-  let fietsenstallingen;
-
-  let wherefilter = {};
-  if (!session || !session.user) {
-    wherefilter = {
-      Status: "1",
+// Helper function to process Date and other special types
+const processSpecialTypes = (obj: any) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  Object.entries(obj).forEach(([key, prop]) => {
+    if (prop instanceof Date) {
+      obj[key] = new Date(obj[key]).toISOString();
     }
-  }
-
-  if (!sites || sites.length === 0) {
-    fietsenstallingen = await prisma.fietsenstallingen.findMany({
-      where: wherefilter,
-      include: {
-        uitzonderingenopeningstijden: true
-      }
-    });
-  } else {
-    fietsenstallingen = await prisma.fietsenstallingen.findMany({
-      where: {
-        OR: [
-          {
-            SiteID: { in: sites },
-          },
-          {
-            Status: "new"
-          },
-        ]
-      },
-      include: {
-        uitzonderingenopeningstijden: true
-      }
-    });
-  }
-
-  // Helper function to process Date and other special types
-  const processSpecialTypes = (obj: any) => {
-    Object.entries(obj).forEach(([key, prop]) => {
-      if (prop instanceof Date) {
-        obj[key] = new Date(obj[key]).toISOString();
-      }
-      if (prop instanceof BigInt) {
-        obj[key] = obj[key].toString();
-      }
-      if (prop instanceof Prisma.Decimal) {
-        delete obj[key];
-        // obj[key] = Number(prop);
-      }
-    });
-    return obj;
-  };
-
-  fietsenstallingen.forEach((stalling: any) => {
-    // Process main stalling object
-    processSpecialTypes(stalling);
-
-    // Process each uitzonderingenopeningstijden item
-    if (stalling.uitzonderingenopeningstijden) {
-      stalling.uitzonderingenopeningstijden = stalling.uitzonderingenopeningstijden.map(
-        (uitzondering: any) => processSpecialTypes(uitzondering)
-      );
+    else if (prop instanceof BigInt) {
+      obj[key] = obj[key].toString();
     }
-
-    delete stalling.reservationCostPerDay;
-    delete stalling.wachtlijst_Id;
+    else if (prop instanceof Prisma.Decimal) {
+      obj[key] = Number(prop);
+    }
+    // Convert numeric IDs to strings if they should be strings
+    else if (key === 'ID' && typeof prop === 'number') {
+      obj[key] = prop.toString();
+    }
+    // Recursively process nested objects
+    else if (prop && typeof prop === 'object' && !Array.isArray(prop)) {
+      obj[key] = processSpecialTypes(prop);
+    }
+    // Process arrays
+    else if (Array.isArray(prop)) {
+      obj[key] = prop.map(item => processSpecialTypes(item));
+    }
   });
-
-  return fietsenstallingen;
+  return obj;
 };
 
 export {
-  getParkingsFromDatabase,
+  processSpecialTypes
 }
