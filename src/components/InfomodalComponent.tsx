@@ -5,10 +5,12 @@ import { type AppState } from "~/store/store";
 import Modal from "src/components/Modal";
 import WelcomeToMunicipality from "./WelcomeToMunicipality";
 import { useSelector } from "react-redux";
+import { useSession } from "next-auth/react";
 
 export default function InfomodalComponent({ }) {
     const [visible, setVisible] = useState(true);
-
+    const { data: session } = useSession();
+    
     const initialLatLng = useSelector(
       (state: AppState) => state.map.initialLatLng,
     );
@@ -53,8 +55,14 @@ export default function InfomodalComponent({ }) {
 
     if(!visible) return null;
     if(!activeMunicipalityInfo) return null;
-    if(mapZoom < 12) return null;
-    
+    if(mapZoom===undefined || mapZoom < 12) return null;
+
+    if(session?.user) {
+      console.log("NO WELCOME");
+      return null;
+    }
+  
+
     return (
       <Modal
         onClose={() => {
