@@ -9,7 +9,6 @@ import { validateUserSession } from "~/utils/server/database-tools";
 // TODO: handle adding the article to the user's sites and setting correct rights
 // TODO: check if user has sufficient rights to create an article
 
-// export type FietsenstallingenResponse = VSFietsenstalling[];
 export type ArticlesResponse = {
   data?: VSArticle[] | VSArticleInLijst[];
   error?: string;
@@ -20,14 +19,19 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
+
   const validateUserSessionResult = await validateUserSession(session, "articles");
-  
-  if ('error' in validateUserSessionResult) {
-    res.status(validateUserSessionResult.status).json({articles: []});
-    return;
+
+  // if ('error' in validateUserSessionResult) {
+  //   res.status(validateUserSessionResult.status).json({articles: []});
+  //   return;
+  // }
+
+  let querysites: string[] = [];
+  if("sites" in validateUserSessionResult) {
+    querysites  = validateUserSessionResult.sites;
   }
 
-  const { sites } = validateUserSessionResult;
   const activeContactId = session?.user?.activeContactId;
 
   switch (req.method) {
@@ -47,7 +51,7 @@ export default async function handle(
           return [activeContactId];
         }
         // Otherwise, we want to get articles for all sites
-        return sites;
+        return querysites;
       }
 
       // Define where clause
