@@ -71,14 +71,6 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
         gemeente.CompanyName?.toLowerCase().includes((filters?.nameFilter || "").toLowerCase())
       )
       .filter((gemeente) => {
-        // const numNietSysteemStallingen = 
-        //   (gemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.
-        //   filter((stalling) => stalling.Title !== 'Systeemstalling').length) || 0;
-        // const hasUsers = users.some((user) => 
-        //   user.sites.some((site) => site.SiteID === gemeente.ID)
-        // );
-        // const hasExploitanten = gemeente.isManagedByContacts?.length || 0 > 0;
-
         return (
           (!showStallingenFilter || 
             (!gemeente.hasStallingen && filters?.showGemeentenWithoutStallingen !== "no" || 
