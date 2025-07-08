@@ -2,6 +2,7 @@ import { createSlice } from "@reduxjs/toolkit";
 import { AppState } from "./store";
 import { HYDRATE } from "next-redux-wrapper";
 import { type VSContactGemeente } from "~/types/contacts";
+
 // Type for our state
 export interface MapState {
   extent: number[];
@@ -12,6 +13,7 @@ export interface MapState {
   initialLatLng: string[] | undefined;
   currentLatLng: string[] | undefined;
   visibleFeatures: string[];
+  visibleFeaturesHash: string;
 }
 
 // Initial state
@@ -19,6 +21,7 @@ const initialState: MapState = {
   extent: [],
   zoom: undefined,
   visibleFeatures: [],
+  visibleFeaturesHash: "",
   selectedParkingId: undefined,
   activeParkingId: undefined,
   activeMunicipalityInfo: undefined,
@@ -46,6 +49,7 @@ export const mapSlice = createSlice({
     // Action to set visible features
     setMapVisibleFeatures(state, action) {
       state.visibleFeatures = action.payload;
+      state.visibleFeaturesHash = action.payload.join(",");
     },
     // Set selectedParkingId
     setSelectedParkingId(state, action) {
