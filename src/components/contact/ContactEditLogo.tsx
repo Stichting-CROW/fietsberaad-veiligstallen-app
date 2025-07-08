@@ -1,17 +1,18 @@
 import Image from "next/image";
 import { type ChangeEvent, type MouseEvent, useState } from "react";
-import type {contacts } from '@prisma/client';
 import { Button } from "~/components/Button";
 import ImageSlider from "~/components/ImageSlider";
 
 type ContactEditLogoProps = {
-  contactdata: Pick<contacts, "ID" | "CompanyLogo" | "CompanyLogo2">,
+  ID: string,
+  CompanyLogo: string | null,
+  CompanyLogo2: string | null,
   isLogo2?: boolean,
   onUpdateAfbeelding?: Function
 }
 
 // based on https://codersteps.com/articles/how-to-build-a-file-uploader-with-next-js-and-formidable
-const ContactEditLogo = ({ contactdata, isLogo2, onUpdateAfbeelding }: ContactEditLogoProps) => {
+const ContactEditLogo = ({ ID, CompanyLogo, CompanyLogo2, isLogo2, onUpdateAfbeelding }: ContactEditLogoProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -22,7 +23,7 @@ const ContactEditLogo = ({ contactdata, isLogo2, onUpdateAfbeelding }: ContactEd
     const update = { [logoField]: null }
     try {
       const result = await fetch(
-        "/api/protected/gemeenten/removeLogo/" + contactdata.ID,
+        "/api/protected/gemeenten/removeLogo/" + ID,
         {
           method: "PUT",
           body: JSON.stringify(update),
@@ -78,7 +79,7 @@ const ContactEditLogo = ({ contactdata, isLogo2, onUpdateAfbeelding }: ContactEd
   const onUploadFile = async (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
-    if (!contactdata || !contactdata.ID || !file) {
+    if (!file) {
       console.warn("Missing parking data or file");
       return;
     }
@@ -111,7 +112,7 @@ const ContactEditLogo = ({ contactdata, isLogo2, onUpdateAfbeelding }: ContactEd
       const update = { [logoField]: data.url[0] }
       try {
         const result = await fetch(
-          "/api/protected/gemeenten/" + contactdata.ID,
+          "/api/protected/gemeenten/" + ID,
           {
             method: "PUT",
             body: JSON.stringify(update),
@@ -139,13 +140,17 @@ const ContactEditLogo = ({ contactdata, isLogo2, onUpdateAfbeelding }: ContactEd
 
   // https://static.veiligstallen.nl/library/logo2/logo-gemeente-utrecht-nederlands-klein-300.png
 
-  const logoValue = contactdata[logoField];
-  if (logoValue!==null) {
+  const logoValueSet = 
+    (isLogo2 && CompanyLogo2!==null) || 
+    (!isLogo2 && CompanyLogo!==null);
+    
+  if (logoValueSet) {
     // render current image
+    const logoValue = (isLogo2 ? CompanyLogo2 : CompanyLogo)||"";
     return (
       <div className="w-full flex flex-col justify-center p-3 border border-gray-500 border-dashed">
         <div className="mx-auto">
-          <ImageSlider images={[logoValue] as string[]} baseUrl={baseUrl} />
+          <ImageSlider images={[logoValue]} baseUrl={baseUrl} />
         </div>
         <Button
           className="mt-4 w-max-content mx-auto"

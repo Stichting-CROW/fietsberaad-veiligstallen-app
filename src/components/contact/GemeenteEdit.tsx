@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import { Tabs, Tab } from '@mui/material';
-// import ContactFietsenstallingen from './ContactFietsenstallingen';
-import type { fietsenstallingtypen } from '@prisma/client';
+import type { VSFietsenstallingType } from "~/types/parking";
 import FormInput from "~/components/Form/FormInput";
 import FormTimeInput from "~/components/Form/FormTimeInput";
 import ContactEditLogo from "~/components/contact/ContactEditLogo";
@@ -23,7 +22,7 @@ import { type GemeenteResponse } from '~/pages/api/protected/gemeenten/[id]';
 
 type GemeenteEditProps = {
     id: string;
-    fietsenstallingtypen: fietsenstallingtypen[]; 
+    fietsenstallingtypen: VSFietsenstallingType[]; 
     onClose?: (confirmClose: boolean) => void;
     onEditStalling: (stallingID: string | undefined) => void;
     onEditUser: (userID: string | undefined) => void;
@@ -485,9 +484,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               <div className="border px-4 py-2 space-y-4">
                 <SectionBlockEdit heading="Logo">
                 { isNew ? (
-                    <ContactEditLogo contactdata={DEFAULTGEMEENTE} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
+                    <ContactEditLogo ID={DEFAULTGEMEENTE.ID} CompanyLogo={DEFAULTGEMEENTE.CompanyLogo} CompanyLogo2={DEFAULTGEMEENTE.CompanyLogo2} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : activecontact ? (
-                    <ContactEditLogo contactdata={activecontact} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
+                    <ContactEditLogo ID={activecontact.ID} CompanyLogo={activecontact.CompanyLogo} CompanyLogo2={activecontact.CompanyLogo2} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : (
                     <div>
                         <p>Geen contact geselecteerd</p>
@@ -497,9 +496,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
                 <SectionBlockEdit heading="Logo 2 (optioneel)">
                 { isNew ? (
-                    <ContactEditLogo contactdata={DEFAULTGEMEENTE} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
+                    <ContactEditLogo ID={DEFAULTGEMEENTE.ID} CompanyLogo={DEFAULTGEMEENTE.CompanyLogo} CompanyLogo2={DEFAULTGEMEENTE.CompanyLogo2} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : activecontact ? (
-                    <ContactEditLogo contactdata={activecontact} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
+                    <ContactEditLogo ID={activecontact.ID} CompanyLogo={activecontact.CompanyLogo} CompanyLogo2={activecontact.CompanyLogo2} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : (
                     <div>
                         <p>Geen contact geselecteerd</p>
