@@ -4,10 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { setSelectedParkingId, setInitialLatLng } from "~/store/mapSlice";
 import { setQuery } from "~/store/filterSlice";
 import { setMunicipalities } from "~/store/geoSlice";
-import { useSession } from "next-auth/react";
 
 import { convertCoordinatenToCoords } from "~/utils/map/index";
-import type { fietsenstallingen } from "~/generated/prisma-client";
 
 import {
   getMunicipalities
@@ -18,8 +16,7 @@ import ParkingFacilityBrowserStyles from './ParkingFacilityBrowser.module.css';
 import SearchBar from "~/components/SearchBar";
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 import type { AppState } from "~/store/store";
-
-
+import { ParkingDetailsType } from "~/types/parking";
 
 const MunicipalityBlock = ({
   title,
@@ -49,20 +46,19 @@ const MunicipalityBlock = ({
 }
 
 function ParkingFacilityBrowser({
-  fietsenstallingen,
+  allparkingdata,
   onShowStallingDetails,
   showSearchBar,
   customFilter,
 }: {
-  fietsenstallingen: fietsenstallingen[];
+  allparkingdata: ParkingDetailsType[];
   onShowStallingDetails?: (id: string | undefined) => void;
   showSearchBar?: boolean;
-  customFilter?: Function;
+  customFilter?: (parkingdata: ParkingDetailsType) => boolean;
 }) {
   const dispatch = useDispatch();
-  const session = useSession();
 
-  const [visibleParkings, setVisibleParkings] = useState(fietsenstallingen);
+  const [visibleParkings, setVisibleParkings] = useState<ParkingDetailsType[]>(allparkingdata || []);
   const [visibleMunicipalities, setVisibleMunicipalities] = useState([]);
 
   const mapZoom = useSelector((state: AppState) => state.map.zoom);
@@ -73,6 +69,10 @@ function ParkingFacilityBrowser({
 
   const mapVisibleFeatures = useSelector(
     (state: AppState) => state.map.visibleFeatures
+  );
+
+  const mapVisibleFeaturesHash = useSelector(
+    (state: AppState) => state.map.visibleFeaturesHash
   );
 
   const selectedParkingId = useSelector(
@@ -98,12 +98,12 @@ function ParkingFacilityBrowser({
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {
     // Don't show results if no parkings were found
-    if (!fietsenstallingen) return;
+    if (!allparkingdata) return;    
     // Don't show results if no search query was given
     if (!filterQuery && !mapVisibleFeatures) return;
 
     // Create variable that represents all parkings
-    let allParkings = fietsenstallingen;
+    let allParkings = allparkingdata || [];
     // Show voorstellen only
     if (filterTypes2 && filterTypes2.includes('show_submissions')) {
       allParkings = allParkings.filter((x) => {
@@ -113,7 +113,6 @@ function ParkingFacilityBrowser({
     // Or show everything except voorstellen
     else {
       allParkings = allParkings.filter((x) => {
-        // console.log("filter-is", x.ID, x.ID.substring(0, 8), x.ID.substring(0, 7) !== 'VOORSTEL')
         return x.ID.substring(0, 8) !== 'VOORSTEL'
       });
     }
@@ -137,11 +136,6 @@ function ParkingFacilityBrowser({
     // - If no active municipality: Search through everything
     // - If active municipality: First show parkings of this municipality, then the rest
     else {
-      // Filter types (like 'bewaakte stalling', 'fietskluis', etc)
-      if (filterTypes && filterTypes.length > 0) {
-        filtered = filtered.filter(x => filterTypes.indexOf(x.Type) > -1);
-      }
-
       // If searchQuery given and zoomed out: Only keep parkings with the searchQuery
       if (
         mapZoom < 12 &&
@@ -224,7 +218,6 @@ function ParkingFacilityBrowser({
           return p.SiteID === activeMunicipalityInfo.ID
             || p.Plaats === activeMunicipalityInfo.CompanyName;// Also show NS stallingen that have an other SiteID
         });
-        const parkingsInThisMunicipalityIds = mapVisibleFeatures.map((x: any) => x.id);
 
         // Put the visible parkings on top
         const visibleParkingIds = mapVisibleFeatures.map((x: any) => x.id);
@@ -243,15 +236,21 @@ function ParkingFacilityBrowser({
       }
     }
     // Set filtered parkings into a state variable
+
+    // Filter types (like 'bewaakte stalling', 'fietskluis', etc)
+    if (filterTypes && filterTypes.length > 0) {
+      filtered = filtered.filter(x => filterTypes.indexOf(x.Type) > -1);
+    }
+
     setVisibleParkings(filtered);
   }, [
-    fietsenstallingen,
+    allparkingdata,
     activeMunicipalityInfo,
-    mapVisibleFeatures,
-    mapVisibleFeatures.length,
     filterQuery,
     customFilter,
+    filterTypes,
     filterTypes2,
+    mapVisibleFeaturesHash,
   ]);
 
   useEffect(() => {
@@ -281,12 +280,13 @@ function ParkingFacilityBrowser({
 
   // Filter municipalities based on search query
   useEffect(() => {
-    const filteredMunicipalities = municipalities.filter((x: any) => {
+    const filteredMunicipalities = municipalities && municipalities.filter((x: any) => {
       if (!x.CompanyName) return false;
       if (filterQuery.length <= 1) return false;
       if (x.CompanyName === 'FIETSBERAAD') return false;
       return x.CompanyName.toLowerCase().indexOf(filterQuery.toLowerCase()) > -1;
-    });
+    }) || [];
+
     setVisibleMunicipalities(filteredMunicipalities.slice(0, 3));
   }, [
     municipalities,
@@ -345,7 +345,7 @@ function ParkingFacilityBrowser({
             />
           )
         })}
-        {visibleParkings.map((x: any) => {
+        {(visibleParkings || []).map((x) => {
           return (
             <div className="mb-0 ml-0 mr-0" key={x.ID}>
               <ParkingFacilityBlock
