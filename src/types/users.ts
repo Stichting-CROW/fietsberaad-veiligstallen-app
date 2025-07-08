@@ -4,10 +4,10 @@ import { initAllTopics } from "./utils";
 
 export enum VSUserRoleValuesNew {
     RootAdmin = "rootadmin",
-    None = 'none',
     Admin = 'admin',
     Editor = 'editor',
     Viewer = 'viewer',
+    None = 'none',
 }
 
 export type VSUserWithRolesNew = Pick<security_users, "UserID" | "UserName" | "DisplayName" | "Status" | "LastLogin" > & {
