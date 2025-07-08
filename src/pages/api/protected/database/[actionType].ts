@@ -13,7 +13,7 @@ const UserStatusParamsSchema = z.object({
 
 const UserContactRoleParamsSchema = z.object({
   databaseParams: z.object({
-    action: z.enum(['clear', 'rebuild', 'status', 'createtable', 'droptable', 'update']),
+    action: z.enum(['clear', 'rebuild', 'status', 'createtable', 'droptable', 'update', 'checktable']),
   }),
 });
 

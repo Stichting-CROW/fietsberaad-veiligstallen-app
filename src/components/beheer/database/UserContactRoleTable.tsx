@@ -120,6 +120,12 @@ const UserContactRoleTableComponent: React.FC = ({  }) => {
             >
               Verwijder Tabel
             </button>
+            <button
+              onClick={() => handleProcessTable('checktable')}
+              className={`p-2 rounded-md bg-blue-500 hover:bg-blue-700 text-white w-64`}
+            >
+              Controleer Tabel
+            </button>
           </>
         ) : (
           <button
