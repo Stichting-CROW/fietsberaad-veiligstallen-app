@@ -11,7 +11,6 @@ const LeftMenuGemeente = dynamic(() => import('~/components/beheer/LeftMenuGemee
 const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExploitant'), { ssr: false })// TODO Make SSR again
 
 import TopBar from "~/components/beheer/TopBar";
-// import { ReportBikepark } from "~/components/beheer/reports/ReportsFilter";
 
 // import AbonnementenComponent from '~/components/beheer/abonnementen';
 import AccountsComponent from '~/components/beheer/accounts';
@@ -38,8 +37,6 @@ import ExploreUsersComponentColdfusion from '~/ExploreUsersComponentColdfusion';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import ExploreArticlesComponent from '~/components/ExploreArticlesComponent';
 
-import { prisma } from '~/server/db';
-import type { fietsenstallingtypen } from '@prisma/client';
 import { VSMenuTopic } from "~/types/index";
 
 // import Styles from "~/pages/content.module.css";
@@ -49,8 +46,9 @@ import { useSession } from "next-auth/react";
 
 import GemeenteEdit from '~/components/contact/GemeenteEdit';
 import DatabaseApiTest from '~/components/beheer/test/DatabaseApiTest';
+import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
-import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
+import { useFietsenstallingenCompact } from '~/hooks/useFietsenstallingenCompact';
 import { useExploitanten } from '~/hooks/useExploitanten';
 import ExploitantEdit from '~/components/contact/ExploitantEdit';
 import { setActiveMunicipalityInfo } from '~/store/adminSlice';
@@ -95,35 +93,18 @@ export const getServerSideProps = async (context: GetServerSidePropsContext): Pr
     return { redirect: { destination: "/login?redirect=/beheer", permanent: false } };
   }
 
-  const currentUser = session?.user || false;
-
-  const fietsenstallingtypen = await prisma.fietsenstallingtypen.findMany({
-    select: {
-      id: true,
-      name: true,
-      sequence: true
-    }
-  });
-
-  if (currentUser) {
-    if (currentUser.image === undefined) {
-      currentUser.image = "/images/user.png";
-    }
-  } else {
-    console.warn("no current user");
-  }
-  return { props: { currentUser, fietsenstallingtypen } };
+  return { props: {} };
 };
 
 export type BeheerPageProps = {
-  currentUser?: User;
-  selectedContactID?: string;
-  fietsenstallingtypen?: fietsenstallingtypen[];
+  // currentUser?: User;
+  // selectedContactID?: string;
+  // fietsenstallingtypen: VSFietsenstallingType[];
 };
 
 const BeheerPage: React.FC<BeheerPageProps> = ({
-  currentUser,
-  fietsenstallingtypen
+  // currentUser,
+  //fietsenstallingtypen
 }) => {
   const dispatch = useDispatch();
 
@@ -131,11 +112,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const { data: session, update: updateSession } = useSession();
 
   const selectedContactID = session?.user?.activeContactId || "";
+  
+  console.log("BeheerPage - selectedContactID:", selectedContactID, "session:", session?.user);
 
   const { gemeenten, isLoading: gemeentenLoading, error: gemeentenError, reloadGemeenten } = useGemeentenInLijst();
   const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError, reloadExploitanten } = useExploitanten(selectedContactID);
-  const { fietsenstallingen: bikeparks, isLoading: bikeparksLoading, error: bikeparksError, reloadFietsenstallingen } = useFietsenstallingen(selectedContactID);
-  const [isSwitchingGemeente, setIsSwitchingGemeente] = useState(false);
+  const { fietsenstallingen: bikeparks, isLoading: bikeparksLoading, error: bikeparksError, reloadFietsenstallingen } = useFietsenstallingenCompact(selectedContactID);
+  const { fietsenstallingtypen, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError, reloadFietsenstallingtypen } = useFietsenstallingtypen();
 
   const showAbonnementenRapporten = true;
 
@@ -180,7 +163,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     try {
       if (!session) return;
 
-      setIsSwitchingGemeente(true);
       const response = await fetch('/api/security/switch-contact', {
         method: 'POST',
         headers: {
@@ -208,8 +190,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
     } catch (error) {
       console.error("Error switching contact:", error);
-    } finally {
-      setIsSwitchingGemeente(false);
     }
   };
 
@@ -293,7 +273,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <LogboekComponent />;
           break;
         case VSMenuTopic.UsersGebruikersbeheerFietsberaad:
-          selectedComponent = <UsersComponent siteID={null} contacts={contacts} />;
+          selectedComponent = <UsersComponent siteID={"1"} contacts={contacts} />;
           break;
         case VSMenuTopic.UsersGebruikersbeheerGemeente:
           selectedComponent = <UsersComponent siteID={selectedContactID} contacts={contacts} />;
@@ -405,21 +385,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       <div className="flex">
         {selectedContactID === "1" && (
           <LeftMenu
-            securityProfile={currentUser?.securityProfile}
+            securityProfile={session?.user?.securityProfile}
             activecomponent={activecomponent}
             onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
           />
         )}
         {gemeenten.find(gemeente => gemeente.ID === selectedContactID) && (
           <LeftMenuGemeente
-            securityProfile={currentUser?.securityProfile}
+            securityProfile={session?.user?.securityProfile}
             activecomponent={activecomponent}
             onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
           />)
         }
         {exploitanten.find(exploitant => exploitant.ID === selectedContactID) && (
           <LeftMenuExploitant
-            securityProfile={currentUser?.securityProfile}
+            securityProfile={session?.user?.securityProfile}
             activecomponent={activecomponent}
             onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
           />)
