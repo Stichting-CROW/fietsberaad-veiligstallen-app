@@ -9,7 +9,7 @@ import { VSUserSecurityProfile } from "~/types/securityprofile";
 import { VSContactDataprovider, VSContactExploitant, VSContactGemeente } from "~/types/contacts";
 import { VSUserWithRoles, VSUserRole, VSUserGroupValues, VSUserRoleValues } from "~/types/users-coldfusion";
 import { getNewRoleLabel, getOldRoleLabel } from "~/types/utils";
-import { useGemeenten } from "~/hooks/useGemeenten";
+import { useGemeentenInLijst } from "~/hooks/useGemeenten";
 import { useUsersColdfusion } from "~/hooks/useUsersColdfusion";
 import { useExploitanten } from "~/hooks/useExploitanten";
 import { useDataproviders } from "~/hooks/useDataproviders";
@@ -69,8 +69,8 @@ const ExploreUsersComponentColdfusion = (props: ExploreUsersComponentColdfusionP
 
     const { users, isLoading: isLoadingUsers, error: errorUsers, reloadUsers: reloadUsers } = useUsersColdfusion();
 
-    const { gemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten, reloadGemeenten: reloadGemeenten } = useGemeenten();
-    const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten, reloadExploitanten: reloadExploitanten } = useExploitanten();
+    const { gemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten, reloadGemeenten: reloadGemeenten } = useGemeentenInLijst();
+    const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten, reloadExploitanten: reloadExploitanten } = useExploitanten(undefined);
     const { dataproviders, isLoading: isLoadingDataproviders, error: errorDataproviders, reloadDataproviders: reloadDataproviders } = useDataproviders();
 
     const [filteredUsers, setFilteredUsers] = useState<VSUserWithRoles[]>(users);
