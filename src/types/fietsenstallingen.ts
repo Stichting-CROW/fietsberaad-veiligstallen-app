@@ -11,7 +11,6 @@ export type VSFietsenstallingLijst = {
   Status: string | null;
   Type: string | null;
   ExploitantID: string | null;
-  GemeenteID: string | null;
   SiteID: string | null;
   Postcode: string | null;
   Coordinaten: string | null;
