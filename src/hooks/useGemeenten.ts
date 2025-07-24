@@ -20,8 +20,6 @@ const useGemeentenBasis = <T extends VSContactGemeenteInLijst | VSContactGemeent
 
   const fetchGemeenten = async () => {
     try {
-      console.log("fetchGemeenten", gemeentenVersion);
-      
       setIsLoading(true);
       setError(null);
       const response = await fetch(`/api/protected/gemeenten?compact=${compact}`);

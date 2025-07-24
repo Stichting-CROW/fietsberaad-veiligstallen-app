@@ -113,8 +113,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
   const selectedContactID = session?.user?.activeContactId || "";
   
-  console.log("BeheerPage - selectedContactID:", selectedContactID, "session:", session?.user);
-
   const { gemeenten, isLoading: gemeentenLoading, error: gemeentenError, reloadGemeenten } = useGemeentenInLijst();
   const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError, reloadExploitanten } = useExploitanten(selectedContactID);
   const { fietsenstallingen: bikeparks, isLoading: bikeparksLoading, error: bikeparksError, reloadFietsenstallingen } = useFietsenstallingenCompact(selectedContactID);
