@@ -89,7 +89,6 @@ export const getDefaultNewFietsenstalling = (name: string): ParkingDetailsType =
 export const fietsenstallingLijstSelect = {
   ID: true,
   StallingsID: true,
-  GemeenteID: true,
   Title: true,
   Location: true,
   Plaats: true,
