@@ -100,6 +100,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           showStallingenFilter={true}
           showUsersFilter={true}
           showExploitantenFilter={true}
+          showModulesFilter={true}
         />
 
         <Table 

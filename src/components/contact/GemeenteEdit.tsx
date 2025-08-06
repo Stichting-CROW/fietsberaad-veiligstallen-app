@@ -16,9 +16,12 @@ import type { GemeenteValidateResponse } from '~/pages/api/protected/gemeenten/v
 import FormSelect from '../Form/FormSelect';
 import { useGemeente } from '~/hooks/useGemeente';
 import { useUsers } from '~/hooks/useUsers';
+import { useModulesContacts } from '~/hooks/useModulesContacts';
 import { getDefaultNewGemeente } from '~/types/database';
 import { makeClientApiCall } from '~/utils/client/api-tools';
 import { type GemeenteResponse } from '~/pages/api/protected/gemeenten/[id]';
+import { FormGroup, FormLabel, FormControlLabel, Checkbox } from '@mui/material';
+import { AVAILABLE_MODULES } from '~/types/modules';
 
 type GemeenteEditProps = {
     id: string;
@@ -37,6 +40,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [isEditing, setIsEditing] = useState(!!props.onClose);
 
     const { gemeente: activecontact, isLoading: isLoading, error: error, reloadGemeente: reloadGemeente } = useGemeente(props.id);
+    const { modulesContacts, loading: modulesLoading, error: modulesError, createModulesContacts, deleteModulesContactsForContact } = useModulesContacts(props.id === "new" ? undefined : props.id);
     const { users: contactpersons } = useUsers(props.id);
 
     type CurrentState = {
@@ -53,6 +57,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Tnv: string|null,
       Notes: string|null,
       DateRegistration: Date|null,
+      Modules: string,
+      selectedModules: string[]
     }
   
     const isNew = props.id === "new";
@@ -64,6 +70,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [ZipID, setZipID] = useState<string|null>(null);
     const [Helpdesk, setHelpdesk] = useState<string|null>(null);
     const [DayBeginsAt, setDayBeginsAt] = useState<Date|null>(null);
+    const [selectedModules, setSelectedModules] = useState<string[]>([]);
     const [Coordinaten, setCoordinaten] = useState<string|null>(null);
     const [Zoom, setZoom] = useState<number>(13);
     const [Bankrekeningnr, setBankrekeningnr] = useState<string|null>(null);
@@ -90,7 +97,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Tnv: null,
       Notes: null,
       DateRegistration: null,
+      Modules: "",
+      selectedModules: [],
     });
+
+    useEffect(() => {
+      if (modulesContacts) {
+        const moduleIds = modulesContacts.map(mc => mc.ModuleID);
+        setSelectedModules(moduleIds);
+      }
+    }, [modulesContacts]);
 
     // useEffect(() => {
     //   const fetchUsers = async () => {
@@ -120,6 +136,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 Tnv: DEFAULTGEMEENTE.Tnv,
                 Notes: DEFAULTGEMEENTE.Notes,
                 DateRegistration: DEFAULTGEMEENTE.DateRegistration,
+                Modules: "",
+                selectedModules: [],
             };
 
             setCompanyName(initial.CompanyName);
@@ -135,10 +153,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             setTnv(initial.Tnv);
             setNotes(initial.Notes);
             setDateRegistration(initial.DateRegistration);
+            setSelectedModules([]);
 
             setInitialData(initial);
         } else {
             if (activecontact) {
+                // Get current modules for this contact
+                const currentModules = modulesContacts
+                    .filter(mc => mc.SiteID === props.id)
+                    .map(mc => mc.ModuleID);
+
                 const initial = {
                     CompanyName: activecontact.CompanyName || initialData.CompanyName,
                     AlternativeCompanyName: activecontact.AlternativeCompanyName || initialData.AlternativeCompanyName,
@@ -153,6 +177,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     Tnv: activecontact.Tnv || initialData.Tnv,
                     Notes: activecontact.Notes || initialData.Notes,
                     DateRegistration: activecontact.DateRegistration || initialData.DateRegistration,
+                    Modules: "",
+                    selectedModules: currentModules,
                 };
         
                 setCompanyName(initial.CompanyName);
@@ -172,11 +198,11 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setInitialData(initial);
             }
         }
-    }, [props.id, activecontact, isNew]);
+    }, [props.id, activecontact, isNew, modulesContacts]);
 
     const isDataChanged = () => {
       if (isNew) {
-        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!Coordinaten || !!Zoom;
+        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!Coordinaten || !!Zoom || selectedModules.length > 0;
       }
 
       return (
@@ -192,8 +218,40 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           PlaatsBank !== initialData.PlaatsBank ||
           Tnv !== initialData.Tnv ||
           Notes !== initialData.Notes ||
-          DateRegistration !== initialData.DateRegistration
+          DateRegistration !== initialData.DateRegistration ||
+          selectedModules.length !== initialData.selectedModules.length ||
+          selectedModules.some(module => !initialData.selectedModules.includes(module)) ||
+          initialData.selectedModules.some(module => !selectedModules.includes(module))
       );
+    };
+
+    const handleModuleChange = (moduleId: string, checked: boolean) => {
+      if (checked) {
+        setSelectedModules(prev => [...prev, moduleId]);
+      } else {
+        setSelectedModules(prev => prev.filter(id => id !== moduleId));
+      }
+    };
+
+    const saveModules = async () => {
+      if (!props.id || props.id === "new") return;
+
+      try {
+        // First delete all existing modules for this contact
+        await deleteModulesContactsForContact(props.id);
+
+        // Then create the new selected modules
+        if (selectedModules.length > 0) {
+          const modulesData = selectedModules.map(moduleId => ({
+            ModuleID: moduleId,
+            SiteID: props.id
+          }));
+          await createModulesContacts(modulesData);
+        }
+      } catch (error) {
+        console.error('Error saving modules:', error);
+        setErrorMessage('Fout bij het opslaan van modules: ' + (error instanceof Error ? error.message : String(error)));
+      }
     };
     
       const handleUpdate = async () => {
@@ -244,6 +302,10 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           }
     
           if (!response.result?.error) {
+            if (!isNew && props.id) {
+              await saveModules();
+            }
+            
             if (props.onClose) {
               props.onClose(false);
             }
@@ -271,6 +333,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setTnv(null);
           setNotes(null);
           setDateRegistration(null);
+          setSelectedModules([]);
         } else {
           setCompanyName(initialData.CompanyName);
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
@@ -285,6 +348,10 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setTnv(initialData.Tnv);
           setNotes(initialData.Notes);
           setDateRegistration(initialData.DateRegistration);
+          if (modulesContacts) {
+            const moduleIds = modulesContacts.map(mc => mc.ModuleID);
+            setSelectedModules(moduleIds);
+          }
         }
       };
     
@@ -473,6 +540,23 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     onChange={(newDate: Date|null) => setDayBeginsAt(newDate)} 
                     disabled={!isEditing}
                   />
+                  <br />
+                  <FormGroup>
+                    <FormLabel>Modules</FormLabel>
+                    {AVAILABLE_MODULES.map((module) => (
+                      <FormControlLabel
+                        key={module.ID}
+                        control={
+                          <Checkbox 
+                            checked={selectedModules.includes(module.ID)}
+                            onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
+                            disabled={!isEditing}
+                          />
+                        }
+                        label={module.Name}
+                      />
+                    ))}
+                  </FormGroup>
               </div>
             )}
             {selectedTab === "tab-coordinaten" && (

@@ -259,8 +259,10 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.ExploreUsers:
           selectedComponent = <ExploreUsersComponent />;
-          // selectedComponent = <ExploreUsersComponentColdfusion />;
           break;
+        // case VSMenuTopic.ExploreUsersColdfusion:
+        //   selectedComponent = <ExploreUsersComponentColdfusion />;
+        //   break;
         case VSMenuTopic.ExploreGemeenten:
           selectedComponent = <ExploreGemeenteComponent />;
           break;
