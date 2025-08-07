@@ -1,0 +1,2076 @@
+// // First version of the prisma schema used for veiligstallen-front end before FMS developments
+// // Manually derived from the full prisma schema
+// // Has been replaced by the current prisma.schema
+
+// generator client {
+//     provider      = "prisma-client-js"
+//     binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+// }
+
+// datasource db {
+//     provider = "mysql"
+//     url      = env("DATABASE_URL")
+// }
+
+// // model abonnementen {
+// //     ID                                           Int                @id @default(autoincrement())
+// //     barcode                                      String?            @db.VarChar(12)
+// //     externalID                                   String?            @db.VarChar(36)
+// //     ingangsdatum                                 DateTime?          @db.DateTime(0)
+// //     afloopdatum                                  DateTime?          @db.DateTime(0)
+// //     prijsInclBtw                                 Decimal?           @db.Decimal(8, 2)
+// //     isActief                                     Boolean?           @db.Bit(1)
+// //     isBetaald                                    Boolean            @default(false)
+// //     koppelingsdatum                              DateTime?          @db.DateTime(0)
+// //     subscriptiontypeID                           Int?
+// //     AccountID                                    String?            @db.VarChar(35)
+// //     bikepassID                                   String?            @db.VarChar(35)
+// //     siteID                                       String?            @db.VarChar(35)
+// //     exploitantID                                 String?            @db.VarChar(35)
+// //     bikeparkID                                   String?            @db.VarChar(8)
+// //     sectionID                                    String?            @db.VarChar(13)
+// //     afgesloten                                   Boolean?           @db.Bit(1)
+// //     emailNadertEinde                             Boolean?           @db.Bit(1)
+// //     type                                         String?            @db.VarChar(20)
+// //     dateCreated                                  DateTime?          @db.Timestamp(0)
+// //     dateLastModified                             DateTime           @default(now()) @db.Timestamp(0)
+// //     plekID                                       Int?
+// //     accounts                                     accounts?          @relation(fields: [AccountID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE5E02304A")
+// //     contacts_abonnementen_exploitantIDTocontacts contacts?          @relation("abonnementen_exploitantIDTocontacts", fields: [exploitantID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE66279D18")
+// //     contacts_abonnementen_siteIDTocontacts       contacts?          @relation("abonnementen_siteIDTocontacts", fields: [siteID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE668AE523")
+// //     abonnementsvormen                            abonnementsvormen? @relation(fields: [subscriptiontypeID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE80695B29")
+// //     accounts_pasids                              accounts_pasids?   @relation(fields: [bikepassID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE99952FBF")
+
+// //     @@index([bikepassID], map: "bikepassID")
+// //     @@index([AccountID], map: "AccountID")
+// //     @@index([AccountID], map: "FKCC75C0BE5E02304A")
+// //     @@index([exploitantID], map: "FKCC75C0BE66279D18")
+// //     @@index([siteID], map: "FKCC75C0BE668AE523")
+// //     @@index([subscriptiontypeID], map: "FKCC75C0BE80695B29")
+// //     @@index([bikepassID], map: "FKCC75C0BE99952FBF")
+// //     @@index([afloopdatum], map: "afloopdatum")
+// //     @@index([dateCreated], map: "dateCreated")
+// //     @@index([ingangsdatum], map: "ingangsdatum")
+// //     @@index([isActief], map: "isActief")
+// //     @@index([plekID], map: "plekID")
+// //     @@index([subscriptiontypeID], map: "subscriptiontypeID")
+// // }
+
+// model abonnementsvorm_fietsenstalling {
+//     SubscriptiontypeID Int
+//     BikeparkID         String @db.VarChar(35)
+
+//     abonnementsvormen abonnementsvormen? @relation(fields: [SubscriptiontypeID], references: [ID])
+//     fietsenstallingen fietsenstallingen? @relation(fields: [BikeparkID], references: [ID])
+
+//     @@unique([SubscriptiontypeID, BikeparkID], map: "SubscriptiontypeID")
+// }
+
+// model abonnementsvormen {
+//     ID                     Int      @id @default(autoincrement())
+//     naam                   String?  @db.VarChar(255)
+//     omschrijving           String?  @db.LongText
+//     prijs                  Decimal? @db.Decimal(8, 2)
+//     tijdsduur              Int?
+//     conditions             String?  @db.Text
+//     siteID                 String?  @db.VarChar(36)
+//     bikeparkTypeID         String?  @db.VarChar(15)
+//     isActief               Boolean  @default(dbgenerated("b'1'")) @db.Bit(1)
+//     exploitantSiteID       String?  @db.VarChar(36)
+//     idmiddelen             String   @default("sleutelhanger") @db.VarChar(40)
+//     contractID             String?  @db.VarChar(35)
+//     paymentAuthorizationID String?  @db.VarChar(35)
+//     conditionsID           String?  @db.VarChar(255)
+
+//     // abonnementen                    abonnementen[]
+//     abonnementsvorm_fietsenstalling abonnementsvorm_fietsenstalling[]
+//     abonnementsvorm_fietstype       abonnementsvorm_fietstype[]
+// }
+
+// model abonnementsvorm_fietstype {
+//     SubscriptiontypeID Int
+//     BikeTypeID         Int
+
+//     abonnementsvorm abonnementsvormen @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, onUpdate: Restrict, map: "FK_avft_av")
+//     fietstype       fietstypen        @relation(fields: [SubscriptiontypeID], references: [ID], onDelete: NoAction, onUpdate: Restrict, map: "FK_avft_ft")
+
+//     @@unique([SubscriptiontypeID, BikeTypeID], map: "prismaID")
+// }
+
+// // model account_transacties {
+// //     account_transactieId     String    @id @db.VarChar(35)
+// //     bedrag                   Float?
+// //     MollieTransactionID      String?   @db.VarChar(20)
+// //     betaald_bedrag           Float?
+// //     productId                Int?
+// //     bankrekening             String?   @db.VarChar(255)
+// //     tnv                      String?   @db.VarChar(255)
+// //     boekdatum                DateTime? @db.DateTime(0)
+// //     datum_credits_toegevoegd DateTime? @db.DateTime(0)
+// //     betaalmethode            String?   @db.VarChar(255)
+// //     status                   String?   @db.VarChar(255)
+// //     omschrijving             String?   @db.VarChar(255)
+// //     code                     String?   @db.VarChar(100)
+// //     source                   String?   @db.VarChar(25)
+// //     accountId                String?   @db.VarChar(255)
+// // }
+
+// /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// model accounts {
+//     ID                  String                 @id @default("") @db.VarChar(35)
+//     Email               String?                @unique(map: "Email_2") @db.VarChar(100)
+//     EncryptedPassword   String?                @db.VarChar(60)
+//     Sex                 String?                @db.VarChar(10)
+//     FirstName           String?                @db.VarChar(100)
+//     MiddleName          String?                @db.VarChar(50)
+//     LastName            String?                @db.VarChar(100)
+//     Address             String?                @db.VarChar(255)
+//     Address_Nr          String?                @db.VarChar(10)
+//     Zip                 String?                @db.VarChar(10)
+//     City                String?                @db.VarChar(100)
+//     Phone               String?                @db.VarChar(50)
+//     Mobile              String?                @db.VarChar(50)
+//     Nieuwsbrief         String?                @db.VarChar(4)
+//     Status              String?                @default("1") @db.VarChar(4)
+//     DateRegistration    DateTime?              @db.DateTime(0)
+//     LastLogin           DateTime?              @db.DateTime(0)
+//     DateDeleted         DateTime?              @db.DateTime(0)
+//     // WinkansInzetMehode  accounts_WinkansInzetMehode? @default(AUTO)
+//     saldo               Decimal?               @default(0.00) @db.Decimal(10, 2)
+//     account_type        accounts_account_type? @default(USER)
+//     dateLastSaldoUpdate DateTime?              @db.Timestamp(0)
+//     dateLastPrize       DateTime?              @db.DateTime(0)
+//     nameLastPrize       String?                @db.VarChar(255)
+//     // abonnementen        abonnementen[]
+
+//     @@index([dateLastSaldoUpdate], map: "dateLastSaldoUpdate")
+//     @@index([saldo], map: "saldo")
+//     @@index([Email], map: "Email")
+//     @@index([EncryptedPassword], map: "EncryptedPassword")
+//     @@index([LastName], map: "LastName")
+//     @@index([account_type], map: "account_type")
+// }
+
+// /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model accounts_pasids {
+// //     ID                         String         @id @db.VarChar(35)
+// //     AccountID                  String?        @db.VarChar(35)
+// //     SiteID                     String?        @db.VarChar(36)
+// //     PasID                      String         @default("") @db.VarChar(36)
+// //     Pastype                    String         @default("sleutelhanger") @db.VarChar(20)
+// //     BikeTypeID                 Int?           @default(1)
+// //     Naam                       String?        @db.VarChar(255)
+// //     RFID                       String?        @db.VarChar(36)
+// //     RFIDBike                   String?        @db.VarChar(36)
+// //     barcodeFiets               String?        @db.VarChar(36)
+// //     dateLastIdUpdate           DateTime?      @db.DateTime(0)
+// //     dateCreated                DateTime?      @db.DateTime(0)
+// //     huidigeFietsenstallingId   String?        @db.VarChar(10)
+// //     huidigeSectieId            String?        @db.VarChar(15)
+// //     huidigeStallingskosten     Decimal        @default(0.00) @db.Decimal(8, 2)
+// //     dateLastCheck              DateTime?      @db.DateTime(0)
+// //     dateModified               DateTime       @default(now()) @db.Timestamp(0)
+// //     dateLastSaldoUpdate        DateTime?      @db.Timestamp(0)
+// //     dateLastSubscriptionUpdate DateTime?      @db.Timestamp(0)
+// //     typeLastCheckin            String?        @db.VarChar(60)
+// //     transactionID              Int?
+// //     // abonnementen               abonnementen[]
+
+// //     @@unique([SiteID, PasID, Pastype], map: "SiteID")
+// //     @@index([Naam], map: "Naam")
+// //     @@index([Pastype], map: "Pastype")
+// //     @@index([barcodeFiets], map: "barcodeFiets")
+// //     @@index([huidigeFietsenstallingId, huidigeSectieId], map: "currently_parked")
+// //     @@index([huidigeFietsenstallingId], map: "huidigeFietsenstallingId")
+// //     @@index([huidigeSectieId], map: "huidigeSectieId")
+// //     @@index([AccountID, PasID], map: "AccountID+pasID")
+// //     @@index([AccountID], map: "accountID")
+// //     @@index([dateModified], map: "dateModified")
+// //     @@index([SiteID], map: "idx_SiteID")
+// //     @@index([PasID], map: "pasID")
+// //     @@index([RFID], map: "rfid")
+// // }
+
+// model articles {
+//     ID                 String    @id @default("") @db.VarChar(35)
+//     SiteID             String?   @db.VarChar(35)
+//     Language           String?   @db.VarChar(25)
+//     ParentID           String?   @db.VarChar(35)
+//     Title              String?   @db.VarChar(100)
+//     DisplayTitle       String?   @db.VarChar(100)
+//     Abstract           String?   @db.Text
+//     Article            String?   @db.Text
+//     CustomField1_Title String?   @db.VarChar(255)
+//     CustomField1       String?   @db.Text
+//     Banner             String?   @db.VarChar(255)
+//     Keywords           String?   @db.Text
+//     SortOrder          Int?
+//     PublishStartDate   DateTime? @db.DateTime(0)
+//     PublishEndDate     DateTime? @db.DateTime(0)
+//     Status             String?   @default("1") @db.VarChar(4)
+//     Navigation         String?   @db.VarChar(50)
+//     ShowInNav          String?   @db.VarChar(4)
+//     System             String?   @default("0") @db.VarChar(4)
+//     EditorCreated      String?   @db.VarChar(255)
+//     DateCreated        DateTime? @db.DateTime(0)
+//     EditorModified     String?   @db.VarChar(255)
+//     DateModified       DateTime? @db.DateTime(0)
+//     ModuleID           String    @default("veiligstallen") @db.VarChar(50)
+// }
+
+// // model articles_templates {
+// //     ID                 String    @id @default("") @db.VarChar(35)
+// //     ParentID           String?   @db.VarChar(255)
+// //     Title              String?   @db.VarChar(255)
+// //     DisplayTitle       String?   @db.VarChar(255)
+// //     Abstract           String?   @db.Text
+// //     Article            String?   @db.Text
+// //     CustomField1_Title String?   @db.VarChar(255)
+// //     CustomField1       String?   @db.Text
+// //     Banner             String?   @db.VarChar(255)
+// //     Keywords           String?   @db.Text
+// //     SortOrder          Int?
+// //     PublishStartDate   DateTime? @db.DateTime(0)
+// //     PublishEndDate     DateTime? @db.DateTime(0)
+// //     Status             String?   @default("1") @db.VarChar(4)
+// //     Navigation         String?   @db.VarChar(50)
+// //     ShowInNav          String?   @db.VarChar(4)
+// //     System             String?   @default("0") @db.VarChar(4)
+// //     ModuleID           String?   @default("veiligstallen") @db.VarChar(50)
+// // }
+
+// // model barcoderegister {
+// //     ID         Int    @id @default(autoincrement())
+// //     Barcode    String @db.VarChar(36)
+// //     SiteID     String @db.VarChar(36)
+// //     BikeTypeID Int
+
+// //     @@unique([Barcode, SiteID], map: "Barcode")
+// //     @@index([SiteID], map: "SiteID")
+// // }
+
+// // model bezettingsdata {
+// //     ID                     Int       @id @default(autoincrement())
+// //     timestampStartInterval DateTime? @db.DateTime(0)
+// //     timestamp              DateTime? @db.DateTime(0)
+// //     interval               Int       @default(1)
+// //     source                 String?   @db.VarChar(25)
+// //     bikeparkID             String?   @db.VarChar(8)
+// //     sectionID              String?   @db.VarChar(13)
+// //     brutoCapacity          Int?
+// //     capacity               Int?
+// //     bulkreserveration      Int       @default(0)
+// //     occupation             Int?
+// //     checkins               Int?
+// //     checkouts              Int?
+// //     open                   Boolean?
+// //     fillup                 Boolean   @default(false)
+// //     rawData                String?   @db.VarChar(255)
+// //     dateModified           DateTime  @default(now()) @db.Timestamp(0)
+// //     dateCreated            DateTime? @db.Timestamp(0)
+
+// //     @@unique([timestampStartInterval, timestamp, source, bikeparkID, sectionID], map: "timestampStartInterval")
+// //     @@index([bikeparkID], map: "bikeparkID")
+// //     @@index([capacity], map: "capacity")
+// //     @@index([dateModified], map: "dateModified")
+// //     @@index([fillup], map: "idx_fillup")
+// //     @@index([interval], map: "interval")
+// //     @@index([occupation], map: "occupation")
+// //     @@index([sectionID], map: "sectionID")
+// //     @@index([source], map: "source")
+// //     @@index([timestamp], map: "timestamp")
+// //     @@index([source, bikeparkID], map: "bikeparkID_source")
+// //     @@index([dateCreated], map: "dateCreated")
+// //     @@index([open], map: "open")
+// // }
+
+// // model bezettingsdata_tmp {
+// //     ID                     Int       @id @default(autoincrement())
+// //     timestampStartInterval DateTime? @db.DateTime(0)
+// //     timestamp              DateTime? @db.DateTime(0)
+// //     interval               Int       @default(1)
+// //     source                 String?   @db.VarChar(25)
+// //     bikeparkID             String?   @db.VarChar(8)
+// //     sectionID              String?   @db.VarChar(13)
+// //     brutoCapacity          Int?
+// //     capacity               Int?
+// //     bulkreserveration      Int       @default(0)
+// //     occupation             Int?
+// //     checkins               Int?
+// //     checkouts              Int?
+// //     open                   Boolean?  @db.Bit(1)
+// //     rawData                String?   @db.Text
+// //     dateModified           DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@unique([timestamp, interval, source, bikeparkID, sectionID], map: "timestamp_2")
+// //     @@index([bikeparkID], map: "bikeparkID")
+// //     @@index([interval], map: "interval")
+// //     @@index([sectionID], map: "sectionID")
+// //     @@index([source], map: "source")
+// //     @@index([timestamp], map: "timestamp")
+// //     @@index([dateModified], map: "dateModified")
+// // }
+
+// // model bikeparklog {
+// //     ID                   Int       @id @default(autoincrement())
+// //     DateCreated          DateTime? @db.DateTime(0)
+// //     DateModified         DateTime  @default(now()) @db.Timestamp(0)
+// //     TransactionDateStart DateTime? @db.DateTime(0)
+// //     TransactionDateEnd   DateTime? @db.DateTime(0)
+// //     Duration             Int?
+// //     UserID               String?   @db.VarChar(36)
+// //     UserID2              String?   @db.VarChar(36)
+// //     Title                String?   @db.VarChar(100)
+// //     Message              String?   @db.LongText
+// //     BikeparkID           String?   @db.VarChar(35)
+// //     SectionID            Int?
+// //     PlaceID              Int?
+
+// //     @@index([BikeparkID], map: "BikeparkID")
+// //     @@index([PlaceID], map: "PlaceID")
+// //     @@index([SectionID], map: "SectionID")
+// //     @@index([Title], map: "Title")
+// //     @@index([TransactionDateStart], map: "TransactionDateStart")
+// // }
+
+// // model bulkreservering {
+// //     ID                 Int       @id @default(autoincrement())
+// //     Aantal             Int?
+// //     SectieID           Int?
+// //     Terugkerend        Boolean?  @db.Bit(1)
+// //     Startdatumtijd     DateTime? @db.DateTime(0)
+// //     Einddatumtijd      DateTime? @db.DateTime(0)
+// //     BikeparkExternalID String?   @db.VarChar(8)
+// //     SectionExternalID  String?   @db.VarChar(255)
+// //     BikeTypeID         Int       @default(1)
+
+// //     @@index([SectieID], map: "SectieID")
+// // }
+
+// // model bulkreserveringuitzondering {
+// //     ID                Int       @id @default(autoincrement())
+// //     datum             DateTime? @db.Date
+// //     BulkreservationID Int?
+
+// //     @@index([BulkreservationID], map: "FK9C9E806469D3B56F")
+// // }
+
+// // model contact_contact {
+// //     ID           Int     @id @default(autoincrement())
+// //     parentSiteID String  @db.VarChar(36)
+// //     childSiteID  String  @db.VarChar(36)
+// //     admin        Boolean @default(dbgenerated("b'0'")) @db.Bit(1)
+
+// //     @@unique([parentSiteID, childSiteID], map: "parentSiteID")
+// //     @@index([childSiteID], map: "childSiteID")
+// //     @@index([parentSiteID], map: "parentSiteID_2")
+// // }
+
+// // /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model contact_fietsenstalling {
+// //     BikeparkID String @db.VarChar(35)
+// //     SiteID     String @db.VarChar(35)
+
+// //     @@unique([BikeparkID, SiteID], map: "BikeparkID")
+// // }
+
+// // model contact_report_settings {
+// //     ID          Int       @id @default(autoincrement())
+// //     siteID      String?   @db.VarChar(35)
+// //     contactID   String?   @db.VarChar(35)
+// //     report      String?   @db.VarChar(255)
+// //     querystring String?   @db.LongText
+// //     dateCreated DateTime? @db.DateTime(0)
+
+// //     @@index([contactID], map: "contactID")
+// //     @@index([siteID], map: "siteID")
+// // }
+
+// /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// model contacts {
+//     ID                         String              @id @default("") @db.VarChar(35)
+//     ItemType                   String?             @db.VarChar(20)
+//     GroupID                    String?             @db.VarChar(20)
+//     ParentID                   String?             @db.VarChar(35)
+//     ZipID                      String?             @unique(map: "ZipID") @db.VarChar(4)
+//     Gemeentecode               Int?
+//     Paslezer                   String?             @db.VarChar(20)
+//     PassRange_validate         String?             @db.VarChar(4)
+//     PassRange_start            BigInt?
+//     PassRange_end              BigInt?
+//     LockNGo                    String?             @db.VarChar(4)
+//     Helpdesk                   String?             @default("") @db.VarChar(255)
+//     CompanyName                String?             @db.VarChar(100)
+//     AlternativeCompanyName     String?             @db.VarChar(100)
+//     UrlName                    String?             @unique(map: "UrlName") @db.VarChar(100)
+//     CompanyLogo                String?             @db.VarChar(255)
+//     CompanyLogo2               String?             @db.VarChar(255)
+//     Department                 String?             @db.VarChar(255)
+//     JobTitle                   String?             @db.VarChar(255)
+//     Sex                        String?             @db.VarChar(10)
+//     Title                      String?             @db.VarChar(100)
+//     Initials                   String?             @db.VarChar(100)
+//     FirstName                  String?             @db.VarChar(255)
+//     MiddleName                 String?             @db.VarChar(50)
+//     LastName                   String?             @db.VarChar(255)
+//     Address1                   String?             @db.VarChar(255)
+//     Address2                   String?             @db.VarChar(255)
+//     Zip1                       String?             @db.VarChar(10)
+//     Zip2                       String?             @db.VarChar(10)
+//     City1                      String?             @db.VarChar(255)
+//     City2                      String?             @db.VarChar(255)
+//     Country1                   String?             @db.VarChar(50)
+//     Country2                   String?             @db.VarChar(50)
+//     Phone1                     String?             @db.VarChar(50)
+//     Phone2                     String?             @db.VarChar(50)
+//     Mobile1                    String?             @db.VarChar(50)
+//     Mobile2                    String?             @db.VarChar(50)
+//     Fax1                       String?             @db.VarChar(50)
+//     Fax2                       String?             @db.VarChar(50)
+//     Email1                     String?             @db.VarChar(255)
+//     Email2                     String?             @db.VarChar(255)
+//     URL                        String?             @db.VarChar(255)
+//     Notes                      String?             @db.Text
+//     Status                     String?             @default("1") @db.VarChar(4)
+//     Status_website             String?             @db.VarChar(4)
+//     DateRegistration           DateTime?           @db.DateTime(0)
+//     DateConfirmed              DateTime?           @db.DateTime(0)
+//     DateRejected               DateTime?           @db.DateTime(0)
+//     Winkansen_inzetten         String?             @db.VarChar(4)
+//     SendEmailOnSaldo           Decimal?            @db.Decimal(8, 2)
+//     MinSaldoToUseLockers       Decimal?            @db.Decimal(8, 2)
+//     MinSaldoToOpenLocker       Decimal?            @db.Decimal(8, 2)
+//     Bankrekeningnr             String?             @db.VarChar(50)
+//     PlaatsBank                 String?             @db.VarChar(100)
+//     Tnv                        String?             @db.VarChar(100)
+//     Coordinaten                String?             @db.VarChar(100)
+//     Zoom                       Int                 @default(12)
+//     TextLeftColumn             String?             @db.Text
+//     TextRightColumn            String?             @db.Text
+//     DayBeginsAt                DateTime            @default(dbgenerated("'00:00:00'")) @db.Time(0)
+//     ThemeColor1                String              @default("1f99d2") @db.VarChar(6)
+//     ThemeColor2                String              @default("96c11f") @db.VarChar(6)
+//     btwNummer                  String?             @db.VarChar(50)
+//     kvkNummer                  String?             @db.VarChar(50)
+//     durationOfLockerTempStatus Int                 @default(20)
+//     Password                   String?             @db.VarChar(52)
+//     // abonnementen_abonnementen_exploitantIDTocontacts         abonnementen[]         @relation("abonnementen_exploitantIDTocontacts")
+//     // abonnementen_abonnementen_siteIDTocontacts               abonnementen[]         @relation("abonnementen_siteIDTocontacts")
+//     // fmsservice_permit_fmsservice_permit_OperatorIDTocontacts fmsservice_permit[]    @relation("fmsservice_permit_OperatorIDTocontacts")
+//     // fmsservice_permit_fmsservice_permit_SiteIDTocontacts     fmsservice_permit[]    @relation("fmsservice_permit_SiteIDTocontacts")
+//     // presentations                                            presentations[]
+//     // presentations_ticker                                     presentations_ticker[]
+//     fietsenstallingen          fietsenstallingen[]
+
+//     @@unique([ItemType, CompanyName], map: "ItemType")
+//     @@index([CompanyName], map: "CompanyName")
+//     @@index([ItemType], map: "ItemType_idx")
+// }
+
+// model contacts_faq {
+//     ID     Int     @id @default(autoincrement())
+//     SiteID String  @db.VarChar(36)
+//     FaqID  String  @db.VarChar(36)
+//     Status Boolean @default(dbgenerated("b'0'")) @db.Bit(1)
+
+//     @@unique([SiteID, FaqID], map: "SiteID")
+//     @@index([FaqID], map: "FK4D3BB92A5CC39A7")
+//     @@index([SiteID], map: "FK4D3BB92A668AE523")
+// }
+
+// // model contacts_fietsberaad {
+// //     ID           Int       @id @unique(map: "ID") @default(autoincrement())
+// //     UserID       String    @db.VarChar(36)
+// //     SiteID       String    @db.VarChar(36)
+// //     LastLogin    DateTime? @db.DateTime(0)
+// //     name         String?   @db.VarChar(255)
+// //     email        String?   @db.VarChar(255)
+// //     organization String?   @db.VarChar(255)
+
+// //     @@unique([UserID, SiteID], map: "UserID")
+// //     @@index([SiteID], map: "FKDB37B4AA668AE523")
+// // }
+
+// // model documenttemplates {
+// //     ID             String    @id @db.VarChar(255)
+// //     name           String?   @db.VarChar(100)
+// //     html           String?   @db.LongText
+// //     EditorModified String?   @db.VarChar(255)
+// //     dateCreated    DateTime? @db.DateTime(0)
+// //     siteID         String?   @db.VarChar(255)
+// //     dateModified   DateTime? @db.DateTime(0)
+
+// //     @@index([siteID], map: "siteID")
+// // }
+
+// // model ds_parking_locations {
+// //     id                         String                      @id @db.VarChar(36)
+// //     name                       String?                     @db.VarChar(255)
+// //     localid                    String?                     @db.VarChar(255)
+// //     validFrom                  DateTime?                   @db.DateTime(0)
+// //     validThrough               DateTime?                   @db.DateTime(0)
+// //     geoShape                   Unsupported("geometry")
+// //     parent                     String?                     @db.VarChar(36)
+// //     authority                  String?                     @db.VarChar(255)
+// //     createdBy                  String?                     @db.VarChar(255)
+// //     dateCreated                DateTime?                   @default(now()) @db.Timestamp(0)
+// //     status                     ds_parking_locations_status
+// //     json                       Json                        @map("_json")
+// //     ds_observations            ds_observations[]
+// //     ds_parking_locations       ds_parking_locations?       @relation("ds_parking_locationsTods_parking_locations", fields: [parent], references: [id], onDelete: Cascade, map: "FK_PARKING_LOCATIONS_PARENT")
+// //     other_ds_parking_locations ds_parking_locations[]      @relation("ds_parking_locationsTods_parking_locations")
+// //     ds_sections                ds_sections[]
+
+// //     @@index([parent], map: "FK_PARKING_LOCATIONS_PARENT")
+// //     @@index([authority], map: "authority")
+// //     @@index([geoShape(length: 32)], map: "geoShape")
+// //     @@index([localid], map: "localid")
+// //     @@index([name], map: "name")
+// //     @@index([status], map: "status")
+// //     @@index([validFrom, validThrough], map: "validFrom")
+// // }
+
+// // model ds_sections {
+// //     id                   String                  @id @db.VarChar(36)
+// //     name                 String?                 @db.VarChar(255)
+// //     localid              String?                 @db.VarChar(255)
+// //     parkingLocation      String                  @db.VarChar(36)
+// //     validFrom            DateTime?               @db.DateTime(0)
+// //     validThrough         DateTime?               @db.DateTime(0)
+// //     geoShape             Unsupported("geometry")
+// //     layout               String?                 @db.VarChar(1)
+// //     authority            String?                 @db.VarChar(255)
+// //     createdBy            String?                 @db.VarChar(255)
+// //     dateCreated          DateTime?               @default(now()) @db.Timestamp(0)
+// //     status               ds_sections_status
+// //     json                 Json                    @map("_json")
+// //     ds_observations      ds_observations[]
+// //     ds_parking_locations ds_parking_locations    @relation(fields: [parkingLocation], references: [id], onDelete: Cascade, map: "FK_SECTIONS_PARKING_LOCATION")
+
+// //     @@index([parkingLocation], map: "FK_SECTIONS_PARKING_LOCATION")
+// //     @@index([authority], map: "authority")
+// //     @@index([geoShape(length: 32)], map: "geoShape")
+// //     @@index([localid], map: "localid")
+// //     @@index([name], map: "name")
+// //     @@index([status], map: "status")
+// //     @@index([validFrom, validThrough], map: "validFrom")
+// // }
+
+// // model ds_survey_areas {
+// //     id                                                                String                   @id @db.VarChar(36)
+// //     name                                                              String?                  @db.VarChar(255)
+// //     localid                                                           String?                  @db.VarChar(255)
+// //     validFrom                                                         DateTime?                @db.DateTime(0)
+// //     validThrough                                                      DateTime?                @db.DateTime(0)
+// //     geoShape                                                          Unsupported("geometry")
+// //     parent                                                            String?                  @db.VarChar(36)
+// //     authority                                                         String?                  @db.VarChar(255)
+// //     surveyAreaType                                                    String?                  @db.VarChar(255)
+// //     xtraInfo                                                          String?                  @db.VarChar(255)
+// //     createdBy                                                         String?                  @db.VarChar(255)
+// //     dateCreated                                                       DateTime?                @default(now()) @db.Timestamp(0)
+// //     status                                                            ds_survey_areas_status
+// //     json                                                              Json                     @map("_json")
+// //     ds_observations_ds_observations_surveyAreaChildTods_survey_areas  ds_observations[]        @relation("ds_observations_surveyAreaChildTods_survey_areas")
+// //     ds_observations_ds_observations_surveyAreaParentTods_survey_areas ds_observations[]        @relation("ds_observations_surveyAreaParentTods_survey_areas")
+// //     ds_survey_areas                                                   ds_survey_areas?         @relation("ds_survey_areasTods_survey_areas", fields: [parent], references: [id], onDelete: Cascade, map: "FK_SURVEY_AREAS_PARENT")
+// //     other_ds_survey_areas                                             ds_survey_areas[]        @relation("ds_survey_areasTods_survey_areas")
+// //     ds_surveyareas_surveys                                            ds_surveyareas_surveys[] @ignore
+
+// //     @@unique([localid, validFrom, validThrough, authority], map: "localid")
+// //     @@index([parent], map: "FK_SURVEY_AREAS_PARENT")
+// //     @@index([authority], map: "authority")
+// //     @@index([geoShape(length: 32)], map: "geoShape")
+// //     @@index([localid], map: "localid_2")
+// //     @@index([name], map: "name")
+// //     @@index([status], map: "status")
+// //     @@index([surveyAreaType], map: "surveyAreaType")
+// //     @@index([validFrom, validThrough], map: "validFrom")
+// //     @@index([xtraInfo], map: "xtraInfo")
+// // }
+
+// // model emails {
+// //     id          Int         @id @default(autoincrement())
+// //     to          String      @db.VarChar(100)
+// //     cc          String      @db.VarChar(100)
+// //     from        String      @db.VarChar(100)
+// //     subject     String      @db.VarChar(255)
+// //     message     String      @db.LongText
+// //     type        emails_type @default(business)
+// //     doLog       Boolean
+// //     sendingDate DateTime    @default(now()) @db.Timestamp(0)
+
+// //     @@index([type], map: "idxType")
+// //     @@index([sendingDate], map: "sendingDate")
+// //     @@index([to], map: "to")
+// // }
+
+// // model externe_apis {
+// //     ID          Int       @id @default(autoincrement())
+// //     Name        String?   @db.VarChar(255)
+// //     Interval    Int?
+// //     Daily       Boolean   @default(dbgenerated("b'0'")) @db.Bit(1)
+// //     LastRequest DateTime? @db.DateTime(0)
+// //     Class       String?   @db.VarChar(255)
+// //     DateCreated DateTime? @db.DateTime(0)
+// // }
+
+// // model externe_apis_locaties {
+// //     ID                 Int       @id @default(autoincrement())
+// //     ExternalLocationID String?   @db.VarChar(255)
+// //     ExternalApiID      Int?
+// //     IsActive           Boolean   @default(dbgenerated("b'1'")) @db.Bit(1)
+// //     BikeparkID         String?   @db.VarChar(35)
+// //     LastRequest        DateTime? @db.DateTime(0)
+// //     LastResponse       String?   @db.LongText
+// //     DateCreated        DateTime? @default(now()) @db.Timestamp(0)
+
+// //     @@unique([ExternalApiID, BikeparkID], map: "externalApiID")
+// // }
+
+// model faq {
+//     ID             String    @id @default("") @db.VarChar(35)
+//     ArticleID      String?   @db.VarChar(35)
+//     ParentID       String?   @db.VarChar(35)
+//     Title          String?   @db.VarChar(255)
+//     Description    String?   @db.VarChar(255)
+//     Question       String?   @db.Text
+//     Answer         String?   @db.Text
+//     SortOrder      Int?
+//     Status         String?   @default("1") @db.VarChar(4)
+//     EditorCreated  String?   @db.VarChar(255)
+//     DateCreated    DateTime? @db.DateTime(0)
+//     EditorModified String?   @db.VarChar(255)
+//     DateModified   DateTime? @db.DateTime(0)
+//     ModuleID       String?   @db.VarChar(50)
+
+//     @@index([ModuleID], map: "FK18B1665AC5B13")
+//     @@index([ParentID], map: "FK18B16F3BE6D59")
+//     @@index([ArticleID], map: "ArticleID")
+// }
+
+// // model fietsenstalling_plek {
+// //     id                             BigInt                           @id @default(autoincrement())
+// //     plek_uuid                      String?                          @unique(map: "UK_9wtbjfna81iyvtcc0g213t7vt") @db.Char(36)
+// //     sectie_id                      BigInt?
+// //     titel                          String?                          @db.VarChar(25)
+// //     isActief                       Boolean?                         @db.Bit(1)
+// //     isGeblokkeerd                  Boolean?                         @db.Bit(1)
+// //     urlwebservice                  String?                          @db.VarChar(255)
+// //     bikeParked                     String?                          @db.VarChar(35)
+// //     dateLastCheck                  DateTime?                        @db.DateTime(0)
+// //     status                         Int?                             @db.UnsignedSmallInt
+// //     dateLastStatusUpdate           DateTime?                        @db.Timestamp(0)
+// //     username                       String?                          @db.VarChar(255)
+// //     password                       String?                          @db.VarChar(255)
+// //     fietsenstalling_plek_bezetting fietsenstalling_plek_bezetting[]
+// //     plaats_fietstype               plaats_fietstype?
+
+// //     @@index([bikeParked], map: "bikeParked")
+// //     @@index([isActief], map: "isActief")
+// //     @@index([sectie_id], map: "sectie_id")
+// // }
+
+// // model fietsenstalling_plek_bezetting {
+// //     account_id           String               @db.VarChar(35)
+// //     plek_id              BigInt
+// //     bezetting_uuid       String?              @unique(map: "UK_2u2mhedlcwr5ccmf1x6xi2ori") @db.Char(36)
+// //     status               String?              @db.VarChar(20)
+// //     verloopdatum         DateTime?            @db.DateTime(0)
+// //     fiets_type_id        Int?
+// //     fietsenstalling_plek fietsenstalling_plek @relation(fields: [plek_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "FK_q333ycbwomjdwxeaebpneehi3")
+
+// //     @@id([account_id, plek_id])
+// //     @@index([plek_id], map: "FK_q333ycbwomjdwxeaebpneehi3")
+// //     @@index([verloopdatum], map: "verloopdatum")
+// // }
+
+// model fietsenstalling_sectie {
+//     sectieId                 Int     @id @default(autoincrement())
+//     externalId               String? @unique(map: "externalId") @db.VarChar(13)
+//     titel                    String  @db.VarChar(255)
+//     omschrijving             String? @db.Text
+//     capaciteit               Int?
+//     CapaciteitBromfiets      Int?
+//     kleur                    String  @default("23B0D9") @db.VarChar(6)
+//     fietsenstallingsId       String? @db.VarChar(35)
+//     isKluis                  Boolean @default(dbgenerated("b'0'")) @db.Bit(1)
+//     reserveringskostenPerDag Float?
+//     urlwebservice            String? @db.VarChar(255)
+//     Reservable               Boolean @default(dbgenerated("b'0'")) @db.Bit(1)
+//     NotaVerwijssysteem       String? @db.Text
+//     Bezetting                Int     @default(0) @db.UnsignedInt
+//     isactief                 Boolean @default(dbgenerated("b'1'")) @db.Bit(1)
+//     qualificatie             String? @default("NONE") @db.VarChar(255)
+
+//     fietsenstalling   fietsenstallingen? @relation(fields: [fietsenstallingsId], references: [ID])
+//     secties_fietstype sectie_fietstype[]
+
+//     @@index([fietsenstallingsId], map: "FKA8FBA192D2C0280D")
+//     @@index([fietsenstallingsId], map: "fietsenstallingsId")
+//     @@index([isactief], map: "isactief")
+// }
+
+// // model fietsenstalling_sectie_kostenperioden {
+// //     kostenPeriodeId Int     @id @default(autoincrement())
+// //     sectieId        Int?
+// //     index           Int?
+// //     tijdsspanne     String? @db.VarChar(4)
+// //     kosten          String? @db.VarChar(10)
+
+// //     @@index([sectieId], map: "FK8AFB00A5BF049CF4")
+// //     @@index([kosten], map: "fietsenstallingsId")
+// // }
+
+// model fietsenstallingen {
+//     ID                         String                       @id @default("") @db.VarChar(35)
+//     StallingsID                String?                      @unique(map: "idxstallingsid") @db.VarChar(8)
+//     SiteID                     String?                      @db.VarChar(35)
+//     Title                      String?                      @db.VarChar(255)
+//     StallingsIDExtern          String?                      @db.VarChar(100)
+//     Description                String?                      @db.Text
+//     Image                      String?                      @db.VarChar(255)
+//     Location                   String?                      @db.VarChar(255)
+//     Postcode                   String?                      @db.VarChar(7)
+//     Plaats                     String?                      @db.VarChar(100)
+//     Capacity                   Int?
+//     Openingstijden             String?                      @db.Text
+//     Status                     String?                      @default("1") @db.VarChar(4)
+//     EditorCreated              String?                      @db.VarChar(255)
+//     DateCreated                DateTime?                    @db.DateTime(0)
+//     EditorModified             String?                      @db.VarChar(255)
+//     DateModified               DateTime?                    @db.DateTime(0)
+//     Ip                         String?                      @db.VarChar(24)
+//     Coordinaten                String?                      @db.VarChar(255)
+//     geoLocation                Unsupported("point")?
+//     Type                       String?                      @db.VarChar(15)
+//     Verwijssysteem             Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     VerwijssysteemOverzichten  Boolean?                     @db.Bit(1)
+//     FMS                        Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     Open_ma                    DateTime?                    @db.Time(0)
+//     Dicht_ma                   DateTime?                    @db.Time(0)
+//     Open_di                    DateTime?                    @db.Time(0)
+//     Dicht_di                   DateTime?                    @db.Time(0)
+//     Open_wo                    DateTime?                    @db.Time(0)
+//     Dicht_wo                   DateTime?                    @db.Time(0)
+//     Open_do                    DateTime?                    @db.Time(0)
+//     Dicht_do                   DateTime?                    @db.Time(0)
+//     Open_vr                    DateTime?                    @db.Time(0)
+//     Dicht_vr                   DateTime?                    @db.Time(0)
+//     Open_za                    DateTime?                    @db.Time(0)
+//     Dicht_za                   DateTime?                    @db.Time(0)
+//     Open_zo                    DateTime?                    @db.Time(0)
+//     Dicht_zo                   DateTime?                    @db.Time(0)
+//     OmschrijvingTarieven       String?                      @db.Text
+//     IsStationsstalling         Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     IsPopup                    Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     NotaVerwijssysteem         String?                      @db.Text
+//     Tariefcode                 Int?
+//     Toegangscontrole           Int?
+//     Beheerder                  String?                      @db.VarChar(100)
+//     BeheerderContact           String?                      @db.VarChar(255)
+//     Url                        String?                      @db.Text
+//     ExtraServices              String?                      @db.Text
+//     dia                        String?                      @db.Text
+//     BerekentStallingskosten    Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     AantalReserveerbareKluizen Int                          @default(0)
+//     MaxStallingsduur           Int                          @default(0)
+//     HeeftExterneBezettingsdata Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     ExploitantID               String?                      @db.VarChar(35)
+//     hasUniSectionPrices        Boolean                      @default(dbgenerated("b'1'")) @db.Bit(1)
+//     hasUniBikeTypePrices       Boolean                      @default(dbgenerated("b'0'")) @db.Bit(1)
+//     shadowBikeparkID           String?                      @db.VarChar(35)
+//     BronBezettingsdata         String?                      @default("FMS") @db.VarChar(20)
+//     reservationCostPerDay      Decimal?                     @db.Decimal(8, 2)
+//     wachtlijst_Id              BigInt?
+//     freeHoursReservation       Decimal?                     @db.Decimal(8, 2)
+//     thirdPartyReservationsUrl  String?                      @db.VarChar(255)
+//     fietsenstallingen_services fietsenstallingen_services[]
+//     // fmsservice_permit          fmsservice_permit[]
+
+//     fietsenstalling_type fietsenstallingtypen? @relation(fields: [Type], references: [id])
+
+//     fietsenstalling_secties fietsenstalling_sectie[]
+
+//     abonnementsvorm_fietsenstalling abonnementsvorm_fietsenstalling[]
+
+//     exploitant contacts? @relation(fields: [ExploitantID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE66279D19")
+
+//     @@index([StallingsID, SiteID], map: "idxSiteidstid")
+//     @@index([SiteID], map: "sidxsiteid")
+//     @@index([ExploitantID], map: "ExploitantID")
+//     @@index([SiteID], map: "FKF4836A55668AE523")
+//     @@index([shadowBikeparkID], map: "shadowBikeparkID")
+//     @@index([wachtlijst_Id], map: "wachtlijst_Id")
+// }
+
+// model fietsenstallingen_services {
+//     ServiceID         String            @db.VarChar(50)
+//     FietsenstallingID String            @db.VarChar(35)
+//     fietsenstallingen fietsenstallingen @relation(fields: [FietsenstallingID], references: [ID], onDelete: Cascade, map: "FK_fietsenstallingen_service_fietsenstalling")
+//     services          services          @relation(fields: [ServiceID], references: [ID], onDelete: Cascade, map: "FK_fietsenstallingen_service_service")
+
+//     @@id([ServiceID, FietsenstallingID])
+//     @@index([FietsenstallingID], map: "FK4BB0A7082B597E32")
+//     @@index([ServiceID], map: "FK4BB0A708CDE95925")
+// }
+
+// // model fietsenstallingen_winkansen {
+// //     ID                Int     @id @default(autoincrement())
+// //     FietsenstallingID String? @db.VarChar(35)
+// //     DagNr             Int?
+// //     Winkans           Int?
+
+// //     @@unique([FietsenstallingID, DagNr], map: "stallingsID + DagNr = uniek")
+// //     @@index([FietsenstallingID], map: "FK3430E4F62B597E32")
+// // }
+
+// model fietsenstallingtypen {
+//     id                String              @id @db.VarChar(15)
+//     name              String?             @db.VarChar(255)
+//     sequence          Int                 @db.SmallInt
+//     fietsenstallingen fietsenstallingen[]
+// }
+
+// model fietstypen {
+//     ID            Int     @id @default(autoincrement())
+//     Name          String? @db.VarChar(255)
+//     naamenkelvoud String  @db.VarChar(255)
+
+//     sectie_fietstype          sectie_fietstype[]
+//     abonnementsvorm_fietstype abonnementsvorm_fietstype[]
+// }
+
+// /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model financialtransactions {
+// //     ID                  String    @id @db.VarChar(35)
+// //     mollieTransactionID String?   @db.VarChar(20)
+// //     amount              Decimal?  @db.Decimal(8, 2)
+// //     btw                 Decimal?  @db.Decimal(8, 2)
+// //     btwPercentage       Float?
+// //     transactionDate     DateTime? @db.DateTime(0)
+// //     transactiekosten    Decimal   @default(0.00) @db.Decimal(8, 2)
+// //     depositDate         DateTime? @db.DateTime(0)
+// //     paymentMethod       String?   @db.VarChar(15)
+// //     status              String?   @db.VarChar(10)
+// //     description         String?   @db.VarChar(255)
+// //     code                String?   @db.VarChar(50)
+// //     accountID           String?   @db.VarChar(35)
+// //     paidToSiteID        String?   @db.VarChar(35)
+// //     paidBySiteID        String?   @db.VarChar(35)
+// //     sourceSiteID        String?   @db.VarChar(35)
+// //     targetSiteID        String?   @db.VarChar(35)
+// //     siteID              String?   @db.VarChar(35)
+// //     bikeparkID          String?   @db.VarChar(8)
+// //     sectionID           String?   @db.VarChar(13)
+// //     placeID             Int?
+// //     transactionID       Int?
+// //     subscriptiontypeID  Int?
+// //     subscriptionID      Int?
+// //     reservationID       Int?
+// //     dateCreated         DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@unique([accountID, transactionDate, amount, status, code, bikeparkID], map: "accountID_2")
+// //     @@index([accountID], map: "accountID")
+// //     @@index([code], map: "code")
+// //     @@index([paidBySiteID], map: "paidBySiteID")
+// //     @@index([paidToSiteID], map: "paidToSiteID")
+// //     @@index([siteID], map: "siteID")
+// //     @@index([sourceSiteID], map: "sourceSiteID")
+// //     @@index([targetSiteID], map: "targetSiteID")
+// //     @@index([transactionDate], map: "transactionDate")
+// //     @@index([mollieTransactionID], map: "mollieTransactionID")
+// //     @@index([status], map: "status")
+// //     @@index([subscriptionID], map: "subscriptionID")
+// //     @@index([transactionID], map: "transactionID")
+// // }
+
+// // model fmsservice_permit {
+// //     ID                                              Int                @id @default(autoincrement())
+// //     Permit                                          String?            @db.VarChar(255)
+// //     OperatorID                                      String?            @db.VarChar(35)
+// //     SiteID                                          String?            @db.VarChar(35)
+// //     BikeparkID                                      String?            @db.VarChar(35)
+// //     fietsenstallingen                               fietsenstallingen? @relation(fields: [BikeparkID], references: [ID], onDelete: Cascade, map: "FK_BIKEPARK")
+// //     contacts_fmsservice_permit_OperatorIDTocontacts contacts?          @relation("fmsservice_permit_OperatorIDTocontacts", fields: [OperatorID], references: [ID], onDelete: Cascade, map: "FK_OPERATOR")
+// //     contacts_fmsservice_permit_SiteIDTocontacts     contacts?          @relation("fmsservice_permit_SiteIDTocontacts", fields: [SiteID], references: [ID], onDelete: Cascade, map: "FK_SITEID")
+
+// //     @@unique([OperatorID, SiteID, BikeparkID], map: "U_OPERATOR_SITE_BIKEPARK")
+// //     @@index([BikeparkID], map: "FK_BIKEPARK")
+// //     @@index([SiteID], map: "FK_SITEID")
+// // }
+
+// // model fmsservicelog {
+// //     ID           Int                 @id @default(autoincrement())
+// //     StallingsID  String?             @db.VarChar(8)
+// //     SectieID     String?             @db.VarChar(13)
+// //     PlekID       Int?
+// //     ActieID      Int?
+// //     Actie        String?             @db.VarChar(255)
+// //     Type         fmsservicelog_Type?
+// //     PasID        String?             @db.VarChar(35)
+// //     Pastype      String?             @db.VarChar(20)
+// //     Omschrijving String?             @db.LongText
+// //     Tijdstip     DateTime?           @db.DateTime(0)
+// //     DateCreated  DateTime?           @default(now()) @db.Timestamp(0)
+// //     mailSentDate DateTime?           @db.DateTime(0)
+// //     mailSent     Boolean?            @db.Bit(1)
+// //     mailBody     String?             @db.LongText
+
+// //     @@index([ActieID], map: "ActieID")
+// //     @@index([mailSent], map: "MailSent")
+// //     @@index([PlekID], map: "PlekID")
+// //     @@index([Type], map: "Type")
+// //     @@index([Tijdstip], map: "Tijdstip")
+// // }
+
+// // model gemeenteaccounts {
+// //     ID        String @id @db.VarChar(35)
+// //     SiteID    String @db.VarChar(35)
+// //     AccountID String @db.VarChar(35)
+
+// //     @@unique([SiteID, AccountID], map: "SiteID_2")
+// //     @@index([SiteID], map: "SiteID")
+// //     @@index([AccountID], map: "AccountID")
+// // }
+
+// // model historischesaldos {
+// //     accountID    String    @db.VarChar(35)
+// //     siteID       String    @db.VarChar(35)
+// //     exploitantID String    @db.VarChar(35)
+// //     saldo        Decimal   @db.Decimal(8, 2)
+// //     dateCreated  DateTime? @db.Timestamp(0)
+// //     dateModified DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@id([accountID, siteID, exploitantID])
+// // }
+
+// // model instellingen {
+// //     ID                      Int      @id @default(autoincrement())
+// //     Incasso                 Boolean  @default(dbgenerated("b'1'")) @db.Bit(1)
+// //     Ideal                   Boolean  @default(dbgenerated("b'1'")) @db.Bit(1)
+// //     MollieID                String?  @db.VarChar(255)
+// //     MollieAPIKey            String?  @db.VarChar(50)
+// //     Emailtester             String?  @db.VarChar(255)
+// //     SendEmailOnSaldo        Decimal? @db.Decimal(8, 2)
+// //     TransactiekostenIdeal   Decimal  @default(0.00) @db.Decimal(8, 2)
+// //     TransactiekostenIncasso Decimal  @default(0.00) @db.Decimal(8, 2)
+// //     productionserver        Boolean  @default(true)
+// // }
+
+// // model klanttypen {
+// //     ID   Int     @id
+// //     Name String? @db.VarChar(255)
+// // }
+
+// // model log {
+// //     ID           Int       @id @default(autoincrement())
+// //     DateCreated  DateTime? @db.Date
+// //     DateModified DateTime? @db.Date
+// //     Title        String?   @db.VarChar(255)
+// //     Text         String?   @db.LongText
+// //     IsVisible    Boolean?  @db.Bit(1)
+// // }
+
+// // model lopers {
+// //     id                 Int       @id @default(autoincrement())
+// //     pasid              String    @db.VarChar(255)
+// //     pastype            String    @db.VarChar(20)
+// //     fietsenstallingsid String    @db.VarChar(36)
+// //     aanmaakdatum       DateTime? @db.Timestamp(0)
+
+// //     @@index([fietsenstallingsid], map: "FK867F5756D2C0280D")
+// // }
+
+// // model loterij_log {
+// //     ID       Int      @id @default(autoincrement()) @db.UnsignedInt
+// //     tijdstip DateTime @db.DateTime(0)
+// //     logtekst String   @db.Text
+// // }
+
+// // model mailings_lists {
+// //     ID               String    @id @default("") @db.VarChar(35)
+// //     ListName         String?   @db.VarChar(100)
+// //     ListDescription  String?   @db.VarChar(255)
+// //     TemplateID       String?   @db.VarChar(35)
+// //     Title            String?   @db.VarChar(50)
+// //     Abstract         String?   @db.Text
+// //     Article          String?   @db.Text
+// //     SenderAddress    String?   @db.VarChar(50)
+// //     ListAvailability String?   @db.VarChar(50)
+// //     MessagesSent     Int?
+// //     DateCreated      DateTime? @db.DateTime(0)
+// // }
+
+// // model mailings_members {
+// //     ID           String    @id @default("") @db.VarChar(35)
+// //     ListID       String?   @default("1867EDD9-F8F6-980A-5ED39060FE09334D") @db.VarChar(35)
+// //     JoinDate     DateTime? @db.DateTime(0)
+// //     Email        String?   @db.VarChar(255)
+// //     Password     String?   @db.VarChar(50)
+// //     Sex          String?   @db.VarChar(50)
+// //     Title        String?   @db.VarChar(50)
+// //     FirstName    String?   @db.VarChar(255)
+// //     MiddleName   String?   @db.VarChar(50)
+// //     LastName     String?   @db.VarChar(255)
+// //     Address      String?   @db.VarChar(255)
+// //     City         String?   @db.VarChar(255)
+// //     Zip          String?   @db.VarChar(10)
+// //     Organization String?   @db.VarChar(255)
+// //     JobTitle     String?   @db.VarChar(255)
+// // }
+
+// // model mailings_messages {
+// //     ID             String    @id @default("") @db.VarChar(35)
+// //     ListID         String?   @db.VarChar(255)
+// //     Template       String?   @db.VarChar(50)
+// //     Title          String?   @db.VarChar(255)
+// //     Abstract       String?   @db.Text
+// //     Article        String?   @db.Text
+// //     Status         String?   @default("1") @db.VarChar(4)
+// //     DateSent       DateTime? @db.DateTime(0)
+// //     SentTo         String?   @db.VarChar(255)
+// //     Recipients     Int?
+// //     EditorCreated  String?   @db.VarChar(255)
+// //     DateCreated    DateTime? @db.DateTime(0)
+// //     EditorModified String?   @db.VarChar(255)
+// //     DateModified   DateTime? @db.DateTime(0)
+// // }
+
+// // model mailings_standaardteksten {
+// //     ID             String    @id @default("") @db.VarChar(35)
+// //     SiteID         String?   @db.VarChar(35)
+// //     Title          String?   @db.VarChar(255)
+// //     Article        String?   @db.Text
+// //     Status         String?   @default("1") @db.VarChar(4)
+// //     EditorCreated  String?   @db.VarChar(255)
+// //     DateCreated    DateTime? @db.DateTime(0)
+// //     EditorModified String?   @db.VarChar(255)
+// //     DateModified   DateTime? @db.DateTime(0)
+// // }
+
+// // model modules {
+// //     ID     String  @id @db.VarChar(50)
+// //     Name   String? @db.VarChar(255)
+// //     parent String? @db.VarChar(50)
+
+// //     @@index([parent], map: "FK492927874E5B9B36")
+// // }
+
+// // model modules_contacts {
+// //     ModuleID String @db.VarChar(50)
+// //     SiteID   String @db.VarChar(35)
+// //     prismaID Int    @id @default(autoincrement()) @db.MediumInt
+
+// //     @@unique([ModuleID, SiteID], map: "UNIQUE_MODULES_CONTRACTS")
+// //     @@index([ModuleID], map: "FKDB7FF20B65AC5B13")
+// //     @@index([SiteID], map: "FKDB7FF20B668AE523")
+// // }
+
+// // model plaats_fietstype {
+// //     plaats_id            BigInt               @unique(map: "plaats_id")
+// //     fiets_type_id        Int?
+// //     prismaID             Int                  @id @default(autoincrement()) @db.MediumInt
+// //     fietsenstalling_plek fietsenstalling_plek @relation(fields: [plaats_id], references: [id], onDelete: Cascade, map: "FK_llb3ig3om0biu4j17i4tsgsab")
+// // }
+
+// // model presentations {
+// //     ID                   String    @id @default("") @db.VarChar(35)
+// //     SiteID               String?   @db.VarChar(35)
+// //     ContentType          String?   @db.VarChar(50)
+// //     Title                String?   @db.VarChar(255)
+// //     Article              String?   @db.Text
+// //     Duration             Int?
+// //     ShowPrizeDescription String?   @db.VarChar(4)
+// //     RSS                  String?   @db.VarChar(255)
+// //     SortOrder            Int?
+// //     Status               String?   @default("1") @db.VarChar(4)
+// //     EditorCreated        String?   @db.VarChar(255)
+// //     DateCreated          DateTime? @db.DateTime(0)
+// //     EditorModified       String?   @db.VarChar(255)
+// //     DateModified         DateTime? @db.DateTime(0)
+// //     contacts             contacts? @relation(fields: [SiteID], references: [ID], onDelete: Cascade, map: "FK_presentation_contact")
+
+// //     @@index([SiteID], map: "FK_presentation_contact")
+// // }
+
+// // model presentations_ticker {
+// //     ID             String    @id @default("") @db.VarChar(35)
+// //     SiteID         String?   @db.VarChar(35)
+// //     Item           String?   @db.VarChar(255)
+// //     SortOrder      Int?
+// //     EditorModified String?   @db.VarChar(255)
+// //     DateModified   DateTime? @db.DateTime(0)
+// //     contacts       contacts? @relation(fields: [SiteID], references: [ID], onDelete: Cascade, map: "FK_ticker_contact")
+
+// //     @@index([SiteID], map: "FK_ticker_contact")
+// // }
+
+// // model prijswinnaars {
+// //     ID                 Int     @id @default(autoincrement()) @db.UnsignedInt
+// //     TrekkingID         String? @db.VarChar(35)
+// //     FietsenstallingID  String? @db.VarChar(35)
+// //     PasID              String? @db.VarChar(35)
+// //     PrijsID            String? @db.VarChar(35)
+// //     Zelf_inzet_prijsID String? @db.VarChar(35)
+
+// //     @@index([TrekkingID, PasID, PrijsID], map: "TrekkingID")
+// // }
+
+// // /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model prijswinnaars_backup {
+// //     ID         String  @id @db.VarChar(35)
+// //     TrekkingID String? @db.VarChar(35)
+// //     PasID      String? @db.VarChar(35)
+// //     Prijsnr    String? @db.VarChar(35)
+// //     Prijs      String? @db.VarChar(100)
+// //     Email      String? @db.VarChar(100)
+// //     Winnaar    String? @db.VarChar(100)
+
+// //     @@index([TrekkingID, Prijsnr, Prijs], map: "TrekkingID")
+// // }
+
+// // model prijzen {
+// //     ID                              String    @id @default("") @db.VarChar(35)
+// //     SiteID                          String?   @db.VarChar(35)
+// //     Title                           String?   @db.VarChar(255)
+// //     DisplayTitle                    String?   @db.VarChar(255)
+// //     Description                     String?   @db.Text
+// //     Image                           String?   @db.VarChar(255)
+// //     Thumbnail                       String?   @db.VarChar(255)
+// //     Prijsverstrekker_naam           String?   @db.VarChar(255)
+// //     Prijsverstrekker_gegevens       String?   @db.VarChar(255)
+// //     Prijsverstrekker_contactpersoon String?   @db.VarChar(255)
+// //     Prijsverstrekker_email          String?   @db.VarChar(255)
+// //     EditorCreated                   String?   @db.VarChar(255)
+// //     DateCreated                     DateTime? @db.DateTime(0)
+// //     EditorModified                  String?   @db.VarChar(255)
+// //     DateModified                    DateTime? @db.DateTime(0)
+// // }
+
+// // model prijzenpot {
+// //     ID         String  @id @db.VarChar(35)
+// //     TrekkingID String? @db.VarChar(35)
+// //     PrijsID    String? @db.VarChar(35)
+// //     SortOrder  Int?
+// //     Amount     Int?
+
+// //     @@index([TrekkingID, PrijsID, SortOrder], map: "TrekkingID")
+// // }
+
+// // model producten {
+// //     ID           Int      @id @default(autoincrement())
+// //     titel        String?  @db.VarChar(255)
+// //     omschrijving String?  @db.Text
+// //     prijs        Decimal? @db.Decimal(5, 2)
+// //     credit       Decimal? @db.Decimal(5, 2)
+// //     status       String?  @default("1") @db.VarChar(4)
+// // }
+
+// // model rapportageinfo {
+// //     ID             Int       @id @default(autoincrement())
+// //     name           String    @db.VarChar(255)
+// //     type           String?   @db.VarChar(255)
+// //     gemeenteID     String?   @db.VarChar(255)
+// //     exploitantID   String?   @db.VarChar(255)
+// //     stallingsID    String?   @db.VarChar(255)
+// //     dateLastrecord DateTime? @db.Timestamp(0)
+// //     dateLastRun    DateTime  @default(now()) @db.Timestamp(0)
+// //     info           String?   @db.Text
+// // }
+
+// // model schema_version {
+// //     version_rank   Int
+// //     installed_rank Int
+// //     version        String   @id @db.VarChar(50)
+// //     description    String   @db.VarChar(200)
+// //     type           String   @db.VarChar(20)
+// //     script         String   @db.VarChar(1000)
+// //     checksum       Int?
+// //     installed_by   String   @db.VarChar(100)
+// //     installed_on   DateTime @default(now()) @db.Timestamp(0)
+// //     execution_time Int
+// //     success        Boolean
+
+// //     @@index([installed_rank], map: "schema_version_ir_idx")
+// //     @@index([success], map: "schema_version_s_idx")
+// //     @@index([version_rank], map: "schema_version_vr_idx")
+// // }
+
+// model sectie_fietstype {
+//     SectionBiketypeID Int      @id @default(autoincrement())
+//     Capaciteit        Int?
+//     Toegestaan        Boolean? @db.Bit(1)
+//     sectieID          Int?
+//     StallingsID       String?  @db.VarChar(35)
+//     BikeTypeID        Int?
+
+//     fietsenstalling_sectie fietsenstalling_sectie? @relation(fields: [sectieID], references: [sectieId], onDelete: NoAction, map: "FK_sectie_fietstype_sectie")
+//     fietstype              fietstypen?             @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, map: "FK_sectie_fietstype_fietstype")
+
+//     @@unique([sectieID, StallingsID, BikeTypeID], map: "sectieID_2")
+//     @@index([sectieID], map: "sectieID")
+//     @@index([BikeTypeID], map: "BikeTypeID")
+//     @@index([StallingsID], map: "StallingsID")
+// }
+
+// model security_roles {
+//     RoleID         Int                     @id @default(autoincrement())
+//     GroupID        security_roles_GroupID? @default(extern)
+//     Role           String?                 @db.VarChar(50)
+//     Description    String?                 @db.VarChar(150)
+//     Active         Boolean                 @default(true)
+//     security_users security_users[]
+// }
+
+// /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// model security_users {
+//     UserID                String                 @id @default("") @db.VarChar(35)
+//     Locale                String?                @default("Dutch (Standard)") @db.VarChar(55)
+//     RoleID                Int?
+//     GroupID               String?                @db.VarChar(20)
+//     SiteID                String?                @db.VarChar(35)
+//     ParentID              String?                @db.VarChar(35)
+//     UserName              String?                @db.VarChar(100)
+//     EncryptedPassword     String?                @db.VarChar(60)
+//     EncryptedPassword2    String?                @db.VarChar(255)
+//     DisplayName           String?                @db.VarChar(255)
+//     LastLogin             DateTime?              @db.DateTime(0)
+//     SendMailToMailAddress String?                @db.VarChar(4)
+//     Theme                 String?                @db.VarChar(50)
+//     Status                String?                @db.VarChar(4)
+//     security_roles        security_roles?        @relation(fields: [RoleID], references: [RoleID], onDelete: Restrict, onUpdate: Restrict, map: "security_users_ibfk_1")
+//     security_users_sites  security_users_sites[]
+
+//     @@unique([UserID, SiteID], map: "unique_userID_siteID")
+//     @@index([RoleID], map: "RoleID")
+//     @@index([UserName], map: "UserName")
+// }
+
+// model security_users_sites {
+//     ID             Int            @id @default(autoincrement()) @db.UnsignedInt
+//     UserID         String         @default("") @db.VarChar(35)
+//     SiteID         String         @db.VarChar(35)
+//     IsContact      Boolean        @default(dbgenerated("b'0'")) @db.Bit(1)
+//     security_users security_users @relation(fields: [UserID], references: [UserID], onUpdate: Restrict, map: "security_users_sites_ibfk_1")
+
+//     @@unique([UserID, SiteID], map: "UserID")
+// }
+
+// model services {
+//     ID                         String                       @id @db.VarChar(50)
+//     Name                       String                       @db.VarChar(255)
+//     fietsenstallingen_services fietsenstallingen_services[]
+// }
+
+// // model sleutelhangerreeksen {
+// //     ID          Int                       @id @default(autoincrement())
+// //     parentID    Int?
+// //     type        sleutelhangerreeksen_type @default(sleutelhanger)
+// //     rangeStart  BigInt
+// //     rangeEnd    BigInt
+// //     label       String?                   @db.VarChar(100)
+// //     material    String?                   @db.VarChar(100)
+// //     printSample String?                   @db.VarChar(255)
+// //     published   DateTime?                 @db.DateTime(0)
+// //     created     DateTime?                 @db.DateTime(0)
+
+// //     @@index([parentID], map: "parentID")
+// //     @@index([rangeEnd], map: "rangeEnd")
+// //     @@index([rangeStart], map: "rangeStart")
+// //     @@index([type], map: "type")
+// // }
+
+// // model tariefcodes {
+// //     ID           Int    @id @default(autoincrement())
+// //     Omschrijving String @db.VarChar(100)
+// // }
+
+// // model tariefregels {
+// //     tariefregelID     Int      @id @default(autoincrement())
+// //     index             Int?
+// //     tijdsspanne       Float?
+// //     kosten            Decimal? @db.Decimal(8, 2)
+// //     stallingsID1      String?  @map("__stallingsID") @db.VarChar(8)
+// //     stallingsID       String?  @db.VarChar(35)
+// //     sectieID1         String?  @map("__sectieID") @db.VarChar(13)
+// //     sectieID          Int?
+// //     sectionBikeTypeID Int?
+// // }
+
+// // /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model transacties {
+// //     ID                Int       @id @default(autoincrement())
+// //     ZipID             String?   @db.VarChar(4)
+// //     FietsenstallingID String    @db.VarChar(35)
+// //     SectieID          String?   @db.VarChar(13)
+// //     SectieID_uit      String?   @db.VarChar(13)
+// //     PlaceID           Int?
+// //     ExternalPlaceID   String?   @db.VarChar(100)
+// //     PassUUID          String?   @db.VarChar(35)
+// //     PasID             String    @db.VarChar(35)
+// //     Pastype           Int?
+// //     BarcodeFiets_in   String?   @db.VarChar(36)
+// //     BarcodeFiets_uit  String?   @db.VarChar(36)
+// //     Date_checkin      DateTime  @default(now()) @db.DateTime(0)
+// //     Date_checkout     DateTime? @db.DateTime(0)
+// //     Stallingsduur     Int?      @db.UnsignedInt
+// //     Type_checkin      String?   @db.VarChar(40)
+// //     Type_checkout     String?   @db.VarChar(40)
+// //     Stallingskosten   Decimal?  @default(0.00) @db.Decimal(8, 2)
+// //     Tariefstaffels    String?   @db.VarChar(255)
+// //     BikeTypeID        Int       @default(1) @db.SmallInt
+// //     ClientTypeID      Int       @default(1)
+// //     Reserveringsduur  Int?
+// //     ExploitantID      String?   @db.VarChar(35)
+// //     dateModified      DateTime? @db.Timestamp(0)
+// //     dateCreated       DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@index([BarcodeFiets_in], map: "BarcodeFiets_in")
+// //     @@index([BikeTypeID], map: "BikeTypeID")
+// //     @@index([ClientTypeID], map: "ClientTypeID")
+// //     @@index([Date_checkin], map: "Date_checkin")
+// //     @@index([Date_checkout], map: "Date_checkout")
+// //     @@index([ExploitantID], map: "ExploitantID")
+// //     @@index([FietsenstallingID], map: "FietsenstallingID")
+// //     @@index([PasID], map: "PasID")
+// //     @@index([PassUUID], map: "PassUUID")
+// //     @@index([Pastype], map: "Pastype")
+// //     @@index([PlaceID], map: "PlaceID")
+// //     @@index([SectieID], map: "SectieID")
+// //     @@index([Type_checkin], map: "Type_checkin")
+// //     @@index([Type_checkout], map: "Type_checkout")
+// //     @@index([ZipID], map: "ZipID")
+// //     @@index([dateCreated], map: "dateCreated")
+// //     @@index([dateModified], map: "dateModified")
+// // }
+
+// // model transacties_archief {
+// //     ID              Int                               @id @default(autoincrement())
+// //     citycode        String                            @db.VarChar(4)
+// //     locationid      String                            @db.VarChar(8)
+// //     sectionid       String                            @db.VarChar(13)
+// //     sectionid_out   String?                           @db.VarChar(13)
+// //     placeid         Int?
+// //     externalplaceid String?                           @db.VarChar(100)
+// //     checkindate     DateTime                          @db.DateTime(0)
+// //     checkoutdate    DateTime?                         @db.DateTime(0)
+// //     checkintype     transacties_archief_checkintype
+// //     checkouttype    transacties_archief_checkouttype?
+// //     daybeginsat     DateTime                          @db.Time(0)
+// //     reservationtime Int?
+// //     price           Decimal                           @default(0.00) @db.Decimal(8, 2)
+// //     clienttypeid    Int
+// //     biketypeid      Int
+// //     source          String?                           @db.VarChar(35)
+// //     exploitantid    String?                           @db.VarChar(35)
+// //     modified        DateTime                          @default(now()) @db.Timestamp(0)
+// //     created         DateTime                          @default(now()) @db.Timestamp(0)
+
+// //     @@index([biketypeid], map: "biketypeid")
+// //     @@index([checkindate], map: "checkindate")
+// //     @@index([checkoutdate], map: "checkoutdate")
+// //     @@index([citycode], map: "citycode")
+// //     @@index([clienttypeid], map: "clienttypeid")
+// //     @@index([exploitantid], map: "exploitantid")
+// //     @@index([locationid], map: "locationid")
+// //     @@index([sectionid], map: "sectionid")
+// //     @@index([source], map: "source")
+// //     @@index([citycode, locationid, checkoutdate, sectionid], map: "idx_citycode_locationid_checkoutdate")
+// //     @@index([modified], map: "modified")
+// //     @@index([placeid], map: "placeid")
+// // }
+
+// // model transacties_archief_tmp {
+// //     ID              Int                                   @id
+// //     citycode        String                                @db.VarChar(4)
+// //     locationid      String                                @db.VarChar(8)
+// //     sectionid       String                                @db.VarChar(13)
+// //     sectionid_out   String?                               @db.VarChar(13)
+// //     placeid         Int?
+// //     externalplaceid String?                               @db.VarChar(100)
+// //     checkindate     DateTime                              @db.DateTime(0)
+// //     checkoutdate    DateTime?                             @db.DateTime(0)
+// //     checkintype     transacties_archief_tmp_checkintype
+// //     checkouttype    transacties_archief_tmp_checkouttype?
+// //     daybeginsat     DateTime                              @db.Time(0)
+// //     reservationtime Int?
+// //     price           Decimal                               @default(0.00) @db.Decimal(8, 2)
+// //     clienttypeid    Int
+// //     biketypeid      Int
+// //     source          String?                               @db.VarChar(35)
+// //     exploitantid    String?                               @db.VarChar(35)
+// //     modified        DateTime                              @default(now()) @db.Timestamp(0)
+// //     created         DateTime                              @default(now()) @db.Timestamp(0)
+// // }
+
+// // model transacties_gemeente_totaal {
+// //     zipID        Int
+// //     jaar         Int
+// //     transacties  Int      @db.UnsignedInt
+// //     dateModified DateTime @default(now()) @db.Timestamp(0)
+
+// //     @@id([zipID, jaar])
+// // }
+
+// // model trekkingen {
+// //     ID                     String            @id @default("") @db.VarChar(35)
+// //     SiteID                 String?           @db.VarChar(35)
+// //     Title                  String?           @db.VarChar(255)
+// //     Description            String?           @db.Text
+// //     StartDate              DateTime?         @db.Date
+// //     EndDate                DateTime?         @db.Date
+// //     Status                 trekkingen_Status @default(NONACTIVE)
+// //     TijdstipTrekking       DateTime?         @db.DateTime(0)
+// //     AutoTrekking           Int?              @default(0) @db.TinyInt
+// //     Einddatum_Prijsafhalen DateTime?         @db.Date
+// //     EditorCreated          String?           @db.VarChar(255)
+// //     DateCreated            DateTime?         @db.DateTime(0)
+// //     EditorModified         String?           @db.VarChar(255)
+// //     DateModified           DateTime?         @db.DateTime(0)
+// // }
+
+// // model uitzonderingenopeningstijden {
+// //     ID                 Int       @id @default(autoincrement())
+// //     openingDateTime    DateTime? @db.DateTime(0)
+// //     closingDateTime    DateTime? @db.DateTime(0)
+// //     fietsenstallingsID String?   @db.VarChar(255)
+// // }
+
+// // model unieke_bezoekers {
+// //     periode         unieke_bezoekers_periode
+// //     jaar            Int
+// //     zipID           Int
+// //     exploitantID    String                   @default("") @db.VarChar(35)
+// //     stallingsID     String                   @db.VarChar(35)
+// //     totaal          Int?
+// //     uniekebezoekers Int?
+// //     gebruikt1       Int?
+// //     gebruikt2_5     Int?
+// //     gebruikt6_10    Int?
+// //     gebruikt11_20   Int?
+// //     gebruikt21_50   Int?
+// //     gebruikt51_100  Int?
+// //     gebruikt100_    Int?
+
+// //     @@id([periode, jaar, exploitantID, stallingsID, zipID])
+// // }
+
+// // model users_beheerder_log {
+// //     ID        Int      @id @default(autoincrement()) @db.UnsignedInt
+// //     userID    String   @db.VarChar(35)
+// //     omgeving  String   @db.VarChar(50)
+// //     actie     String   @db.VarChar(100)
+// //     objectID  String?  @db.VarChar(36)
+// //     logtekst  String?  @db.VarChar(255)
+// //     logtekst2 String?  @db.VarChar(255)
+// //     tijdstip  DateTime @default(now()) @db.Timestamp(0)
+// // }
+
+// // model wachtlijst {
+// //     id              BigInt            @id @default(autoincrement())
+// //     wachtlijst_item wachtlijst_item[]
+// // }
+
+// // model wachtlijst_fietstype {
+// //     wachtlijst_id   BigInt          @unique(map: "wachtlijst_id_2")
+// //     fiets_type_id   Int?
+// //     prismaID        Int             @id @default(autoincrement()) @db.MediumInt
+// //     wachtlijst_item wachtlijst_item @relation(fields: [wachtlijst_id], references: [wachtlijst_item_id], onUpdate: Restrict, map: "FK_dqu93y313asq2vi4cudfli4y4")
+// // }
+
+// // model wachtlijst_item {
+// //     wachtlijst_item_id   BigInt                @id @default(autoincrement())
+// //     qualificatie         String?               @db.VarChar(255)
+// //     volg_nummer          Int?
+// //     wachtlijst_item_uuid String?               @unique(map: "UK_55g5rnoxsxf8l3qja6nj6pip0") @db.Char(36)
+// //     account_id           String?               @db.Char(35)
+// //     wachtlijst_id        BigInt?
+// //     creatie_datum        DateTime?             @db.Timestamp(0)
+// //     datum_mailing        DateTime?             @db.DateTime(0)
+// //     wachtlijst_fietstype wachtlijst_fietstype?
+// //     wachtlijst           wachtlijst?           @relation(fields: [wachtlijst_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "FK_dqu93y313asq2vi4cudfli4y2")
+
+// //     @@index([wachtlijst_id], map: "FK_dqu93y313asq2vi4cudfli4y2")
+// //     @@index([account_id], map: "account_id")
+// // }
+
+// // model wachtrij_betalingen {
+// //     ID              Int       @id @default(autoincrement())
+// //     bikeparkID      String    @db.VarChar(8)
+// //     passID          String    @db.VarChar(35)
+// //     idtype          Int?
+// //     transactionDate DateTime  @db.DateTime(0)
+// //     paymentTypeID   Int
+// //     amount          Decimal   @db.Decimal(8, 2)
+// //     processed       Boolean   @default(false)
+// //     processDate     DateTime? @db.Timestamp(0)
+// //     error           String?   @db.Text
+// //     dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@unique([bikeparkID, passID, transactionDate, paymentTypeID, amount], map: "bikeparkID")
+// // }
+
+// // model wachtrij_pasids {
+// //     ID              Int       @id @default(autoincrement())
+// //     transactionDate DateTime? @db.Timestamp(0)
+// //     bikeparkID      String    @db.VarChar(8)
+// //     passID          String    @db.VarChar(35)
+// //     barcode         String    @db.VarChar(35)
+// //     RFID            String    @db.VarChar(35)
+// //     RFIDBike        String    @db.VarChar(35)
+// //     biketypeID      Int?
+// //     bike            String    @db.Text
+// //     processed       Boolean   @default(false)
+// //     processDate     DateTime? @db.Timestamp(0)
+// //     error           String?   @db.Text
+// //     DateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@unique([transactionDate, bikeparkID, passID, barcode], map: "transactionDate")
+// //     @@index([processed], map: "processed")
+// // }
+
+// // model wachtrij_sync {
+// //     ID              Int       @id @default(autoincrement())
+// //     bikes           String    @db.LongText
+// //     bikeparkID      String    @db.VarChar(8)
+// //     sectionID       String    @db.VarChar(13)
+// //     transactionDate DateTime? @db.DateTime(0)
+// //     processed       Int       @default(0)
+// //     processDate     DateTime? @db.Timestamp(0)
+// //     error           String?   @db.Text
+// //     dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@index([bikeparkID], map: "bikeparkID")
+// //     @@index([processed], map: "processed")
+// //     @@index([sectionID], map: "sectionID")
+// //     @@index([transactionDate], map: "transactionDate")
+// // }
+
+// // model wachtrij_transacties {
+// //     ID              Int       @id @default(autoincrement())
+// //     transactionDate DateTime? @db.Timestamp(0)
+// //     bikeparkID      String    @db.VarChar(8)
+// //     sectionID       String    @db.VarChar(13)
+// //     placeID         Int?
+// //     externalPlaceID String?   @db.VarChar(100)
+// //     transactionID   Int       @default(0)
+// //     passID          String    @db.VarChar(35)
+// //     passtype        String?   @db.VarChar(20)
+// //     type            String    @db.VarChar(10)
+// //     typeCheck       String?   @db.VarChar(60)
+// //     price           Decimal?  @db.Decimal(5, 2)
+// //     transaction     String    @db.Text
+// //     processed       Boolean   @default(false)
+// //     processDate     DateTime? @db.Timestamp(0)
+// //     error           String?   @db.Text
+// //     dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+// //     @@unique([transactionDate, bikeparkID, sectionID, transactionID, passID, passtype, type], map: "transactionDate_2")
+// //     @@index([passID], map: "passID")
+// //     @@index([processed], map: "processed")
+// //     @@index([transactionDate], map: "transactionDate")
+// //     @@index([type], map: "type")
+// // }
+
+// // model webservice_log {
+// //     ID         Int      @id @default(autoincrement()) @db.UnsignedInt
+// //     tijdstip   DateTime @db.DateTime(0)
+// //     method     String?  @db.VarChar(50)
+// //     bikeparkID String?  @db.VarChar(10)
+// //     logtekst   String   @db.Text
+// //     logtekst2  String?  @db.Text
+// //     ms         Int?
+
+// //     @@index([bikeparkID], map: "bikeparkID")
+// //     @@index([method], map: "method")
+// //     @@index([method], map: "method_2")
+// //     @@index([tijdstip], map: "tijdstip")
+// // }
+
+// // model winkansen {
+// //     ZipID             String   @db.VarChar(35)
+// //     PasID             String   @default("") @db.VarChar(255)
+// //     Datum             DateTime @db.Date
+// //     FietsenstallingID String   @default("") @db.VarChar(35)
+// //     SectieID          String?  @db.VarChar(255)
+// //     Winkans           Int      @default(1)
+
+// //     @@id([PasID, Datum, ZipID])
+// // }
+
+// // model winkansen_zelf_inzet {
+// //     ZipID                         String   @default("") @db.VarChar(35)
+// //     PasID                         String   @default("") @db.VarChar(255)
+// //     Datum                         DateTime @db.Date
+// //     FietsenstallingID             String   @default("") @db.VarChar(35)
+// //     SectieID                      String   @default("") @db.VarChar(255)
+// //     Winkans_zelf_inzet            Int?     @default(0) @db.UnsignedInt
+// //     Winkans_zelf_inzet_prijsID    String   @db.VarChar(35)
+// //     Winkans_zelf_inzet_trekkingID String?  @db.VarChar(35)
+// //     Winkans_zelf_inzet_gebruikt   Boolean? @default(dbgenerated("b'0'")) @db.Bit(1)
+
+// //     @@id([PasID, Datum, ZipID, Winkans_zelf_inzet_prijsID])
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_accessories {
+// //     id          String      @id @db.VarChar(36)
+// //     vehicle     String      @db.VarChar(36)
+// //     type        String?     @db.VarChar(10)
+// //     position    String?     @db.VarChar(10)
+// //     createdBy   String      @db.VarChar(255)
+// //     dateCreated DateTime    @default(now()) @db.Timestamp(0)
+// //     json        Json        @map("_json")
+// //     ds_vehicles ds_vehicles @relation(fields: [vehicle], references: [id], onDelete: Cascade, map: "FK_ACCESSORY_VEHICLE")
+
+// //     @@index([vehicle], map: "FK_ACCESSORY_VEHICLE")
+// // }
+
+// // model ds_canonical_vehicle_categories {
+// //     id                    String                  @id @db.VarChar(100)
+// //     authority             String                  @db.VarChar(255)
+// //     createdBy             String                  @db.VarChar(255)
+// //     dateCreated           DateTime                @default(now()) @db.Timestamp(0)
+// //     json                  Json                    @map("_json")
+// //     ds_canonical_vehicles ds_canonical_vehicles[]
+// //     ds_surveys            ds_surveys[]
+// // }
+
+// // model ds_canonical_vehicle_json {
+// //     id                    Int                   @id @default(autoincrement())
+// //     canonicalVehicle      String                @db.VarChar(36)
+// //     vehicle               String?               @db.VarChar(36)
+// //     parkstate             String?               @db.VarChar(2)
+// //     ds_canonical_vehicles ds_canonical_vehicles @relation(fields: [canonicalVehicle], references: [id], onDelete: Cascade, map: "ds_canonical_vehicle_json_ibfk_1")
+// //     ds_vehicles           ds_vehicles?          @relation(fields: [vehicle], references: [id], onDelete: Cascade, map: "ds_canonical_vehicle_json_ibfk_2")
+
+// //     @@index([canonicalVehicle], map: "canonicalVehicle")
+// //     @@index([vehicle], map: "vehicle")
+// // }
+
+// // model ds_canonical_vehicles {
+// //     id                              String                          @id @db.VarChar(36)
+// //     categoryId                      String                          @db.VarChar(100)
+// //     code                            String                          @db.VarChar(4)
+// //     name                            String?                         @db.VarChar(255)
+// //     description                     String?                         @db.Text
+// //     json                            Json
+// //     createdBy                       String                          @db.VarChar(255)
+// //     dateCreated                     DateTime                        @default(now()) @db.Timestamp(0)
+// //     json1                           Json                            @map("_json")
+// //     ds_canonical_vehicle_json       ds_canonical_vehicle_json[]
+// //     ds_canonical_vehicle_categories ds_canonical_vehicle_categories @relation(fields: [categoryId], references: [id], onDelete: Cascade, map: "ds_canonical_vehicles_ibfk_1")
+
+// //     @@unique([categoryId, code], map: "IDX_UNIQUE_categoryId_code")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_capacity_measurements {
+// //     id                                 String                               @id @db.VarChar(36)
+// //     observation                        String                               @db.VarChar(36)
+// //     parkingCapacity                    Int
+// //     createdBy                          String                               @db.VarChar(255)
+// //     dateCreated                        DateTime                             @default(now()) @db.Timestamp(0)
+// //     json                               Json                                 @map("_json")
+// //     ds_observations                    ds_observations                      @relation(fields: [observation], references: [id], onDelete: Cascade, map: "FK_CAPACITY_OBSERVATION")
+// //     ds_capacity_per_parking_spacetypes ds_capacity_per_parking_spacetypes[]
+
+// //     @@index([observation], map: "FK_CAPACITY_OBSERVATION")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_capacity_per_parking_spacetypes {
+// //     id                       String                   @id @db.VarChar(36)
+// //     capacityMeasurement      String                   @db.VarChar(36)
+// //     numberOfVehicles         Int
+// //     createdBy                String                   @db.VarChar(255)
+// //     dateCreated              DateTime                 @default(now()) @db.Timestamp(0)
+// //     json                     Json                     @map("_json")
+// //     ds_capacity_measurements ds_capacity_measurements @relation(fields: [capacityMeasurement], references: [id], onDelete: Cascade, map: "FK_CAPACITY_PER_PARKING_SPACETYPE_CAPACITYMEASUREMENT")
+// //     ds_parking_spacetypes    ds_parking_spacetypes[]
+
+// //     @@index([capacityMeasurement], map: "FK_CAPACITY_PER_PARKING_SPACETYPE_CAPACITYMEASUREMENT")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_observations {
+// //     id                                                                String                           @id @db.VarChar(36)
+// //     survey                                                            String                           @db.VarChar(36)
+// //     contractor                                                        String                           @db.VarChar(100)
+// //     timestampStart                                                    DateTime                         @db.DateTime(0)
+// //     timestampEnd                                                      DateTime                         @db.DateTime(0)
+// //     observedProperty                                                  ds_observations_observedProperty
+// //     featureOfInterest                                                 String                           @db.VarChar(36)
+// //     surveyAreaParent                                                  String?                          @db.VarChar(36)
+// //     surveyAreaChild                                                   String?                          @db.VarChar(36)
+// //     parkingLocation                                                   String?                          @db.VarChar(36)
+// //     section                                                           String?                          @db.VarChar(36)
+// //     note                                                              String?                          @db.VarChar(36)
+// //     createdBy                                                         String                           @db.VarChar(100)
+// //     dateCreated                                                       DateTime                         @default(now()) @db.Timestamp(0)
+// //     json                                                              Json                             @map("_json")
+// //     ds_capacity_measurements                                          ds_capacity_measurements[]
+// //     ds_parking_locations                                              ds_parking_locations?            @relation(fields: [parkingLocation], references: [id], onDelete: NoAction, map: "FK_OBSERVATION_PARKINGLOCATION")
+// //     ds_sections                                                       ds_sections?                     @relation(fields: [section], references: [id], onDelete: NoAction, map: "FK_OBSERVATION_SECTION")
+// //     ds_survey_areas_ds_observations_surveyAreaChildTods_survey_areas  ds_survey_areas?                 @relation("ds_observations_surveyAreaChildTods_survey_areas", fields: [surveyAreaChild], references: [id], onDelete: NoAction, map: "FK_OBSERVATION_SURVEYAREACHILD")
+// //     ds_survey_areas_ds_observations_surveyAreaParentTods_survey_areas ds_survey_areas?                 @relation("ds_observations_surveyAreaParentTods_survey_areas", fields: [surveyAreaParent], references: [id], onDelete: NoAction, map: "FK_OBSERVATION_SURVEYAREAPARENT")
+// //     ds_occupation_measurements                                        ds_occupation_measurements[]
+
+// //     @@index([parkingLocation], map: "FK_OBSERVATION_PARKINGLOCATION")
+// //     @@index([section], map: "FK_OBSERVATION_SECTION")
+// //     @@index([surveyAreaChild], map: "FK_OBSERVATION_SURVEYAREACHILD")
+// //     @@index([surveyAreaParent], map: "FK_OBSERVATION_SURVEYAREAPARENT")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_occupation_measurements {
+// //     id                     String                   @id @db.VarChar(36)
+// //     observation            String                   @db.VarChar(36)
+// //     totalParked            Int
+// //     createdBy              String                   @db.VarChar(255)
+// //     dateCreated            DateTime                 @default(now()) @db.Timestamp(0)
+// //     json                   Json                     @map("_json")
+// //     ds_observations        ds_observations          @relation(fields: [observation], references: [id], onDelete: Cascade, map: "FK_OCCUPATION_OBSERVATION")
+// //     ds_vehicle_type_counts ds_vehicle_type_counts[]
+
+// //     @@index([observation], map: "FK_OCCUPATION_OBSERVATION")
+// // }
+
+// // model ds_parking_spacetype_vehicle {
+// //     id                    Int                   @id @default(autoincrement())
+// //     parkingSpacetype      String                @db.VarChar(36)
+// //     vehicle               String                @db.VarChar(36)
+// //     ds_parking_spacetypes ds_parking_spacetypes @relation(fields: [parkingSpacetype], references: [id], onDelete: Cascade, map: "ds_parking_spacetype_vehicle_ibfk_1")
+// //     ds_vehicles           ds_vehicles           @relation(fields: [vehicle], references: [id], onDelete: Cascade, map: "ds_parking_spacetype_vehicle_ibfk_2")
+
+// //     @@index([parkingSpacetype], map: "parkingSpacetype")
+// //     @@index([vehicle], map: "vehicle")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_parking_spacetypes {
+// //     id                                 String                             @id @db.VarChar(36)
+// //     capacityPerParkingSpaceType        String                             @db.VarChar(36)
+// //     type                               String?                            @db.VarChar(10)
+// //     createdBy                          String                             @db.VarChar(255)
+// //     dateCreated                        DateTime                           @default(now()) @db.Timestamp(0)
+// //     json                               Json                               @map("_json")
+// //     ds_parking_spacetype_vehicle       ds_parking_spacetype_vehicle[]
+// //     ds_capacity_per_parking_spacetypes ds_capacity_per_parking_spacetypes @relation(fields: [capacityPerParkingSpaceType], references: [id], onDelete: Cascade, map: "FK_PARKING_SPACETYPE_CAPACITYPERPARKINGSPACETYPE")
+
+// //     @@index([capacityPerParkingSpaceType], map: "FK_PARKING_SPACETYPE_CAPACITYPERPARKINGSPACETYPE")
+// // }
+
+// // /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+// // model ds_surveyareas_surveys {
+// //     surveyAreaId    String          @db.VarChar(36)
+// //     surveyId        String          @db.VarChar(36)
+// //     ds_survey_areas ds_survey_areas @relation(fields: [surveyAreaId], references: [id], onDelete: Cascade, map: "FK_SurveyAreas_Surveys_1")
+// //     ds_surveys      ds_surveys      @relation(fields: [surveyId], references: [id], onDelete: Cascade, map: "FK_SurveyAreas_Surveys_2")
+
+// //     @@index([surveyAreaId], map: "FK_SurveyAreas_Surveys_1")
+// //     @@index([surveyId], map: "FK_SurveyAreas_Surveys_2")
+// //     @@ignore
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_surveys {
+// //     id                              String                           @id @db.VarChar(36)
+// //     name                            String?                          @db.VarChar(255)
+// //     layout                          String?                          @db.VarChar(1)
+// //     authority                       String?                          @db.VarChar(255)
+// //     contractors                     Json?
+// //     canonicalVehicleCategory        String?                          @db.VarChar(100)
+// //     createdBy                       String?                          @db.VarChar(255)
+// //     dateCreated                     DateTime?                        @default(now()) @db.Timestamp(0)
+// //     json                            Json                             @map("_json")
+// //     ds_surveyareas_surveys          ds_surveyareas_surveys[]         @ignore
+// //     ds_canonical_vehicle_categories ds_canonical_vehicle_categories? @relation(fields: [canonicalVehicleCategory], references: [id], onDelete: Cascade, map: "FK_CANONICAL_VEHICLE_CATEGORY")
+
+// //     @@unique([name, authority], map: "name")
+// //     @@index([canonicalVehicleCategory], map: "FK_CANONICAL_VEHICLE_CATEGORY")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_vehicle_propulsion {
+// //     id          String      @id @db.VarChar(36)
+// //     vehicle     String      @db.VarChar(36)
+// //     propulsion  String?     @db.VarChar(10)
+// //     dateCreated DateTime    @default(now()) @db.Timestamp(0)
+// //     json        Json        @map("_json")
+// //     ds_vehicles ds_vehicles @relation(fields: [vehicle], references: [id], onDelete: Cascade, map: "FK_PROPULSION_VEHICLE")
+
+// //     @@index([vehicle], map: "FK_PROPULSION_VEHICLE")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_vehicle_type_counts {
+// //     id                         String                     @id @db.VarChar(36)
+// //     occupationMeasurement      String                     @db.VarChar(36)
+// //     canonicalVehicleCode       String?                    @db.VarChar(4)
+// //     vehicle                    String                     @db.VarChar(36)
+// //     parkState                  String?                    @db.VarChar(10)
+// //     numberOfVehicles           Int
+// //     createdBy                  String                     @db.VarChar(255)
+// //     dateCreated                DateTime                   @default(now()) @db.Timestamp(0)
+// //     json                       Json                       @map("_json")
+// //     ds_occupation_measurements ds_occupation_measurements @relation(fields: [occupationMeasurement], references: [id], onDelete: Cascade, map: "FK_VEHICLETYPECOUNTS_OCCUPATIONMEASUREMENT")
+// //     ds_vehicles                ds_vehicles                @relation(fields: [vehicle], references: [id], onDelete: Cascade, map: "FK_VEHICLETYPECOUNTS_VEHICLE")
+
+// //     @@index([occupationMeasurement], map: "FK_VEHICLETYPECOUNTS_OCCUPATIONMEASUREMENT")
+// //     @@index([vehicle], map: "FK_VEHICLETYPECOUNTS_VEHICLE")
+// // }
+
+// // /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+// // model ds_vehicles {
+// //     id                           String                         @id @db.VarChar(36)
+// //     type                         String?                        @db.VarChar(10)
+// //     appearance                   String?                        @db.VarChar(10)
+// //     owner                        String?                        @db.VarChar(10)
+// //     createdBy                    String                         @db.VarChar(255)
+// //     dateCreated                  DateTime                       @default(now()) @db.Timestamp(0)
+// //     json                         Json                           @map("_json")
+// //     ds_accessories               ds_accessories[]
+// //     ds_canonical_vehicle_json    ds_canonical_vehicle_json[]
+// //     ds_parking_spacetype_vehicle ds_parking_spacetype_vehicle[]
+// //     ds_vehicle_propulsion        ds_vehicle_propulsion[]
+// //     ds_vehicle_type_counts       ds_vehicle_type_counts[]
+// // }
+
+// // /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+// // model modules_contacts_copy1 {
+// //     ModuleID String @db.VarChar(50)
+// //     SiteID   String @db.VarChar(35)
+
+// //     @@index([ModuleID], map: "FKDB7FF20B65AC5B13")
+// //     @@index([SiteID], map: "FKDB7FF20B668AE523")
+// //     @@ignore
+// // }
+
+// // model sectie_fietstype_tmp {
+// //     SectionBiketypeID Int      @id @default(autoincrement())
+// //     Capaciteit        Int?
+// //     Toegestaan        Boolean? @db.Bit(1)
+// //     SectieID          String?  @db.VarChar(13)
+// //     sectieID          Int?     @map("_sectieID")
+// //     BikeparkID        String?  @db.VarChar(8)
+// //     StallingsID       String?  @db.VarChar(35)
+// //     BikeTypeID        Int?
+
+// //     @@unique([SectieID, BikeparkID, BikeTypeID], map: "SectieID")
+// // }
+
+// // model tariefregels_tmp {
+// //     tariefregelID     Int      @id @default(autoincrement())
+// //     index             Int?
+// //     tijdsspanne       Float?
+// //     kosten            Decimal? @db.Decimal(8, 2)
+// //     stallingsID1      String?  @db.VarChar(8)
+// //     stallingsID       String?  @map("_stallingsID") @db.VarChar(35)
+// //     sectieID1         String?  @db.VarChar(13)
+// //     sectieID          Int?     @map("_sectieID")
+// //     sectionBikeTypeID Int?
+// // }
+
+// // model texts {
+// //     ID             String    @id @default("") @db.VarChar(35)
+// //     Language       String?   @db.VarChar(25)
+// //     Title          String?   @db.VarChar(255)
+// //     DisplayTitle   String?   @db.VarChar(255)
+// //     Article        String?   @db.Text
+// //     Status         String?   @default("1") @db.VarChar(4)
+// //     EditorCreated  String?   @db.VarChar(255)
+// //     DateCreated    DateTime? @db.DateTime(0)
+// //     EditorModified String?   @db.VarChar(255)
+// //     DateModified   DateTime? @db.DateTime(0)
+// // }
+
+// // /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model tmp_audit_grabbelton_na {
+// //     ID                 Int     @id @default(autoincrement()) @db.UnsignedInt
+// //     TrekkingID         String? @db.VarChar(35)
+// //     FietsenstallingID  String? @db.VarChar(35)
+// //     PasID              String? @db.VarChar(35)
+// //     PrijsID            String? @db.VarChar(35)
+// //     Zelf_inzet_prijsID String? @db.VarChar(35)
+
+// //     @@index([TrekkingID, PasID, PrijsID], map: "TrekkingID")
+// // }
+
+// // /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+// // model tmp_audit_grabbelton_voor {
+// //     ID                 Int     @id @default(autoincrement()) @db.UnsignedInt
+// //     TrekkingID         String? @db.VarChar(35)
+// //     FietsenstallingID  String? @db.VarChar(35)
+// //     PasID              String? @db.VarChar(35)
+// //     PrijsID            String? @db.VarChar(35)
+// //     Zelf_inzet_prijsID String? @db.VarChar(35)
+
+// //     @@index([TrekkingID, PasID, PrijsID], map: "TrekkingID")
+// // }
+
+// // model winkansen_reminderteksten {
+// //     ID                          String    @id @default("") @db.VarChar(35)
+// //     SiteID                      String?   @db.VarChar(35)
+// //     NotificationWinkansenAmount Int?
+// //     Title                       String?   @db.VarChar(255)
+// //     Article                     String?   @db.Text
+// //     Status                      String?   @default("1") @db.VarChar(4)
+// //     EditorCreated               String?   @db.VarChar(255)
+// //     DateCreated                 DateTime? @db.DateTime(0)
+// //     EditorModified              String?   @db.VarChar(255)
+// //     DateModified                DateTime? @db.DateTime(0)
+// // }
+
+// // enum unieke_bezoekers_periode {
+// //     jaar
+// //     q1
+// //     q2
+// //     q3
+// //     q4
+// // }
+
+// enum security_roles_GroupID {
+//     intern
+//     extern
+//     exploitant
+//     beheerder
+// }
+
+// // enum sleutelhangerreeksen_type {
+// //     sticker
+// //     sleutelhanger
+// // }
+
+// // enum emails_type {
+// //     business
+// //     error
+// //     test
+// // }
+
+// // enum fmsservicelog_Type {
+// //     debug
+// //     info
+// //     warning
+// //     error
+// //     critical
+// //     notice
+// // }
+
+// // enum trekkingen_Status {
+// //     NONACTIVE
+// //     PENDING
+// //     COMPLETED
+// // }
+
+// // enum transacties_archief_checkintype {
+// //     user
+// //     controle
+// //     system
+// //     sync
+// //     reservation
+// // }
+
+// // enum transacties_archief_checkouttype {
+// //     user
+// //     controle
+// //     system
+// //     sync
+// //     reservation
+// // }
+
+// // enum ds_survey_areas_status {
+// //     akkoord
+// //     voorlopig
+// //     afgekeurd
+// // }
+
+// // enum ds_sections_status {
+// //     akkoord
+// //     voorlopig
+// //     afgekeurd
+// // }
+
+// // enum accounts_WinkansInzetMehode {
+// //     AUTO
+// //     HANDMATIG
+// // }
+
+// enum accounts_account_type {
+//     SYSTEM
+//     USER
+//     DELETED
+// }
+
+// // enum ds_observations_observedProperty {
+// //     capacity
+// //     occupation
+// // }
+
+// // enum transacties_archief_tmp_checkintype {
+// //     user
+// //     controle
+// //     system
+// //     sync
+// //     reservation
+// // }
+
+// // enum ds_parking_locations_status {
+// //     approved
+// //     new
+// //     disapproved
+// // }
+
+// // enum transacties_archief_tmp_checkouttype {
+// //     user
+// //     controle
+// //     system
+// //     sync
+// //     reservation
+// // }
+
+// model Account {
+//     id                String  @id @default(cuid())
+//     userId            String
+//     type              String
+//     provider          String
+//     providerAccountId String
+//     refresh_token     String? @db.Text
+//     access_token      String? @db.Text
+//     expires_at        Int?
+//     token_type        String?
+//     scope             String?
+//     id_token          String? @db.Text
+//     session_state     String?
+
+//     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//     @@unique([provider, providerAccountId])
+// }
+
+// model Session {
+//     id           String   @id @default(cuid())
+//     sessionToken String   @unique
+//     userId       String
+//     expires      DateTime
+//     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// }
+
+// model User {
+//     id            String    @id @default(cuid())
+//     name          String?
+//     email         String?   @unique
+//     emailVerified DateTime?
+//     image         String?
+//     accounts      Account[]
+//     sessions      Session[]
+// }
+
+// model VerificationToken {
+//     identifier String
+//     token      String   @unique
+//     expires    DateTime
+
+//     @@unique([identifier, token])
+// }
