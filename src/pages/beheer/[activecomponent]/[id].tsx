@@ -373,6 +373,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   }
 
   const renderLeftMenu = () => {
+    // If user is Fietsberaad, show the Fietsberaad left menu
     if (selectedContactID === "1") {
       return <LeftMenu
         securityProfile={session?.user?.securityProfile}

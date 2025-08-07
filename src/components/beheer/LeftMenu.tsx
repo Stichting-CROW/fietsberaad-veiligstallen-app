@@ -92,10 +92,6 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
       <>
         <LeftMenuItem component={VSMenuTopic.Home} title={'Home'} activecomponent={activecomponent} onSelect={onSelect} />
 
-        {doOnlyShowReports() && <>
-          <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportages'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
-        </>}
-
         {! doOnlyShowReports() && <>
           {hasUsersRight && <LeftMenuItem component={VSMenuTopic.UsersGebruikersbeheerFietsberaad} title={`Gebruikers`} compact={true} activecomponent={activecomponent} onSelect={onSelect} />}
 
@@ -112,16 +108,6 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 
           {/* {hasLocatiesRight && formatLi(VSMenuTopic.Fietsenstallingen, 'Fietsenstallingen')}
           {hasBuurtstallingenRight && formatLi(VSMenuTopic.Buurtstallingen, 'Buurtstallingen / Fietstrommels')} */}
-
-          {hasRapportagesRight && 
-            <LeftMenuItem component={false} title={'Rapportages'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
-              <ul className="ml-4 mt-1">
-                <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportage'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
-                <LeftMenuItem component={VSMenuTopic.Export} title={'Export'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
-                {/* {formatLiDevelopment(VSMenuTopic.Logboek, 'Logboek', true)} */}
-              </ul>
-            </LeftMenuItem>
-          }
 
           {(hasWebsiteRight) && 
             <LeftMenuItem component={false} title={'Website beheer'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
