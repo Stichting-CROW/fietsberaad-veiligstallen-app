@@ -5,6 +5,7 @@ import ParkingEdit from '~/components/parking/ParkingEdit';
 import { getParkingDetails } from "~/utils/parkings";
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
+import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import { useSession } from 'next-auth/react';
 import { Table } from '~/components/common/Table';
 
@@ -21,11 +22,14 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
-  const [sortColumn, setSortColumn] = useState<string | undefined>('Title');
+  const [sortColumn, setSortColumn] = useState<string>('Naam');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
+  const [selectedVisibilityFilter, setSelectedVisibilityFilter] = useState<string>('all');
 
   // Use the useFietsenstallingen hook to fetch parkings
   const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID);
+  const { fietsenstallingtypen, isLoading: typesLoading } = useFietsenstallingtypen();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -63,8 +67,30 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   }, [router.query.id]);
 
   useEffect(() => {
-    setFilteredParkings(fietsenstallingen);
-  }, [fietsenstallingen]);
+    let filtered = fietsenstallingen;
+
+    // Apply type filter
+    if (selectedTypeFilter !== 'all') {
+      filtered = filtered.filter(parking => parking.Type === selectedTypeFilter);
+    }
+
+    // Apply visibility filter
+    if (selectedVisibilityFilter !== 'all') {
+      if (selectedVisibilityFilter === 'public') {
+        // Show all types except buurtstalling and fietstrommel
+        filtered = filtered.filter(parking => 
+          parking.Type !== 'buurtstalling' && parking.Type !== 'fietstrommel'
+        );
+      } else if (selectedVisibilityFilter === 'private') {
+        // Show only buurtstalling and fietstrommel
+        filtered = filtered.filter(parking => 
+          parking.Type === 'buurtstalling' || parking.Type === 'fietstrommel'
+        );
+      }
+    }
+
+    setFilteredParkings(filtered);
+  }, [fietsenstallingen, selectedTypeFilter, selectedVisibilityFilter]);
 
   const handleEdit = (id: string) => {
     setCurrentParkingId(id);
@@ -107,8 +133,9 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         setSortColumn(undefined);
         setSortDirection('asc');
       }
+
     } else {
-      // If clicking a different column, set it as the new sort column with asc direction
+      // New column, start with ascending
       setSortColumn(header);
       setSortDirection('asc');
     }
@@ -118,12 +145,42 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     if (!sortColumn) {
       return filteredParkings;
     }
-    if (sortColumn === 'Naam') {
-      const sorted = [...filteredParkings].sort((a, b) => (a.Title || "").localeCompare(b.Title || ""));
-      return sortDirection === 'desc' ? sorted.reverse() : sorted;
-    }
-    return filteredParkings;
+
+    return [...filteredParkings].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      if (sortColumn === 'Naam') {
+        aValue = a.Title || '';
+        bValue = b.Title || '';
+      } else if (sortColumn === 'Status') {
+        aValue = a.Status || '';
+        bValue = b.Status || '';
+      } else if (sortColumn === 'Type') {
+        aValue = a.fietsenstalling_type?.name || a.Type || '';
+        bValue = b.fietsenstalling_type?.name || b.Type || '';
+      } else {
+        return 0;
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
   }, [filteredParkings, sortColumn, sortDirection]);
+
+  const getStatusDisplay = (status: string | null) => {
+    if (status === "1") {
+      return <span className="text-green-500">●</span>;
+    } else if (status === "0") {
+      return <span className="text-red-500">●</span>;
+    } else if (status === "aanm" || status === "new") {
+      return "New";
+    }
+    return status || '';
+  };
 
   if (status === 'loading') {
     return <LoadingSpinner />;
@@ -134,13 +191,15 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   }
 
   const renderOverview = () => {
-    if (isLoading) {
+    if (isLoading || typesLoading) {
       return <LoadingSpinner />;
     }
 
     if (error) {
       return <div>Error: {error}</div>;
     }
+
+    const showTypeColumn = selectedTypeFilter === 'all';
 
     return (
       <div>
@@ -158,18 +217,64 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
               );
             }}
           />
+          
+          {/* Filters */}
+          <div className="flex gap-4">
+            {/* Visibility filter */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Toegang
+              </label>
+              <select
+                value={selectedVisibilityFilter}
+                onChange={(e) => setSelectedVisibilityFilter(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="all">Alle</option>
+                <option value="public">Openbaar</option>
+                <option value="private">Beperkt</option>
+              </select>
+            </div>
+            {/* Type filter */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Type
+              </label>
+              <select
+                value={selectedTypeFilter}
+                onChange={(e) => setSelectedTypeFilter(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="all">Alle types</option>
+                {fietsenstallingtypen.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+          </div>
         </div>
+        
         <div className="overflow-x-auto">
           <Table 
             columns={[
               {
                 header: 'Naam',
                 accessor: 'Title',
-                // className: 'px-6 py-4 whitespace-no-wrap border-b border-gray-200'
+              },
+              ...(showTypeColumn ? [{
+                header: 'Type',
+                accessor: (parking: ParkingDetailsType) => parking.fietsenstalling_type?.name || parking.Type || '',
+              }] : []),
+              {
+                header: 'Status',
+                accessor: (parking: ParkingDetailsType) => getStatusDisplay(parking.Status),
               },
               {
                 header: 'Acties',
-                accessor: (parking) => (
+                accessor: (parking: ParkingDetailsType) => (
                   <>
                     <button
                       onClick={() => handleEdit(parking.ID)}
@@ -185,12 +290,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                     </button>
                   </>
                 ),
-                // className: 'px-6 py-4 whitespace-no-wrap border-b border-gray-200'
               }
             ]}
             data={sortedParkings}
             className="min-w-full bg-white"
-            sortableColumns={['Naam']}
+            sortableColumns={['Naam', 'Status', ...(showTypeColumn ? ['Type'] : [])]}
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={handleSort}

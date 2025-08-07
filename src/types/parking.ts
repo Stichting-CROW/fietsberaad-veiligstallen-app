@@ -91,7 +91,7 @@ export type ParkingDetailsType = {
     Ip: string | null; // not used in the app
     Verwijssysteem: boolean; // not used in the app
     VerwijssysteemOverzichten: boolean | null; // not used in the app
-    FMS: boolean | null, // Check if/how this is still used
+    FMS: boolean | null; // Check if/how this is still used
     Beheerder: string | null,
     BeheerderContact: string | null,
     OmschrijvingTarieven: string | null; // not used in the app
@@ -116,6 +116,11 @@ export type ParkingDetailsType = {
     wachtlijst_Id: bigint | null; // Removed from record in prisma.ts
     thirdPartyReservationsUrl: string | null; // Not used in the app
 
+    fietsenstalling_type?: {
+        id: string,
+        name: string,
+        sequence: number
+    } | null,
     fietsenstalling_secties: ParkingSections | null,
     uitzonderingenopeningstijden: UitzonderingenOpeningstijden | null,
 
