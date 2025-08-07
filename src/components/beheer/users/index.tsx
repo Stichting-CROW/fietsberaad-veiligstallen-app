@@ -26,7 +26,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
-  const [sortColumn, setSortColumn] = useState<string | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
 
   const { users, isLoading: isLoadingUsers, error: errorUsers, reloadUsers } = useUsers(props.siteID ?? undefined);
   const { data: session } = useSession();
