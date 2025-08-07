@@ -33,7 +33,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
     const hasWebsiteRight = userHasRight(securityProfile, VSSecurityTopic.Website);
     // const hasGemeenteRight = userHasRight(securityProfile, VSSecurityTopic.ContactsGemeenten);
     const hasLocatiesRight = userHasRight(securityProfile, VSSecurityTopic.ApisGekoppeldeLocaties);
-    const hasBuurtstallingenRight = userHasRight(securityProfile, VSSecurityTopic.Buurtstallingen) // && userHasModule(securityProfile, VSModuleValues.Buurtstallingen);
     // const hasRegistrantenRight = userHasRight(securityProfile, VSSecurityTopic.Accounts) && userHasModule(securityProfile, VSModuleValues.Fms);
     const hasRapportagesRight = userHasRight(securityProfile, VSSecurityTopic.Report) // && userHasModule(securityProfile, VSModuleValues.Fms);
     // const hasUsersRight = userHasRight(securityProfile, VSSecurityTopic.UsersGebruikersbeheer) // && userHasModule(securityProfile, VSModuleValues.Fms);
@@ -101,7 +100,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           { hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')} */}
     
           { hasLocatiesRight && <LeftMenuItem component={VSMenuTopic.Fietsenstallingen} title={'Fietsenstallingen'} activecomponent={activecomponent} onSelect={onSelect} /> }
-          { hasBuurtstallingenRight && <LeftMenuItem component={VSMenuTopic.Buurtstallingen} title={'Buurtstallingen / Fietstrommels'} activecomponent={activecomponent} onSelect={onSelect} /> }
 
           {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.ArticlesPages} title={'Pagina\'s'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
           {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.Faq} title={'FAQ'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
