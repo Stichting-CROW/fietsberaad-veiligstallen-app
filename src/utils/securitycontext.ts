@@ -99,26 +99,22 @@ export const getRoleRights = (
             return allrights;
         case VSUserRoleValuesNew.Admin:
             // only root admin gets to manage system settings and users
-            return changeTopics(allrights, [
-                VSSecurityTopic.System,
-                VSSecurityTopic.Development,
+            return changeTopics(noRights, [
+                VSSecurityTopic.instellingen_dataeigenaar,
+                VSSecurityTopic.gebruikers_dataeigenaar_beperkt,
+                VSSecurityTopic.instellingen_fietsenstallingen_admin,
+                VSSecurityTopic.rapportages,
+                VSSecurityTopic.instellingen_site_content,
             ], allowNone);
         case VSUserRoleValuesNew.Editor:
             return changeTopics(noRights, [
-                // VSSecurityTopic.ContactsGemeenten,
-                // VSSecurityTopic.ContactsExploitanten,
-                // VSSecurityTopic.Report,
-                // VSSecurityTopic.Buurtstallingen,
-                // VSSecurityTopic.Fietskluizen,
-                VSSecurityTopic.Website,
+                VSSecurityTopic.instellingen_fietsenstallingen_beperkt,
+                VSSecurityTopic.rapportages,
+                VSSecurityTopic.instellingen_site_content,
             ], allowCRUD);
         case VSUserRoleValuesNew.Viewer:
             let rights = changeTopics(noRights, [
-                VSSecurityTopic.ContactsGemeenten,
-                VSSecurityTopic.ContactsExploitanten,
-                VSSecurityTopic.Buurtstallingen,
-                VSSecurityTopic.Fietskluizen,
-                VSSecurityTopic.ApisGekoppeldeLocaties,
+                VSSecurityTopic.rapportages
             ], allowRead);
             rights = changeTopics(rights, [
                 VSSecurityTopic.Report,
