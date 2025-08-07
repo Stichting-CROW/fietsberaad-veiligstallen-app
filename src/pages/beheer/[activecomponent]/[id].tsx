@@ -372,6 +372,34 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
   }
 
+  const renderLeftMenu = () => {
+    if (selectedContactID === "1") {
+      return <LeftMenu
+        securityProfile={session?.user?.securityProfile}
+        activecomponent={activecomponent}
+        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
+      />
+    }
+    else if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
+      return <LeftMenuGemeente
+        securityProfile={session?.user?.securityProfile}
+        activecomponent={activecomponent}
+        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
+      />
+    }
+    else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {
+      return <LeftMenuExploitant
+        securityProfile={session?.user?.securityProfile}
+        activecomponent={activecomponent}
+        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
+      />
+    }
+    // By default: render empty left menu
+    else {
+      return <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4" />
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-y-hidden">
       <TopBar
@@ -383,27 +411,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         onGemeenteSelect={handleSelectGemeente}
       />
       <div className="flex">
-        {selectedContactID === "1" && (
-          <LeftMenu
-            securityProfile={session?.user?.securityProfile}
-            activecomponent={activecomponent}
-            onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-          />
-        )}
-        {gemeenten.find(gemeente => gemeente.ID === selectedContactID) && (
-          <LeftMenuGemeente
-            securityProfile={session?.user?.securityProfile}
-            activecomponent={activecomponent}
-            onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-          />)
-        }
-        {exploitanten.find(exploitant => exploitant.ID === selectedContactID) && (
-          <LeftMenuExploitant
-            securityProfile={session?.user?.securityProfile}
-            activecomponent={activecomponent}
-            onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-          />)
-        }
+        {renderLeftMenu()}
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
