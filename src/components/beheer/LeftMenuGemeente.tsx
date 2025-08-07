@@ -1,6 +1,4 @@
-// LeftMenuGemeente.tsx
 import React from 'react';
-import Link from 'next/link';
 
 import { type VSUserSecurityProfile, VSSecurityTopic } from '~/types/securityprofile';
 import { VSMenuTopic } from '~/types/';
@@ -13,58 +11,13 @@ interface LeftMenuGemeenteProps {
   onSelect: (component: VSMenuTopic) => void;
 }
 
+import { LeftMenuItem } from './LeftMenuCommon';
+
 const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   securityProfile,
   activecomponent,
   onSelect,
 }) => {
-  // const router = useRouter();
-  // const { query } = router;
-
-  const formatLi = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
-    const isSelected = component === activecomponent;
-    const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
-    const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded cursor-default`;
-
-    return (
-      <li className={compact ? 'mb-2' : 'mb-1'}>
-        {component ? (
-          <Link href="#" onClick={(e) => { e.preventDefault(); onSelect(component) }} className={className} style={style}>
-            {title}
-          </Link>
-        ) : (
-          <Link href="#" onClick={(e) => { e.preventDefault() }} className={classNamePassive} style={style}>
-            {title}
-          </Link>
-        )}
-        {children}
-      </li>
-    );
-  }
-
-  const formatLiDevelopment = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
-    const isSelected = component === activecomponent;
-    const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
-    const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded strikethrough cursor-default`;
-
-    return (
-      <li className={compact ? 'mb-2' : 'mb-1'}>
-        {component ? (
-          <Link href="#" onClick={(e) => { e.preventDefault(); onSelect(component) }} className={className} style={style}>
-            <span className="line-through">{title}</span>
-          </Link>
-        ) : (
-          <Link href="#" onClick={(e) => { e.preventDefault() }} className={classNamePassive} style={style}>
-            <span className="line-through">{title}</span>
-          </Link>
-        )}
-        {children}
-      </li>
-    );
-  }
-
   // Do only show reports? Temporary for testing, 2025-05
   const doOnlyShowReports = (): boolean => {
     return !['veiligstallen.work', 'localhost:3000'].includes(window?.location?.host||'');
@@ -132,30 +85,29 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
 
     return (
       <>
-        {formatLi(VSMenuTopic.Home, 'Home')}
+        <LeftMenuItem component={VSMenuTopic.Home} title={'Home'} activecomponent={activecomponent} onSelect={onSelect} />
 
         {doOnlyShowReports() && <>
-          {formatLi(VSMenuTopic.Report, 'Rapportages', true)}
+          <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportages'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
         </>}
 
         {! doOnlyShowReports() && <>
-          { isAdmin && formatLi(VSMenuTopic.SettingsGemeente, 'Instellingen')}
+          { isAdmin && <LeftMenuItem component={VSMenuTopic.SettingsGemeente} title={'Instellingen'} activecomponent={activecomponent} onSelect={onSelect} /> }
 
-          { isAdmin && formatLi(VSMenuTopic.UsersGebruikersbeheerGemeente, `Gebruikers`)}
-          { isAdmin && formatLi(VSMenuTopic.ContactsExploitanten, 'Exploitanten')}
+          { isAdmin && <LeftMenuItem component={VSMenuTopic.UsersGebruikersbeheerGemeente} title={'Gebruikers'} activecomponent={activecomponent} onSelect={onSelect} /> }
+          { isAdmin && <LeftMenuItem component={VSMenuTopic.ContactsExploitanten} title={'Exploitanten'} activecomponent={activecomponent} onSelect={onSelect} /> }
           {/* { isAdmin && formatLi(VSMenuTopic.ContactsDataproviders, 'Dataleveranciers')}
     
           { hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')} */}
     
-          { hasLocatiesRight && formatLi(VSMenuTopic.Fietsenstallingen, 'Fietsenstallingen')}
-          { hasBuurtstallingenRight && formatLi(VSMenuTopic.Buurtstallingen, 'Buurtstallingen / Fietstrommels')}
+          { hasLocatiesRight && <LeftMenuItem component={VSMenuTopic.Fietsenstallingen} title={'Fietsenstallingen'} activecomponent={activecomponent} onSelect={onSelect} /> }
+          { hasBuurtstallingenRight && <LeftMenuItem component={VSMenuTopic.Buurtstallingen} title={'Buurtstallingen / Fietstrommels'} activecomponent={activecomponent} onSelect={onSelect} /> }
 
-          {hasWebsiteRight && formatLi(VSMenuTopic.ArticlesPages, 'Pagina\'s', true)}
-          {hasWebsiteRight && formatLi(VSMenuTopic.Faq, 'FAQ', true)}
+          {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.ArticlesPages} title={'Pagina\'s'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.Faq} title={'FAQ'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
 
-          {hasRapportagesRight && formatLi(VSMenuTopic.Report, 'Rapportage', true)}
-          {hasRapportagesRight && formatLi(VSMenuTopic.Export, 'Export', true)}
-          {/* {hasRapportagesRight && formatLiDevelopment(VSMenuTopic.Logboek, 'Logboek', true)} */}
+          {hasRapportagesRight && <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportage'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasRapportagesRight && <LeftMenuItem component={VSMenuTopic.Export} title={'Export'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
         </>}
       </>
     )

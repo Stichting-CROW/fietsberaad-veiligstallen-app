@@ -13,6 +13,8 @@ interface LeftMenuProps {
   onSelect: (component: VSMenuTopic) => void;
 }
 
+import { LeftMenuItem } from './LeftMenuCommon';
+
 const LeftMenu: React.FC<LeftMenuProps> = ({
   securityProfile,
   activecomponent,
@@ -20,50 +22,6 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 }) => {
   // const router = useRouter();
   // const { query } = router;
-
-  const formatLi = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
-    const isSelected = component === activecomponent;
-    const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
-    const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded cursor-default`;
-
-    return (
-      <li className={compact ? 'mb-2' : 'mb-1'}>
-        {component ? (
-          <Link href="#" onClick={(e) => { e.preventDefault(); onSelect(component) }} className={className} style={style}>
-            {title}
-          </Link>
-        ) : (
-          <Link href="#" onClick={(e) => { e.preventDefault() }} className={classNamePassive} style={style}>
-            {title}
-          </Link>
-        )}
-        {children}
-      </li>
-    );
-  }
-
-  const formatLiDevelopment = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
-    const isSelected = component === activecomponent;
-    const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
-    const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded strikethrough cursor-default`;
-
-    return (
-      <li className={compact ? 'mb-2' : 'mb-1'}>
-        {component ? (
-          <Link href="#" onClick={(e) => { e.preventDefault(); onSelect(component) }} className={className} style={style}>
-            <span className="line-through">{title}</span>
-          </Link>
-        ) : (
-          <Link href="#" onClick={(e) => { e.preventDefault() }} className={classNamePassive} style={style}>
-            <span className="line-through">{title}</span>
-          </Link>
-        )}
-        {children}
-      </li>
-    );
-  }
 
   // Do only show reports? Temporary for testing, 2025-05
   const doOnlyShowReports = (): boolean => {
@@ -135,60 +93,61 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 
     return (
       <>
-        {formatLi(VSMenuTopic.Home, 'Home')}
+        <LeftMenuItem component={VSMenuTopic.Home} title={'Home'} activecomponent={activecomponent} onSelect={onSelect} />
 
         {doOnlyShowReports() && <>
-          {formatLi(VSMenuTopic.Report, 'Rapportages', true)}
+          <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportages'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
         </>}
 
         {! doOnlyShowReports() && <>
-          {hasUsersRight && formatLi(VSMenuTopic.UsersGebruikersbeheerFietsberaad, `Gebruikers`, true)}
+          {hasUsersRight && <LeftMenuItem component={VSMenuTopic.UsersGebruikersbeheerFietsberaad} title={`Gebruikers`} compact={true} activecomponent={activecomponent} onSelect={onSelect} />}
 
-          { formatLi(false, 'Organisaties', false,
-            <ul className="ml-4 mt-1">
-              {(isAdmin || hasGemeenteRight) && formatLi(VSMenuTopic.ContactsGemeenten, 'Data-eigenaren')}
-              { hasSystemRight && isAdmin && formatLi(VSMenuTopic.ContactsExploitanten, 'Exploitanten')}
-              { hasSystemRight && isAdmin && hasDataprovidersRight && formatLi(VSMenuTopic.ContactsDataproviders, 'Dataleveranciers')}
-              {!hasSystemRight && hasDataprovidersRight && formatLi(VSMenuTopic.ContactsDataproviders, 'Toegang fmsservice')}
-            </ul>) }
+          { <LeftMenuItem component={false} title={'Organisaties'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
+              <ul className="ml-4 mt-1">
+                {(isAdmin || hasGemeenteRight) && <LeftMenuItem component={VSMenuTopic.ContactsGemeenten} title={'Data-eigenaren'} activecomponent={activecomponent} onSelect={onSelect} />}
+                { hasSystemRight && isAdmin && <LeftMenuItem component={VSMenuTopic.ContactsExploitanten} title={'Exploitanten'} activecomponent={activecomponent} onSelect={onSelect} />}
+                { hasSystemRight && isAdmin && hasDataprovidersRight && <LeftMenuItem component={VSMenuTopic.ContactsDataproviders} title={'Dataleveranciers'} activecomponent={activecomponent} onSelect={onSelect} />}
+                {!hasSystemRight && hasDataprovidersRight && <LeftMenuItem component={VSMenuTopic.ContactsDataproviders} title={'Toegang fmsservice'} activecomponent={activecomponent} onSelect={onSelect} />}
+              </ul>
+            </LeftMenuItem> }
 
-          {!hasSystemRight && hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')}
+          {!hasSystemRight && hasRegistrantenRight && <LeftMenuItem component={VSMenuTopic.Accounts} title={'Registranten'} activecomponent={activecomponent} onSelect={onSelect} />}
 
           {/* {hasLocatiesRight && formatLi(VSMenuTopic.Fietsenstallingen, 'Fietsenstallingen')}
           {hasBuurtstallingenRight && formatLi(VSMenuTopic.Buurtstallingen, 'Buurtstallingen / Fietstrommels')} */}
 
           {hasRapportagesRight && 
-            formatLi(false, 'Rapportages', false,
+            <LeftMenuItem component={false} title={'Rapportages'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
               <ul className="ml-4 mt-1">
-                {formatLi(VSMenuTopic.Report, 'Rapportage', true)}
-                {formatLi(VSMenuTopic.Export, 'Export', true)}
+                <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportage'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.Export} title={'Export'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
                 {/* {formatLiDevelopment(VSMenuTopic.Logboek, 'Logboek', true)} */}
               </ul>
-            )
+            </LeftMenuItem>
           }
 
           {(hasWebsiteRight) && 
-            formatLi(VSMenuTopic.Website, 'Website beheer', false,
+            <LeftMenuItem component={false} title={'Website beheer'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
               <ul className="ml-4 mt-1">
-                {formatLi(VSMenuTopic.ArticlesPages, 'Pagina\'s', true)}
-                {formatLi(VSMenuTopic.Faq, 'FAQ', true)}
+                <LeftMenuItem component={VSMenuTopic.ArticlesPages} title={'Pagina\'s'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.Faq} title={'FAQ'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
               </ul>
-            )
+            </LeftMenuItem>
           }
 
-          {hasDatabaseRight && formatLi(VSMenuTopic.Database, 'Database')}
+          {hasDatabaseRight && <LeftMenuItem component={VSMenuTopic.Database} title={'Database'} activecomponent={activecomponent} onSelect={onSelect} />}
 
-          { hasDevelopmentRight && (
-              formatLi(false, 'Ontwikkeling', false,
-                <ul className="ml-4 mt-1">
-                  {formatLi(VSMenuTopic.ExploreGemeenten, 'Gemeenten', true)}
-                  {formatLi(VSMenuTopic.ExploreUsers, 'Gebruikers', true)}
-                  {formatLi(VSMenuTopic.ExploreUsersColdfusion, 'Gebruikers (Oude structuur)', true)}
-                  {formatLi(VSMenuTopic.ExplorePages, `Pagina's`, true)}
-                  {formatLi(VSMenuTopic.TestDatabaseApi, 'Test Database API', true)}
-                </ul>)
-              )
-          }
+          { hasDevelopmentRight && <>
+            <LeftMenuItem component={false} title={'Ontwikkeling'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
+              <ul className="ml-4 mt-1">
+                <LeftMenuItem component={VSMenuTopic.ExploreGemeenten} title={'Gemeenten'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.ExploreUsers} title={'Gebruikers'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.ExplorePages} title={`Pagina's`} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+              </ul>
+            </LeftMenuItem>
+          </>}
         </>}
       </>
     )
