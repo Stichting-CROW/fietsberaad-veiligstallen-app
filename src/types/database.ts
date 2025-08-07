@@ -1,5 +1,8 @@
 import { z } from "zod";
 import moment from "moment";
+import { VSUserRoleValuesNew } from "./users";
+import { type VSContactExploitant, VSContactItemType } from '~/types/contacts';
+
 // Custom validation for the ID format (e.g., 0199B305-F1B5-408D-9D4927EBA0F9A80D)
 export const idSchema = z.string().refine(
   (id) => {
@@ -19,11 +22,10 @@ export const itemTypeEnum = z.enum(["admin", "dataprovider", "exploitant", "orga
 export const exploitantSchema = z.object({
   ID: idSchema,
   CompanyName: z.string().min(1).max(100),
+  UrlName: z.string().min(0).max(100),
   ItemType: itemTypeEnum,
   Helpdesk: z.string().nullable().optional(),
-  Password: z.string().nullable().optional(),
   Status: z.string().nullable().optional(),
-  ParentID: z.string().nullable().optional(),
 });
   // DateRegistration: z.union([z.string().datetime(), z.date(), z.null()]).optional(),
   // DateConfirmed: z.union([z.string().datetime(), z.date(), z.null()]).optional(),
@@ -33,16 +35,19 @@ export const exploitantSchema = z.object({
 // use partial to allow optional fields
 export const exploitantCreateSchema = exploitantSchema.omit({ ID: true });
 
-export const getDefaultNewExploitant = (naam: string = "Nieuwe exploitant")=> { 
+export const getDefaultNewExploitant = (naam = "Nieuwe exploitant"): VSContactExploitant => { 
   return {
     ID: 'new',
     CompanyName: naam,
-    ItemType: "exploitant",
+    UrlName: "",
+    ItemType: VSContactItemType.Exploitant,
     Helpdesk: "",
-    Password: "",
     Status: "active",
-    ParentID: "mb",
     isManagingContacts: [],
+    CompanyLogo: "",
+    CompanyLogo2: "",
+    ThemeColor1: "#1f99d2",
+    ThemeColor2: "#96c11f",
   }
 }
 
@@ -117,11 +122,11 @@ export const gemeenteSchema = z.object({
 
 export const gemeenteCreateSchema = gemeenteSchema.omit({ ID: true });
 
-export const getDefaultNewGemeente = (naam: string = "Nieuwe gemeente")=> { 
+export const getDefaultNewGemeente = (naam = "Nieuwe gemeente")=> { 
   return {
     ID: 'new',
     CompanyName: naam,
-    ItemType: "organizations",
+    ItemType: VSContactItemType.Organizations,
     AlternativeCompanyName: "",
     UrlName: "",
     ZipID: "mb",
@@ -170,7 +175,7 @@ export const dataproviderCreateSchema = dataproviderSchema.omit({ ID: true });
 export const getDefaultNewDataprovider = (name: string) => ({
   ID: 'new',
   CompanyName: name,
-  ItemType: "dataprovider" as const,
+  ItemType: VSContactItemType.Dataprovider as const,
   UrlName: null,
   Password: null,
   Status: "1",
@@ -183,6 +188,7 @@ export const getDefaultNewSecurityUser = (name: string) => ({
   ID: 'new',
   UserName: '',
   DisplayName: name,
+  RoleID: VSUserRoleValuesNew.None,
   Status: "1",
   Password: null,
   EncryptedPassword: null,
@@ -200,6 +206,8 @@ export const securityuserSchema = z.object({
   Status: z.string()
     .nullable()
     .optional(),
+  RoleID: z.nativeEnum(VSUserRoleValuesNew)
+    .optional(),
   EncryptedPassword: z.string()
     .nullable()
     .optional(),
@@ -207,3 +215,66 @@ export const securityuserSchema = z.object({
     .nullable()
     .optional(),
 });
+
+export const contactSchema = z.object({
+  ID: idSchema,
+  FirstName: z.string()
+    .min(1, { message: "Voornaam is verplicht" })
+    .max(255, { message: "Voornaam mag maximaal 255 tekens bevatten" }),
+  LastName: z.string()
+    .min(1, { message: "Achternaam is verplicht" })
+    .max(255, { message: "Achternaam mag maximaal 255 tekens bevatten" }),
+  ItemType: itemTypeEnum,
+  Email1: z.string()
+    .email({ message: "Ongeldig e-mailadres" })
+    .nullable()
+    .optional(),
+  Phone1: z.string()
+    .nullable()
+    .optional(),
+  Mobile1: z.string()
+    .nullable()
+    .optional(),
+  JobTitle: z.string()
+    .nullable()
+    .optional(),
+  Notes: z.string()
+    .nullable()
+    .optional(),
+  DateRegistration: z.union([z.string().datetime(), z.date(), z.null()])
+    .optional(),
+  DateConfirmed: z.union([z.string().datetime(), z.date(), z.null()])
+    .optional(),
+  DateRejected: z.union([z.string().datetime(), z.date(), z.null()])
+    .optional(),
+  CompanyLogo: z.string()
+    .nullable()
+    .optional(),
+  CompanyLogo2: z.string()
+    .nullable()
+    .optional(),
+});
+
+export const contactCreateSchema = contactSchema.omit({ ID: true });
+
+export const getDefaultNewContact = (naam = "Nieuw contact") => {
+  const [firstName, ...lastNameParts] = naam.split(' ');
+  const lastName = lastNameParts.join(' ');
+  
+  return {
+    ID: 'new',
+    FirstName: firstName,
+    LastName: lastName,
+    ItemType: "contacts",
+    Email1: null,
+    Phone1: null,
+    Mobile1: null,
+    JobTitle: null,
+    Notes: null,
+    DateRegistration: moment().toDate(),
+    DateConfirmed: null,
+    DateRejected: null,
+    CompanyLogo: null,
+    CompanyLogo2: null,
+  }
+};

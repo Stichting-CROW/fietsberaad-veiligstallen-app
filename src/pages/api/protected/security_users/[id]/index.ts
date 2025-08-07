@@ -1,31 +1,42 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSUserWithRoles, type VSUserWithRolesNew, securityUserSelect } from "~/types/users";
+import { VSUserRoleValuesNew, type VSUserWithRolesNew } from "~/types/users";
+import { VSUserGroupValues, VSUserRoleValues, type VSUserWithRoles, securityUserSelect } from "~/types/users-coldfusion";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
 import { generateID, validateUserSession } from "~/utils/server/database-tools";
-import { convertToNewUser } from "~/pages/api/protected/security_users/index";
-// TODO: implement filtering on accessible security_users
+import bcrypt from "bcryptjs";
+import { convertNewRoleToOldRole } from "~/utils/securitycontext";
+import { type security_users } from "@prisma/client";
+import { getSecurityUserNew } from "~/utils/server/security-users-tools";
+import { createSecurityProfile } from "~/utils/server/securitycontext";
+
+const saltRounds = 13;
 
 export type SecurityUserResponse = {
   data?: VSUserWithRolesNew;
   error?: string;
 };
 
-const securityUserUpdateSchema = z.object({
-  UserName: z.string().min(1).optional(),
-  DisplayName: z.string().min(1).optional(),
-  Status: z.string().optional(),
-  SiteID: z.string().optional(),
-});
-
-const securityUserCreateSchema = z.object({
+export const securityUserCreateSchema = z.object({
+  UserID: z.string(),
   UserName: z.string().min(1),
   DisplayName: z.string().min(1),
-  Status: z.string().optional(),
-  SiteID: z.string(),
+  Status: z.string(),
+  RoleID: z.nativeEnum(VSUserRoleValuesNew),
+  SiteID: z.string().nullable(),
+  password: z.string(),
 });
+
+export const securityUserUpdateSchema = securityUserCreateSchema.partial().required({UserID: true});
+
+const oldSecurityUserCreateSchema = securityUserCreateSchema.omit({password: true, RoleID: true}).extend({
+  RoleID: z.nativeEnum(VSUserRoleValues),
+  EncryptedPassword: z.string(),
+});
+
+export const oldSecurityUserUpdateSchema = oldSecurityUserCreateSchema.partial().required({UserID: true})
 
 export default async function handle(
   req: NextApiRequest,
@@ -46,24 +57,14 @@ export default async function handle(
   const id = req.query.id as string;
   const activeContactId = session.user.activeContactId;
 
-  console.log(">>> security_users/[id] id", id);
-
   switch (req.method) {
     case "GET": {
-      console.log("GET", id);
-      const user = await prisma.security_users.findFirst({
-        where: {
-          UserID: id,
-        },
-        select: securityUserSelect
-      }) as VSUserWithRoles;
-      const newUser = await convertToNewUser(user, activeContactId);
-      res.status(200).json({data: newUser});
+      const user = await getSecurityUserNew(id, activeContactId)
+      res.status(200).json({data: user || undefined});
       break;
     }
     case "POST": {
       try {
-        console.log("*** SECURITY_USERS/[ID] POST", req.body);
         const parseResult = securityUserCreateSchema.safeParse(req.body);
         if (!parseResult.success) {
           console.error("Unexpected/missing data error:", parseResult.error);
@@ -72,28 +73,167 @@ export default async function handle(
         }
         const parsed = parseResult.data;
 
+        if(parsed.SiteID===null) {
+          console.error("SiteID is required");
+          res.status(400).json({error: "SiteID is required"});
+          return;
+        }
+
         const newUserID = generateID();
-        
+
         // Hash the password
-        // const hashedPassword = await bcrypt.hash(parsed.Password, 10);
+        const hashedPassword = await bcrypt.hash(parsed.password, saltRounds);
+
+        // determine the groupID based on the siteID
+        let groupID: VSUserGroupValues | undefined = undefined;
+        if(parsed.SiteID===activeContactId) {
+          groupID = VSUserGroupValues.Intern;
+        } else {
+          const contact = await prisma.contacts.findFirst({
+            where: {
+              ID: parsed.SiteID,
+            },
+          });
+
+          if(!contact) {
+            console.error("Contact not found for siteID:", parsed.SiteID);
+            res.status(400).json({error: "Contact not found for siteID"});
+            return;
+          }
+
+          if(contact.ItemType === "admin") {
+            groupID = VSUserGroupValues.Intern;
+          } else if(contact.ItemType === "organizations") {
+            groupID = VSUserGroupValues.Extern;
+          } else if(contact.ItemType === "exploitant") {
+            groupID = VSUserGroupValues.Exploitant;
+          } else if(contact.ItemType === "dataprovider") {
+            console.error("Dataproviders have no users");
+            res.status(400).json({error: "Contact has unknown item type"});
+            return;
+          } else {
+            console.error("Contact has unknown item type:", contact.ItemType);
+            res.status(400).json({error: "Contact has unknown item type"});
+            return;
+          }
+        }
+
+        const oldRole = convertNewRoleToOldRole(parsed.RoleID);
+
+        const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword">  = {
+          UserID: newUserID,
+          UserName: parsed.UserName,
+          DisplayName: parsed.DisplayName,
+          RoleID: oldRole,
+          GroupID: groupID,
+          Status: parsed.Status ?? "1",
+          EncryptedPassword: hashedPassword,
+          SiteID: parsed.SiteID,
+          ParentID: null,
+          LastLogin: null
+        }
         
-        const createdUser = await prisma.security_users.create({
-          data: {
+        await prisma.security_users.create({
+          data,
+          select: securityUserSelect
+        }) as VSUserWithRoles;
+
+        // add role to the user_contact_role table
+        await prisma.user_contact_role.upsert({
+          where: {
+            UserID: newUserID, ContactID: activeContactId
+          },
+          update: { 
+            NewRoleID: parsed.RoleID,
+          },
+          create: {
+            ID: generateID(),
+            UserID: newUserID, 
+            ContactID: activeContactId,
+            NewRoleID: parsed.RoleID,
+            isOwnOrganization: true,
+          },
+        });
+
+        // add security_users_sites record for external users
+        if (parsed.SiteID && groupID === VSUserGroupValues.Extern) {
+          await prisma.security_users_sites.create({
+            data: {
+              UserID: newUserID,
+              SiteID: parsed.SiteID,
+              IsContact: false,
+            },
+          });
+        }
+
+        // get all related sites for the user
+        const relatedSites = await prisma.contact_contact.findMany({
+          where: {
+            parentSiteID: parsed.SiteID,
+          },
+        });
+
+        relatedSites.forEach(async (site) => {
+          await prisma.security_users_sites.create({
+            data: {
+              UserID: newUserID,
+              SiteID: site.childSiteID,
+              IsContact: false,
+            },
+          });
+
+          await prisma.user_contact_role.upsert({
+            where: {
+              UserID: newUserID, ContactID: site.childSiteID
+            },  
+            update: {
+              NewRoleID: parsed.RoleID,
+            },
+            create: {
+              ID: generateID(),
+              UserID: newUserID, 
+              ContactID: site.childSiteID,
+              NewRoleID: VSUserRoleValuesNew.None,
+              isOwnOrganization: false,
+            },
+          });
+        });
+
+        // fetch the new user with the full info
+        const createdUser = await prisma.security_users.findFirst({
+          where: {
             UserID: newUserID,
-            UserName: parsed.UserName,
-            DisplayName: parsed.DisplayName,
-            // RoleID: parsed.RoleID,
-            // GroupID: parsed.GroupID,
-            Status: parsed.Status ?? "1",
-            // EncryptedPassword: hashedPassword,
-            SiteID: session.user.SiteID 
           },
           select: securityUserSelect
         }) as VSUserWithRoles;
 
-        const newUser = await convertToNewUser(createdUser, activeContactId);
+        if(!createdUser) {
+          console.error("Error creating security user: no user data found");
+          res.status(500).json({error: "Error creating security user: no user data found"});
+          return;
+        }
 
-        res.status(201).json({ data: newUser });
+        const theRoleInfo = createdUser.user_contact_roles.find((role) => role.ContactID === activeContactId);
+        const ownRoleInfo = createdUser.user_contact_roles.find((role) => role.isOwnOrganization);
+        if(!ownRoleInfo || !theRoleInfo?.ContactID) {
+          console.error("Error creating security user: no own organization ID found");
+          res.status(500).json({error: "Error creating security user: no own organization ID found"});
+          return;
+        }
+
+        const newUserData: VSUserWithRolesNew = {
+          UserID: createdUser.UserID, 
+          UserName: createdUser.UserName, 
+          DisplayName: createdUser.DisplayName, 
+          Status: createdUser.Status, 
+          LastLogin: createdUser.LastLogin, 
+          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None),
+          isContact: createdUser.security_users_sites.find((site) => site.SiteID === activeContactId)?.IsContact || false,
+          ownOrganizationID: ownRoleInfo?.ContactID || "",
+          isOwnOrganization: theRoleInfo?.isOwnOrganization || false,
+        }        
+
+        res.status(201).json({ data: newUserData || undefined });
       } catch (e) {
         console.error("Error creating security user:", e);
         res.status(500).json({error: "Error creating security user"});
@@ -109,27 +249,58 @@ export default async function handle(
           return;
         }
 
-        const parsed = parseResult.data;
-        const updateData: any = {
-          UserName: parsed.UserName,
-          DisplayName: parsed.DisplayName,
-          // RoleID: parsed.RoleID,
-          // GroupID: parsed.GroupID,
-          Status: parsed.Status,
-        };
+        const parsed = parseResult.data ;
 
-        // Only update password if provided
-        // if (parsed.Password) {
-        //   updateData.EncryptedPassword = await bcrypt.hash(parsed.Password, 13);
-        // }
+        const updateData: z.infer<typeof oldSecurityUserUpdateSchema>  = {
+          UserID: parsed.UserID,
+          UserName: parsed.UserName || undefined,
+          DisplayName: parsed.DisplayName || undefined,
+          Status: parsed.Status || undefined,
+        }
+
+        if(parsed.password) {
+          updateData.EncryptedPassword = await bcrypt.hash(parsed.password, saltRounds);
+        }
+
+        if(parsed.RoleID) {
+          await prisma.user_contact_role.upsert({
+            where: { UserID: id, ContactID: activeContactId },
+            update: { 
+              NewRoleID: parsed.RoleID,
+            },
+            create: { 
+              UserID: id, 
+              ContactID: activeContactId,
+              NewRoleID: parsed.RoleID,
+            },
+          });
+
+          updateData.RoleID = convertNewRoleToOldRole(parsed.RoleID) || undefined;
+        }
 
         const updatedUser = await prisma.security_users.update({
           where: { UserID: id },
           data: updateData,
           select: securityUserSelect
         }) as VSUserWithRoles;
-        const newUser = await convertToNewUser(updatedUser, activeContactId);
-        res.status(200).json({data: newUser});
+        // const newUser = await convertToNewUser(updatedUser, activeContactId);
+
+        const theRoleInfo = updatedUser.user_contact_roles.find((role) => role.ContactID === activeContactId)
+        const ownRoleInfo = updatedUser.user_contact_roles.find((role) => role.isOwnOrganization)
+
+        const newUserData: VSUserWithRolesNew = {
+          UserID: updatedUser.UserID, 
+          UserName: updatedUser.UserName, 
+          DisplayName: updatedUser.DisplayName, 
+          Status: updatedUser.Status, 
+          LastLogin: updatedUser.LastLogin, 
+          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None),
+          isContact: updatedUser.security_users_sites.find((site) => site.SiteID === activeContactId)?.IsContact || false,
+          ownOrganizationID: ownRoleInfo?.ContactID || "",
+          isOwnOrganization: ownRoleInfo?.isOwnOrganization || false,
+        }        
+
+        res.status(200).json({data: newUserData || undefined});
       } catch (e) {
         console.error("Error updating security user:", e);
         res.status(500).json({error: "Error updating security user"});
@@ -138,9 +309,21 @@ export default async function handle(
     }
     case "DELETE": {
       try {
+        // delete all user_contact_role records for the user
+        await prisma.user_contact_role.deleteMany({
+          where: { UserID: id }
+        });
+
+        // delete all security_users_sites records for the user
+        await prisma.security_users_sites.deleteMany({
+          where: { UserID: id }
+        });
+
+        // delete the user
         await prisma.security_users.delete({
           where: { UserID: id }
         });
+
         res.status(200).json({});
       } catch (e) {
         console.error("Error deleting security user:", e);

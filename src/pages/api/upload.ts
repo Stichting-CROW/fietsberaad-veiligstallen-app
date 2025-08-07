@@ -36,7 +36,7 @@ const handler = async (
     // we add [local] to the path -> any file that has [local] in the path is a file that was uploaded in public/uploads etc.
     const makepathrelative = (filename: string) => (filename.replace(process.cwd()+'/public','[local]'));
     // let url = Array.isArray(file) ? file.map((f) => makepathrelative(f.filepath)) : makepathrelative(file.filepath);
-    let url = file.map((f) => makepathrelative(f.filepath));
+    const url = file.map((f) => makepathrelative(f.filepath));
 
     res.status(200).json({
       data: {

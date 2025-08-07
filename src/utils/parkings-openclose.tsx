@@ -59,11 +59,19 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
   // Check if thedate is today
   const isToday = thedate.isSame(moment(), 'day');
 
-  const opentime = (isToday && customOpenTime) || parkingdata[getOpenTimeKey(daytxt)];
-  const closetime = (isToday && customCloseTime) || parkingdata[getDichtTimeKey(daytxt)];
+  const opentime = (customOpenTime != null
+    ? customOpenTime
+    : (daytxt && daytxt !== null && daytxt !== undefined
+        ? parkingdata[getOpenTimeKey(daytxt as DayPrefix)]
+        : null));
+  const closetime = (customCloseTime != null
+    ? customCloseTime
+    : (daytxt && daytxt !== null && daytxt !== undefined
+        ? parkingdata[getDichtTimeKey(daytxt as DayPrefix)]
+        : null));
 
-  const openinfo = moment.utc(opentime);
-  const closeinfo = moment.utc(closetime);
+  const openinfo = typeof opentime === 'string' ? moment.utc(opentime) : moment.invalid();
+  const closeinfo = typeof closetime === 'string' ? moment.utc(closetime) : moment.invalid();
 
   const isNS = parkingdata.EditorCreated === "NS-connector";
 
@@ -130,8 +138,8 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
     const y_closetime = parkingdata[getDichtTimeKey(yesterdaytxt)]
 
     if (null !== y_opentime && null !== y_closetime) {
-      const y_openinfo = moment.utc(y_opentime);
-      const y_closeinfo = moment.utc(y_closetime);
+      const y_openinfo = y_opentime ? moment.utc(y_opentime) : moment.invalid();
+      const y_closeinfo = y_closetime ? moment.utc(y_closetime) : moment.invalid();
 
       const y_openingMinutes = y_openinfo.hours() * 60 + y_openinfo.minutes();
       const y_closingMinutes = y_closeinfo.hours() * 60 + y_closeinfo.minutes();
@@ -176,7 +184,7 @@ export const formatOpeningTimes = (
   day: DayPrefix,
   label: string,
   isToday: boolean,
-  isNS: boolean = false
+  isNS = false
 ): React.ReactNode => {
   // Get date based on current week and given day
   // Day is a string like 'ma', 'di', 'wo', 'do', 'vr', 'za', 'zo', Dutch for 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
@@ -194,16 +202,24 @@ export const formatOpeningTimes = (
   const todayIsoWeekday = moment().isoWeekday();
   const weekdayDate = moment().isoWeekday(dayToNumber[day] + (todayIsoWeekday > dayToNumber[day] ? 7 : 0));
 
-  const [customOpenTime, customCloseTime] = getTodaysCustomOpeningTimes(weekdayDate, parkingdata.uitzonderingenopeningstijden);
-  const isCustomOpenTime = customOpenTime !== null || customCloseTime !== null;
+  const [customOpenTime, customCloseTime] = getTodaysCustomOpeningTimes(weekdayDate, parkingdata.uitzonderingenopeningstijden ?? []);
+  const isCustomOpenTime = customOpenTime != null || customCloseTime != null;
 
-  const opentime = (customOpenTime) || parkingdata[getOpenTimeKey(day)];
-  const closetime = (customCloseTime) || parkingdata[getDichtTimeKey(day)];
-  const tmpopen = moment.utc(opentime);
+  const opentime = (customOpenTime != null
+    ? customOpenTime
+    : (day && day !== null && day !== undefined
+        ? parkingdata[getOpenTimeKey(day as DayPrefix)]
+        : null));
+  const closetime = (customCloseTime != null
+    ? customCloseTime
+    : (day && day !== null && day !== undefined
+        ? parkingdata[getDichtTimeKey(day as DayPrefix)]
+        : null));
+  const tmpopen = typeof opentime === 'string' ? moment.utc(opentime) : moment.invalid();
   const hoursopen = tmpopen.hours();
   const minutesopen = String(tmpopen.minutes()).padStart(2, "0");
 
-  const tmpclose = moment.utc(closetime);
+  const tmpclose = typeof closetime === 'string' ? moment.utc(closetime) : moment.invalid();
   const hoursclose = tmpclose.hours();
   const minutesclose = String(tmpclose.minutes()).padStart(2, "0");
 

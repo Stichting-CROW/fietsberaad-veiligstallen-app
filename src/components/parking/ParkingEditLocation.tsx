@@ -93,7 +93,7 @@ function ParkingEditLocation({
     if (centerCoords !== "" && centerCoords !== undefined) {
       // console.log('recenter map @', centerCoords)
       if (stateMap) {
-        let coords = centerCoords.split(",").map((coord: any) => Number(coord));
+        const coords = centerCoords.split(",").map((coord: any) => Number(coord));
         try {
           stateMap.setCenter([coords[1], coords[0]]);
         } catch (e) {

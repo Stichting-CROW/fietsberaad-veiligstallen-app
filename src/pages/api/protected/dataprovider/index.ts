@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSContactDataprovider, dataproviderSelect } from "~/types/contacts";
+import { type VSContactDataprovider, VSContactItemType, dataproviderSelect } from "~/types/contacts";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
@@ -29,7 +29,7 @@ export default async function handle(
       // GET all dataproviders user can access
       const dataproviders = (await prisma.contacts.findMany({
         where: {
-          ItemType: "dataprovider",
+          ItemType: VSContactItemType.Dataprovider,
           ID: { in: sites }
         },
         select: dataproviderSelect

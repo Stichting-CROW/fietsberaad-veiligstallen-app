@@ -1,7 +1,9 @@
 import React from "react";
 import { formatOpeningTimes, hasCustomOpeningTimesComingWeek } from "~/utils/parkings-openclose";
 import moment from "moment";
+
 import { ParkingDetailsType, UitzonderingOpeningstijden } from "~/types/parking";
+import { type ParkingDetailsType, UitzonderingOpeningstijden } from "~/types/parking";
 
 import SectionBlock from "~/components/SectionBlock";
 import HorizontalDivider from "~/components/HorizontalDivider";

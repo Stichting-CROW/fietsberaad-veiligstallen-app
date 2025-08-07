@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import ImageWithFallback from "~/components/common/ImageWithFallback";
+import type { ParkingDetailsType } from "~/types/parking";
 
 import {
   setIsParkingListVisible,
@@ -42,49 +44,49 @@ import { IconButton } from "~/components/Button";
 import { ToggleMenuIcon } from "~/components/ToggleMenuIcon";
 import AppNavigationMobile from "~/components/AppNavigationMobile";
 import MapboxMap from "~/components/MapComponent";
-import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 import FooterNav from "~/components/FooterNav";
 
 import { useSession } from "next-auth/react";
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import { createNewStalling } from "~/utils/parkings";
 import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality"; 
 
-import { Session } from "next-auth";
+import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
-import { fietsenstallingen } from "~/generated/prisma-client";
 import InfomodalComponent from "./InfomodalComponent";
+import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 
-interface HomeComponentProps {
-    fietsenstallingen: fietsenstallingen[],
+export interface HomeComponentProps {
     online: boolean,
     message: string,
     url_municipality: string | undefined,
     url_municipalitypage: string | undefined
 }
 
-const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, url_municipalitypage }: HomeComponentProps) => {
+const HomeComponent = ({ online, message, url_municipality, url_municipalitypage }: HomeComponentProps) => {
     const router = useRouter();
     const { query } = useRouter();
     const { data: session } = useSession();
-  
+
+    const { fietsenstallingen: allparkingdata, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadFietsenstallingen } = useFietsenstallingen(undefined);
+
     const currentLatLong = useSelector(
       (state: AppState) => state.map.currentLatLng,
     );
   
     const dispatch = useDispatch();
   
-    const activeTypes = useSelector(
-      (state: AppState) => state.filter.activeTypes,
-    );
+    // const activeTypes = useSelector(
+    //   (state: AppState) => state.filter.activeTypes,
+    // );
 
     const activeTypes2 = useSelector(
       (state: AppState) => state.filter.activeTypes2
     );
 
-    const activeTypesArticles = useSelector(
-      (state: AppState) => state.filterArticles.activeTypes,
-    );
+    // const activeTypesArticles = useSelector(
+    //   (state: AppState) => state.filterArticles.activeTypes,
+    // );
   
     const isParkingListVisible = useSelector(
       (state: AppState) => state.app.isParkingListVisible,
@@ -157,7 +159,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
           }
         }
 
-        if(articlechanged) {
+        if(articlechanged && url_municipalitypage!== undefined) {
           dispatch(setActiveArticle({
             articleTitle: url_municipalitypage,
             municipality: activeMunicipalityInfo?.UrlName 
@@ -175,12 +177,12 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
       (async () => {
         const ddmunicipality = await getMunicipalityBasedOnLatLng(currentLatLng);
         if (!ddmunicipality) {
-          console.warn("#### HomeComponent - no municipality found", currentLatLng);
+          console.debug("#### HomeComponent - no municipality found", currentLatLng);
           // updateUrl("root");
           return;
         }
 
-        let cbsCode = cbsCodeFromMunicipality(ddmunicipality);
+        const cbsCode = cbsCodeFromMunicipality(ddmunicipality);
         if(cbsCode === false) {
           console.warn("#### HomeComponent - no valid cbsCode for the current location");
           // updateUrl("root");
@@ -203,47 +205,45 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
     }, [currentLatLng]);
+
+    useEffect(() => {
+      console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
+      reloadFietsenstallingen();
+    }, [activeTypes2]);
+    
+    const renderLogo = () => {
+      const activecontact = activeMunicipalityInfo;
   
-    // Do things in municipality if municipality is given by URL
-    // useEffect(() => {
-    //   if(url_municipality === undefined) {
-    //     return;
-    //   }
-
-    //   // Handle navigation to municipality/municipalitypage when given in the URL
-    //   (async () => {
-    //     console.debug("#### HomeComponent - Getting municipality based on urlName", url_municipality);
-
-    //     const municipality_differs = (activeMunicipalityInfo === undefined && url_municipality !== undefined) || (activeMunicipalityInfo !== undefined && url_municipality !== activeMunicipalityInfo?.UrlName);
-    //     const article_differs = (activeArticleTitle !== "" && url_municipalitypage !== undefined) || (activeArticleTitle !== "" && url_municipalitypage !== activeArticleTitle);
-
-    //     if(municipality_differs || article_differs) {
-    //       console.debug("#### HomeComponent - URL differs from active municipality + page, updating URL");
-    //       updateUrl("municipality", url_municipality);
-    //     }
-
-    //     if(url_municipality === undefined) {
-    //         return;
-    //     }
-
-    //     // Get url_municipality
-    //     const info = await getMunicipalityBasedOnUrlName(url_municipality);
-    //     if (!info) return;
-
-    //     // Fly to url_municipality, on the map
-    //     const initialLatLng = convertCoordinatenToCoords(
-    //       info.Coordinaten,
-    //     );
-    //     if (initialLatLng) {
-    //         dispatch(setInitialLatLng(initialLatLng));
-    //     }
-    //     // Set url_municipality info in redux
-    //     // dispatch(setActiveMunicipality(url_municipality));
-    //     dispatch(setActiveMunicipalityInfo(info));
-    //     dispatch(setActiveArticleTitle(url_municipalitypage || ""));
-    //     })();
-    // }, []);
+      // If logo URL starts with http, return the image
+      if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
+        return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" />
+      }
   
+      let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+  
+      // If logo URL is not null and mapZoom is 12 or higher, return the image
+      if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
+        logofile = activecontact.CompanyLogo;
+        if(!logofile.startsWith('http')) {
+            logofile =logofile.replace('[local]', '')
+            if(!logofile.startsWith('/')) {
+              logofile = '/' + logofile;
+            }
+        }
+  
+        return <ImageWithFallback
+          src={logofile}
+          fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+          alt="Logo"
+          width={64}
+          height={64}
+          className="max-h-12 w-auto bg-white mr-2"
+        />
+      }
+  
+      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" />
+    }
+
     const renderDesktopParkingList = () => {
       return (
         <div
@@ -283,7 +283,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
         >
           <ParkingFacilityBrowser
             showSearchBar={true}
-            fietsenstallingen={fietsenstallingen}
+            allparkingdata={allparkingdata}
             onShowStallingDetails={(id: string | undefined) => {
               updateStallingId(id);
             }}
@@ -311,17 +311,9 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             onClick={() => {
               dispatch(setIsParkingListVisible(false));
             }}
-            className="mr-3 block"
+            className="mr-3 flex justify-center flex-col"
           >
-            <Logo
-              imageUrl={
-                mapZoom >= 12 &&
-                activeMunicipalityInfo &&
-                activeMunicipalityInfo.CompanyLogo2
-                  ? `https://static.veiligstallen.nl/library/logo2/${activeMunicipalityInfo.CompanyLogo2}`
-                  : undefined
-              }
-            />
+            {renderLogo()}
           </Link>
           <SearchBar
             filterChanged={(e: { target: { value: any } }) => {
@@ -460,7 +452,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
               <Overlay>
                 <ParkingFacilityBrowser
                   showSearchBar={false}
-                  fietsenstallingen={fietsenstallingen}
+                  allparkingdata={allparkingdata}
                   onShowStallingDetails={(id: any) => {
                     updateStallingId(id);
                   }}
@@ -478,9 +470,6 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
           <ArticleComponent
               municipality={municipality}
               page={page}
-              fietsenstallingen={fietsenstallingen}
-              isSm={isSm}
-              onFilterChange={(info) => {console.log("#### HomeComponent - onFilterChange", info)}}
             />
         </div>
       )
@@ -514,7 +503,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
     // const isLg = typeof window !== "undefined" && window.innerWidth < 768;
   
     const isCardListVisible = !isParkingListVisible && !isFilterBoxVisible;
-  
+
     if (online === false) {
       return (
         <>
@@ -554,13 +543,13 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
     const showArticlesBox = activeArticleMunicipality !== undefined && activeArticleTitle !== undefined;
     // console.debug("@@@@ HomeComponent - showArticlesBox", showArticlesBox, activeArticleMunicipality, activeArticleTitle);
 
-    let filteredFietsenstallingen: any[] = [];
-    if (fietsenstallingen) {
+    let filteredFietsenstallingen: ParkingDetailsType[] = [];
+    if (allparkingdata) {
       const showNew = activeTypes2 && activeTypes2.includes("show_submissions");
       const aFilter = (x: any) => (showNew ? (x.Status === "new") : (x.Status !== "new"));
-      filteredFietsenstallingen = fietsenstallingen.filter(aFilter);
+      filteredFietsenstallingen = allparkingdata.filter(aFilter);
     }
-  
+
     return (
       <>
         <main className="flex-grow">
@@ -570,8 +559,8 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             <Parking
               id={"parking-modal"}
               stallingId={activeParkingId}
-              fietsenstallingen={fietsenstallingen}
               onStallingIdChanged={newId => {
+                console.log("HomeComponent - onStallingIdChanged", newId);
                 updateStallingId(newId);
               }}
               onClose={handleCloseParking}
@@ -598,7 +587,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
             "
             >
               <CardList
-                fietsenstallingen={fietsenstallingen}
+                allparkingdata={allparkingdata}
                 onShowStallingDetails={(id: any) => {
                   updateStallingId(id);
                 }}
@@ -617,7 +606,7 @@ const HomeComponent = ({ fietsenstallingen, online, message, url_municipality, u
                 className="absolute right-0 z-10 p-4"
                 style={{top: "64px"}}
               >
-                <FilterBox filterArticles={false} showFilterAanmeldingen={true}/>
+                <FilterBox filterArticles={false} showFilterAanmeldingen={session && session.user ? true : false}/>
               </div>
               <FooterNav onStallingAanmelden={handleStallingAanmelden} />
             </div>

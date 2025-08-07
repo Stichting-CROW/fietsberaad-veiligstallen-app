@@ -9,8 +9,6 @@ import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingSections } from "~/types/parking";
 import {
-  getAllServices,
-  generateRandomId,
   getDefaultLocation,
 } from "~/utils/parkings";
 import {
@@ -21,12 +19,9 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 
 /* Use nicely formatted items for items that can not be changed yet */
 import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
-import type { ServiceType } from "~/components/parking/ParkingViewServices";
 
 import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
-import ParkingEditCapaciteit, {
-  type CapaciteitType,
-} from "~/components/parking/ParkingEditCapaciteit";
+import ParkingEditCapaciteit from "~/components/parking/ParkingEditCapaciteit";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
@@ -39,14 +34,10 @@ import {
   type MunicipalityType,
   getMunicipalityBasedOnLatLng,
 } from "~/utils/map/active_municipality";
-import { geocodeAddress, reverseGeocode, ReverseGeocodeResult } from "~/utils/nomatim";
+import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/utils/nomatim";
 import toast from "react-hot-toast";
-
-type connectFietsenstallingType = {
-  connect: {
-    id: string;
-  };
-};
+import { type VSservice } from "~/types/services";
+import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -64,7 +55,7 @@ export type ParkingEditUpdateStructure = {
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
-  fietsenstalling_type?: connectFietsenstallingType;
+  Type?: string;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -92,15 +83,19 @@ const NoClickOverlay = () => {
   );
 };
 
+interface ParkingEditProps {
+  parkingdata: ParkingDetailsType;
+  onClose: (closeModal: boolean) => void;
+  onChange: () => void;
+  showAbonnementen?: boolean;
+}
+
 const ParkingEdit = ({
   parkingdata,
   onClose,
   onChange,
-}: {
-  parkingdata: ParkingDetailsType;
-  onClose: (closeModal: boolean) => void;
-  onChange: Function;
-}) => {
+  showAbonnementen = false,
+}: ParkingEditProps) => {
   const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
   // const [waarschuwing, setWaarschuwing] = React.useState<string>('');
   // const [allowSave, setAllowSave] = React.useState<boolean>(true);
@@ -139,7 +134,7 @@ const ParkingEdit = ({
 
   // type FietsenstallingSectiesType = { [key: string]: Array[] }
 
-  const [allServices, setAllServices] = React.useState<ServiceType[]>([]);
+  const [allServices, setAllServices] = React.useState<VSservice[]>([]);
   const [newServices, setNewServices] = React.useState<ChangedType[]>([]);
 
   const [newCapaciteit, setNewCapaciteit] = React.useState<ParkingSections>([]); // capaciteitschema
@@ -150,8 +145,6 @@ const ParkingEdit = ({
     string | undefined
   >(undefined); // textveld afwijkende openingstijden
 
-  type StallingType = { id: string; name: string; sequence: number };
-  const [allTypes, setAllTypes] = React.useState<StallingType[]>([]);
   const [newStallingType, setNewStallingType] = React.useState<
     string | undefined
   >(undefined);
@@ -162,26 +155,22 @@ const ParkingEdit = ({
 
   const { data: session } = useSession() as { data: Session | null };
 
+  // Use the hook for fietsenstallingtypen
+  const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
+
   // Set 'allServices' variable in local state
   React.useEffect(() => {
-    (async () => {
-      const result = await getAllServices();
-      setAllServices(result);
-    })();
-  }, []);
+    const updateServices = async () => {
+      const response = await fetch(`/api/protected/services`);
+      const json = await response.json() as VSservice[];
+      if (!json) return [];
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const response = await fetch(`/api/fietsenstallingtypen/`);
-        const json = await response.json();
-        if (!json) return;
+      setAllServices(json);
+    }
 
-        setAllTypes(json);
-      } catch (err) {
-        console.error("get all types error", err);
-      }
-    })();
+    updateServices().catch(err => {
+      console.error("get all services error", err);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -260,7 +249,7 @@ const ParkingEdit = ({
       }
     };
 
-    let checks: checkInfo[] = [
+    const checks: checkInfo[] = [
       {
         type: "string",
         text: "invoer van de titel",
@@ -336,7 +325,7 @@ const ParkingEdit = ({
   };
 
   const getUpdate = () => {
-    let update: ParkingEditUpdateStructure = {};
+    const update: ParkingEditUpdateStructure = {};
 
     update.ID = parkingdata.ID;
 
@@ -367,7 +356,7 @@ const ParkingEdit = ({
     }
 
     if (newStallingType !== undefined) {
-      update.fietsenstalling_type = { connect: { id: newStallingType } };
+      update.Type = newStallingType;
     }
 
     if (undefined !== newOpening) {
@@ -474,7 +463,7 @@ const ParkingEdit = ({
       if (null !== sectionToSave) {
         sectionId = sectionToSave.sectieId;
       } else {
-        let result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
+        const result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
         sectionId = (await result.json()).sectieId;
       }
 
@@ -514,7 +503,7 @@ const ParkingEdit = ({
   };
 
   const handleRemoveParking = async (
-    message: string = "",
+    message = "",
   ): Promise<boolean> => {
     try {
       if (parkingdata.Status !== "aanm" && parkingdata.Status !== "new") {
@@ -676,7 +665,7 @@ const ParkingEdit = ({
     }
   };
 
-  const renderTabAlgemeen = (visible: boolean = false) => {
+  const renderTabAlgemeen = (visible = false) => {
     const serviceIsActive = (ID: string): boolean => {
       const change = newServices.find(s => s.ID === ID);
       if (change !== undefined) {
@@ -717,10 +706,10 @@ const ParkingEdit = ({
     };
 
     const handleAddressLookup = async () => {
-      let latlng = await geocodeAddress(
-        newLocation !== undefined ? newLocation : parkingdata.Location,
-        newPostcode !== undefined ? newPostcode : parkingdata.Postcode,
-        newPlaats !== undefined ? newPlaats : parkingdata.Plaats,
+      const latlng = await geocodeAddress(
+        newLocation !== undefined ? newLocation : parkingdata.Location || "", 
+        newPostcode !== undefined ? newPostcode : parkingdata.Postcode || "",
+        newPlaats !== undefined ? newPlaats : parkingdata.Plaats || "",
       );
       if (false !== latlng) {
         setNewCoordinaten(latlng.lat + "," + latlng.lon);
@@ -739,7 +728,7 @@ const ParkingEdit = ({
       } 
 
       if (address && address.address) {
-        let location = (
+        const location = (
           (address.address.road || "---") +
           " " +
           (address.address.house_number || "")
@@ -757,7 +746,7 @@ const ParkingEdit = ({
           (parkingdata.Title === "" &&
             (newTitle === "" || newTitle === undefined)) ||
           (newTitle && newTitle.startsWith("Nieuwe stalling")) ||
-          (!newTitle && parkingdata.Title.startsWith("Nieuwe stalling"))
+          (!newTitle && (parkingdata.Title||"").startsWith("Nieuwe stalling"))
         ) {
           setNewTitle("Nieuwe stalling " + (location + " " + plaats).trim());
         }
@@ -872,22 +861,28 @@ const ParkingEdit = ({
           <HorizontalDivider className="my-4" />
 
           <SectionBlock heading="Soort stalling">
-            <select
-              value={
-                newStallingType !== undefined
-                  ? newStallingType
-                  : parkingdata.fietsenstalling_type[0]?.id
-              }
-              onChange={event => {
-                setNewStallingType(event.target.value);
-              }}
-            >
-              {allTypes.map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            {fietsenstallingtypenLoading ? (
+              <div>Laden...</div>
+            ) : fietsenstallingtypenError ? (
+              <div className="text-red-500">Fout bij laden: {fietsenstallingtypenError}</div>
+            ) : (
+              <select
+                value={
+                  newStallingType !== undefined
+                    ? newStallingType
+                    : parkingdata.Type || "bewaakt"
+                }
+                onChange={event => {
+                  setNewStallingType(event.target.value);
+                }}
+              >
+                {allTypes.map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </SectionBlock>
 
           <HorizontalDivider className="my-4" />
@@ -971,7 +966,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabAfbeelding = (visible: boolean = false) => {
+  const renderTabAfbeelding = (visible = false) => {
     return (
       <div
         className="- mt-10 flex h-full w-full justify-between"
@@ -985,7 +980,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabOpeningstijden = (visible: boolean = false) => {
+  const renderTabOpeningstijden = (visible = false) => {
     const handlerSetNewOpening = (
       tijden: OpeningChangedType,
       Openingstijden: string,
@@ -1008,7 +1003,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabTarieven = (visible: boolean = false) => {
+  const renderTabTarieven = (visible = false) => {
     return (
       <div
         className="mt-10 flex w-full justify-between"
@@ -1038,7 +1033,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabCapaciteit = (visible: boolean = false) => {
+  const renderTabCapaciteit = (visible = false) => {
     const handlerSetNewCapaciteit = (capaciteit: ParkingSections): void => {
       setNewCapaciteit([...capaciteit]);
       return;
@@ -1060,7 +1055,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabAbonnementen = (visible: boolean = false) => {
+  const renderTabAbonnementen = (visible = false) => {
     return (
       <div
         className="mt-10 flex w-full justify-between"
@@ -1069,23 +1064,9 @@ const ParkingEdit = ({
         <ParkingViewAbonnementen parkingdata={parkingdata} />
       </div>
     );
-    return (
-      <div className="mt-10 flex w-full justify-between">
-        <SectionBlockEdit>
-          <div className="ml-2 grid grid-cols-3">
-            <div className="col-span-2">Jaarbonnement fiets</div>
-            <div className="text-right sm:text-center">&euro;80,90</div>
-            <div className="col-span-2">Jaarabonnement bromfiets</div>
-            <div className="text-right sm:text-center">&euro;262.97</div>
-          </div>
-        </SectionBlockEdit>
-
-        {/*<button>Koop abonnement</button>*/}
-      </div>
-    );
   };
 
-  const renderTabBeheerder = (visible: boolean = false) => {
+  const renderTabBeheerder = (visible = false) => {
     // TODO: uitzoeken & implementeren FMS / ExploitantID logica
     if (
       parkingdata.FMS === true ||
@@ -1257,7 +1238,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
-        {hasID && isLoggedIn && (
+        {showAbonnementen && hasID && isLoggedIn && (
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
@@ -1270,7 +1251,7 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
-      {renderTabAbonnementen(
+      {showAbonnementen && renderTabAbonnementen(
         selectedTab === "tab-abonnementen" && hasID && isLoggedIn,
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}

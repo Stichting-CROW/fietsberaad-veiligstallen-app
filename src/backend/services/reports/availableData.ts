@@ -1,4 +1,4 @@
-import { ReportType } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportType } from "~/components/beheer/reports/ReportsFilter";
 import {
   getFunctionForPeriod,
   interpolateSQL
@@ -17,12 +17,17 @@ export type AvailableDataPerStallingResult = {
   total: number;
 }
 
-export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], startDate: Date | undefined, endDate: Date | undefined, useCache: boolean = true): string | false => {
+export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], startDate: Date | undefined, endDate: Date | undefined, useCache = true): string | false => {
 
-  const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate);
+  const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate, undefined);
 
   if (adjustedStartDate === undefined || adjustedEndDate === undefined) {
     console.error(">>> getSQLDetailed ERROR Start or end date is undefined");
+    return false;
+  }
+
+  if (timeIntervalInMinutes === undefined) {
+    console.error(">>> getSQLDetailed ERROR Time interval is undefined");
     return false;
   }
 
@@ -32,10 +37,16 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
     case "inkomsten":
     case "stallingsduur":
     case "transacties_voltooid": {
+      const functionForPeriod = getFunctionForPeriod("per_month", timeIntervalInMinutes, 'checkoutdate', useCache);
+      if (functionForPeriod === undefined) {
+        console.error(">>> getSQLDetailed ERROR Function for period is undefined");
+        return false;
+      }
+
       const sql =
         `SELECT ` +
         `locationID,` +
-        `${getFunctionForPeriod("per_month", timeIntervalInMinutes, 'checkoutdate', useCache)} AS yearmonth,` +
+        `${functionForPeriod} AS yearmonth,` +
         `COUNT(*) AS total ` +
         `FROM ${false === useCache ? 'transacties_archief' : 'transacties_archief_day_cache'} ` +
         `WHERE locationID IN (${idString}) ` +
@@ -52,10 +63,16 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
       return sqlfilledin;
     }
     case "bezetting": {
+      const functionForPeriod = getFunctionForPeriod("per_month", timeIntervalInMinutes, 'timestamp', useCache);
+      if (functionForPeriod === undefined) {
+        console.error(">>> getSQLDetailed ERROR Function for period is undefined");
+        return false;
+      }
+
       const sql =
         `SELECT ` +
         `bikeparkID as locationID,` +
-        `${getFunctionForPeriod("per_month", timeIntervalInMinutes, 'timestamp', useCache)} AS yearmonth,` +
+        `${functionForPeriod} AS yearmonth,` +
         `COUNT(*) AS total ` +
         `FROM ${false === useCache ? 'bezettingsdata b' : 'bezettingsdata_day_hour_cache'} ` +
         `WHERE bikeparkID IN (${idString})` +
@@ -82,9 +99,9 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
   }
 }
 
-export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[], startDT: Date | undefined, endDT: Date | undefined, useCache: boolean = true): string | false => {
+export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[], startDT: Date | undefined, endDT: Date | undefined, useCache = true): string | false => {
 
-  const { adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDT, endDT);
+  const { adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDT, endDT, undefined);
 
   const idString = bikeparkIDs.length > 0 ? bikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
 

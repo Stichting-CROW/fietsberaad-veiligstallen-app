@@ -10,7 +10,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     switch (req.query.reportType) {
       case "transacties_voltooid":
       case "inkomsten": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed
@@ -25,7 +25,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         break;
       }
       case "bezetting": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed
@@ -36,7 +36,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         break;
       }
       case "stallingsduur": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed

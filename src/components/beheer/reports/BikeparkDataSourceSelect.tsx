@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ReportBikepark } from './ReportsFilter';
+import { type ReportBikepark } from './ReportsFilter';
 
 // Define a new type for bikepark with data source selection
 export type BikeparkWithDataSource = {

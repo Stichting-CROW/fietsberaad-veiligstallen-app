@@ -1,4 +1,4 @@
-import { ReportParams } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportParams } from "~/components/beheer/reports/ReportsFilter";
 import {
   getFunctionForPeriod,
   interpolateSQL
@@ -17,7 +17,7 @@ const filter_locations_sql = (params: {
   return `locationID IN (${bikeparkIDs_string})`;
 }
 
-export const getSQL = (params: ReportParams, useCache: boolean = true): string | false => {
+export const getSQL = (params: ReportParams, useCache = true): string | false => {
   const {
     reportType,
     reportGrouping,

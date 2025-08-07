@@ -1,5 +1,6 @@
-import { MunicipalityType } from "./map/active_municipality";
-import { VSContactGemeente } from "~/types/contacts";
+import { type MunicipalityType } from "./map/active_municipality";
+import { type VSContactGemeente } from "~/types/contacts";
+
 export const getMunicipalityBasedOnCbsCode = async (cbsCode: number): Promise<VSContactGemeente | undefined> => {
   if (!cbsCode) return undefined;
 
@@ -8,15 +9,23 @@ export const getMunicipalityBasedOnCbsCode = async (cbsCode: number): Promise<VS
   return json[0] as VSContactGemeente;
 };
 
+export const getMunicipalityById = async (id: string): Promise<VSContactGemeente | undefined> => {
+  if (!id) return undefined;
+
+  const response = await fetch(`/api/contacts?ID=${id}`);
+  const json = await response.json();
+  return json as unknown as VSContactGemeente;
+};
+
 export const getMunicipalityBasedOnUrlName = async (urlName: string): Promise<VSContactGemeente | undefined> => {
   if (!urlName) {
     console.log('No urlName given');
     return undefined;
   }
 
-  if(urlName === "fietsberaad") {
-    urlName = "1";
-  }
+  // if(urlName === "fietsberaad") {
+  //   urlName = "1";
+  // }
 
   try {
     const response = await fetch(`/api/contacts?urlName=${urlName}`);

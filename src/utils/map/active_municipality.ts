@@ -27,11 +27,11 @@ export const getMunicipalityBasedOnLatLng = async (latLng: string[] | undefined 
 
   try {
     // Get municipality based on request
-    let response = await fetch(
+    const response = await fetch(
       `https://api.dashboarddeelmobiliteit.nl/dashboard-api/public/get_municipality_based_on_latlng?location=${latLng[0]},${latLng[1]}`,
       { signal }
     )
-    let json = await response.json();
+    const json = await response.json();
 
     if (json && json.message && json.message === 'No municipality found for these coordinates') {
       console.error(json.message);

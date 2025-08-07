@@ -1,8 +1,8 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../auth/[...nextauth]";
 import { VSUserRoleValuesNew } from "~/types/users";
-import { getRoleRights, VSUserRoleRights } from "~/utils/securitycontext";
+import { getRoleRights, type VSUserRoleRights } from "~/utils/securitycontext";
 
 export interface VSUserRoleRightsResult {
     rights: VSUserRoleRights;

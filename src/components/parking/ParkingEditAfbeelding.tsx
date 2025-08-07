@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ChangeEvent, MouseEvent, useState } from "react";
+import { type ChangeEvent, type MouseEvent, useState } from "react";
 import type { ParkingDetailsType } from "~/types/parking";
 import { Button } from "~/components/Button";
 import ImageSlider from "~/components/ImageSlider";
@@ -28,7 +28,7 @@ const ParkingEditAfbeelding = ({ parkingdata, onUpdateAfbeelding }: { parkingdat
 
       if (onUpdateAfbeelding) {
         onUpdateAfbeelding('')
-      };
+      }
     } catch (err) {
       console.error('onRemoveAfbeelding - error', err);
     }
@@ -77,7 +77,7 @@ const ParkingEditAfbeelding = ({ parkingdata, onUpdateAfbeelding }: { parkingdat
     }
 
     try {
-      var formData = new FormData();
+      const formData = new FormData();
       formData.append("media", file);
 
       const res = await fetch("/api/upload", {

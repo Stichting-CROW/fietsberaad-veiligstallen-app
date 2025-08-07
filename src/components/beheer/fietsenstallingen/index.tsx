@@ -5,8 +5,8 @@ import ParkingEdit from '~/components/parking/ParkingEdit';
 import { getParkingDetails } from "~/utils/parkings";
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
-import type { ReportBikepark } from '~/components/beheer/reports/ReportsFilter';
 import { useSession } from 'next-auth/react';
+import { Table } from '~/components/common/Table';
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
@@ -23,7 +23,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
 
   // Use the useFietsenstallingen hook to fetch parkings
-  const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID, false);
+  const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -87,7 +87,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     }
   };
 
-  const handleClose = (confirmClose: boolean = false) => {
+  const handleClose = (confirmClose = false) => {
     if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
       return;
     }
@@ -131,24 +131,17 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
           />
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white">
-            <thead>
-              <tr>
-                <th className="px-6 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
-                  Naam
-                </th>
-                <th className="px-6 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
-                  Acties
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {filteredParkings.map((parking: any) => (
-                <tr key={parking.id}>
-                  <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
-                    {parking.Title}
-                  </td>
-                  <td className="px-6 py-4 whitespace-no-wrap border-b border-gray-200">
+          <Table 
+            columns={[
+              {
+                header: 'Naam',
+                accessor: 'Title',
+                // className: 'px-6 py-4 whitespace-no-wrap border-b border-gray-200'
+              },
+              {
+                header: 'Acties',
+                accessor: (parking) => (
+                  <>
                     <button
                       onClick={() => handleEdit(parking.ID)}
                       className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -161,11 +154,14 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                     >
                       🗑️
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </>
+                ),
+                // className: 'px-6 py-4 whitespace-no-wrap border-b border-gray-200'
+              }
+            ]}
+            data={filteredParkings}
+            className="min-w-full bg-white"
+          />
         </div>
       </div>
     );

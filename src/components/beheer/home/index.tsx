@@ -13,7 +13,7 @@ const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) =
         <h2 className="text-xl font-semibold mb-4">Welkom</h2>
 
         <p className="text-gray-600 mb-4">
-          Welkom in de beheersomgeving van VeiligStallen{gemeentenaam ? ` (${gemeentenaam})` : "!"}
+          Welkom in de beheeromgeving van VeiligStallen{gemeentenaam ? ` (${gemeentenaam})` : "!"}
         </p>
 
         <p className="text-gray-600 mb-4">
@@ -21,11 +21,11 @@ const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) =
         </p>
 
         <p className="text-gray-600 mb-4">
-          Heb je feedback? Stuur dan een e-mail aan <a href="mailto:info@veiligstallen.nl">info@veiligstallen.nl</a>.
+          Heb je feedback? Stuur dan een e-mail aan <a href="mailto:info@veiligstallen.nl" className="underline">info@veiligstallen.nl</a>.
         </p>
 
         {/* <p className="text-gray-600 mb-4">
-          Welkom in de beheersomgeving van Veiligstallen{gemeentenaam ? ` (${gemeentenaam})` : ""}. Via deze omgeving kunt u de volgende onderdelen beheren:
+          Welkom in de beheeromgeving van Veiligstallen{gemeentenaam ? ` (${gemeentenaam})` : ""}. Via deze omgeving kunt u de volgende onderdelen beheren:
         </p>
         
         <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">

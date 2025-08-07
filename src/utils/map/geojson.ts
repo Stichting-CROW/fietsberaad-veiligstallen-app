@@ -13,7 +13,7 @@ interface GeoJsonFeature {
 }
 
 const createGeoJson = (input: GeoJsonFeature[]) => {
-  let features: GeoJsonFeature[] = [];
+  const features: GeoJsonFeature[] = [];
 
   input.forEach((x: any) => {
     if (!x.Coordinaten) return;
@@ -43,7 +43,7 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
 };
 
 const createEditGeoJson = (Coordinaten: string) => {
-  let features: GeoJsonFeature[] = [];
+  const features: GeoJsonFeature[] = [];
 
   const coords = Coordinaten.split(",").map((coord: any) => Number(coord)); // I.e.: 52.508011,5.473280;
   if(undefined!==coords[0] && undefined!==coords[1]) { 

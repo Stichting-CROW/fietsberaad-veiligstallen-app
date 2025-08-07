@@ -1,9 +1,10 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import { prisma } from "~/server/db";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
-import { VSUserWithRoles, securityUserSelect } from "~/types/users";
+import { type VSUserWithRoles } from "~/types/users-coldfusion";
+import { type VSUserRoleValuesNew } from "~/types/users";
 
 export default async function handler(
     req: NextApiRequest,
@@ -24,24 +25,27 @@ export default async function handler(
     }
 
     try {
+        console.log(`Switching contact to: ${contactId} for user: ${session.user.id}`);
         // Get current user data
         const user = await prisma.security_users.findFirst({
             where: { UserID: session.user.id },
-            select: securityUserSelect
+            select: { user_contact_roles: { where: { ContactID: contactId }, select: { NewRoleID: true } } }
         }) as VSUserWithRoles;
 
+        console.log("User found:", user);
+
         if (!user) {
+            console.error("User not found");
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Check access rights
-        const hasAccess = session.user.securityProfile.managingContactIDs.includes(contactId);
-        if (!hasAccess) {
-            return res.status(403).json({ error: 'Access denied to this contact' });
+        if(!user.user_contact_roles[0]) {
+            console.error("User has no roles for this contact. Unable to switch contact.");
+            return res.status(403).json({ error: 'User has no roles for this contact. Unable to switch contact.' });
         }
 
         // Create new security profile with updated active contact
-        const securityProfile = await createSecurityProfile(user, contactId);
+        const securityProfile = createSecurityProfile(user.user_contact_roles[0].NewRoleID as VSUserRoleValuesNew);
 
         // Create updated user object
         const updatedUser = {

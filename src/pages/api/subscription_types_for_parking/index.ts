@@ -8,7 +8,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return;
   }
 
-  let where = {
+  const where = {
     BikeparkID: req.query.parkingId
   }
 
@@ -21,7 +21,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   });
 
   // TODO Make query more efficient by using JOINs for example
-  let subscriptionTypesForParking = [];
+  const subscriptionTypesForParking = [];
   for await (const x of subscriptionLinks) {
     const subscriptionType = await prisma.abonnementsvormen.findFirst({
       where: {

@@ -5,8 +5,7 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
 import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
 import { dataproviderSchema, dataproviderCreateSchema, getDefaultNewDataprovider } from "~/types/database";
-import { type VSUserWithRoles, securityUserSelect } from "~/types/users";
-import { type VSContactDataprovider, dataproviderSelect } from "~/types/contacts";
+import { type VSContactDataprovider, VSContactItemType, dataproviderSelect } from "~/types/contacts";
 
 export type DataproviderResponse = {
   data?: VSContactDataprovider;
@@ -52,7 +51,7 @@ export default async function handle(
       const dataprovider = (await prisma.contacts.findFirst({
         where: {
           ID: id,
-          ItemType: "dataprovider",
+          ItemType: VSContactItemType.Dataprovider,
         },
         select: dataproviderSelect
       })) as unknown as VSContactDataprovider;
@@ -75,7 +74,7 @@ export default async function handle(
         const newData: VSContactDataprovider = {
           ID: newID,
           CompanyName: parsed.CompanyName,
-          ItemType: "dataprovider",
+          ItemType: VSContactItemType.Dataprovider,
           UrlName: parsed.UrlName ?? null,
           Password: parsed.Password ?? null,
           Status: "1", // Default: Enabled
@@ -91,32 +90,8 @@ export default async function handle(
           return;
         }
 
-        // add a record to the security_users_sites table that links the new organization to the user's sites
-        const newLink = await prisma.security_users_sites.create({
-          data: {
-            UserID: userId,
-            SiteID: newOrg.ID,
-            IsContact: false
-          }
-        });
-
-        if(!newLink) {
-          console.error("Fout bij het aanmaken van koppeling naar nieuwe dataprovider:", newOrg.ID);
-          res.status(500).json({error: "Fout bij het aanmaken van koppeling naar nieuwe dataprovider"});
-          return;
-        }
-
-        // Update security profile
-        const { session: updatedSession, error: profileError } = await updateSecurityProfile(session, userId);
-        if (profileError) {
-          console.error("Fout bij het bijwerken van beveiligingsprofiel:", profileError);
-          res.status(500).json({error: profileError});
-          return;
-        }
-
         res.status(201).json({ 
-          data: [newOrg],
-          session: updatedSession
+          data: [newOrg]
         });
       } catch (e) {
         console.error("Fout bij het aanmaken van dataprovider:", e);
@@ -139,7 +114,7 @@ export default async function handle(
           where: { ID: id },
           data: {
             CompanyName: parsed.CompanyName,
-            ItemType: "dataprovider",
+            ItemType: VSContactItemType.Dataprovider,
             UrlName: parsed.UrlName ?? undefined,
             Password: parsed.Password ?? undefined,
             Status: parsed.Status ?? undefined,

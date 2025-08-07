@@ -2,7 +2,7 @@ import React from "react";
 import HorizontalDivider from "~/components/HorizontalDivider";
 
 import SectionBlock from "~/components/SectionBlock";
-import { ParkingDetailsType } from "~/types/parking";
+import { type ParkingDetailsType } from "~/types/parking";
 
 type capacitydata = {
   unknown: boolean;
@@ -15,22 +15,22 @@ type capacitydata = {
   };
 };
 
-const calculateCapacityData = (parking: ParkingDetailsType): capacitydata | null => {
+const calculateCapacityData = (parkingdata: ParkingDetailsType): capacitydata | null => {
   try {
-    let capacity: capacitydata = {
+    const capacity: capacitydata = {
       unknown: false,
       total: 0,
       detailed: {},
     };
 
-    if (parking === null) {
+    if (parkingdata === null) {
       capacity.unknown = true
-    } else if (parking.fietsenstalling_secties.length === 0) {
+    } else if (parkingdata.fietsenstalling_secties.length === 0) {
       capacity.unknown = false;
-      capacity.total = parking.Capacity || 0;
+      capacity.total = parkingdata.Capacity || 0;
     } else {
       // Get parking section (new: 1 per parking, to make it easy)
-      parking.fietsenstalling_secties.forEach((sectie) => {
+      parkingdata.fietsenstalling_secties.forEach((sectie) => {
         // Get capactity per modality for this parking section
         sectie.secties_fietstype.forEach(data => {
           const name = data.fietstype.Name;
@@ -41,7 +41,7 @@ const calculateCapacityData = (parking: ParkingDetailsType): capacitydata | null
             }
           }
 
-          let detailed = capacity.detailed[name];
+          const detailed = capacity.detailed[name];
           if (detailed !== undefined) {
             detailed.Toegestaan = detailed.Toegestaan || (data.Toegestaan !== null && data.Toegestaan);
             detailed.Capaciteit += data.Capaciteit || 0;

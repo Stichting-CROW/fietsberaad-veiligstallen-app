@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from "react";
-import { ReportType } from "../reports/ReportsFilter";
-import { AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
+import { type ReportType } from "../reports/ReportsFilter";
+import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import type { ReportComponentProps, BikeparkData } from "./index";
 import { convertToBikeparkData, buttonbase, libase } from "./index";
 import moment from "moment";
@@ -28,12 +27,18 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   // section report is not always available in the coldfusion fms: bezetting does not have a report
   const showSectionReport = reportType === "transacties_voltooid" || reportType === "stallingsduur";
 
+  const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
+  
   useEffect(() => {
       const fetchReportData = async () => {
         setLoading(true);
 
         try {
-          const apiEndpoint = "/api/database/availableDataDetailed";
+          if(validBikeparkIDs.length !== bikeparks.length) {
+            console.warn("ExportSectionReportComponent: some bikeparks have no StallingsID. These are not shown.");
+          }
+
+          const apiEndpoint = "/api/protected/database/availableDataDetailed";
 
           const response = await fetch(apiEndpoint, {
             method: 'POST',
@@ -42,7 +47,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
             },
             body: JSON.stringify({
               reportType,
-              bikeparkIDs: bikeparks.map(bp => bp.StallingsID),
+              bikeparkIDs: validBikeparkIDs,
               startDT: firstDate,
               endDT: lastDate
             }),

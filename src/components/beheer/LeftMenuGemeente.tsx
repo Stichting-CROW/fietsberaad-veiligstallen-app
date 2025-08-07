@@ -1,20 +1,19 @@
-// LeftMenu.tsx
+// LeftMenuGemeente.tsx
 import React from 'react';
 import Link from 'next/link';
 
-import { VSSecurityTopic, VSMenuTopic, VSUserSecurityProfile } from '~/types/index';
-import { VSModuleValues } from '~/types/modules';
-import { type VSContactDataprovider, VSContactExploitant, type VSContactGemeente } from '~/types/contacts';
+import { type VSUserSecurityProfile, VSSecurityTopic } from '~/types/securityprofile';
+import { VSMenuTopic } from '~/types/';
 import { VSUserRoleValuesNew } from '~/types/users';
 
-import { userHasRight, userHasModule, userHasRole } from '~/types/utils';
-interface LeftMenuProps {
+import { userHasRight, userHasRole } from '~/types/utils';
+interface LeftMenuGemeenteProps {
   securityProfile?: VSUserSecurityProfile;
   activecomponent: VSMenuTopic | undefined;
   onSelect: (component: VSMenuTopic) => void;
 }
 
-const LeftMenu: React.FC<LeftMenuProps> = ({
+const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   securityProfile,
   activecomponent,
   onSelect,
@@ -22,11 +21,11 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
   // const router = useRouter();
   // const { query } = router;
 
-  const formatLi = (component: VSMenuTopic | false, title: string, compact: boolean = false, children?: React.ReactNode) => {
+  const formatLi = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
     const isSelected = component === activecomponent;
     const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
     const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded`;
+    const classNamePassive = `block px-4 py-2 rounded cursor-default`;
 
     return (
       <li className={compact ? 'mb-2' : 'mb-1'}>
@@ -44,11 +43,11 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
     );
   }
 
-  const formatLiDevelopment = (component: VSMenuTopic | false, title: string, compact: boolean = false, children?: React.ReactNode) => {
+  const formatLiDevelopment = (component: VSMenuTopic | false, title: string, compact = false, children?: React.ReactNode) => {
     const isSelected = component === activecomponent;
     const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
     const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
-    const classNamePassive = `block px-4 py-2 rounded strikethrough`;
+    const classNamePassive = `block px-4 py-2 rounded strikethrough cursor-default`;
 
     return (
       <li className={compact ? 'mb-2' : 'mb-1'}>
@@ -73,33 +72,32 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 
   const renderUnifiedMenu = () => {
     // Base conditions from user security profile
-    const profile = securityProfile;
 
     // Role-based conditions
-    const isAdmin = userHasRole(profile, VSUserRoleValuesNew.RootAdmin) || userHasRole(profile, VSUserRoleValuesNew.Admin);
+    const isAdmin = userHasRole(securityProfile, VSUserRoleValuesNew.RootAdmin) || userHasRole(securityProfile, VSUserRoleValuesNew.Admin);
 
-    const hasSystemRight = userHasRight(profile, VSSecurityTopic.System);
-    const hasWebsiteRight = userHasRight(profile, VSSecurityTopic.Website);
-    const hasGemeenteRight = userHasRight(profile, VSSecurityTopic.ContactsGemeenten);
-    const hasLocatiesRight = userHasRight(profile, VSSecurityTopic.ApisGekoppeldeLocaties);
-    const hasBuurtstallingenRight = userHasRight(profile, VSSecurityTopic.Buurtstallingen) && userHasModule(profile, VSModuleValues.Buurtstallingen);
-    const hasRegistrantenRight = userHasRight(profile, VSSecurityTopic.Accounts) && userHasModule(profile, VSModuleValues.Fms);
-    const hasRapportagesRight = userHasRight(profile, VSSecurityTopic.Report) && userHasModule(profile, VSModuleValues.Fms);
-    const hasUsersRight = userHasRight(profile, VSSecurityTopic.UsersGebruikersbeheer) && userHasModule(profile, VSModuleValues.Fms);
-    const hasDataprovidersRight = userHasRight(profile, VSSecurityTopic.ContactsDataproviders) && userHasModule(profile, VSModuleValues.Fms);
-    const hasExternalApisRight = userHasRight(profile, VSSecurityTopic.ApisOverzicht);
-    const hasDevelopmentRight = userHasRight(profile, VSSecurityTopic.Development);
+    // const hasSystemRight = userHasRight(securityProfile, VSSecurityTopic.System);
+    const hasWebsiteRight = userHasRight(securityProfile, VSSecurityTopic.Website);
+    // const hasGemeenteRight = userHasRight(securityProfile, VSSecurityTopic.ContactsGemeenten);
+    const hasLocatiesRight = userHasRight(securityProfile, VSSecurityTopic.ApisGekoppeldeLocaties);
+    const hasBuurtstallingenRight = userHasRight(securityProfile, VSSecurityTopic.Buurtstallingen) // && userHasModule(securityProfile, VSModuleValues.Buurtstallingen);
+    // const hasRegistrantenRight = userHasRight(securityProfile, VSSecurityTopic.Accounts) && userHasModule(securityProfile, VSModuleValues.Fms);
+    const hasRapportagesRight = userHasRight(securityProfile, VSSecurityTopic.Report) // && userHasModule(securityProfile, VSModuleValues.Fms);
+    // const hasUsersRight = userHasRight(securityProfile, VSSecurityTopic.UsersGebruikersbeheer) // && userHasModule(securityProfile, VSModuleValues.Fms);
+    // const hasDataprovidersRight = userHasRight(securityProfile, VSSecurityTopic.ContactsDataproviders) // && userHasModule(securityProfile, VSModuleValues.Fms);
+    // const hasExternalApisRight = userHasRight(securityProfile, VSSecurityTopic.ApisOverzicht);
+    // const hasDevelopmentRight = userHasRight(securityProfile, VSSecurityTopic.Development);
 
-    const hasDatabaseRight = hasSystemRight;
+    // const hasDatabaseRight = hasSystemRight;
     // const hasInstellingenRight = hasSystemRight;
 
     {/* TODO: Later terugzetten, nu niet nodig
-      // const hasFietskluizenRight = userHasRight(profile, VSSecurityTopic.Fietskluizen);
-      // const hasAbonnementenRight = userHasRight(profile, VSSecurityTopic.Abonnementen);
-      // const hasDiashowRight = userHasRight(profile, VSSecurityTopic.Presentations);
-      // const hasUsersBeheerdersRight = userHasRight(profile, VSSecurityTopic.UsersBeheerders);
-      // const hasSleutelhangerreeksenRight = userHasRight(profile, VSSecurityTopic.BarcodereeksenSleutelhangers);
-      // const hasDocumentenModule = userHasRight(profile, VSSecurityTopic.Documents);
+      // const hasFietskluizenRight = userHasRight(securityProfile, VSSecurityTopic.Fietskluizen);
+      // const hasAbonnementenRight = userHasRight(securityProfile, VSSecurityTopic.Abonnementen);
+      // const hasDiashowRight = userHasRight(securityProfile, VSSecurityTopic.Presentations);
+      // const hasUsersBeheerdersRight = userHasRight(securityProfile, VSSecurityTopic.UsersBeheerders);
+      // const hasSleutelhangerreeksenRight = userHasRight(securityProfile, VSSecurityTopic.BarcodereeksenSleutelhangers);
+      // const hasDocumentenModule = userHasRight(securityProfile, VSSecurityTopic.Documents);
 
       {formatLi(VSMenuTopic.Products, 'Opwaardeerproducten')} 
 
@@ -132,7 +130,6 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 
     */}
 
-
     return (
       <>
         {formatLi(VSMenuTopic.Home, 'Home')}
@@ -146,20 +143,19 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
 
           { isAdmin && formatLi(VSMenuTopic.UsersGebruikersbeheerGemeente, `Gebruikers`)}
           { isAdmin && formatLi(VSMenuTopic.ContactsExploitanten, 'Exploitanten')}
-          { isAdmin && formatLi(VSMenuTopic.ContactsDataproviders, 'Dataleveranciers')}
+          {/* { isAdmin && formatLi(VSMenuTopic.ContactsDataproviders, 'Dataleveranciers')}
     
-          { hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')}
+          { hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')} */}
     
           { hasLocatiesRight && formatLi(VSMenuTopic.Fietsenstallingen, 'Fietsenstallingen')}
           { hasBuurtstallingenRight && formatLi(VSMenuTopic.Buurtstallingen, 'Buurtstallingen / Fietstrommels')}
 
           {hasWebsiteRight && formatLi(VSMenuTopic.ArticlesPages, 'Pagina\'s', true)}
+          {hasWebsiteRight && formatLi(VSMenuTopic.Faq, 'FAQ', true)}
 
           {hasRapportagesRight && formatLi(VSMenuTopic.Report, 'Rapportage', true)}
           {hasRapportagesRight && formatLi(VSMenuTopic.Export, 'Export', true)}
-          {hasRapportagesRight && formatLiDevelopment(VSMenuTopic.Logboek, 'Logboek', true)}
-
-          {hasWebsiteRight && formatLiDevelopment(VSMenuTopic.Faq, 'FAQ', true)}
+          {/* {hasRapportagesRight && formatLiDevelopment(VSMenuTopic.Logboek, 'Logboek', true)} */}
         </>}
       </>
     )
@@ -182,4 +178,4 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
   );
 }
 
-export default LeftMenu;
+export default LeftMenuGemeente;

@@ -1,6 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { CrudRouteHandler } from "~/backend/handlers/crud-route-handler";
-import ContactsService from "~/backend/services/contacts-service";
 import { prisma } from "~/server/db";
 import { gemeenteSelect } from "~/types/contacts";
 // import { authOptions } from './auth/[...nextauth]'
@@ -20,9 +18,18 @@ export default async (request: NextApiRequest, response: NextApiResponse) => {
   console.log("/api/contacts", request.query);
   switch (request.method) {
     case "GET": {
-      console.log("#### GET", request.query);
       const queryparams = request.query;
-      if (queryparams.cbsCode) {
+      if(queryparams.itemType) {
+        const itemType = queryparams.itemType as string;
+        const items = await prisma.contacts.findMany({
+          where: {
+            ItemType: itemType
+          },
+          select: gemeenteSelect
+        });
+        response.status(200).json(items);
+      }
+      else if (queryparams.cbsCode) {
         const cbsCode = queryparams.cbsCode as string;
         const municipality = await prisma.contacts.findFirst({
           where: {
@@ -51,9 +58,9 @@ export default async (request: NextApiRequest, response: NextApiResponse) => {
           select: gemeenteSelect
         });
         response.status(200).json(municipality);
+      } else {
+        response.status(400).json({ error: "Missing or unsupported query parameter" });
       }
-
-      console.log("GET", queryparams);
       break;
     }
     default: {// not implemented
@@ -61,6 +68,4 @@ export default async (request: NextApiRequest, response: NextApiResponse) => {
       break;
     }
   }
-
-  await CrudRouteHandler(request, response, ContactsService);
 };

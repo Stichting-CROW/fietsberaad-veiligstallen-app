@@ -3,12 +3,13 @@ import FormInput from "~/components/Form/FormInput";
 import PageTitle from "~/components/PageTitle";
 import Button from "@mui/material/Button";
 
-import type { VSContactDataprovider } from "~/types/contacts";
-import type { DataproviderValidateResponse } from "~/pages/api/protected/dataproviders/validate";
+import { type VSContactDataprovider, VSContactItemType } from "~/types/contacts";
+import type { DataproviderValidateResponse } from "~/pages/api/protected/dataprovider/validate";
 import { getDefaultNewDataprovider } from "~/types/database";
 import { useDataprovider } from "~/hooks/useDataprovider";
 import { makeClientApiCall } from "~/utils/client/api-tools";
-import { DataproviderResponse } from "~/pages/api/protected/dataprovider/[id]";
+import { type DataproviderResponse } from "~/pages/api/protected/dataprovider/[id]";
+import FormSelect from "../Form/FormSelect";
 
 type DataproviderEditProps = {
   id: string;
@@ -32,12 +33,14 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
     CompanyName: string | null;
     UrlName: string | null;
     Password: string | null;
+    Status: string | null;
   };
 
   const isNew = props.id === "new";
 
   const [CompanyName, setCompanyName] = useState<string | null>(null);
   const [UrlName, setUrlName] = useState<string | null>(null);
+  const [Status, setStatus] = useState<string | null>(null);
   const [Password, setPassword] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -45,6 +48,7 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
     CompanyName: "",
     UrlName: null,
     Password: null,
+    Status: null,
   });
 
   useEffect(() => {
@@ -53,11 +57,13 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
         CompanyName: DEFAULT_DATAPROVIDER.CompanyName,
         UrlName: DEFAULT_DATAPROVIDER.UrlName,
         Password: DEFAULT_DATAPROVIDER.Password,
+        Status: DEFAULT_DATAPROVIDER.Status,
       };
 
       setCompanyName(initial.CompanyName);
       setUrlName(initial.UrlName);
       setPassword(initial.Password);
+      setStatus(initial.Status);
 
       setInitialData(initial);
     } else {
@@ -66,11 +72,13 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
           CompanyName: activecontact.CompanyName || initialData.CompanyName,
           UrlName: activecontact.UrlName || initialData.UrlName,
           Password: activecontact.Password || initialData.Password,
+          Status: activecontact.Status || initialData.Status,
         };
 
         setCompanyName(initial.CompanyName);
         setUrlName(initial.UrlName);
         setPassword(initial.Password);
+        setStatus(initial.Status);
 
         setInitialData(initial);
       }
@@ -79,18 +87,20 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
 
   const isDataChanged = () => {
     if (isNew) {
-      return !!CompanyName || !!UrlName || !!Password;
+      return !!CompanyName || !!UrlName || !!Password || !!Status;
     }
     return (
       CompanyName !== initialData.CompanyName ||
       UrlName !== initialData.UrlName ||
-      Password !== initialData.Password
+      Password !== initialData.Password ||
+      Status !== initialData.Status
     );
   };
 
   const handleUpdate = async () => {
-    if (!CompanyName || !UrlName || !Password) {
-      alert("CompanyName, UrlName and Password cannot be empty.");
+    console.log(`handleUpdate ${CompanyName} / ${UrlName} / ${Password} ${Status}`);
+    if (!CompanyName || !UrlName || !Password || !Status) {
+      setErrorMessage("Naam, ContractorID, Wachtwoord en Status zijn verplichte velden");
       return;
     }
 
@@ -99,9 +109,11 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
     try {
       const data: Partial<VSContactDataprovider> = {
         ID: id,
+        ItemType: VSContactItemType.Dataprovider,
         CompanyName,
         UrlName,
         Password,
+        Status,
       };
 
       const urlValidate = `/api/protected/dataprovider/validate/`;
@@ -119,14 +131,13 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
       }
 
       if (!responseValidate.result.valid) {
+        console.log("responseValidate.result.message", responseValidate.result.message);
         setErrorMessage(responseValidate.result.message);
         return;
       }
 
       const method = isNew ? "POST" : "PUT";
-      const url = isNew
-        ? "/api/protected/dataprovider"
-        : `/api/protected/dataprovider/${props.id}`;
+      const url = `/api/protected/dataprovider/${id}`;
       const response = await makeClientApiCall<DataproviderResponse>(
         url,
         method,
@@ -161,15 +172,13 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
       setCompanyName(null);
       setUrlName(null);
       setPassword(null);
+      setStatus(null);
     } else {
       setCompanyName(initialData.CompanyName);
       setUrlName(initialData.UrlName);
       setPassword(initialData.Password);
+      setStatus(initialData.Status);
     }
-  };
-
-  const handleClose = (close: boolean) => {
-    console.log("handleClose", close);
   };
 
   const renderTopBar = (currentContact: VSContactDataprovider | undefined) => {
@@ -270,6 +279,17 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
           onChange={e => setPassword(e.target.value)}
         />
         <br />
+        <FormSelect
+                label="Status"
+                value={Status || ""}
+                onChange={(e) => setStatus(e.target.value || null)}
+                required
+                options={[
+                    { label: "Actief", value: "1" },
+                    { label: "Inactief", value: "0" },
+                ]}
+                disabled={!isEditing}
+            />
       </div>
     </div>
   );

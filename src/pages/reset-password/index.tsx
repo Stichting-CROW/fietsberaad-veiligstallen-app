@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import Head from "next/head";
 import { useRouter } from 'next/navigation'
 import useQueryParam from '../../hooks/useQueryParam';
-import { NextPage } from "next/types";
+import { type NextPage } from "next/types";
 
 // Import components
 import PageTitle from "~/components/PageTitle";

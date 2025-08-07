@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import Modal from "src/components/Modal";
 import WelcomeToMunicipality from "./WelcomeToMunicipality";
 import { useSelector } from "react-redux";
+import { useSession } from "next-auth/react";
 
 export default function InfomodalComponent({ }) {
     const [visible, setVisible] = useState(true);
-
+    const { data: session } = useSession();
+    
     const initialLatLng = useSelector(
-        (state: AppState) => state.map.initialLatLng,
+      (state: AppState) => state.map.initialLatLng,
     );
+    const mapZoom = useSelector((state: AppState) => state.map.zoom) || 12;
 
     const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo,
@@ -27,7 +30,7 @@ export default function InfomodalComponent({ }) {
           // Save the fact that user did see welcome modal
           const VS__didSeeWelcomeModalString: string =
             localStorage.getItem("VS__didSeeWelcomeModal") || "";
-          let VS__didSeeWelcomeModal: number = 0;
+          let VS__didSeeWelcomeModal = 0;
           try {
             VS__didSeeWelcomeModal = parseInt(VS__didSeeWelcomeModalString);
           } catch (ex) {
@@ -47,45 +50,52 @@ export default function InfomodalComponent({ }) {
   
 
     const handleClose = () => {
-        setVisible(false);
+      setVisible(false);
     }
 
     if(!visible) return null;
+    if(!activeMunicipalityInfo) return null;
+    if(mapZoom===undefined || mapZoom < 12) return null;
+
+    if(session?.user) {
+      console.log("NO WELCOME");
+      return null;
+    }
+  
 
     return (
-        <Modal
+      <Modal
         onClose={() => {
-            // Save the fact that user did see welcome modal
-            localStorage.setItem(
-            "VS__didSeeWelcomeModal",
-            Date.now().toString(),
-            );
+          // Save the fact that user did see welcome modal
+          localStorage.setItem(
+          "VS__didSeeWelcomeModal",
+          Date.now().toString(),
+          );
 
-            setVisible(false);
+          setVisible(false);
         }}
         clickOutsideClosesDialog={false}
         modalStyle={{
-            width: "400px",
-            maxWidth: "100%",
-            marginRight: "auto",
-            marginLeft: "auto",
+          width: "400px",
+          maxWidth: "100%",
+          marginRight: "auto",
+          marginLeft: "auto",
         }}
         modalBodyStyle={{
-            overflow: "visible",
+          overflow: "visible",
         }}
         >
         <WelcomeToMunicipality
-            municipalityInfo={activeMunicipalityInfo}
-            buttonClickHandler={() => {
+          municipalityInfo={activeMunicipalityInfo}
+          buttonClickHandler={() => {
             // Save the fact that user did see welcome modal
             localStorage.setItem(
-                "VS__didSeeWelcomeModal",
-                Date.now().toString(),
+              "VS__didSeeWelcomeModal",
+              Date.now().toString(),
             );
-
             setVisible(false);
-            }}
+          }}
         />
-        </Modal>
+      </Modal>
     );
 }

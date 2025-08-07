@@ -16,7 +16,7 @@ export const useDataprovider = (dataproviderID: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`/api/protected/dataproviders/${dataproviderID||false}`);
+      const response = await fetch(`/api/protected/dataprovider/${dataproviderID||false}`);
       const result: DataproviderResponse = await response.json();
 
       if (result.error) {

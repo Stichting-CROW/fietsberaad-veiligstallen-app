@@ -10,9 +10,58 @@ on:
 permissions:
   contents: read
   deployments: write
+  packages: write
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Retry login if failed
+        if: ${{ failure() }}
+        run: |
+          for i in {1..3}; do
+            echo "Retry attempt $i..."
+            sleep 10
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin && break
+          done
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+          cache-from: |
+            type=gha,scope=${{ github.workflow }}
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: |
+            type=gha,scope=${{ github.workflow }},mode=min
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=min
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+            NEXT_PUBLIC_WEB_BASE_URL=${{ vars.NEXT_PUBLIC_WEB_BASE_URL }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+            NEXTAUTH_URL=${{ vars.NEXTAUTH_URL }}
+            NEXT_PUBLIC_MAPBOX_TOKEN=${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}
+            LOGINTOKEN_SIGNER_PRIVATE_KEY=${{ secrets.LOGINTOKEN_SIGNER_PRIVATE_KEY }}
+
   deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Digital Ocean
@@ -25,7 +74,7 @@ jobs:
             cd /var/www/veiligstallen
             git pull origin veiligstallen-v2
 
-            # Create .env file for build
+            # Create .env file
             cat > .env << EOL
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
             NEXT_PUBLIC_WEB_BASE_URL=${{ vars.NEXT_PUBLIC_WEB_BASE_URL }}
@@ -36,24 +85,31 @@ jobs:
             LOGINTOKEN_SIGNER_PRIVATE_KEY=${{ secrets.LOGINTOKEN_SIGNER_PRIVATE_KEY }}
             EOL
 
+            # Configure Docker credential helper
+            sudo apt-get update
+            sudo apt-get install -y pass gnupg2
+            echo "{}" > ~/.docker/config.json
+            echo '{"credsStore":"pass"}' > ~/.docker/config.json
+
+            # Login to GitHub Container Registry with retry
+            for i in {1..3}; do
+              echo "Attempt $i to login to ghcr.io"
+              echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin && break
+              sleep 10
+            done
+
             # Stop and remove existing container if it exists
             docker stop veiligstallen || true
             docker rm veiligstallen || true
 
-            # Build and run the new container
-            docker build \
-              --build-arg NEXT_PUBLIC_API_BASE_URL="${{ vars.NEXT_PUBLIC_API_BASE_URL }}" \
-              --build-arg NEXT_PUBLIC_WEB_BASE_URL="${{ vars.NEXT_PUBLIC_WEB_BASE_URL }}" \
-              --build-arg DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-              --build-arg NEXTAUTH_SECRET="${{ secrets.NEXTAUTH_SECRET }}" \
-              --build-arg NEXTAUTH_URL="${{ vars.NEXTAUTH_URL }}" \
-              --build-arg NEXT_PUBLIC_MAPBOX_TOKEN="${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}" \
-              --build-arg LOGINTOKEN_SIGNER_PRIVATE_KEY="${{ secrets.LOGINTOKEN_SIGNER_PRIVATE_KEY }}" \
-              -t veiligstallen .
+            # Clean up unused images while preserving build cache
+            docker image prune -f
 
+            # Pull and run the new container
+            docker pull ghcr.io/${{ github.repository }}:latest
             docker run -d \
               --name veiligstallen \
               --restart always \
               --network host \
               --add-host=host.docker.internal:host-gateway \
-              veiligstallen
+              ghcr.io/${{ github.repository }}:latest

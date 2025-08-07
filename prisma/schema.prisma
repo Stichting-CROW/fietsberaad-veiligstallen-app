@@ -362,8 +362,8 @@ model contact_contact {
 
   // exploitants are in the parentSiteID column
   // organizations are in the childSiteID column
-  isManagingContacts  contacts? @relation(fields: [parentSiteID], references: [ID], name: "isManagingContacts")
-  isManagedByContacts contacts? @relation(fields: [childSiteID], references: [ID], name: "isManagedByContacts")
+  isManagingContacts  contacts? @relation(fields: [parentSiteID], references: [ID], name: "isManagingContacts", onDelete: Cascade)
+  isManagedByContacts contacts? @relation(fields: [childSiteID], references: [ID], name: "isManagedByContacts", onDelete: Cascade)
 
   @@unique([parentSiteID, childSiteID], map: "parentSiteID")
   @@index([childSiteID], map: "childSiteID")
@@ -472,6 +472,8 @@ model contacts {
 
   isManagingContacts  contact_contact[] @relation("isManagingContacts")
   isManagedByContacts contact_contact[] @relation("isManagedByContacts")
+
+  user_contact_roles user_contact_role[] @relation("ContactUserContactRole")
 
   @@unique([ItemType, CompanyName], map: "ItemType")
   @@index([CompanyName], map: "CompanyName")
@@ -710,7 +712,6 @@ model fietsenstallingen {
   BronBezettingsdata                                String?                      @default("FMS") @db.VarChar(20)
   reservationCostPerDay                             Decimal?                     @db.Decimal(8, 2)
   wachtlijst_Id                                     BigInt?
-  // freeHoursReservation                              Decimal?                     @db.Decimal(8, 2)
   thirdPartyReservationsUrl                         String?                      @db.VarChar(255)
   contacts_fietsenstallingen_SiteIDTocontacts       contacts?                    @relation("fietsenstallingen_SiteIDTocontacts", fields: [SiteID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK10w2mep03sjwvk4vd4gla321c")
   contacts_fietsenstallingen_ExploitantIDTocontacts contacts?                    @relation("fietsenstallingen_ExploitantIDTocontacts", fields: [ExploitantID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FKF4836A5566279D18")
@@ -1184,6 +1185,7 @@ model security_users {
   Status                String?                @db.VarChar(4)
   security_roles        security_roles?        @relation(fields: [RoleID], references: [RoleID], onDelete: Restrict, onUpdate: Restrict, map: "security_users_ibfk_1")
   security_users_sites  security_users_sites[]
+  user_contact_roles    user_contact_role[]    
 
   @@unique([UserID, SiteID], map: "unique_userID_siteID")
   @@index([RoleID], map: "RoleID")
@@ -1195,7 +1197,7 @@ model security_users_sites {
   UserID         String         @default("") @db.VarChar(35)
   SiteID         String         @db.VarChar(35)
   IsContact      Boolean        @default(dbgenerated("b'0'")) @db.Bit(1)
-  security_users security_users @relation(fields: [UserID], references: [UserID], onUpdate: Restrict, map: "security_users_sites_ibfk_1")
+  security_users security_users @relation(fields: [UserID], references: [UserID], onUpdate: Restrict, map: "security_users_sites_ibfk_1", onDelete: Cascade)
 
   @@unique([UserID, SiteID], map: "UserID")
 }
@@ -1808,4 +1810,24 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model user_contact_role {
+  ID String @id @default("") @db.VarChar(35)
+  UserID String @db.VarChar(36)
+  ContactID String @db.VarChar(36) @unique
+  NewRoleID String @db.VarChar(16) @default("none") 
+  isOwnOrganization Boolean @default(true)
+
+  security_user security_users @relation(fields: [UserID], references: [UserID], onDelete: Cascade)
+  contact contacts @relation("ContactUserContactRole", fields: [ContactID], references: [ID], onDelete: Cascade)
+
+  @@unique([UserID, ContactID], map: "UserID_ContactID") 
+}
+
+model user_status {
+  UserID String @id @default("") @db.VarChar(36)
+  Archived Boolean @default(false)
+
+  @@unique([UserID], map: "UserID") 
 }

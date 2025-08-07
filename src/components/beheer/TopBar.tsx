@@ -2,36 +2,50 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSelector } from "react-redux";
-import { type User } from "next-auth";
 import { useSession, signOut } from "next-auth/react"
-import { AppState } from "~/store/store";
-import type { VSUserSecurityProfile } from "~/types/";
-import type { Session } from "next-auth";
-import type { VSContactGemeenteInLijst } from "~/types/contacts";
-import { userHasRight, logSession } from '~/types/utils';
+import { type AppState } from "~/store/store";
+import type { VSContactExploitant, VSContactGemeenteInLijst, VSContact } from "~/types/contacts";
+import { logSession } from '~/types/utils';
+import { getOrganisationByID } from "~/utils/organisations";
+import ImageWithFallback from "~/components/common/ImageWithFallback";
+
 interface TopBarProps {
   title: string;
   currentComponent: string;
-  user: User | undefined;
   gemeenten: VSContactGemeenteInLijst[] | undefined;
+  exploitanten: VSContactExploitant[] | undefined;
   selectedGemeenteID: string | undefined;
   onGemeenteSelect: (gemeenteID: string) => void;
+}
+
+const getSelectedOrganisationInfo = (gemeenten: VSContactGemeenteInLijst[], exploitanten: VSContactExploitant[], selectedGemeenteID: string) => {
+  // Merge gemeenten and exploitanten
+  const organisations = [...gemeenten, ...exploitanten];
+  // Get organisation info
+  const organisation: VSContact | undefined = getOrganisationByID(organisations as unknown as VSContact[], selectedGemeenteID || "");
+
+  return organisation;
 }
 
 const TopBar: React.FC<TopBarProps> = ({
   title,
   currentComponent,
-  user,
   gemeenten,
+  exploitanten,
   selectedGemeenteID,
   onGemeenteSelect,
 }) => {
   const { push } = useRouter();
   const { data: session } = useSession()
 
-  const activeMunicipalityInfo = useSelector(
-    (state: AppState) => state.map.activeMunicipalityInfo
-  );
+  const activeMunicipalityInfo = useSelector((state: AppState) => {
+    // If path is like /beheer/*, return the activeMunicipalityInfo from the map slice
+    // Make sure it works on server side
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/beheer/')) {
+      return state.admin?.activeMunicipalityInfo
+    }
+    return state.map.activeMunicipalityInfo
+  });
 
   const themeColor1 = activeMunicipalityInfo && activeMunicipalityInfo.ThemeColor1
     ? `#${activeMunicipalityInfo.ThemeColor1}`
@@ -53,33 +67,84 @@ const TopBar: React.FC<TopBarProps> = ({
       push('/login?redirect=/beheer');
     } else {
       // sign out
-      signOut();
+      if(confirm('Wil je uitloggen?')) {
+        signOut();
+      }
     }
   };
 
   const handleDisplaySessionInfo = () => {
     if(process.env.NODE_ENV === 'development') {
-      logSession(session as Session | null);
+      logSession(session );
     }
   };
 
-  const profile = session?.user?.securityProfile as VSUserSecurityProfile | undefined;
-  const showFietsberaadInList = profile?.mainContactId === "1";
+  const showFietsberaadInList = session?.user?.mainContactId === "1";
   const fietsberaad = {
     ID: "1",
     CompanyName: "Fietsberaad",
-    CompanyShortName: "Fietsberaad"
   }
 
-  const organisaties = showFietsberaadInList ? [fietsberaad, ...(gemeenten || [])] : gemeenten;
-  const visibleContacts = organisaties?.sort((a, b) => {
+  const selectedOrganisationInfo: VSContact | undefined = getSelectedOrganisationInfo(gemeenten || [], exploitanten || [], selectedGemeenteID || "");
+
+  const gemeentenKort = gemeenten?.map(gemeente => ({
+    ID: gemeente.ID,
+    CompanyName: gemeente.CompanyName,
+  })).sort((a, b) => {
     // If a is the main contact, it should come first
-    if (a.ID === (profile?.mainContactId || "")) return -1;
+    if (a.ID === (session?.user?.mainContactId || "")) return -1;
     // If b is the main contact, it should come first
-    if (b.ID === (profile?.mainContactId || "")) return 1;
+    if (b.ID === (session?.user?.mainContactId || "")) return 1;
     // Otherwise sort alphabetically
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
   });
+
+  const exploitantenKort = exploitanten?.map(exploitant => ({
+    ID: exploitant.ID,
+    CompanyName: "** " + exploitant.CompanyName + " **",
+  })).sort((a, b) => {
+    // If a is the main contact, it should come first
+    if (a.ID === (session?.user?.mainContactId || "")) return -1;
+    // If b is the main contact, it should come first
+    if (b.ID === (session?.user?.mainContactId || "")) return 1;
+    // Otherwise sort alphabetically
+    return (a.CompanyName || '').localeCompare(b.CompanyName || '');
+  });
+
+  const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])];
+  if(showFietsberaadInList) {
+    organisaties.unshift(fietsberaad);
+  }
+
+  const renderLogo = () => {
+    const activecontact = selectedOrganisationInfo;
+    
+    if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
+      return <img src={activecontact?.CompanyLogo} className="max-h-16 w-auto bg-white p-2" />
+    }
+
+    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+    if(activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
+      logofile = activecontact.CompanyLogo;
+      if(!logofile.startsWith('http')) {
+          logofile =logofile.replace('[local]', '')
+          if(!logofile.startsWith('/')) {
+            logofile = '/' + logofile;
+          }
+      }
+
+      return <ImageWithFallback
+        src={logofile}
+        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        alt="Logo"
+        width={64}
+        height={64}
+        className="max-h-16 w-auto bg-white p-2"
+      />
+    }
+
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-16 w-auto bg-white p-2" />
+  }
 
   return (
     <div
@@ -87,13 +152,10 @@ const TopBar: React.FC<TopBarProps> = ({
       z-10 flex w-full items-center
       justify-between bg-white px-5 shadow
     "
+    style={{minHeight: '64px'}}
     >
       <div style={{ flex: 1 }}>
-        <img
-          src="/images/logo.png"
-          alt="Logo"
-          className="h-16 w-auto bg-white p-2"
-        />
+        {renderLogo()}
       </div>
       <div
         className="
@@ -126,7 +188,7 @@ const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
       <div
-        className="flex items-center justify-end space-x-4 text-sm"
+        className="flex items-center justify-end space-x-4 text-sm whitespace-nowrap"
         style={{ flex: 3 }}
       >
         {session?.user?.name && (
@@ -139,18 +201,18 @@ const TopBar: React.FC<TopBarProps> = ({
             Beheer Home
           </Link>
         )}
-        {visibleContacts && visibleContacts.length > 0 && (
+        {organisaties && organisaties.length > 0 && (
           <select
             onChange={handleGemeenteChange}
             value={selectedGemeenteID || ""}
             className="rounded bg-gray-700 px-2 py-1 text-white"
           >
-            {visibleContacts.map(gemeente => (
+            {organisaties.map(organisatie => (
               <option
-                key={`select-gemeente-option-${gemeente.ID}`}
-                value={gemeente.ID}
+                key={`select-organisatie-option-${organisatie.ID}`}
+                value={organisatie.ID}
               >
-                {gemeente.CompanyName} {gemeente.ID===profile?.mainContactId ? " (mijn organisatie)" : ""}
+                {organisatie.CompanyName} {organisatie.ID===session?.user?.mainContactId ? " (mijn organisatie)" : ""}
               </option>
             ))}
           </select>
@@ -160,17 +222,17 @@ const TopBar: React.FC<TopBarProps> = ({
           href="https://fms.veiligstallen.nl"
           target="_blank"
           className="
-              mx-2
-              flex
-              h-10
-              flex-col
-              justify-center
-              rounded-md
-              px-4
-              font-bold
-              text-white
-              shadow-lg
-            "
+            mx-2
+            flex
+            h-10
+            flex-col
+            justify-center
+            rounded-md
+            px-4
+            font-bold
+            text-white
+            shadow-lg
+          "
           style={{
             backgroundColor: "#15aeef",
           }}
@@ -180,23 +242,23 @@ const TopBar: React.FC<TopBarProps> = ({
         </a>
 
         <button
-            className="
-              mx-2
-              h-10
-              rounded-md
-              px-4
-              font-bold
-              text-white
-              shadow-lg
-              whitespace-nowrap
-            "
-            style={{
-              backgroundColor: themeColor2 || themeColor1,
-            }}
-            onClick={handleLoginClick}
-          >
-            {session ? "Log uit" : "Log in"}
-          </button>
+          className="
+            mx-2
+            h-10
+            rounded-md
+            px-4
+            font-bold
+            text-white
+            shadow-lg
+            whitespace-nowrap
+          "
+          style={{
+            backgroundColor: themeColor2 || themeColor1,
+          }}
+          onClick={handleLoginClick}
+        >
+          {session ? "Log uit" : "Log in"}
+        </button>
       </div>
     </div>
   );

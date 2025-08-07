@@ -1,57 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { VSUserRoleValuesNew, type VSUserWithRoles, type VSUserWithRolesNew, type VSUserInLijstNew,type VSUserSitesNew, securityUserSelect, VSUserGroupValues } from "~/types/users";
+import { VSUserRoleValuesNew, type VSUserWithRolesNew} from "~/types/users";
+import { securityUserSelect, VSUserGroupValues, VSUserWithRoles } from "~/types/users-coldfusion";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
-import { validateUserSession, generateID } from "~/utils/server/database-tools";
-import { createSecurityProfile, createSecurityProfileCompact } from "~/utils/server/securitycontext";
-
-// TODO: implement filtering on accessible security_users
-
-const getSitesForUser = (user: VSUserWithRoles): VSUserSitesNew[] => {
-  return user.security_users_sites.map((site) => ({
-    SiteID: site.SiteID,
-    IsContact: site.IsContact,
-    IsOwnOrganization: user.SiteID === site.SiteID,
-    newRoleId: VSUserRoleValuesNew.None
-  }))
-}
-
-export const convertToNewUser = async (user: VSUserWithRoles, activeContactId: string): Promise<VSUserWithRolesNew> => {
-  return {
-    UserID: user.UserID, 
-    UserName: user.UserName, 
-    DisplayName: user.DisplayName, 
-    Status: user.Status, 
-    SiteID: user.SiteID, 
-    ParentID: user.ParentID, 
-    LastLogin: user.LastLogin, 
-    // EncryptedPassword: user.EncryptedPassword, 
-    // EncryptedPassword2: user.EncryptedPassword2,
-    sites: getSitesForUser(user),
-    securityProfile: await createSecurityProfile(user, activeContactId)
-  }
-}
-
-export const convertToNewUserCompact = (user: VSUserWithRoles): VSUserInLijstNew => {
-  return {
-    UserID: user.UserID, 
-    UserName: user.UserName, 
-    DisplayName: user.DisplayName, 
-    Status: user.Status, 
-    SiteID: user.SiteID, 
-    ParentID: user.ParentID, 
-    LastLogin: user.LastLogin, 
-    // EncryptedPassword: user.EncryptedPassword, 
-    // EncryptedPassword2: user.EncryptedPassword2,
-    sites: getSitesForUser(user),
-    securityProfile: createSecurityProfileCompact(user)
-  }
-}
+import { validateUserSession } from "~/utils/server/database-tools";
+import { createSecurityProfile } from "~/utils/server/securitycontext";
 
 export type SecurityUsersResponse = {
-  data?: VSUserWithRolesNew[] | VSUserInLijstNew[];
+  data?: VSUserWithRolesNew[];
   error?: string;
 };
 
@@ -63,6 +21,51 @@ export const securityUserCreateSchema = z.object({
   Status: z.string().optional(),
   Password: z.string().min(1),
 });
+
+export interface VSUsersForContact {
+  ID: string;
+  Name: string;
+  Organization: string;
+  NewRoleID: string;
+}
+
+const getUsersForContact = async (contactID: string): Promise<VSUserWithRolesNew[]> => {
+  const linkedusers = (await prisma.security_users.findMany({
+    where: { user_contact_roles: { some: { ContactID: contactID } } },
+    select: securityUserSelect,
+    orderBy: { UserID: 'asc' }
+  }));
+
+  const result = linkedusers
+    .map(user => { 
+      const ownRoleInfo = user.user_contact_roles.find((role) => role.isOwnOrganization)
+      const theRoleInfo = user.user_contact_roles.find((role) => role.ContactID === contactID)
+      const currentRoleID: VSUserRoleValuesNew = theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
+      const isContact = user.security_users_sites.some((site) => site.SiteID === contactID && site.IsContact);
+      const isOwnOrganization = theRoleInfo?.isOwnOrganization || false;
+
+      const newUserData: VSUserWithRolesNew = {
+        UserID: user.UserID, 
+        UserName: user.UserName, 
+        DisplayName: user.DisplayName, 
+        Status: user.Status, 
+        LastLogin: user.LastLogin, 
+        // EncryptedPassword: user.EncryptedPassword, 
+        // EncryptedPassword2: user.EncryptedPassword2,
+        // sites: getSitesForUser(user),
+        securityProfile: createSecurityProfile(currentRoleID),
+        isContact: isContact,
+        ownOrganizationID: ownRoleInfo?.ContactID || "",
+        isOwnOrganization: isOwnOrganization,
+      }
+        return newUserData;
+    })
+    .filter(user => user.DisplayName !== ""); // filter out users without a name or organization
+
+  
+
+    return result;
+}
 
 export default async function handle(
   req: NextApiRequest,
@@ -76,47 +79,15 @@ export default async function handle(
     return;
   }
 
-  const { sites, userId, activeContactId } = validateUserSessionResult;
+  const { activeContactId } = validateUserSessionResult;
+  const  contactId = req.query.contactId as unknown as string; // optional: get users for a specific contact, 
 
-  let wherefilter = undefined;
-  if(activeContactId === "1") {
-    // intern users
-    wherefilter = { GroupID: VSUserGroupValues.Intern };
-  } else {
-    // extern users
-    wherefilter = { 
-      security_users_sites: {
-        some: {
-          SiteID: activeContactId
-        }
-      }, 
-      GroupID: VSUserGroupValues.Extern };
-  }
+  const selectedContactId = contactId || activeContactId;
 
   switch (req.method) {
     case "GET": {
-      const compact = req.query.compact === 'true';
-
       // GET all security users
-      const users = await prisma.security_users.findMany({
-        where: wherefilter,
-        select: securityUserSelect
-      }) as VSUserWithRoles[];
-
-      let newUsers: VSUserWithRolesNew[] | VSUserInLijstNew[] = [];
-
-      if(compact) {
-        newUsers = users.map((user) => {
-          const result = convertToNewUserCompact(user);
-          return result;
-        });
-      } else {
-        newUsers = await Promise.all(users.map(async (user) => {
-          const result = convertToNewUser(user, activeContactId);
-          return result;
-        }));
-      }
-
+      const newUsers = await getUsersForContact(selectedContactId);
       res.status(200).json({data: newUsers});
       break;
     }
@@ -124,4 +95,4 @@ export default async function handle(
       res.status(405).json({error: "Method Not Allowed"});
     }
   }
-} 
+}

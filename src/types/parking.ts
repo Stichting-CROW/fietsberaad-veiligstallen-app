@@ -1,4 +1,4 @@
-import type { fietsenstallingtypen, abonnementsvormen, fietsenstallingen } from "~/generated/prisma-client";
+import type { fietsenstallingen } from "~/generated/prisma-client";
 
 export type VSParking = Pick<fietsenstallingen,
 "ID" | 
@@ -11,8 +11,8 @@ export type ParkingSectionPerBikeType = {
     Toegestaan: boolean | null,
     Capaciteit: number | null,
     fietstype: {
-        Name: string // Assuming Name is of type string
-    }
+        Name: string | null // Assuming Name is of type string
+    } | null
 }
 
 export type ParkingSection = {
@@ -28,63 +28,103 @@ export type UpdateParkingSectionsData = {
 
 export type UitzonderingOpeningstijden = {
   ID: string,
-  fietsenstallingsID: string,
-  openingDateTime: Date,
-  closingDateTime: Date,
+  fietsenstallingsID: string | null,
+  openingDateTime: Date| null,
+  closingDateTime: Date| null,
 }
 
 export type UitzonderingenOpeningstijden = UitzonderingOpeningstijden[];
 
 export type ParkingSections = ParkingSection[];
 
+export type AbonnementsvormenType = {
+  ID: number;
+  naam: string | null;
+  omschrijving: string | null;
+  prijs: number | null;
+  tijdsduur: number | null;
+  conditions: string | null;
+  siteID: string | null;
+  bikeparkTypeID: string | null;
+  isActief: boolean;
+  exploitantSiteID: string | null;
+  idmiddelen: string;
+  contractID: string | null;
+  paymentAuthorizationID: string | null;
+  conditionsID: string | null;
+};
+
 export type ParkingDetailsType = {
     ID: string,
-    Status: string,
-    EditorCreated: string,
-    Title: string,
-    Location: string,
-    Postcode: string,
-    Plaats: string,
-    Type: string,
-    SiteID: string,
     StallingsID: string,
-    Description: string;
-    Image: any;
-    Open_ma: Date,
-    Dicht_ma: Date,
-    Open_di: Date,
-    Dicht_di: Date,
-    Open_wo: Date,
-    Dicht_wo: Date,
-    Open_do: Date,
-    Dicht_do: Date,
-    Open_vr: Date,
-    Dicht_vr: Date,
-    Open_za: Date,
-    Dicht_za: Date,
-    Open_zo: Date,
-    Dicht_zo: Date,
-    Openingstijden: string,
-    Capacity: number,
+    SiteID: string | null,
+    Title: string | null,
+    StallingsIDExtern: string | null, // not used in the app
+    Description: string | null,
+    Image: any | null,
+    Location: string | null,
+    Postcode: string | null,
+    Plaats: string | null,
+    Capacity: number | null,
+    Status: string | null,
+    Type: string | null,
+    Open_ma: Date | null,
+    Dicht_ma: Date | null,
+    Open_di: Date | null,
+    Dicht_di: Date | null,
+    Open_wo: Date | null,
+    Dicht_wo: Date | null,
+    Open_do: Date | null,
+    Dicht_do: Date | null,
+    Open_vr: Date | null,
+    Dicht_vr: Date | null,
+    Open_za: Date | null,
+    Dicht_za: Date | null,
+    Open_zo: Date | null,
+    Dicht_zo: Date | null,
+    Openingstijden: string | null,
     Coordinaten: string | null,
-    DateCreated: Date,
-    DateModified: Date,
-    FMS: boolean,
-    Beheerder: string,
-    BeheerderContact: string,
-    BerekentStallingskosten: boolean,
-    fietsenstalling_type: fietsenstallingtypen[],
-    fietsenstalling_secties: ParkingSections,
-    uitzonderingenopeningstijden: UitzonderingenOpeningstijden,
+    EditorCreated: string | null;
+    DateCreated: Date | null;
+    EditorModified: string | null;
+    DateModified: Date | null;
+    Ip: string | null; // not used in the app
+    Verwijssysteem: boolean; // not used in the app
+    VerwijssysteemOverzichten: boolean | null; // not used in the app
+    FMS: boolean | null, // Check if/how this is still used
+    Beheerder: string | null,
+    BeheerderContact: string | null,
+    OmschrijvingTarieven: string | null; // not used in the app
+    IsStationsstalling: boolean; // not used in the app
+    IsPopup: boolean; // not used in the app
+    NotaVerwijssysteem: string | null; // not used in the app
+    Tariefcode: number,
+    Toegangscontrole: number | null;
+    Url: string | null;
+    ExtraServices: string | null;
+    dia: string | null; // not used in the app
+    BerekentStallingskosten: boolean;
+    AantalReserveerbareKluizen: number; // not used in the app
+    MaxStallingsduur: number; // not used in the app
+    HeeftExterneBezettingsdata: boolean; // not used in the app
+    ExploitantID: string | null;
+    hasUniSectionPrices: boolean; // not used in the app
+    hasUniBikeTypePrices: boolean; // not used in the app
+    shadowBikeparkID: string | null;
+    BronBezettingsdata: string | null; // Not used in the app
+    reservationCostPerDay: number | null; // Removed from record in prisma.ts
+    wachtlijst_Id: bigint | null; // Removed from record in prisma.ts
+    thirdPartyReservationsUrl: string | null; // Not used in the app
+
+    fietsenstalling_secties: ParkingSections | null,
+    uitzonderingenopeningstijden: UitzonderingenOpeningstijden | null,
 
     // abonnementen: abonnementsvorm_fietsenstalling[],
     abonnementsvorm_fietsenstalling: {
-        SubscriptionTypeID: number,
+        SubscriptiontypeID: number,
         BikeparkID: string,
-        abonnementsvormen: abonnementsvormen
+        // abonnementsvormen: AbonnementsvormenType[]
     }[],
-    Tariefcode: number,
-    ExtraServices: string,
     // abonnementsvormen: {
     //     ID: string,
     //     naam: string,
@@ -102,8 +142,7 @@ export type ParkingDetailsType = {
     //     conditionsID: string
     // }[]
     // },
-    ExploitantID: string,
-    exploitant: {
+    exploitant?: {
         ID: string,
         Helpdesk: string,
         CompanyName: string,
@@ -118,33 +157,65 @@ export type ParkingDetailsType = {
 }
 
 export const selectParkingDetailsType = {
-    Title: true,
-    ID: true,
-    SiteID: true,
-    Location: true,
-    Postcode: true,
-    Plaats: true,
-    Type: true,
-    Image: true,
-    Open_ma: true,
-    Dicht_ma: true,
-    Open_di: true,
-    Dicht_di: true,
-    Open_wo: true,
-    Dicht_wo: true,
-    Open_do: true,
-    Dicht_do: true,
-    Open_vr: true,
-    Dicht_vr: true,
-    Open_za: true,
-    Dicht_za: true,
-    Open_zo: true,
-    Dicht_zo: true,
-    Openingstijden: true,
-    Capacity: true,
-    Coordinaten: true,
-    Beheerder: true,
-    BeheerderContact: true,
+  ID: true,
+  StallingsID: true,
+  SiteID: true,
+  Title: true,
+  StallingsIDExtern: true,
+  Description: true,
+  Image: true,
+  Location: true,
+  Postcode: true,
+  Plaats: true,
+  Capacity: true,
+  Status: true,
+  Type: true,
+  Open_ma: true,
+  Dicht_ma: true,
+  Open_di: true,
+  Dicht_di: true,
+  Open_wo: true,
+  Dicht_wo: true,
+  Open_do: true,
+  Dicht_do: true,
+  Open_vr: true,
+  Dicht_vr: true,
+  Open_za: true,
+  Dicht_za: true,
+  Open_zo: true,
+  Dicht_zo: true,
+  Openingstijden: true,
+  Coordinaten: true,
+  EditorCreated: true,
+  DateCreated: true,
+  EditorModified: true,
+  DateModified: true,
+  Ip: true, // not used in the app
+  Verwijssysteem: true, // not used in the app
+  VerwijssysteemOverzichten: true, // not used in the app
+  FMS: true, // Check if/how this is still used
+  Beheerder: true,
+  BeheerderContact: true,
+  OmschrijvingTarieven: true,
+  IsStationsstalling: true,
+  IsPopup: true,
+  NotaVerwijssysteem: true, // not used in the app
+  Tariefcode: true,
+  Url: true,
+  ExtraServices: true,
+  dia: true, // not used in the app
+  BerekentStallingskosten: true, // not used in the app
+  MaxStallingsduur: true, // not used in the app
+  HeeftExterneBezettingsdata: true, // not used in the app
+  ExploitantID: true,
+  hasUniSectionPrices: true, // not used in the app
+  hasUniBikeTypePrices: true, // not used in the app
+  shadowBikeparkID: true,
+  BronBezettingsdata: true, // Not used in the app
+  reservationCostPerDay: true, // Removed from record in prisma.ts
+  wachtlijst_Id: true, // Removed from record in prisma.ts
+  thirdPartyReservationsUrl: true, // Not used in the app
+
     fietsenstalling_type: {
       select: {
         id: true,
@@ -174,24 +245,26 @@ export const selectParkingDetailsType = {
     },
     abonnementsvorm_fietsenstalling: {
       select: {
-        abonnementsvormen: {
-          select: {
-            ID: true,
-            naam: true,
-            omschrijving: true,
-            prijs: true,
-            tijdsduur: true,
-            conditions: true,
-            siteID: true,
-            bikeparkTypeID: true,
-            isActief: true,
-            exploitantSiteID: true,
-            idmiddelen: true,
-            contractID: true,
-            paymentAuthorizationID: true,
-            conditionsID: true
-          }
-        }
+        SubscriptiontypeID: true,
+        BikeparkID: true,
+        // abonnementsvormen: {
+        //   select: {
+        //     ID: true,
+        //     naam: true,
+        //     omschrijving: true,
+        //     prijs: true,
+        //     tijdsduur: true,
+        //     conditions: true,
+        //     siteID: true,
+        //     bikeparkTypeID: true,
+        //     isActief: true,
+        //     exploitantSiteID: true,
+        //     idmiddelen: true,
+        //     contractID: true,
+        //     paymentAuthorizationID: true,
+        //     conditionsID: true
+        //   }
+        // }
       }
     },
     exploitant: {
@@ -211,4 +284,10 @@ export const selectParkingDetailsType = {
         }
       }
     }
+  }
+
+  export type VSFietsenstallingType = {
+    id: string,
+    name: string,
+    sequence: number
   }

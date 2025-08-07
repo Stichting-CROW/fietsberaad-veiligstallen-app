@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { ReportType } from "../reports/ReportsFilter";
-import { AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
+import { type ReportType } from "../reports/ReportsFilter";
+import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import moment from "moment";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
@@ -20,12 +20,18 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
 
   const [loading, setLoading] = useState(false);
 
+  const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
+
   useEffect(() => {
       const fetchReportData = async () => {    
           setLoading(true);
 
+          if(validBikeparkIDs.length !== bikeparks.length) {
+            console.warn("ExportSectionReportComponent: some bikeparks have no StallingsID. These are not shown.");
+          }
+
           try {
-            const apiEndpoint = "/api/database/availableDataDetailed";
+            const apiEndpoint = "/api/protected/database/availableDataDetailed";
 
             const response = await fetch(apiEndpoint, {
               method: 'POST',
@@ -34,7 +40,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
               },
               body: JSON.stringify({
                 reportType,
-                bikeparkIDs: bikeparks.map(bp => bp.StallingsID),
+                bikeparkIDs: validBikeparkIDs,
                 startDT: firstDate,
                 endDT: lastDate
               }),

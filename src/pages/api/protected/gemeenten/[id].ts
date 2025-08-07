@@ -3,9 +3,10 @@ import { prisma } from "~/server/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
-import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
+import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { gemeenteSchema, gemeenteCreateSchema, getDefaultNewGemeente } from "~/types/database";
-import { type VSContactGemeente, gemeenteSelect } from "~/types/contacts";
+import { type VSContactGemeente, gemeenteSelect, VSContactItemType } from "~/types/contacts";
+import { VSUserRoleValuesNew } from "~/types/users";
 
 export type GemeenteResponse = {
   data?: VSContactGemeente;
@@ -43,7 +44,7 @@ export default async function handle(
     case "GET": {
       if (id === "new") {
         // add timestamp to the name
-        const defaultRecord = getDefaultNewGemeente('Testgemeente ' + new Date().toISOString());
+        const defaultRecord = getDefaultNewGemeente('Nieuw ' + new Date().toISOString());
         res.status(200).json({data: defaultRecord});
         return;
       }
@@ -51,7 +52,7 @@ export default async function handle(
       const gemeente = (await prisma.contacts.findFirst({
         where: {
           ID: id,
-          ItemType: "organizations",
+          ItemType: VSContactItemType.Organizations,
         },
         select: gemeenteSelect
       })) as unknown as VSContactGemeente;
@@ -74,7 +75,7 @@ export default async function handle(
         const newData = {
           ID: newID,
           // Required fields
-          ItemType: "organizations",
+          ItemType: VSContactItemType.Organizations,
           CompanyName: parsed.CompanyName,
           Status: "1", // Default status
             
@@ -104,31 +105,34 @@ export default async function handle(
           return;
         }
 
-        // add a record to the security_users_sites table that links the new gemeente to the user's sites
-        const newLink = await prisma.security_users_sites.create({
-          data: {
-            UserID: userId,
-            SiteID: newOrg.ID,
-            IsContact: false
+        const fietsberaadusers = await prisma.user_contact_role.findMany({
+          where: {
+            ContactID: "1",
+            NewRoleID: {
+              in: [VSUserRoleValuesNew.RootAdmin] // VSUserRoleValuesNew.Admin, 
+            }
+          },
+          select: {
+            UserID: true,
+            NewRoleID: true,
           }
         });
-        if(!newLink) {
-          console.error("Fout bij het aanmaken van koppeling naar nieuwe gemeente:", newOrg.ID);
-          res.status(500).json({error: "Fout bij het aanmaken van koppeling naar nieuwe gemeente"});
-          return;
-        }
 
-        // Update security profile
-        const { session: updatedSession, error: profileError } = await updateSecurityProfile(session, userId);
-        if (profileError) {
-          console.error("Fout bij het bijwerken van beveiligingsprofiel:", profileError);
-          res.status(500).json({error: profileError});
-          return;
+        // Give fietsberaad admins immediate access to the new exploitant
+        for(const fbuser of fietsberaadusers) {
+          await prisma.user_contact_role.create({
+            data: {
+              ID: generateID(),
+              UserID: fbuser.UserID,
+              ContactID: newID,
+              NewRoleID: [VSUserRoleValuesNew.Admin, VSUserRoleValuesNew.RootAdmin].includes(fbuser.NewRoleID as VSUserRoleValuesNew) ? fbuser.NewRoleID : VSUserRoleValuesNew.None,
+              isOwnOrganization: false,
+            }
+          });
         }
 
         res.status(201).json({ 
-          data: [newOrg],
-          session: updatedSession
+          data: newOrg
         });
       } catch (e) {
         console.error("Fout bij het aanmaken van gemeente:", e);
@@ -151,7 +155,7 @@ export default async function handle(
           where: { ID: id },
           data: {
             CompanyName: parsed.CompanyName,
-            ItemType: "organizations",
+            ItemType: VSContactItemType.Organizations,
             AlternativeCompanyName: parsed.AlternativeCompanyName ?? undefined,
             UrlName: parsed.UrlName ?? undefined,
             ZipID: parsed.ZipID ?? undefined,
@@ -185,6 +189,40 @@ export default async function handle(
     }
     case "DELETE": {
       try {
+        // Fetch all users for this contact
+        const users = await prisma.user_contact_role.findMany({
+          where: {
+            ContactID: id,
+            isOwnOrganization: true
+          },
+          select: {
+            UserID: true
+          }
+        });
+
+        const userIDs = users.map((user) => user.UserID);
+
+        // delete all role assignments that manage this contact
+        await prisma.user_contact_role.deleteMany({
+          where: {
+            ContactID: id,
+          }
+        });
+
+        // delete all users that have a role assignment for this contact
+        await prisma.security_users.deleteMany({
+          where: {
+            UserID: { in: userIDs },
+          }
+        });
+
+        // delete all contact_contact records for this contact
+        await prisma.contact_contact.deleteMany({
+          where: {
+            childSiteID: id
+          }
+        });
+
         await prisma.contacts.delete({
           where: { ID: id }
         });

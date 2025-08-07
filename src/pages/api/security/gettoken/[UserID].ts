@@ -29,7 +29,7 @@ export default async function handler(
         }
 
         // Generate token
-        const tokenResponse = await calculateAuthToken(UserID);
+        const tokenResponse = calculateAuthToken(UserID);
         if (!tokenResponse) {
             return res.status(500).json({ error: "Failed to generate token" });
         }

@@ -1,8 +1,6 @@
-import React from "react";
-import { Session } from "next-auth";
+import { type Session } from "next-auth";
 import { reverseGeocode } from "~/utils/nomatim";
 import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
-import type { VSservice } from "~/types/services";
 import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
 
@@ -38,35 +36,6 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
   } catch (error: any) {
     console.error("getParkingDetails - error: ", error.message);
     return null;
-  }
-};
-
-export const getAllServices = async (): Promise<VSservice[]> => {
-  try {
-    const response = await fetch(
-      `/api/services/`
-    );
-    const json = await response.json();
-    if (!json) return [];
-
-    return json as VSservice[];
-  } catch (err) {
-    console.error("get all services error", err);
-    return []
-  }
-};
-
-export const getAllFietstypen = async (): Promise<any> => {
-  try {
-    const response = await fetch(
-      `/api/fietstypen`
-    );
-    const json = await response.json();
-    if (!json) return;
-
-    return json;
-  } catch (err) {
-    console.error("get all fietstypen error", err);
   }
 };
 
@@ -137,7 +106,7 @@ export const getNewStallingDefaultRecord = async (Status: string, latlong?: stri
   let Title = "Nieuwe Stalling"
 
   if (undefined !== latlong) {
-    let address = await reverseGeocode(latlong.toString());
+    const address = await reverseGeocode(latlong.toString());
     if (address && address.address) {
       Location = ((address.address.road || "---") + " " + (address.address.house_number || "")).trim();
       Postcode = address.address.postcode || "";
@@ -218,7 +187,7 @@ export const createVeiligstallenOrgLink = async (parkingdata: ParkingDetailsType
 
 export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetailsType, fietsenstallingen: fietsenstallingen[], contacts: contacts[]): string => {
   const thecontact = contacts.find((contact) => contact.ID === parkingdata.SiteID);
-  let municipality = thecontact?.UrlName || ""; // gemeente as used in veiligstallen url
+  const municipality = thecontact?.UrlName || ""; // gemeente as used in veiligstallen url
 
   // check if there are any parkings for this SiteID and BerekentStallingskosten === false -> yes? create URL
   const others = fietsenstallingen.filter((fs) => (parkingdata.SiteID === fs.SiteID) && (fs.BerekentStallingskosten === false));
@@ -228,12 +197,12 @@ export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetails
   return visible ? `https://veiligstallen.nl/${municipality}/stallingstegoed` : '';
 }
 
-export const createVeiligstallenOrgOpwaardeerLinkForMunicipality = (municipality: contacts, fietsenstallingen: fietsenstallingen[]): string => {
-  if (municipality === undefined) { return '' }
+export const createVeiligstallenOrgOpwaardeerLinkForMunicipality = (municipalityID: string, urlName: string | null, fietsenstallingen: ParkingDetailsType[]): string => {
+  if (urlName === null) { return '' }
 
   // check if there are any parkings for this SiteID and BerekentStallingskosten === false -> yes? create URL
-  const others = fietsenstallingen.filter((fs) => (municipality.ID === fs.SiteID) && (fs.BerekentStallingskosten === false));
-  const visible = others.length > 0
+  const others = fietsenstallingen.filter((fs) => (municipalityID === fs.SiteID) && (fs.BerekentStallingskosten === false));
+  const opwaardeerUrl = urlName !== null &&others.length > 0 ? `https://veiligstallen.nl/${urlName}/stallingstegoed` : '';
 
-  return visible ? `https://veiligstallen.nl/${municipality.UrlName}/stallingstegoed` : '';
+  return opwaardeerUrl;
 }

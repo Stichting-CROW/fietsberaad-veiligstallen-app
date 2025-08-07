@@ -22,7 +22,7 @@ export default async function handle(
     return;
   }
 
-  const validateUserSessionResult = await validateUserSession(session, "articles");
+  const validateUserSessionResult = await validateUserSession(session, "all");
   if ('error' in validateUserSessionResult) {
     console.error("Unauthorized - invalid session", validateUserSessionResult.error);
     res.status(401).json({valid: false, error: validateUserSessionResult.error}); // Unauthorized
@@ -41,10 +41,7 @@ export default async function handle(
     return;
   }
 
-  if (!validateUserSessionResult.sites.includes(data.ID) && data.ID !== "new") {
-    res.status(403).json({ valid: false, error: "No access to this article" });
-    return;
-  }
+  // TODO: check if the article is accessible to the user
 
   switch (req.method) {
     case "POST": {

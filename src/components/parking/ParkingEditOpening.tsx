@@ -7,6 +7,7 @@ import HorizontalDivider from "~/components/HorizontalDivider";
 import FormInput from "~/components/Form/FormInput";
 import FormTextArea from "~/components/Form/FormTextArea";
 import FormCheckbox from "~/components/Form/FormCheckbox";
+import ParkingOpeningUitzonderingen from "~/components/parking/ParkingOpeningUitzonderingen";
 
 import moment from "moment";
 
@@ -201,10 +202,10 @@ const ParkingEditOpening = ({ parkingdata, openingChanged }: { parkingdata: Park
     // determine new time
 
     // let oldtime: Date = new Date((key in currentValues) ? currentValues[key]: startValues[key]);
-    let oldtime = moment.utc((key in changes) ? changes[key] : startValues[key]);
+    const oldtime = moment.utc((key in changes) ? changes[key] : startValues[key]);
     let newtime = undefined;
 
-    const newval: number = Number(e.target.value);
+    const newval = Number(e.target.value);
     if (isHoursField) {
       if (newval < 0 || newval > 23) {
         return; // invalid value
@@ -273,38 +274,42 @@ const ParkingEditOpening = ({ parkingdata, openingChanged }: { parkingdata: Park
   );
 
   return (
-    <div className="flex flex-col">
-      <SectionBlock
-        heading="Openingstijden"
-      >
-        {/* <p className="py-2 text-red">
-          Het veranderen van de openingstijden (specifiek uren) werkt tijdelijk niet. We werken hieraan; kom binnenkort terug als je de uren wilt aanpassen.
-        </p> */}
-        <table className="w-full">
-          <tbody>
-            {formatOpeningTimesForEdit(data, isNS, "ma", "Maandag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "di", "Dinsdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "wo", "Woensdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "do", "Donderdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "vr", "Vrijdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "za", "Zaterdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "zo", "Zondag", handleChange, handleChangeChecks)}
-          </tbody>
-        </table>
-      </SectionBlock>
-      <HorizontalDivider className="my-4" />
-      <SectionBlock
-        heading="Afwijkende Openingstijden"
-        contentClasses="w-full">
-        <FormTextArea
-          value={undefined === openingstijden ? (parkingdata.Openingstijden !== null ? parkingdata.Openingstijden.replaceAll("<br />", "\n") : '') : openingstijden}
-          style={{ width: '100%', borderRadius: '0 10px 10px 0' }}
-          className="w-full"
-          onChange={handleChangeOpeningstijden()}
-          rows={10}
-        />
-      </SectionBlock>
-    </div>
+    <>
+      <div className="flex flex-col">
+        <SectionBlock
+          heading="Openingstijden"
+        >
+          {/* <p className="py-2 text-red">
+            Het veranderen van de openingstijden (specifiek uren) werkt tijdelijk niet. We werken hieraan; kom binnenkort terug als je de uren wilt aanpassen.
+          </p> */}
+          <table className="w-full">
+            <tbody>
+              {formatOpeningTimesForEdit(data, isNS, "ma", "Maandag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "di", "Dinsdag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "wo", "Woensdag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "do", "Donderdag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "vr", "Vrijdag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "za", "Zaterdag", handleChange, handleChangeChecks)}
+              {formatOpeningTimesForEdit(data, isNS, "zo", "Zondag", handleChange, handleChangeChecks)}
+            </tbody>
+          </table>
+        </SectionBlock>
+        <HorizontalDivider className="my-4" />
+        <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} />
+        <HorizontalDivider className="my-4" />
+        <SectionBlock
+          heading="Tekst Afwijkende Openingstijden"
+          contentClasses="w-full">
+          <FormTextArea
+            value={undefined === openingstijden ? (parkingdata.Openingstijden !== null ? parkingdata.Openingstijden.replaceAll("<br />", "\n") : '') : openingstijden}
+            style={{ width: '100%', borderRadius: '0 10px 10px 0' }}
+            className="w-full"
+            onChange={handleChangeOpeningstijden()}
+            rows={10}
+          />
+        </SectionBlock>
+      </div>
+    </>
   );
 };
 

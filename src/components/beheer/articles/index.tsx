@@ -1,19 +1,55 @@
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import ArticleEdit from './ArticleEdit';
 import { useArticles } from '~/hooks/useArticles';
 import type { VSArticle } from '~/types/articles';
+import { Table, Column } from '~/components/common/Table';
+import ArticleFilters, { ArticleFiltersState } from '~/components/common/ArticleFilters';
+import { hasContent } from '~/utils/articles';
+import { useGemeentenInLijst } from '~/hooks/useGemeenten';
+import { useSession } from 'next-auth/react';
 
 const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" | "buurtstallingen" | "abonnementen" }> = ({ type }) => {
-  const router = useRouter();
+  const { data: session } = useSession();
+  const { gemeenten, isLoading: gemeentenLoading } = useGemeentenInLijst();
   const { articles, isLoading, error, reloadArticles } = useArticles();
   const [filteredArticles, setFilteredArticles] = useState<VSArticle[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);
+  const [filters, setFilters] = useState<ArticleFiltersState>({
+    gemeenteId: '',
+    status: 'All',
+    navigation: 'All',
+    content: 'All',
+  });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    setFilteredArticles(articles);
-  }, [articles]);
+    let result = articles;
+    if (filters.gemeenteId) {
+      result = result.filter(article => article.SiteID === filters.gemeenteId);
+    }
+    if (filters.status !== 'All') {
+      result = result.filter(article => article.Status === (filters.status === 'Yes' ? '1' : '0'));
+    }
+    if (filters.navigation !== 'All') {
+      result = result.filter(article =>
+        (filters.navigation === 'Main' ? article.Navigation === 'main' : article.Navigation !== 'main')
+      );
+    }
+    if (filters.content !== 'All') {
+      result = result.filter(article =>
+        (filters.content === 'Content' ? hasContent(article) : !hasContent(article))
+      );
+    }
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      result = result.filter(article =>
+        article.Title?.toLowerCase().includes(search) ||
+        article.Article?.toLowerCase().includes(search)
+      );
+    }
+    setFilteredArticles(result);
+  }, [articles, filters, searchTerm]);
 
   const handleEditArticle = (id: string) => {
     setCurrentArticleId(id);
@@ -38,7 +74,7 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
     }
   };
 
-  const handleCloseEdit = async (confirmClose: boolean = false) => {
+  const handleCloseEdit = async (confirmClose = false) => {
     if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
       return;
     }
@@ -46,6 +82,10 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
     // Refresh the articles list
     reloadArticles();
   };
+
+  if(gemeentenLoading) {
+    return <LoadingSpinner message="Loading gemeenten..." />;
+  }
 
   const renderOverview = () => {
     return (
@@ -60,41 +100,43 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
           </button>
         </div>
 
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Vind pagina..."
-            className="w-full p-2 border rounded"
-            onChange={(e) => {
-              const searchTerm = e.target.value.toLowerCase();
-              setFilteredArticles(
-                articles.filter(article =>
-                  article.Title?.toLowerCase().includes(searchTerm) ||
-                  article.Article?.toLowerCase().includes(searchTerm)
-                )
-              );
-            }}
-          />
-        </div>
+        <ArticleFilters
+          onChange={(newFilters, newSearchTerm) => {
+            setFilters(newFilters);
+            setSearchTerm(newSearchTerm);
+          }}
+          showGemeenteSelection={false}
+          activeMunicipalityID={session?.user?.activeContactId || ''}
+        />
 
-        <table className="min-w-full bg-white">
-          <thead>
-            <tr>
-              <th className="py-2">Titel</th>
-              {/* <th className="py-2">Type</th> */}
-              <th className="py-2">Status</th>
-              <th className="py-2">Laatst gewijzigd</th>
-              <th className="py-2">Acties</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredArticles.map((article) => (
-              <tr key={article.ID}>
-                <td className="border px-4 py-2">{article.DisplayTitle}</td>
-                {/* <td className="border px-4 py-2">{article.Navigation}</td> */}
-                <td className="border px-4 py-2">{article.Status === '1' ? 'Actief' : 'Inactief'}</td>
-                <td className="border px-4 py-2">{new Date(article.DateModified || '').toLocaleDateString()}</td>
-                <td className="border px-4 py-2">
+        <Table 
+          columns={[
+            {
+              header: 'Titel',
+              accessor: 'DisplayTitle'
+            },
+            {
+              header: 'Gemeente',
+              accessor: (article) => { 
+                if(article.SiteID==="1") {
+                  return 'Algemeen';
+                } else {
+                  return gemeenten.find(g => g.ID === article.SiteID)?.CompanyName || 'Onbekend';
+                }
+              }
+            },
+            {
+              header: 'Status',
+              accessor: (article) => article.Status === '1' ? 'Actief' : 'Inactief'
+            },
+            {
+              header: 'Laatst gewijzigd',
+              accessor: (article) => new Date(article.DateModified || '').toLocaleDateString()
+            },
+            {
+              header: 'Acties',
+              accessor: (article) => (
+                <>
                   <button 
                     onClick={() => handleEditArticle(article.ID)} 
                     className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -107,11 +149,13 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
                   >
                     🗑️
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </>
+              )
+            }
+          ]}
+          data={filteredArticles}
+          className="mt-4 min-w-full bg-white"
+        />
       </div>
     );
   };

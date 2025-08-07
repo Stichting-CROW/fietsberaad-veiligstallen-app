@@ -7,7 +7,7 @@ import Styles from './Faq.module.css';
 import {
   getFaqSections
 } from "~/utils/faq";
-import { VSFaqFull } from "~/types/faq";
+import { type VSFaqFull } from "~/types/faq";
 
 function Faq({
 }: {

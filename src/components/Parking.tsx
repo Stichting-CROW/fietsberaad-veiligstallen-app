@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
-import { AppState } from "~/store/store";
 
 import type { ParkingDetailsType } from "~/types/parking";
-import type { fietsenstallingen } from "~/generated/prisma-client";
 
-import { getParkingDetails, getNewStallingDefaultRecord } from "~/utils/parkings";
+import { getParkingDetails } from "~/utils/parkings";
 
 import Modal from "src/components/Modal";
 import ParkingEdit from "~/components/parking/ParkingEdit";
 import ParkingView from "~/components/parking/ParkingView";
 import toast from 'react-hot-toast';
 
-const Parking = ({ id, stallingId, fietsenstallingen, onStallingIdChanged, onClose }: { id: string, stallingId: string | undefined, fietsenstallingen: fietsenstallingen[], onStallingIdChanged: (newId: string | undefined) => void, onClose: () => void }) => {
+interface ParkingProps {
+  id: string;
+  stallingId: string | undefined;
+  onStallingIdChanged: (newId: string | undefined) => void;
+  onClose: () => void;
+}
+
+const Parking = ({ id, stallingId, onStallingIdChanged, onClose }: ParkingProps) => {
   const session = useSession();
-  // const router = useRouter();
 
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [currentStalling, setCurrentStalling] = useState<ParkingDetailsType | null>(null);
@@ -81,13 +84,13 @@ const Parking = ({ id, stallingId, fietsenstallingen, onStallingIdChanged, onClo
     return null;
   }
 
-  let allowEdit = session.status === "authenticated" || currentStalling && currentStalling.Status === "aanm";
+  const allowEdit = session.status === "authenticated" || currentStalling && currentStalling.Status === "aanm";
 
   let content = undefined;
   if (allowEdit === true && (editMode === true)) {
     content = (<ParkingEdit parkingdata={currentStalling} onClose={handleCloseEdit} onChange={handleUpdateRevision} />);
   } else {
-    content = (<ParkingView parkingdata={currentStalling} fietsenstallingen={fietsenstallingen} onEdit={allowEdit ? () => { setEditMode(true) } : undefined} onToggleStatus={handleToggleStatus} isLoggedIn={session.status === "authenticated"} />);
+    content = (<ParkingView parkingdata={currentStalling} onEdit={allowEdit ? () => { setEditMode(true) } : undefined} onToggleStatus={handleToggleStatus} isLoggedIn={session.status === "authenticated"} />);
   }
 
   return (

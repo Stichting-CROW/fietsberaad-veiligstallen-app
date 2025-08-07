@@ -1,5 +1,5 @@
 const fs = require('fs');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const c_root_admin = 1; 	//	Super Admin	
 const c_intern_admin = 2; 	//	Admin (intern)	

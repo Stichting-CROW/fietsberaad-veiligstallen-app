@@ -1,24 +1,18 @@
-import React, { useRef, useState, useEffect } from "react";
-import { NextPage } from "next/types";
-import { GetServerSidePropsContext } from 'next';
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { type NextPage } from "next/types";
+import { type GetServerSidePropsContext } from 'next';
 import { useSelector, useDispatch } from "react-redux";
-import useQueryParam from '../hooks/useQueryParam';
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth/next";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
-import { signIn } from "next-auth/react";
 import Head from "next/head";
 import { usePathname } from 'next/navigation';
-import type { fietsenstallingen } from "@prisma/client";
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 
 // Import components
 import PageTitle from "~/components/PageTitle";
-import FormInput from "~/components/Form/FormInput";
-import FormCheckbox from "~/components/Form/FormCheckbox";
 import AppHeader from "~/components/AppHeader";
 import ParkingFacilityBrowser from "~/components/ParkingFacilityBrowser";
-import { Button } from "~/components/Button";
 import Modal from "src/components/Modal";
 import Overlay from "src/components/Overlay";
 import Parking from "~/components/Parking";
@@ -26,61 +20,27 @@ import Faq from "~/components/Faq";
 import FooterNav from "~/components/FooterNav";
 
 import Styles from "./content.module.css";
+import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 
 import {
   getMunicipalityBasedOnUrlName
 } from "~/utils/municipality";
 
-import { getParkingsFromDatabase } from "~/utils/prisma";
-
 import {
   setActiveMunicipalityInfo,
 } from "~/store/mapSlice";
-import { ParkingDetailsType } from "~/types/parking";
 
-export async function getServerSideProps(context: GetServerSidePropsContext) {
-  try {
-    const session = await getServerSession(context.req, context.res, authOptions)
-    const sites = session?.user?.sites || [];
-    const fietsenstallingen = await getParkingsFromDatabase(sites, session);
+import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 
-    return {
-      props: {
-        fietsenstallingen: fietsenstallingen,
-      },
-    };
-  } catch (ex: any) {
-    // console.error("index.getStaticProps - error: ", ex.message);
-    return {
-      props: {
-        fietsenstallingen: [],
-      },
-    };
-  }
-}
-
-const Content: NextPage = ({ fietsenstallingen }: any) => {
+const Content: NextPage = () => {
+  
   const dispatch = useDispatch();
-  const { push } = useRouter();
   const pathName = usePathname();
 
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
-  const [currentStalling, setCurrentStalling] = useState<fietsenstallingen | undefined>(undefined);
-  const [pageContent, setPageContent] = useState<Record<string, any> | undefined>(undefined); // TODO: type -> generic JSON object, make more specific later
+  const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
 
-  useEffect(() => {
-    if (currentStallingId === undefined) {
-      setCurrentStalling(undefined);
-    }
-
-    const currentStalling = fietsenstallingen.find((stalling: any) => {
-      return stalling.ID === currentStallingId;
-    });
-
-    setCurrentStalling(currentStalling);
-
-  }, [currentStallingId]);
-
+  const { fietsenstallingen: allparkingdata } = useFietsenstallingen(undefined);
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -112,14 +72,19 @@ const Content: NextPage = ({ fietsenstallingen }: any) => {
     (async () => {
       try {
         const response = await fetch(
-          `/api/articles/?Title=${pageSlug}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`
+          `/api/protected/articles/?compact=false&Title=${pageSlug}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`
         );
         const json = await response.json();
-        if (!json) return;
+        if (!json.data) {
+          setPageContent(false);
+          return;
+        }
+
         // If result is an array with 1 node: Get node only
-        const pageContentToSet = json && json.SiteID ? json : json[0];
+        const pageContentToSet = json.data;
         setPageContent(pageContentToSet);
       } catch (err) {
+        setPageContent(false);
         console.error(err);
       }
     })();
@@ -131,7 +96,13 @@ const Content: NextPage = ({ fietsenstallingen }: any) => {
   const isSm = typeof window !== "undefined" && window.innerWidth < 640;
   const isLg = typeof window !== "undefined" && window.innerWidth < 768;
 
-  if (!pageContent) {
+  if(pageContent === undefined) {
+    console.debug("===> Content - pageContent is undefined");
+    return <LoadingSpinner />;
+  }
+
+  if (pageContent === false) {
+    console.debug("===> Content - pageContent is false");
     return (<div className="p-10">
       Geen pagina-inhoud gevonden. <a href="javascript:history.back();" className="underline">Ga terug</a>
     </div>);
@@ -140,7 +111,7 @@ const Content: NextPage = ({ fietsenstallingen }: any) => {
   const isFaq = pageContent.Title === 'FAQ';
 
   // Decide on what parkings to show on this page, if any
-  let parkingTypesToFilterOn;
+  let parkingTypesToFilterOn: string[] | undefined;
   if (pageContent && pageContent.Title === 'Stallingen') {
     parkingTypesToFilterOn = ['bewaakt', 'geautomatiseerd', 'onbewaakt', 'toezicht'];
   }
@@ -164,7 +135,7 @@ const Content: NextPage = ({ fietsenstallingen }: any) => {
         </title>
       </Head>
 
-      <AppHeader />
+      <AppHeader showGemeenteMenu={activeMunicipalityInfo!==undefined} />
 
       <div className={`
 				lg:mt-16
@@ -212,52 +183,55 @@ const Content: NextPage = ({ fietsenstallingen }: any) => {
           }}
         >
           {parkingTypesToFilterOn && <ParkingFacilityBrowser
-            customFilter={(x: ParkingDetailsType) => {
-              return parkingTypesToFilterOn.indexOf(x.Type) > -1
+            customFilter={(parkingdata) => {
+              return parkingTypesToFilterOn.indexOf(parkingdata.Type||"") > -1
                 && (
                   // Check if parking municipality == active municipality
-                  (activeMunicipalityInfo?.CompanyName && activeMunicipalityInfo.CompanyName.toLowerCase().indexOf(x.Plaats?.toLowerCase()) > -1)
+                  (activeMunicipalityInfo?.CompanyName && activeMunicipalityInfo.CompanyName.toLowerCase().indexOf(parkingdata.Plaats?.toLowerCase()) > -1)
                   // Hide parkings without municipality, if municipality is set
                   // This makes sure not all Dutch NS stallingen are shown on a municipality page
-                  && (x.Plaats && x.Plaats.length > 0)
+                  && (parkingdata.Plaats && parkingdata.Plaats.length > 0)
                 );
             }}
             onShowStallingDetails={(id: any) => {
               setCurrentStallingId(id);
             }}
-            fietsenstallingen={fietsenstallingen}
+            allparkingdata={allparkingdata}
           />}
         </div>
       </div>
 
-      {currentStalling?.ID !== undefined && isSm && (<>
+      {currentStallingId !== undefined && isSm && (<>
         <Overlay
-          title={currentStalling.Title || ""}
+          title={""}
           onClose={() => setCurrentStallingId(undefined)}
         >
           <Parking id={'parking-' + currentStallingId}
-            stallingId={currentStalling.ID}
-            fietsenstallingen={fietsenstallingen}
-            onStallingIdChanged={setCurrentStallingId}
+            stallingId={currentStallingId}
+            // allparkingdata={allparkingdata}
+            onStallingIdChanged={newId => {
+              console.log("content - onStallingIdChanged overlay", newId);
+              setCurrentStallingId(newId);
+            }}
             onClose={() => setCurrentStallingId(undefined)}
           />
         </Overlay>
       </>)}
 
-      {currentStallingId && !isSm && (<>
+      {currentStallingId !== undefined && !isSm && (<>
         <Modal
           onClose={() => setCurrentStallingId(undefined)}
           clickOutsideClosesDialog={false}
         >
           <Parking
             id={'parking-' + currentStallingId}
-            stallingId={fietsenstallingen.find((stalling: any) => {
-              return stalling.ID === currentStallingId;
-            }).ID}
-            fietsenstallingen={fietsenstallingen}
-            onStallingIdChanged={setCurrentStallingId}
+            stallingId={currentStallingId}
+            // allparkingdata={allparkingdata}
+            onStallingIdChanged={newId => {
+              console.log("content - onStallingIdChanged modal", newId);
+              setCurrentStallingId(newId);
+            }}
             onClose={() => setCurrentStallingId(undefined)}
-
           />
         </Modal>
       </>)}
