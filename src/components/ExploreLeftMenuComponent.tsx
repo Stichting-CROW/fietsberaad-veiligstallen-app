@@ -6,7 +6,7 @@ import { VSUserSecurityProfile, VSMenuTopic } from "~/types/index";
 import { VSContactDataprovider, VSContactGemeente, VSContactExploitant } from "~/types/contacts";
 import { VSUserWithRolesNew, VSUserRole, VSUserGroupValues } from "~/types/users";
 import { getNewRoleLabel, getOldRoleLabel } from "~/types/utils";
-import LeftMenu from "./beheer/LeftMenu";
+import LeftMenuFietsberaad from "./beheer/LeftMenuFietsberaad";
 import { convertRoleToNewRole } from "~/utils/securitycontext";
 
 interface ExploreLeftMenuComponentProps {
@@ -476,7 +476,7 @@ const ExploreLeftMenuComponent = (props: ExploreLeftMenuComponentProps) => {
                         <div className="px-4 flex justify-between items-center mt-4">
                             <h2 className="text-2xl font-bold">Hoofdmenu</h2>
                         </div>
-                        <LeftMenu securityProfile={securityProfile} activecontact={activeOrganization || undefined} activecomponent={undefined} onSelect={() => {}}/>
+                        <LeftMenuFietsberaad securityProfile={securityProfile} activecontact={activeOrganization || undefined} activecomponent={undefined} onSelect={() => {}}/>
                     </div>
                 </div> : 
                 <div className="p-6 flex flex-col text-center justify-center">

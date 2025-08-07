@@ -6,7 +6,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 
 import { useRouter } from "next/router";
-const LeftMenu = dynamic(() => import('~/components/beheer/LeftMenu'), { ssr: false })// TODO Make SSR again
+const LeftMenuFietsberaad = dynamic(() => import('~/components/beheer/LeftMenuFietsberaad'), { ssr: false })// TODO Make SSR again
 const LeftMenuGemeente = dynamic(() => import('~/components/beheer/LeftMenuGemeente'), { ssr: false })// TODO Make SSR again
 const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExploitant'), { ssr: false })// TODO Make SSR again
 
@@ -375,7 +375,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const renderLeftMenu = () => {
     // If user is Fietsberaad, show the Fietsberaad left menu
     if (selectedContactID === "1") {
-      return <LeftMenu
+      return <LeftMenuFietsberaad
         securityProfile={session?.user?.securityProfile}
         activecomponent={activecomponent}
         onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key

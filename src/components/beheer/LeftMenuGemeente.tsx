@@ -29,19 +29,17 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
     // Role-based conditions
     const isAdmin = userHasRole(securityProfile, VSUserRoleValuesNew.RootAdmin) || userHasRole(securityProfile, VSUserRoleValuesNew.Admin);
 
-    // const hasSystemRight = userHasRight(securityProfile, VSSecurityTopic.System);
-    const hasWebsiteRight = userHasRight(securityProfile, VSSecurityTopic.Website);
-    // const hasGemeenteRight = userHasRight(securityProfile, VSSecurityTopic.ContactsGemeenten);
-    const hasLocatiesRight = userHasRight(securityProfile, VSSecurityTopic.ApisGekoppeldeLocaties);
-    // const hasRegistrantenRight = userHasRight(securityProfile, VSSecurityTopic.Accounts) && userHasModule(securityProfile, VSModuleValues.Fms);
-    const hasRapportagesRight = userHasRight(securityProfile, VSSecurityTopic.Report) // && userHasModule(securityProfile, VSModuleValues.Fms);
-    // const hasUsersRight = userHasRight(securityProfile, VSSecurityTopic.UsersGebruikersbeheer) // && userHasModule(securityProfile, VSModuleValues.Fms);
-    // const hasDataprovidersRight = userHasRight(securityProfile, VSSecurityTopic.ContactsDataproviders) // && userHasModule(securityProfile, VSModuleValues.Fms);
-    // const hasExternalApisRight = userHasRight(securityProfile, VSSecurityTopic.ApisOverzicht);
-    // const hasDevelopmentRight = userHasRight(securityProfile, VSSecurityTopic.Development);
-
-    // const hasDatabaseRight = hasSystemRight;
-    // const hasInstellingenRight = hasSystemRight;
+    // Security rights using exact VSSecurityTopic enum values
+    const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
+    const hasExploitantenToegangsrecht = userHasRight(securityProfile, VSSecurityTopic.exploitanten_toegangsrecht);
+    const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
+    const hasGebruikersDataeigenaarBeperkt = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt);
+    const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
+    const hasInstellingenSiteContent = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content);
+    const hasInstellingenFietsenstallingenAdmin = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+    const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+    const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
 
     {/* TODO: Later terugzetten, nu niet nodig
       // const hasFietskluizenRight = userHasRight(securityProfile, VSSecurityTopic.Fietskluizen);
@@ -99,13 +97,13 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
     
           { hasRegistrantenRight && formatLi(VSMenuTopic.Accounts, 'Registranten')} */}
     
-          { hasLocatiesRight && <LeftMenuItem component={VSMenuTopic.Fietsenstallingen} title={'Fietsenstallingen'} activecomponent={activecomponent} onSelect={onSelect} /> }
+          { hasInstellingenFietsenstallingenAdmin && <LeftMenuItem component={VSMenuTopic.Fietsenstallingen} title={'Fietsenstallingen'} activecomponent={activecomponent} onSelect={onSelect} /> }
 
-          {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.ArticlesPages} title={'Pagina\'s'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
-          {hasWebsiteRight && <LeftMenuItem component={VSMenuTopic.Faq} title={'FAQ'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasInstellingenSiteContent && <LeftMenuItem component={VSMenuTopic.ArticlesPages} title={'Pagina\'s'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasInstellingenSiteContent && <LeftMenuItem component={VSMenuTopic.Faq} title={'FAQ'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
 
-          {hasRapportagesRight && <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportage'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
-          {hasRapportagesRight && <LeftMenuItem component={VSMenuTopic.Export} title={'Export'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasRapportages && <LeftMenuItem component={VSMenuTopic.Report} title={'Rapportage'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
+          {hasRapportages && <LeftMenuItem component={VSMenuTopic.Export} title={'Export'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> }
         </>}
       </>
     )
