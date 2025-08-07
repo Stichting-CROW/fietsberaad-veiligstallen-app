@@ -190,7 +190,13 @@ export const authOptions: NextAuthOptions = {
             session.user.name = orgaccount.DisplayName;
             session.user.mainContactId = mainContactId;
             session.user.activeContactId = token.activeContactId as string;
-            session.user.securityProfile = createSecurityProfile(currentRoleID);
+
+            // If user is Fietsberaad rootman: All rights
+            if(orgaccount.user_contact_roles.find((role) => role.ContactID === '1')?.NewRoleID === 'rootadmin') {
+              session.user.securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew);
+            } else {
+              session.user.securityProfile = createSecurityProfile(currentRoleID);
+            }
           } else {
             console.error(`No account found for user ID: ${token.id}`);
           }

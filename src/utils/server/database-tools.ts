@@ -81,7 +81,10 @@ export async function validateUserSession(session: any, itemType = "organization
       }
     });
     data.sites = items.map((item) => item.ContactID);
-  } else {
+  }
+  
+  // Fietsberaad rootman: Access to all contacts
+  else {
     const allSites = await prisma.contacts.findMany({
       select: {
         ID: true
