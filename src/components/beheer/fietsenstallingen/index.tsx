@@ -21,6 +21,8 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
+  const [sortColumn, setSortColumn] = useState<string | undefined>('Title');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Use the useFietsenstallingen hook to fetch parkings
   const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID);
@@ -96,6 +98,33 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     reloadFietsenstallingen();
   };
 
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      // If clicking the same column, cycle through: asc → desc → no sort
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortColumn(undefined);
+        setSortDirection('asc');
+      }
+    } else {
+      // If clicking a different column, set it as the new sort column with asc direction
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedParkings = React.useMemo(() => {
+    if (!sortColumn) {
+      return filteredParkings;
+    }
+    if (sortColumn === 'Naam') {
+      const sorted = [...filteredParkings].sort((a, b) => (a.Title || "").localeCompare(b.Title || ""));
+      return sortDirection === 'desc' ? sorted.reverse() : sorted;
+    }
+    return filteredParkings;
+  }, [filteredParkings, sortColumn, sortDirection]);
+
   if (status === 'loading') {
     return <LoadingSpinner />;
   }
@@ -159,8 +188,12 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                 // className: 'px-6 py-4 whitespace-no-wrap border-b border-gray-200'
               }
             ]}
-            data={filteredParkings}
+            data={sortedParkings}
             className="min-w-full bg-white"
+            sortableColumns={['Naam']}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
         </div>
       </div>

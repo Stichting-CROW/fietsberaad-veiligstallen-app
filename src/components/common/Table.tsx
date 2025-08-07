@@ -16,10 +16,11 @@ interface TableProps<T> {
   };
   sortableColumns?: string[];
   sortColumn?: string;
+  sortDirection?: 'asc' | 'desc';
   onSort?: (header: string) => void;
 }
 
-export function Table<T>({ columns, data, className = '', onRowClick, options = {}, sortableColumns = [], sortColumn, onSort }: TableProps<T>) {
+export function Table<T>({ columns, data, className = '', onRowClick, options = {}, sortableColumns = [], sortColumn, sortDirection, onSort }: TableProps<T>) {
   return (
     <div className="overflow-x-auto">
       <table className={`min-w-full bg-white ${className}`}>
@@ -35,7 +36,11 @@ export function Table<T>({ columns, data, className = '', onRowClick, options = 
                   onClick={isSortable && onSort ? () => onSort(column.header) : undefined}
                 >
                   {column.header}
-                  {isSorted && <span className="ml-1">▲</span>}
+                  {isSorted && (
+                    <span className="ml-1">
+                      {sortDirection === 'desc' ? '▼' : '▲'}
+                    </span>
+                  )}
                 </th>
               );
             })}
