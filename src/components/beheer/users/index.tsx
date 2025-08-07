@@ -5,10 +5,11 @@ import { displayInOverlay } from '~/components/Overlay';
 import { ConfirmPopover } from '~/components/ConfirmPopover';
 import { LoadingSpinner } from '~/components/beheer/common/LoadingSpinner';
 import { useUsers } from '~/hooks/useUsers';
-import { getNewRoleLabel } from '~/types/utils';
+import { getNewRoleLabel, userHasRight } from '~/types/utils';
 import { Table, type Column } from '~/components/common/Table';
 import { SearchFilter } from '~/components/common/SearchFilter';
 import { signIn, useSession } from 'next-auth/react';
+import { VSSecurityTopic } from '~/types/securityprofile';
 
 type UserComponentProps = { 
   siteID: string | null,
@@ -27,6 +28,8 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
   const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
+  const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
+  const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
 
   const { users, isLoading: isLoadingUsers, error: errorUsers, reloadUsers } = useUsers(props.siteID ?? undefined);
   const { data: session } = useSession();
@@ -46,6 +49,16 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     };
     fetchArchivedUsers();
   }, []);
+
+  // Check if user has correct access rights
+  useEffect(() => {
+    setHasFullAdminRight(
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
+    );
+    setHasLimitedAdminRight(
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
+    );
+  }, [session?.user]);
 
   const handleResetPassword = (userId: string) => {
     // Placeholder for reset password logic
@@ -299,13 +312,13 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
                   👤
                 </button>
               )}
-            <button 
+            {hasFullAdminRight && <button 
               onClick={(e) => handleDeleteClick(e, user.UserID)} 
               className="text-red-500 mx-1 disabled:opacity-40" 
               disabled={!user.isOwnOrganization}
             >
               🗑️
-            </button>
+            </button>}
           </div>
         ),
       },
@@ -327,12 +340,12 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       <div className={`${id!==undefined ? "hidden" : ""}`}>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">{title}</h1>
-          <button 
+          {hasFullAdminRight && <button 
             onClick={() => setId('new')}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
             Nieuwe gebruiker
-          </button>
+          </button>}
         </div>
 
         <div className="mt-4 mb-4 flex items-end gap-4">

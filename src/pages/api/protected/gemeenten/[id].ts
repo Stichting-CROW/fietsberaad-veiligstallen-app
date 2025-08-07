@@ -7,6 +7,8 @@ import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { gemeenteSchema, gemeenteCreateSchema, getDefaultNewGemeente } from "~/types/database";
 import { type VSContactGemeente, gemeenteSelect, VSContactItemType } from "~/types/contacts";
 import { VSUserRoleValuesNew } from "~/types/users";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type GemeenteResponse = {
   data?: VSContactGemeente;
@@ -31,12 +33,19 @@ export default async function handle(
     return;
   }
 
-  const { sites, userId } = validateUserSessionResult;
-
+  // Contact validation: Check if user has access to this contact
+  const { sites } = validateUserSessionResult;
   const id = req.query.id as string;
   if (!sites.includes(id) && id !== "new") {
     console.error("Unauthorized - no access to this organization", id);
     res.status(403).json({ error: "Geen toegang tot deze organisatie" });
+    return;
+  }
+
+  // Rights validation: GET is allowed for all users, other methods require instellingen_dataeigenaar right
+  if(req.method !== 'GET' && !userHasRight(session.user.securityProfile, VSSecurityTopic.instellingen_dataeigenaar)) {
+    console.error("Unauthorized - no correct access rights", id);
+    res.status(403).json({ error: "Geen toegang tot deze organisatie - geen correcte rechten" });
     return;
   }
 
