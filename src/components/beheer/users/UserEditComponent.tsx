@@ -6,9 +6,11 @@ import Button from '@mui/material/Button';
 import FormInput from "~/components/Form/FormInput";
 import FormSelect from "~/components/Form/FormSelect";
 import { UserAccessRight } from './UserAccessRight';
-import { getNewRoleLabel } from '~/types/utils';
+import { getNewRoleLabel, userHasRight } from '~/types/utils';
 import { useUser } from '~/hooks/useUser';
 import { makeClientApiCall } from '~/utils/client/api-tools';
+import { useSession } from 'next-auth/react';
+import { VSSecurityTopic } from '~/types/securityprofile';
 
 import type { SecurityUserValidateResponse } from '~/pages/api/protected/security_users/validate';
 import { type securityUserCreateSchema, type SecurityUserResponse, type securityUserUpdateSchema } from '~/pages/api/protected/security_users/[id]';
@@ -21,6 +23,8 @@ export interface UserEditComponentProps {
 
 export const UserEditComponent = (props: UserEditComponentProps) => {
     const { id } = props;
+    const { data: session } = useSession();
+
     const [ isEditing, setIsEditing ] = useState<boolean>(true);
 
     type CurrentState = {
@@ -40,6 +44,9 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const [password, setPassword] = useState<string>(''); 
     const [confirmPassword, setConfirmPassword] = useState<string>('');
 
+    const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
+    const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
+  
     const [status, setStatus] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     
@@ -110,6 +117,16 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
         nameInputRef.current.focus();
       }
     }, []);
+
+  // Check if user has correct access rights
+    useEffect(() => {
+      setHasFullAdminRight(
+        userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
+      );
+      setHasLimitedAdminRight(
+        userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
+      );
+    }, [session?.user]);
 
     const isDataChanged = (): boolean => {
       if (isNew) {
@@ -323,7 +340,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             onChange={(e) => setNewRoleID(e.target.value as VSUserRoleValuesNew)}
             required
             options={roleOptions}
-            disabled={!isEditing}
+            disabled={!isEditing || !hasFullAdminRight}
           />
           <br />
           <FormInput 

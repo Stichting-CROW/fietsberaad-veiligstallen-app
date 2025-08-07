@@ -11,6 +11,8 @@ import { convertNewRoleToOldRole } from "~/utils/securitycontext";
 import { type security_users } from "@prisma/client";
 import { getSecurityUserNew } from "~/utils/server/security-users-tools";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 const saltRounds = 13;
 
@@ -57,6 +59,20 @@ export default async function handle(
   const id = req.query.id as string;
   const activeContactId = session.user.activeContactId;
 
+  // Rights validation: GET is allowed for all users,
+  // other methods require gebruikers_dataeigenaar_admin or gebruikers_dataeigenaar_beperkt right
+  if(
+    req.method !== 'GET'
+    && (
+      !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
+      || !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
+    )
+  ) {
+    console.error("Unauthorized - no correct access rights");
+    res.status(403).json({ error: "Geen toegang tot deze organisatie - geen correcte rechten" });
+    return;
+  }
+
   switch (req.method) {
     case "GET": {
       const user = await getSecurityUserNew(id, activeContactId)
@@ -65,6 +81,16 @@ export default async function handle(
     }
     case "POST": {
       try {
+
+        // Rights validation: POST is only allowed for gebruikers_dataeigenaar_admin
+        if(
+          !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
+        ) {
+          console.error("Unauthorized - no correct access rights");
+          res.status(403).json({ error: "Toevoegen nieuwe gebruiker is niet toegestaan - geen correcte rechten" });
+          return;
+        }
+        
         const parseResult = securityUserCreateSchema.safeParse(req.body);
         if (!parseResult.success) {
           console.error("Unexpected/missing data error:", parseResult.error);
@@ -262,7 +288,8 @@ export default async function handle(
           updateData.EncryptedPassword = await bcrypt.hash(parsed.password, saltRounds);
         }
 
-        if(parsed.RoleID) {
+        // Rights validation: Updating role is only allowed for gebruikers_dataeigenaar_admin
+        if(parsed.RoleID && userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)) {
           await prisma.user_contact_role.upsert({
             where: { UserID: id, ContactID: activeContactId },
             update: { 
@@ -276,6 +303,11 @@ export default async function handle(
           });
 
           updateData.RoleID = convertNewRoleToOldRole(parsed.RoleID) || undefined;
+        }
+
+        // If RoleID was set but user cannot update role, remove it
+        if(parsed.RoleID && !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)) {
+          updateData.RoleID = undefined;
         }
 
         const updatedUser = await prisma.security_users.update({
@@ -309,6 +341,16 @@ export default async function handle(
     }
     case "DELETE": {
       try {
+
+        // Rights validation: DELETE is only allowed for gebruikers_dataeigenaar_admin
+        if(
+          !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
+        ) {
+          console.error("Unauthorized - no correct access rights");
+          res.status(403).json({ error: "Verwijderen gebruiker is niet toegestaan - geen correcte rechten" });
+          return;
+        }
+
         // delete all user_contact_role records for the user
         await prisma.user_contact_role.deleteMany({
           where: { UserID: id }
