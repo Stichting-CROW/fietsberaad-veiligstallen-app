@@ -118,7 +118,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
       }
     }, []);
 
-  // Check if user has correct access rights
+    // Check if user has correct access rights
     useEffect(() => {
       setHasFullAdminRight(
         userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)

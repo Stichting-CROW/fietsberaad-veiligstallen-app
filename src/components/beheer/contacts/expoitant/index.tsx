@@ -11,6 +11,8 @@ import { useExploitanten } from '~/hooks/useExploitanten';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { type ExploitantGemeenteResponse } from '~/pages/api/protected/exploitant/[id]/gemeenten/[gemeenteid]';
+import { VSSecurityTopic } from '~/types/securityprofile';
+import { userHasRight } from '~/types/utils';
 
 type ExploitantComponentProps = { 
   contactID: string | undefined;
@@ -32,6 +34,8 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
   const [addRemoveExploitant, setAddRemoveExploitant] = useState<boolean>(false);
   const [toggledExploitantIds, setToggledExploitantIds] = useState<Set<string>>(new Set());
 
+  const [hasManageExploitantsRights, setHasManageExploitantsRights] = useState<boolean>(false);
+
   const filteredContacts = (addRemoveExploitant ? allExploitanten : exploitanten).filter(contact => 
     contact.CompanyName?.toLowerCase().includes(filterText.toLowerCase())
   );
@@ -44,6 +48,13 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
       }
     }   
   }, [router.query.id, exploitanten]);
+
+  // Check if user has correct access rights
+  useEffect(() => {
+    setHasManageExploitantsRights(
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_toegangsrecht)
+    );
+  }, [session?.user]);
 
   const handleEdit = (id: string) => {
     setCurrentContactID(id);
@@ -148,13 +159,13 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
               />
             )}
           </div>
-          { props.canManageExploitants && <button 
+          { (props.canManageExploitants && hasManageExploitantsRights) && <button 
             onClick={() => handleEdit('new')}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
             Nieuwe Exploitant
           </button>}
-          { props.canAddRemoveExploitants && (
+          { (props.canAddRemoveExploitants && hasManageExploitantsRights) && (
             addRemoveExploitant ? (
               <div className="flex gap-2">
                 <button 
