@@ -20,9 +20,6 @@ const LeftMenu: React.FC<LeftMenuProps> = ({
   activecomponent,
   onSelect,
 }) => {
-  // const router = useRouter();
-  // const { query } = router;
-
   // Do only show reports? Temporary for testing, 2025-05
   const doOnlyShowReports = (): boolean => {
     return !['veiligstallen.work', 'localhost:3000'].includes(window?.location?.host);

@@ -17,7 +17,10 @@ export const LeftMenuItem = ({
   onSelect: (component: VSMenuTopic) => void,
 }) => {
   const isSelected = component === activecomponent;
-  const className = `block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}`;
+  const className = `
+    font-poppinsmedium
+    block px-4 py-2 rounded ${isSelected ? "font-bold" : "hover:bg-gray-200"}
+  `;
   const style = isSelected ? { backgroundColor: 'rgba(31, 153, 210, 0.1)' } : {};
   const classNamePassive = `block px-4 py-2 rounded cursor-default`;
 

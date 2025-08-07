@@ -24,6 +24,10 @@ body {
   overflow-x: hidden;
 }
 
+.font-poppins {
+  font-family: "poppinsregular", sans-serif;
+}
+
 .font-poppinsmedium {
   font-family: "poppinsmedium", sans-serif;
 }

@@ -196,11 +196,6 @@ const TopBar: React.FC<TopBarProps> = ({
             {session?.user?.name || "---"}
           </div>
         )}
-        {currentComponent !== "home" && (
-          <Link href="/beheer" className="hover:underline">
-            Beheer Home
-          </Link>
-        )}
         {organisaties && organisaties.length > 0 && (
           <select
             onChange={handleGemeenteChange}
