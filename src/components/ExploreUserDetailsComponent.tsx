@@ -11,18 +11,16 @@ import { ExploreUserSecurityProfileComponent } from "./ExploreUserSecurityProfil
 interface ExploreUserDetailsComponentProps {
     selectedUserID: string;
     contacts: {ID: string, CompanyName: string}[];
-    onShowAllContactsToggle: () => void;
-    showAllContacts: boolean;
 }
 
 export const ExploreUserDetailsComponent = ({
     selectedUserID,
     contacts,
-    onShowAllContactsToggle,
-    showAllContacts,
 }: ExploreUserDetailsComponentProps) => {
     const [activeOrganizationID, setActiveOrganizationID] = useState<string | null | false>(false);
     const { user: selectedUser, isLoading, error, reloadUser } = useUser(selectedUserID, activeOrganizationID || "");
+    const [showAllContacts, setShowAllContacts] = useState(false);
+
 
   const [isUpdatingArchive, setIsUpdatingArchive] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
@@ -266,7 +264,7 @@ export const ExploreUserDetailsComponent = ({
               <div className="flex items-center">
                   <label className="w-32 text-sm font-medium text-gray-700">Organisaties:</label>
                   <div className="flex flex-wrap gap-2 text-gray-900">
-                      {userContacts && userContacts.map((contact) => { 
+                      {userContacts && userContacts.slice(0, showAllContacts ? userContacts.length : 5).map((contact) => { 
                           const tmpcontact = contacts.find((c) => c.ID === contact.ContactID);
                           if(tmpcontact) {
                               return (
@@ -276,8 +274,8 @@ export const ExploreUserDetailsComponent = ({
                               );
                           }
                       })}
-                      {userContacts && userContacts.length > 20 && (
-                          <button onClick={onShowAllContactsToggle} className="mt-2 text-blue-500">
+                      {userContacts && userContacts.length > 5 && (
+                          <button onClick={() => setShowAllContacts(!showAllContacts)} className="mt-2 text-blue-500">
                               {showAllContacts ? 'Toon Minder' : 'Toon Meer'}
                           </button>
                       )}

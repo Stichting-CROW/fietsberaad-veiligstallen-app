@@ -34,9 +34,6 @@ const ExploreUsersComponent = () => {
     const [organisatieFilter, setOrganisatieFilter] = useState<string>("all-organizations");
     const [invalidDataFilter, setInvalidDataFilter] = useState<"Yes" | "No" | "Only">("No");
 
-    const [showAllContacts, setShowAllContacts] = useState(false);
-
-
     const [isArchived, setIsArchived] = useState<boolean>(false);
     const [isUpdatingArchive, setIsUpdatingArchive] = useState<boolean>(false);
 
@@ -371,8 +368,6 @@ const ExploreUsersComponent = () => {
                 { selectedUser && <ExploreUserDetailsComponent
                     selectedUserID={selectedUser.UserID}
                     contacts={contacts}
-                    onShowAllContactsToggle={() => setShowAllContacts(!showAllContacts)}
-                    showAllContacts={showAllContacts}
                 /> }
             </div>
         </div>
