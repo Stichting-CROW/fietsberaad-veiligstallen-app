@@ -22,6 +22,8 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
   const { articles, isLoading, error, reloadArticles } = useArticles();
   const [filteredArticles, setFilteredArticles] = useState<VSArticle[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string>("Titel");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filters, setFilters] = useState<ArticleFiltersState>({
     gemeenteId: '',
     status: 'All',
@@ -88,6 +90,58 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
     setCurrentArticleId(undefined);
     // Refresh the articles list
     reloadArticles();
+  };
+
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedData = () => {
+    const sorted = [...filteredArticles].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (sortColumn) {
+        case 'Titel':
+          aValue = a.DisplayTitle || a.Title || '';
+          bValue = b.DisplayTitle || b.Title || '';
+          break;
+        case 'Gemeente':
+          const aSite = a.SiteID === "1" ? "Algemeen" : gemeenten.find(g => g.ID === a.SiteID)?.CompanyName || 'Onbekend';
+          const bSite = b.SiteID === "1" ? "Algemeen" : gemeenten.find(g => g.ID === b.SiteID)?.CompanyName || 'Onbekend';
+          aValue = aSite;
+          bValue = bSite;
+          break;
+        case 'Status':
+          aValue = a.Status === '1' ? 'Actief' : 'Inactief';
+          bValue = b.Status === '1' ? 'Actief' : 'Inactief';
+          break;
+        case 'Laatst gewijzigd':
+          aValue = new Date(a.DateModified || '').getTime();
+          bValue = new Date(b.DateModified || '').getTime();
+          break;
+        default:
+          aValue = a.DisplayTitle || a.Title || '';
+          bValue = b.DisplayTitle || b.Title || '';
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return sortDirection === 'asc' 
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      }
+    });
+
+    return sorted;
   };
 
   if(gemeentenLoading) {
@@ -164,8 +218,12 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
               )
             }
           ]}
-          data={filteredArticles}
+          data={getSortedData()}
           className="mt-4 min-w-full bg-white"
+          sortableColumns={["Titel", "Gemeente", "Status", "Laatst gewijzigd"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     );

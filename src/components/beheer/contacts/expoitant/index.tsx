@@ -31,6 +31,8 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
 
   const [currentContactID, setCurrentContactID] = useState<string | undefined>(undefined);
   const [filterText, setFilterText] = useState("");
+  const [sortColumn, setSortColumn] = useState<string>("Naam");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const [addRemoveExploitant, setAddRemoveExploitant] = useState<boolean>(false);
   const [toggledExploitantIds, setToggledExploitantIds] = useState<Set<string>>(new Set());
@@ -144,6 +146,52 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
     setAddRemoveExploitant(false);
   };
 
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedData = () => {
+    const sorted = [...filteredContacts].sort((a, b) => {
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      switch (sortColumn) {
+        case 'Naam':
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+          break;
+        case 'E-mail':
+          aValue = a.Helpdesk || '';
+          bValue = b.Helpdesk || '';
+          break;
+        case 'Actief':
+          aValue = a.Status === "1" ? 1 : 0;
+          bValue = b.Status === "1" ? 1 : 0;
+          break;
+        default:
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return sortDirection === 'asc' 
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      }
+    });
+
+    return sorted;
+  };
+
   const renderOverview = () => {
     return (
       <div>
@@ -239,8 +287,12 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
               }
             }] : [])
           ]}
-          data={filteredContacts.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || ''))}
+          data={getSortedData()}
           className="min-w-full bg-white"
+          sortableColumns={["Naam", "E-mail", "Actief"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     );

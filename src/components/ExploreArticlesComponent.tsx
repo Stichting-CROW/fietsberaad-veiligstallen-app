@@ -15,6 +15,7 @@ import ArticlesComponent from '~/components/ArticleComponent';
 import { hasContent } from "~/utils/articles";
 import Modal from './Modal';
 import ArticleFilters, { ArticleFiltersState } from '~/components/common/ArticleFilters';
+import { Table } from '~/components/common/Table';
 
 interface ExploreMenuComponent {
     gemeenten: VSContactGemeenteInLijst[];
@@ -36,6 +37,8 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
     const [fietsberaadArticles, setFietsberaadArticles] = useState<VSArticle[]|undefined>([]);
 
     const [selectedArticleID, setSelectedArticleID] = useState<string>("");
+    const [sortColumn, setSortColumn] = useState<string>("Gemeente");
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const activeMunicipalityInfo = useSelector((state: RootState) => state.map.activeMunicipalityInfo);
     const [gemeenteReadOnly, setGemeenteReadOnly] = useState(false);
@@ -77,6 +80,66 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
         });
         setSelectedZoom("gemeente");
     }
+
+    const handleSort = (header: string) => {
+        if (sortColumn === header) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(header);
+            setSortDirection('asc');
+        }
+    };
+
+    const getSortedData = (articles: VSArticle[]) => {
+        const sorted = [...articles].sort((a, b) => {
+            let aValue: string | number = '';
+            let bValue: string | number = '';
+
+            switch (sortColumn) {
+                case 'Gemeente':
+                    const aSite = gemeenten.find(x => x.ID === a.SiteID);
+                    const bSite = gemeenten.find(x => x.ID === b.SiteID);
+                    aValue = aSite?.CompanyName || '';
+                    bValue = bSite?.CompanyName || '';
+                    break;
+                case 'Paginakop':
+                    aValue = a.DisplayTitle || a.Title || '';
+                    bValue = b.DisplayTitle || b.Title || '';
+                    break;
+                case 'Paginanaam':
+                    aValue = a.Title || '';
+                    bValue = b.Title || '';
+                    break;
+                case 'Sortering':
+                    aValue = a.SortOrder || 0;
+                    bValue = b.SortOrder || 0;
+                    break;
+                case 'Type':
+                    aValue = a.Navigation || '';
+                    bValue = b.Navigation || '';
+                    break;
+                case 'Actief':
+                    aValue = a.Status === "1" ? 1 : 0;
+                    bValue = b.Status === "1" ? 1 : 0;
+                    break;
+                default:
+                    aValue = a.Title || '';
+                    bValue = b.Title || '';
+            }
+
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return sortDirection === 'asc' 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            } else {
+                return sortDirection === 'asc' 
+                    ? (aValue as number) - (bValue as number)
+                    : (bValue as number) - (aValue as number);
+            }
+        });
+
+        return sorted;
+    };
 
     const renderMenuItems = (key: string, title: string, items: VSArticle[]) => { 
         return (
@@ -168,37 +231,55 @@ const ExploreArticlesComponent = (props: ExploreMenuComponent) => {
 
         return (
             <div className="overflow-x-auto">
-                <table className="min-w-full bg-white shadow-md rounded-md w-full border border-gray-300">
-                    <thead>
-                        <tr className="border-b">
-                            <th className="p-4 text-left">Gemeente</th>
-                            <th className="p-4 text-left">Paginakop</th>
-                            <th className="p-4 text-left">Paginanaam</th>
-                            <th className="p-4 text-left">Inhoud</th>
-                            <th className="p-4 text-left">Abstract</th>
-                            <th className="p-4 text-left">Sortering</th>
-                            <th className="p-4 text-left">Type</th>
-                            <th className="p-4 text-left">Actief</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredArticles && filteredArticles.map((article) => (
-                            <tr key={article.ID} className={`border-b ${article.ID===selectedArticleID ? "bg-gray-200" : ""}`} onClick={() => {setSelectedArticleID(article.ID);}}>
-                                <td className="truncate">{getSiteName(article.SiteID)}</td>
-                                <td className="whitespace-normal">{article.DisplayTitle? article.DisplayTitle : article.Title}</td>
-                                <td className="whitespace-normal">{article.Title}</td>
-                                <td className="text-center">{article.Article!=='' && article.Article!==null ? <input type="checkbox" checked={article.Status === "1"} readOnly /> : null}</td>
-                                <td className="text-center">{article.Abstract!=='' && article.Abstract!==null ? <input type="checkbox" checked={article.Status === "1"} readOnly /> : null}</td>
-                                <td className="truncate">{article.SortOrder}</td>
-                                <td className="truncate">{article.Navigation}</td>
-                                <td className="text-center">
-                                    <input type="checkbox" checked={article.Status === "1"} readOnly />
-                                </td>
-                            </tr>
-                        ))}
-                        { !filteredArticles || filteredArticles.length === 0 && <tr className="border-b"><td colSpan={8} className="py-8 text-center">Geen artikelen gevonden</td></tr> }
-                    </tbody>
-                </table>
+                <Table
+                    columns={[
+                        {
+                            header: 'Gemeente',
+                            accessor: (article: VSArticle) => {
+                                const site = gemeenten.find(x => x.ID === article.SiteID);
+                                return site?.CompanyName || '';
+                            }
+                        },
+                        {
+                            header: 'Paginakop',
+                            accessor: (article: VSArticle) => article.DisplayTitle || article.Title || ''
+                        },
+                        {
+                            header: 'Paginanaam',
+                            accessor: 'Title'
+                        },
+                        {
+                            header: 'Inhoud',
+                            accessor: (article: VSArticle) => article.Article !== '' && article.Article !== null ? 
+                                <input type="checkbox" checked={article.Status === "1"} readOnly /> : null
+                        },
+                        {
+                            header: 'Abstract',
+                            accessor: (article: VSArticle) => article.Abstract !== '' && article.Abstract !== null ? 
+                                <input type="checkbox" checked={article.Status === "1"} readOnly /> : null
+                        },
+                        {
+                            header: 'Sortering',
+                            accessor: 'SortOrder'
+                        },
+                        {
+                            header: 'Type',
+                            accessor: 'Navigation'
+                        },
+                        {
+                            header: 'Actief',
+                            accessor: (article: VSArticle) => 
+                                <input type="checkbox" checked={article.Status === "1"} readOnly />
+                        }
+                    ]}
+                    data={getSortedData(filteredArticles || [])}
+                    className="min-w-full bg-white shadow-md rounded-md w-full border border-gray-300"
+                    sortableColumns={["Gemeente", "Paginakop", "Paginanaam", "Sortering", "Type", "Actief"]}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    onRowClick={(article) => setSelectedArticleID(article.ID)}
+                />
             </div>
         );
     }

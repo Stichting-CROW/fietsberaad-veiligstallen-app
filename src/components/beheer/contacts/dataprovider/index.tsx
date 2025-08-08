@@ -18,6 +18,8 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
   const { data: session } = useSession();
 
   const [currentContactID, setCurrentContactID] = useState<string | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string>("Naam");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const {dataproviders, isLoading, error, reloadDataproviders } = useDataproviders();
   
@@ -57,12 +59,52 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
     }
   };
 
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedData = () => {
+    const sorted = [...filteredContacts].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (sortColumn) {
+        case 'Naam':
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+          break;
+        case 'Naam in URL':
+          aValue = a.UrlName || '';
+          bValue = b.UrlName || '';
+          break;
+        case 'Status':
+          aValue = a.Status === "1" ? "Actief" : "Inactief";
+          bValue = b.Status === "1" ? "Actief" : "Inactief";
+          break;
+        default:
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+      }
+
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+
+    return sorted;
+  };
+
   const renderOverview = () => {
     if (isLoading) {
       return <LoadingSpinner />;
     }
 
-    let rights: VSCRUDRight = getSecurityRights(session?.user?.securityProfile, VSSecurityTopic.ContactsDataproviders);
+    let rights: VSCRUDRight = getSecurityRights(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
     console.log("rights", rights);
 
     return (
@@ -123,8 +165,12 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
               )
             }
           ]}
-          data={filteredContacts.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || ''))}
+          data={getSortedData()}
           className="mt-4 min-w-full bg-white"
+          sortableColumns={["Naam", "Naam in URL", "Status"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     );

@@ -28,6 +28,8 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [currentStalling, setCurrentStalling] = useState<ParkingDetailsType | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string>("Naam");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsers();
   const { gemeenten, reloadGemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
@@ -80,6 +82,38 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     }
   };
 
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedData = () => {
+    const sorted = [...filteredGemeenten].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (sortColumn) {
+        case 'Naam':
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+          break;
+        default:
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+      }
+
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+
+    return sorted;
+  };
+
   const renderOverview = () => {
     return (
       <div>
@@ -119,8 +153,12 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
               )
             }
           ]}
-          data={filteredGemeenten.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || ''))}
+          data={getSortedData()}
           className="mt-4"
+          sortableColumns={["Naam"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     );
