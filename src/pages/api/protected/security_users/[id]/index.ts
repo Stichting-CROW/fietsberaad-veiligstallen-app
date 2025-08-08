@@ -66,7 +66,7 @@ export default async function handle(
     req.method !== 'GET'
     && (
       !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
-      || !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
+      && !userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
     )
   ) {
     console.error("Unauthorized - no correct access rights");
