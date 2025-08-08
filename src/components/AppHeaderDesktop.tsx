@@ -112,7 +112,7 @@ function AppHeaderDesktop({
 
   const showMapIcon = articlepage!=='';
 
-  const showStallingAanmaken = session && mapZoom >= 13 && activeMunicipalityInfo;
+  const showStallingAanmaken = session && mapZoom >= 12 && activeMunicipalityInfo;
 
   const renderLogo = () => {
     const activecontact = activeMunicipalityInfo;
