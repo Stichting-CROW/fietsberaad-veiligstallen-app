@@ -8,6 +8,8 @@ import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
 import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import { useSession } from 'next-auth/react';
 import { Table } from '~/components/common/Table';
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
@@ -18,11 +20,17 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const { data: session, status } = useSession();
   const selectedGemeenteID = session?.user?.activeContactId || "";
 
+  // Check user rights for access control
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const canCreateNew = hasFietsenstallingenAdmin;
+  const canDelete = hasFietsenstallingenAdmin;
+
   const [currentParkingId, setCurrentParkingId] = useState<string | undefined>(undefined);
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
-  const [sortColumn, setSortColumn] = useState<string>('Naam');
+  const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [selectedVisibilityFilter, setSelectedVisibilityFilter] = useState<string>('all');
@@ -122,7 +130,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         });
 
         if (!response_new_parking.ok) {
-          console.error(response);
+          console.error(response_new_parking);
           throw new Error('Failed to create new parking');
         }
 
@@ -253,12 +261,14 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       <div>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
-          <button 
-            onClick={() => handleEdit('new')}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Nieuwe stalling
-          </button>
+          {canCreateNew && (
+            <button 
+              onClick={() => handleEdit('new')}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Nieuwe stalling
+            </button>
+          )}
         </div>
 
         <div className="mb-4">
@@ -340,12 +350,14 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                     >
                       ✏️
                     </button>
-                    <button
-                      onClick={() => handleDelete(parking.ID)}
-                      className="text-red-500 mx-1 disabled:opacity-40"
-                    >
-                      🗑️
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDelete(parking.ID)}
+                        className="text-red-500 mx-1 disabled:opacity-40"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </>
                 ),
               }
