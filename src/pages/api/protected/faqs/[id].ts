@@ -5,6 +5,8 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
 import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
 import { type VSFAQ } from "~/types/faq";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 // Schema for creating a new FAQ
 const faqCreateSchema = z.object({
@@ -37,10 +39,24 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user) {
-    console.error("Unauthorized - no session found");
-    res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
-    return;
+  
+  // For GET requests, allow public access (no authentication required)
+  if (req.method === "GET") {
+    // Continue with the existing GET logic without authentication checks
+  } else {
+    // For POST/PUT/DELETE, require authentication and specific rights
+    if (!session?.user) {
+      console.error("Unauthorized - no session found");
+      res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+      return;
+    }
+
+    const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+    if (!hasInstellingenSiteContent) {
+      console.error("Access denied - insufficient permissions");
+      res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+      return;
+    }
   }
 
   const validateUserSessionResult = await validateUserSession(session, "faqs");

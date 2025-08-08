@@ -264,7 +264,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Faq:
-          selectedComponent = <FaqComponent />;
+          // Check if user has access to site content
+          const hasFaqSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          if (!hasFaqSiteContent) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <FaqComponent />;
+          }
           break;
         case VSMenuTopic.Database:
           selectedComponent = <DatabaseComponent bikeparks={bikeparks} firstDate={firstDate} lastDate={lastDate} />;
