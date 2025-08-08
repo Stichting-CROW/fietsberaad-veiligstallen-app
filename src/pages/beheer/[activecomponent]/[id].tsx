@@ -253,9 +253,15 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.ArticlesPages:
-          selectedComponent = <ArticlesComponent
-            type="pages"
-          />
+          // Check if user has access to site content
+          const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          if (!hasInstellingenSiteContent) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <ArticlesComponent
+              type="pages"
+            />
+          }
           break;
         case VSMenuTopic.Faq:
           selectedComponent = <FaqComponent />;

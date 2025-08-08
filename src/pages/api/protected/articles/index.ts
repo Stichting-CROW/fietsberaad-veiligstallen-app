@@ -5,6 +5,8 @@ import { type VSArticle, type VSArticleInLijst, articleSelect, articleLijstSelec
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 // TODO: handle adding the article to the user's sites and setting correct rights
 // TODO: check if user has sufficient rights to create an article
@@ -19,6 +21,23 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
+
+  // For GET requests, allow public access
+  if (req.method === "GET") {
+    // Continue with the existing GET logic without authentication checks
+  } else {
+    // For POST/PUT/DELETE, require authentication and specific rights
+    if (!session?.user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+    if (!hasInstellingenSiteContent) {
+      res.status(403).json({ error: "Access denied - insufficient permissions" });
+      return;
+    }
+  }
 
   const validateUserSessionResult = await validateUserSession(session, "articles");
 

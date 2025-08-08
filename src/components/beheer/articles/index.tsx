@@ -8,10 +8,17 @@ import ArticleFilters, { ArticleFiltersState } from '~/components/common/Article
 import { hasContent } from '~/utils/articles';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useSession } from 'next-auth/react';
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" | "buurtstallingen" | "abonnementen" }> = ({ type }) => {
   const { data: session } = useSession();
   const { gemeenten, isLoading: gemeentenLoading } = useGemeentenInLijst();
+  
+  // Check user rights for access control
+  const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+  const canCreateNew = hasInstellingenSiteContent;
+  const canDelete = hasInstellingenSiteContent;
   const { articles, isLoading, error, reloadArticles } = useArticles();
   const [filteredArticles, setFilteredArticles] = useState<VSArticle[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);
@@ -92,12 +99,14 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
       <div>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pagina's</h1>
-          <button 
-            onClick={() => handleEditArticle('new')}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Nieuwe pagina
-          </button>
+          {canCreateNew && (
+            <button 
+              onClick={() => handleEditArticle('new')}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Nieuwe pagina
+            </button>
+          )}
         </div>
 
         <ArticleFilters
@@ -143,12 +152,14 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
                   >
                     ✏️
                   </button>
-                  <button 
-                    onClick={() => handleDeleteArticle(article.ID)} 
-                    className="text-red-500 mx-1 disabled:opacity-40"
-                  >
-                    🗑️
-                  </button>
+                  {canDelete && (
+                    <button 
+                      onClick={() => handleDeleteArticle(article.ID)} 
+                      className="text-red-500 mx-1 disabled:opacity-40"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </>
               )
             }
