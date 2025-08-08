@@ -51,7 +51,7 @@ export function Table<T>({ columns, data, className = '', onRowClick, options = 
             <tr 
               key={rowIndex}
               onClick={() => onRowClick?.(item)}
-              className={onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''}
+              className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {columns.map((column, colIndex) => (
                 <td 
