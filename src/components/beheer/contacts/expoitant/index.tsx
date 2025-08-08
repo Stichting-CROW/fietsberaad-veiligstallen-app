@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react';
 
 import { useRouter } from 'next/router';
 import ExploitantEdit from "~/components/contact/ExploitantEdit";
+import { Table } from '~/components/common/Table';
 
 import type { VSContactExploitant} from "~/types/contacts";
 
@@ -76,12 +77,12 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
   };
 
   const getGemeenten = (contact: VSContactExploitant) => {
-    const gemeenteIDs = contact.isManagingContacts?.map(c => c.childSiteID);
-    const selected = gemeenteIDs.map(id=>{
+    const gemeenteIDs = contact.isManagingContacts?.map(c => c.childSiteID) || [];
+    const selected = gemeenteIDs.map(id => {
       const gemeente = gemeenten.find(g => g.ID === id);
       return gemeente ? gemeente.CompanyName : "Onbekende gemeente";
     });
-    return selected.sort().map(g=><>{g}<br/></>);
+    return selected.sort().map(g => <>{g}<br/></>);
   }
 
   const handleToggleExploitant = (exploitantID: string, isSelected: boolean) => {
@@ -196,57 +197,51 @@ const ExploitantComponent: React.FC<ExploitantComponentProps> = (props) => {
             )
           )}
         </div>
-        <table className="min-w-full bg-white">
-          <thead>
-              <th className="py-2">Naam</th>
-              <th className="py-2">E-mail</th>
-              {props.canManageExploitants && <th className="py-2">Gemeente(n)</th>}
-              <th className="py-2">Actief</th>
-              {props.canManageExploitants && <th className="py-2">Acties</th>}
-              {addRemoveExploitant && <th className="py-2">Heeft toegang</th>}
-          </thead>
-          <tbody>
-            {filteredContacts.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || '')).map((contact) => { 
-
-              // currentContactID is managed by contact.ID
-              const isSelected = exploitanten.some(e => e.ID === contact.ID);
-
-              return (
-                <tr key={contact.ID}>
-                  <td className="border px-4 py-2">{contact.CompanyName}</td>
-                  <td className="border px-4 py-2">{contact.Helpdesk}</td>
-                  {props.canManageExploitants && <td className="border px-4 py-2">{getGemeenten(contact)}</td>}
-                  <td className="border px-4 py-2">
-                    {contact.Status === "1" ? 
-                      <span className="text-green-500">●</span> : 
-                      <span className="text-red-500">●</span>
-                    }
-                  </td>
-                  {props.canManageExploitants && (
-                      <td className="border px-4 py-2">
-                        <button onClick={() => handleEdit(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
-                        <button onClick={() => handleDelete(contact.ID)} className="text-red-500 mx-1 disabled:opacity-40">🗑️</button>
-                      </td>
-                  )}
-                  {addRemoveExploitant && (
-                    <td className="border px-4 py-2">
-                      <div className="flex items-center gap-1">
-                        <input 
-                          type="checkbox" 
-                          checked={toggledExploitantIds.has(contact.ID) ? !isSelected : isSelected} 
-                          onChange={() => handleToggleExploitant(contact.ID, isSelected)} 
-                        />
-                        {toggledExploitantIds.has(contact.ID) && (
-                          <span>*</span>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <Table
+          columns={[
+            { header: "Naam", accessor: "CompanyName" },
+            { header: "E-mail", accessor: "Helpdesk" },
+            ...(props.canManageExploitants ? [{
+              header: "Gemeente(n)", 
+              accessor: (contact: VSContactExploitant) => getGemeenten(contact)
+            }] : []),
+            { 
+              header: "Actief", 
+              accessor: (contact: VSContactExploitant) => contact.Status === "1" ? 
+                <span className="text-green-500">●</span> : 
+                <span className="text-red-500">●</span>
+            },
+            ...(props.canManageExploitants ? [{
+              header: "Acties", 
+              accessor: (contact: VSContactExploitant) => (
+                <>
+                  <button onClick={() => handleEdit(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
+                  <button onClick={() => handleDelete(contact.ID)} className="text-red-500 mx-1 disabled:opacity-40">🗑️</button>
+                </>
+              )
+            }] : []),
+            ...(addRemoveExploitant ? [{
+              header: "Heeft toegang", 
+              accessor: (contact: VSContactExploitant) => {
+                const isSelected = exploitanten.some(e => e.ID === contact.ID);
+                return (
+                  <div className="flex items-center gap-1">
+                    <input 
+                      type="checkbox" 
+                      checked={toggledExploitantIds.has(contact.ID) ? !isSelected : isSelected} 
+                      onChange={() => handleToggleExploitant(contact.ID, isSelected)} 
+                    />
+                    {toggledExploitantIds.has(contact.ID) && (
+                      <span>*</span>
+                    )}
+                  </div>
+                );
+              }
+            }] : [])
+          ]}
+          data={filteredContacts.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || ''))}
+          className="min-w-full bg-white"
+        />
       </div>
     );
   };
