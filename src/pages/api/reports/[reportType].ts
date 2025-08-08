@@ -1,7 +1,26 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import ReportService from "~/backend/services/reports-service";
+import { getServerSession } from "next-auth";
+import { authOptions } from '~/pages/api/auth/[...nextauth]'
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+  // Require authentication and rapportages role for all report endpoints
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    console.error("Unauthorized - no session found");
+    res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+    return;
+  }
+
+  const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+  if (!hasRapportages) {
+    console.error("Access denied - insufficient permissions for reports");
+    res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+    return;
+  }
+
   if (req.method === 'POST') {
     let data = undefined;
 

@@ -3,6 +3,10 @@ import DatabaseService, { type CacheParams, type UserContactRoleParams, type Use
 import ReportService from "~/backend/services/reports-service";
 import { type ReportType, reportTypeValues } from "~/components/beheer/reports/ReportsFilter";
 import { z } from "zod";
+import { getServerSession } from "next-auth";
+import { authOptions } from '~/pages/api/auth/[...nextauth]'
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 const dateSchema = z.string().datetime();
 
 const UserStatusParamsSchema = z.object({
@@ -38,6 +42,21 @@ const AvailableDataParamsSchema = z.object({
 });
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+  // Require authentication and rapportages role for report-related database operations
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    console.error("Unauthorized - no session found");
+    res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+    return;
+  }
+
+  const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+  if (!hasRapportages) {
+    console.error("Access denied - insufficient permissions for database operations");
+    res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+    return;
+  }
+
   try {
     if (req.method === 'POST') {
       switch (req.query.actionType) {

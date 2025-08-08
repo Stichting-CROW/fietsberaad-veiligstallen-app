@@ -237,7 +237,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <HomeInfoComponent gemeentenaam={gemeentenaam||exploitantnaam} />;
           break;
         case VSMenuTopic.Report:
-          {
+          // Check if user has access to reports
+          const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+          if (!hasRapportages) {
+            selectedComponent = <AccessDenied />;
+          } else {
             selectedContactID !== "" ? (
               selectedComponent = <ReportComponent
                 showAbonnementenRapporten={showAbonnementenRapporten}
@@ -273,16 +277,28 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Database:
-          selectedComponent = <DatabaseComponent bikeparks={bikeparks} firstDate={firstDate} lastDate={lastDate} />;
+          // Check if user has access to reports (database is used for report cache management)
+          const hasDatabaseRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+          if (!hasDatabaseRapportages) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <DatabaseComponent bikeparks={bikeparks} firstDate={firstDate} lastDate={lastDate} />;
+          }
           break;
         case VSMenuTopic.Export:
-          selectedComponent = <ExportComponent
-            gemeenteID={selectedContactID}
-            gemeenteName={gemeentenaam}
-            firstDate={firstDate}
-            lastDate={lastDate}
-            bikeparks={bikeparks || []}
-          />;
+          // Check if user has access to reports (export is report-related)
+          const hasExportRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+          if (!hasExportRapportages) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <ExportComponent
+              gemeenteID={selectedContactID}
+              gemeenteName={gemeentenaam}
+              firstDate={firstDate}
+              lastDate={lastDate}
+              bikeparks={bikeparks || []}
+            />;
+          }
           break;
         case VSMenuTopic.Documents:
           selectedComponent = <DocumentsComponent />;
