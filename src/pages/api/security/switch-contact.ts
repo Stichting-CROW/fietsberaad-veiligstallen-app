@@ -5,6 +5,7 @@ import { prisma } from "~/server/db";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { type VSUserWithRoles } from "~/types/users-coldfusion";
 import { type VSUserRoleValuesNew } from "~/types/users";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 export default async function handler(
     req: NextApiRequest,
@@ -39,8 +40,9 @@ export default async function handler(
           }) as VSUserWithRoles;
 
           if(user?.user_contact_roles[0]?.NewRoleID === 'rootadmin') {
-            // Create new security profile with updated active contact
-            const securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew);
+            // Create new security profile with updated active contact   
+            const activeContactType = await getOrganisationTypeByID(contactId);
+            const securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew, activeContactType);
 
             // Create updated user object
             const updatedUser = {
@@ -77,7 +79,8 @@ export default async function handler(
           }
 
           // Create new security profile with updated active contact
-          const securityProfile = createSecurityProfile(user.user_contact_roles[0].NewRoleID as VSUserRoleValuesNew);
+          const activeContactType = await getOrganisationTypeByID(contactId);
+          const securityProfile = createSecurityProfile(user.user_contact_roles[0].NewRoleID as VSUserRoleValuesNew, activeContactType);
 
           // Create updated user object
           const updatedUser = {

@@ -21,6 +21,7 @@ import {
 
 import { VSUserRoleValuesNew } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 const providers: Provider[] = [];
 
@@ -190,12 +191,13 @@ export const authOptions: NextAuthOptions = {
             session.user.name = orgaccount.DisplayName;
             session.user.mainContactId = mainContactId;
             session.user.activeContactId = token.activeContactId as string;
+            const activeContactType = await getOrganisationTypeByID(session.user.activeContactId);
 
             // If user is Fietsberaad rootman: All rights
             if(orgaccount.user_contact_roles.find((role) => role.ContactID === '1')?.NewRoleID === 'rootadmin') {
-              session.user.securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew);
+              session.user.securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew, activeContactType);
             } else {
-              session.user.securityProfile = createSecurityProfile(currentRoleID);
+              session.user.securityProfile = createSecurityProfile(currentRoleID, activeContactType);
             }
           } else {
             console.error(`No account found for user ID: ${token.id}`);

@@ -3,7 +3,7 @@ import { allowNone, allowCRUD, allowRead, allowReadUpdate } from "~/utils/client
 import { VSUserRoleValuesNew } from '~/types/users';
 import { VSUserRoleValues} from '~/types/users-coldfusion';
 
-import { changeTopics, initAllTopics } from "~/types/utils";
+import { initAllTopics } from "~/types/utils";
 
 // Module access definitions per contact type
 // type ModuleAccess = {
@@ -90,39 +90,38 @@ export const getRights = (profile: VSUserSecurityProfile | null, topic: VSSecuri
 
 export const getRoleRights = (
     roleID: VSUserRoleValuesNew | null, 
+    contactItemType: string | null,
 ): VSUserRoleRights => {
-    const noRights = initAllTopics(allowNone);
-    const allrights = initAllTopics(allowCRUD);
 
-    switch(roleID) {
-        case VSUserRoleValuesNew.RootAdmin:
-            return allrights;
-        case VSUserRoleValuesNew.Admin:
-            // only root admin gets to manage system settings and users
-            return changeTopics(noRights, [
-                VSSecurityTopic.instellingen_dataeigenaar,
-                VSSecurityTopic.gebruikers_dataeigenaar_beperkt,
-                VSSecurityTopic.instellingen_fietsenstallingen_admin,
-                VSSecurityTopic.rapportages,
-                VSSecurityTopic.instellingen_site_content,
-            ], allowNone);
-        case VSUserRoleValuesNew.Editor:
-            return changeTopics(noRights, [
-                VSSecurityTopic.instellingen_fietsenstallingen_beperkt,
-                VSSecurityTopic.rapportages,
-                VSSecurityTopic.instellingen_site_content,
-            ], allowCRUD);
-        case VSUserRoleValuesNew.Viewer:
-            let rights = changeTopics(noRights, [
-                VSSecurityTopic.rapportages
-            ], allowRead);
-            rights = changeTopics(rights, [
-                VSSecurityTopic.Report,
-            ], allowCRUD);
-            return rights;
-        case VSUserRoleValuesNew.None:  
-            return noRights;
-    }   
+    const currentTopics: Record<VSSecurityTopic, VSCRUDRight> = initAllTopics(allowNone);
+    if(!roleID) {
+        return currentTopics;
+    }
 
-    return noRights;
+    const isRootAdmin = roleID === VSUserRoleValuesNew.RootAdmin;
+    const isAdmin = roleID === VSUserRoleValuesNew.Admin || isRootAdmin;
+    const isEditor = roleID === VSUserRoleValuesNew.Editor || isAdmin;
+    const isViewer = roleID === VSUserRoleValuesNew.Viewer || isEditor;
+
+    const isFietsberaad = contactItemType === "admin";
+    const isExploitant = contactItemType === "exploitant";
+
+    const isRootAdminFietsberaad = isFietsberaad && isRootAdmin;
+    const isAdminFietsberaad = isFietsberaad && isAdmin;
+    const isRootAdminExploitant = isExploitant && isRootAdmin;
+
+    currentTopics[VSSecurityTopic.fietsberaad_superadmin] = isRootAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.fietsberaad_admin] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.exploitant_superadmin] = isRootAdminExploitant ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.acceptatie_ontwikkeling] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_dataeigenaar] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_admin] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_beperkt] = isAdmin? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.exploitanten_toegangsrecht] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_site_content] = isEditor? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
+
+    return currentTopics;        
 };

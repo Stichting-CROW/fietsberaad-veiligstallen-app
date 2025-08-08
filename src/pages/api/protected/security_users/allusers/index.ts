@@ -7,18 +7,21 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { SecurityUsersResponse } from "../index";
 import { validateUserSession } from "~/utils/server/database-tools";
-
-
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 const getAllUsers = async (): Promise<VSUserWithRolesNew[]> => {
   const allusers = (await prisma.security_users.findMany({
     select: securityUserSelect,
     orderBy: { UserID: 'asc' }
   }))
-  const result =allusers.map(user => { 
+  const result = await Promise.all(allusers.map(async user => { 
       const theRoleInfo = user.user_contact_roles.find((role) => role.isOwnOrganization);
       const currentRoleID: VSUserRoleValuesNew = theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
       const isContact = user.security_users_sites.some((site) => site.SiteID === theRoleInfo?.ContactID && site.IsContact);
+
+      const contactType = await getOrganisationTypeByID(theRoleInfo?.ContactID || "");
+
+      // const contactType = null;
 
       const newUserData: VSUserWithRolesNew = {
         UserID: user.UserID, 
@@ -29,14 +32,14 @@ const getAllUsers = async (): Promise<VSUserWithRolesNew[]> => {
         // EncryptedPassword: user.EncryptedPassword, 
         // EncryptedPassword2: user.EncryptedPassword2,
         // sites: getSitesForUser(user),
-        securityProfile: createSecurityProfile(currentRoleID),
+        securityProfile: createSecurityProfile(currentRoleID, contactType),
         isContact: isContact,
         ownOrganizationID: theRoleInfo?.ContactID || "",
         isOwnOrganization: true,
       }
         return newUserData;
-    })
-    .filter(user => user.DisplayName !== ""); // filter out users without a name or organization
+    }))
+    .then(users => users.filter(user => user.DisplayName !== "")); // filter out users without a name or organization
 
     return result;
 }

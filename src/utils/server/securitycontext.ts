@@ -3,11 +3,11 @@ import { type VSUserRoleValuesNew } from '~/types/users';
 
 import { getRoleRights } from "~/utils/securitycontext";
 
-export const createSecurityProfile = (roleId: VSUserRoleValuesNew): VSUserSecurityProfile => {
+export const createSecurityProfile = (roleId: VSUserRoleValuesNew, contactItemType: string | null): VSUserSecurityProfile => {
     try {
         const profile: VSUserSecurityProfile = {
             roleId,
-            rights: getRoleRights(roleId),
+            rights: getRoleRights(roleId, contactItemType),
         };
 
         return profile;

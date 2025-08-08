@@ -12,6 +12,7 @@ import {
 } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { checkToken } from "~/utils/token-tools";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 type OrgAccountData = Pick<security_users, "UserID" | "DisplayName" | "UserName" | "GroupID" | "ParentID" | "SiteID" | "EncryptedPassword"> & {
   user_contact_roles: { 
@@ -37,13 +38,14 @@ const getProfileUser = async(orgaccount: OrgAccountData): Promise<User|false> =>
     }
 
     const roleId = orgaccount?.user_contact_roles.find((role) => role.ContactID === mainContactId)?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
+    const activeContactType = await getOrganisationTypeByID(mainContactId);
 
     profileUserAccount.id = orgaccount.UserID || "";
     profileUserAccount.name = orgaccount?.DisplayName || "";
     profileUserAccount.email = orgaccount?.UserName || "";
     profileUserAccount.mainContactId = mainContactId;
     profileUserAccount.activeContactId = mainContactId;
-    profileUserAccount.securityProfile = createSecurityProfile(roleId);
+    profileUserAccount.securityProfile = createSecurityProfile(roleId, activeContactType);
 
     return profileUserAccount;
 }

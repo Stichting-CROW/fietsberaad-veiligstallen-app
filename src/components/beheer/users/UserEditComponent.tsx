@@ -415,7 +415,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
 
         {!isNew && (
           <div className="mt-6 w-full h-full">
-            <UserAccessRight newRoleID={newRoleID} />
+            <UserAccessRight newRoleID={newRoleID} showRoleInfo={true} />
           </div>
         )}
       </div>

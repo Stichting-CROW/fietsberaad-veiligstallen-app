@@ -36,7 +36,9 @@ export default async function handler(
             return res.status(400).json({ error: 'Invalid role ID' });
         }
 
-        const rights = getRoleRights(newRoleID as VSUserRoleValuesNew);
+        const contactItemType = session.user.organizationID === "1" ? "admin" : "exploitant";
+
+        const rights = getRoleRights(newRoleID as VSUserRoleValuesNew, contactItemType);
         return res.status(200).json({ rights });
     } catch (error) {
         console.error('Error fetching user roles:', error);

@@ -13,6 +13,7 @@ import { getSecurityUserNew } from "~/utils/server/security-users-tools";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 const saltRounds = 13;
 
@@ -247,13 +248,16 @@ export default async function handle(
           return;
         }
 
+        
+        const newUserContactType = await getOrganisationTypeByID(createdUser.SiteID||"");
+
         const newUserData: VSUserWithRolesNew = {
           UserID: createdUser.UserID, 
           UserName: createdUser.UserName, 
           DisplayName: createdUser.DisplayName, 
           Status: createdUser.Status, 
           LastLogin: createdUser.LastLogin, 
-          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None),
+          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None, newUserContactType),
           isContact: createdUser.security_users_sites.find((site) => site.SiteID === activeContactId)?.IsContact || false,
           ownOrganizationID: ownRoleInfo?.ContactID || "",
           isOwnOrganization: theRoleInfo?.isOwnOrganization || false,
@@ -320,13 +324,15 @@ export default async function handle(
         const theRoleInfo = updatedUser.user_contact_roles.find((role) => role.ContactID === activeContactId)
         const ownRoleInfo = updatedUser.user_contact_roles.find((role) => role.isOwnOrganization)
 
+        const updatedUserContactType = await getOrganisationTypeByID(updatedUser.SiteID||"");
+
         const newUserData: VSUserWithRolesNew = {
           UserID: updatedUser.UserID, 
           UserName: updatedUser.UserName, 
           DisplayName: updatedUser.DisplayName, 
           Status: updatedUser.Status, 
           LastLogin: updatedUser.LastLogin, 
-          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None),
+          securityProfile: createSecurityProfile(theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None, updatedUserContactType),
           isContact: updatedUser.security_users_sites.find((site) => site.SiteID === activeContactId)?.IsContact || false,
           ownOrganizationID: ownRoleInfo?.ContactID || "",
           isOwnOrganization: ownRoleInfo?.isOwnOrganization || false,

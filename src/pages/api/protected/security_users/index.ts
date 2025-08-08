@@ -5,7 +5,7 @@ import { securityUserSelect, VSUserGroupValues, VSUserWithRoles } from "~/types/
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
-import { validateUserSession } from "~/utils/server/database-tools";
+import { getOrganisationTypeByID, validateUserSession } from "~/utils/server/database-tools";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 
 export type SecurityUsersResponse = {
@@ -36,9 +36,14 @@ const getUsersForContact = async (contactID: string): Promise<VSUserWithRolesNew
     orderBy: { UserID: 'asc' }
   }));
 
+  const contactType = await getOrganisationTypeByID(contactID);
+
   const result = linkedusers
     .map(user => { 
+      // info related to the own organization of this user
       const ownRoleInfo = user.user_contact_roles.find((role) => role.isOwnOrganization)
+
+      // inforelated to the current contact
       const theRoleInfo = user.user_contact_roles.find((role) => role.ContactID === contactID)
       const currentRoleID: VSUserRoleValuesNew = theRoleInfo?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
       const isContact = user.security_users_sites.some((site) => site.SiteID === contactID && site.IsContact);
@@ -53,7 +58,7 @@ const getUsersForContact = async (contactID: string): Promise<VSUserWithRolesNew
         // EncryptedPassword: user.EncryptedPassword, 
         // EncryptedPassword2: user.EncryptedPassword2,
         // sites: getSitesForUser(user),
-        securityProfile: createSecurityProfile(currentRoleID),
+        securityProfile: createSecurityProfile(currentRoleID, contactType),
         isContact: isContact,
         ownOrganizationID: ownRoleInfo?.ContactID || "",
         isOwnOrganization: isOwnOrganization,
