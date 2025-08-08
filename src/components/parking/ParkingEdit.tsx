@@ -5,6 +5,7 @@ import PageTitle from "~/components/PageTitle";
 import HorizontalDivider from "~/components/HorizontalDivider";
 import { Button } from "~/components/Button";
 import FormInput from "~/components/Form/FormInput";
+import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingSections } from "~/types/parking";
@@ -38,6 +39,8 @@ import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/uti
 import toast from "react-hot-toast";
 import { type VSservice } from "~/types/services";
 import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
+import { useExploitanten } from "~/hooks/useExploitanten";
+import type { VSContactExploitant } from "~/types/contacts";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -52,6 +55,8 @@ export type ParkingEditUpdateStructure = {
   SiteID?: string;
   Beheerder?: string;
   BeheerderContact?: string;
+  ExploitantID?: string | null;
+  FMS?: boolean;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -132,6 +137,16 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  // exploitant selection
+  const [newExploitantID, setNewExploitantID] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  // FMS flag
+  const [newFMS, setNewFMS] = React.useState<boolean | undefined>(
+    undefined,
+  );
+
   // type FietsenstallingSectiesType = { [key: string]: Array[] }
 
   const [allServices, setAllServices] = React.useState<VSservice[]>([]);
@@ -157,6 +172,9 @@ const ParkingEdit = ({
 
   // Use the hook for fietsenstallingtypen
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
+
+  // Use the hook for exploitanten
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -283,21 +301,20 @@ const ParkingEdit = ({
     ];
     // parkingdata.Postcode is optional
 
-    // FMS & ExploitantID cannot be changed for now, so no need to check those for changes
-    if (parkingdata.FMS !== true && parkingdata.ExploitantID === null) {
+    if (parkingdata.ExploitantID !== null) {
       checks.push({
         type: "string",
         text: "invoer van de contactgegevens van de beheerder",
         value: parkingdata.Beheerder,
         newvalue: newBeheerder,
       });
-      checks.push({
-        type: "string",
-        text: "invoer van de contactgegevens van de beheerder",
-        value: parkingdata.BeheerderContact,
-        newvalue: newBeheerderContact,
-      });
     }
+    checks.push({
+      type: "string",
+      text: "invoer van de contactgegevens van de beheerder",
+      value: parkingdata.BeheerderContact,
+      newvalue: newBeheerderContact,
+    });
 
     // Not checked / check not required
     // Type, Image, Openingstijden, Capacity, FMS, Beheerder, BeheerderContact, fietsenstalling_type, fietsenstalling_secties, abonnementsvorm_fietsenstalling, exploitant, fietsenstallingen_services
@@ -353,6 +370,14 @@ const ParkingEdit = ({
     }
     if (newBeheerderContact !== undefined) {
       update.BeheerderContact = newBeheerderContact;
+    }
+
+    if (newExploitantID !== undefined) {
+      update.ExploitantID = newExploitantID === 'anders' ? null : newExploitantID;
+    }
+
+    if (newFMS !== undefined) {
+      update.FMS = newFMS;
     }
 
     if (newStallingType !== undefined) {
@@ -723,8 +748,11 @@ const ParkingEdit = ({
 
     const handleCoordinatesLookup = async () => {
       let address: ReverseGeocodeResult | false = false;
-      if(parkingdata.Coordinaten!==null && newCoordinaten !== undefined) {
-         address = await reverseGeocode(newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten);
+      const theCoords = newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
+      if(theCoords !== undefined && theCoords !== null) {
+          console.log("** REVERSE GEOCODING", theCoords);
+         address = await reverseGeocode(theCoords);
+         console.log("** REVERSE GEOCODING RESULT", address);
       } 
 
       if (address && address.address) {
@@ -883,6 +911,25 @@ const ParkingEdit = ({
                 ))}
               </select>
             )}
+          </SectionBlock>
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlock heading="FMS">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="fms-checkbox"
+                className="mr-2 h-4 w-4"
+                checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
+                onChange={e => {
+                  setNewFMS(e.target.checked);
+                }}
+              />
+              <label htmlFor="fms-checkbox" className="text-sm font-medium text-gray-700">
+                Stalling communiceert met FMS-webserver
+              </label>
+            </div>
           </SectionBlock>
 
           <HorizontalDivider className="my-4" />
@@ -1067,37 +1114,62 @@ const ParkingEdit = ({
   };
 
   const renderTabBeheerder = (visible = false) => {
-    // TODO: uitzoeken & implementeren FMS / ExploitantID logica
-    if (
-      parkingdata.FMS === true ||
-      !(
-        parkingdata.ExploitantID === undefined ||
-        parkingdata.ExploitantID == null
-      )
-    ) {
+    // Show loading state if exploitanten are still loading
+    if (isLoadingExploitanten) {
       return (
         <div
           className="flex justify-between"
           style={{ display: visible ? "flex" : "none" }}
         >
           <div data-name="content-left" className="sm:mr-12">
-            <br />
-            <ParkingViewBeheerder parkingdata={parkingdata} />
-            <br />
-            <h1>
-              Wijzigen van de beheerder is op dit moment alleen mogelijk via het{" "}
-              <a
-                href="https://fms.veiligstallen.nl/"
-                target="_blank"
-                className="underline"
-              >
-                FMS
-              </a>
-            </h1>
+            <SectionBlockEdit>
+              <div className="mt-4 w-full">
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Exploitanten laden...</p>
+                </div>
+              </div>
+            </SectionBlockEdit>
           </div>
         </div>
       );
     }
+
+    // Show error state if there's an error loading exploitanten
+    if (errorExploitanten) {
+      return (
+        <div
+          className="flex justify-between"
+          style={{ display: visible ? "flex" : "none" }}
+        >
+          <div data-name="content-left" className="sm:mr-12">
+            <SectionBlockEdit>
+              <div className="mt-4 w-full">
+                <div className="text-center py-8">
+                  <p className="text-red-600">Fout bij het laden van exploitanten: {errorExploitanten}</p>
+                </div>
+              </div>
+            </SectionBlockEdit>
+          </div>
+        </div>
+      );
+    }
+
+    // Get the currently selected exploitant
+    const selectedExploitantID = 
+      newExploitantID !== undefined ? newExploitantID : (parkingdata.ExploitantID === null ? 'anders' : parkingdata.ExploitantID);
+    const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
+    
+    // Create options for the dropdown
+    let exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
+    exploitanten.forEach(exp => {
+      exploitantOptions.push({
+        label: exp.CompanyName || 'Onbekende exploitant',
+        value: exp.ID
+      });
+    });
+
+    const showBeheerderInput = (selectedExploitantID !== 'anders')
 
     return (
       <div
@@ -1107,34 +1179,81 @@ const ParkingEdit = ({
         <div data-name="content-left" className="sm:mr-12">
           <SectionBlockEdit>
             <div className="mt-4 w-full">
-              <FormInput
-                key="i-beheerder"
-                label="Beheerder"
-                className="mb-1 w-full border-2 border-black"
-                placeholder="beheerder"
-                onChange={e => {
-                  setNewBeheerder(e.target.value);
-                }}
-                value={
-                  newBeheerder !== undefined
-                    ? newBeheerder
-                    : parkingdata.Beheerder
-                }
-              />
-              <FormInput
-                key="i-beheerdercontact"
-                label="Contactgegevens Beheerder"
-                className="mb-1 w-full border-2 border-black"
-                placeholder="contactgegevens"
-                onChange={e => {
-                  setNewBeheerderContact(e.target.value);
-                }}
-                value={
-                  newBeheerderContact !== undefined
-                    ? newBeheerderContact
-                    : parkingdata.BeheerderContact
-                }
-              />
+              {/* Row 1: Exploitant/beheerder label + select */}
+              <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    <label className="block text-sm font-bold text-gray-700">
+                      Exploitant/beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <FormSelect
+                      key="i-exploitant"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Selecteer exploitant"
+                      onChange={e => {
+                        setNewExploitantID(e.target.value);
+                      }}
+                      value={selectedExploitantID}
+                      options={exploitantOptions}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: No label + (Namelijk + input) */}
+              { showBeheerderInput && <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    {/* Empty label space */}
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-600 whitespace-nowrap">
+                        Namelijk:
+                      </label>
+                      <input
+                        type="text"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white"
+                        value={newBeheerder !== undefined && newBeheerder !== null && newBeheerder !== "" ? newBeheerder : parkingdata.Beheerder || ""}
+                        onChange={e => {
+                          setNewBeheerder(e.target.value);
+                        }}
+                        placeholder="Website en contactgegevens"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>}
+
+              {/* Row 3: Contact beheerder label + input */}
+              <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
+                      Contact beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <FormInput
+                      key="i-beheerdercontact"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Email adres"
+                      onChange={e => {
+                        setNewBeheerderContact(e.target.value);
+                      }}
+                      value={
+                        newBeheerderContact !== undefined
+                          ? newBeheerderContact
+                          : parkingdata.BeheerderContact
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionBlockEdit>
         </div>
