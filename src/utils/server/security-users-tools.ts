@@ -35,6 +35,15 @@ export const getSecurityUserNew = async (id: string, activeContactID: string): P
     }
   })
 
+  const activeContactItemType = (await prisma.contacts.findFirst({
+    where: {
+      ID: activeContactID,
+    },
+    select: {
+      ItemType: true,
+    },
+  }))?.ItemType || null;
+
   if(!data) {
     console.error("Security user not found:", id);
     return false;
@@ -53,7 +62,7 @@ export const getSecurityUserNew = async (id: string, activeContactID: string): P
 
   return {
     ...data,
-    securityProfile: createSecurityProfile(roleId),
+    securityProfile: createSecurityProfile(roleId, activeContactItemType),
     isContact: data.security_users_sites.find((site) => site.SiteID === activeContactID)?.IsContact || false,
     ownOrganizationID: data.user_contact_roles.find((role) => role.isOwnOrganization)?.ContactID ||"",
     isOwnOrganization: data.user_contact_roles.find((role) => role.isOwnOrganization)?.isOwnOrganization || false,
