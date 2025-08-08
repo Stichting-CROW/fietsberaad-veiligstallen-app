@@ -41,6 +41,8 @@ import { type VSservice } from "~/types/services";
 import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 import { useExploitanten } from "~/hooks/useExploitanten";
 import type { VSContactExploitant } from "~/types/contacts";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -169,6 +171,12 @@ const ParkingEdit = ({
   >(undefined);
 
   const { data: session } = useSession() as { data: Session | null };
+
+  // Check user rights for field-level access control
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const canEditAllFields = hasFietsenstallingenAdmin;
+  const canEditLimitedFields = hasFietsenstallingenBeperkt;
 
   // Use the hook for fietsenstallingtypen
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
@@ -301,20 +309,23 @@ const ParkingEdit = ({
     ];
     // parkingdata.Postcode is optional
 
-    if (parkingdata.ExploitantID !== null) {
+    // Only validate beheerder fields if user has admin rights
+    if (canEditAllFields) {
+      if (parkingdata.ExploitantID !== null) {
+        checks.push({
+          type: "string",
+          text: "invoer van de contactgegevens van de beheerder",
+          value: parkingdata.Beheerder,
+          newvalue: newBeheerder,
+        });
+      }
       checks.push({
         type: "string",
         text: "invoer van de contactgegevens van de beheerder",
-        value: parkingdata.Beheerder,
-        newvalue: newBeheerder,
+        value: parkingdata.BeheerderContact,
+        newvalue: newBeheerderContact,
       });
     }
-    checks.push({
-      type: "string",
-      text: "invoer van de contactgegevens van de beheerder",
-      value: parkingdata.BeheerderContact,
-      newvalue: newBeheerderContact,
-    });
 
     // Not checked / check not required
     // Type, Image, Openingstijden, Capacity, FMS, Beheerder, BeheerderContact, fietsenstalling_type, fietsenstalling_secties, abonnementsvorm_fietsenstalling, exploitant, fietsenstallingen_services
@@ -809,6 +820,7 @@ const ParkingEdit = ({
                   setNewTitle(e.target.value);
                 }}
                 value={newTitle !== undefined ? newTitle : parkingdata.Title}
+                disabled={!canEditAllFields && !canEditLimitedFields}
               />
               <br />
               <FormInput
@@ -822,6 +834,7 @@ const ParkingEdit = ({
                 value={
                   newLocation !== undefined ? newLocation : parkingdata.Location
                 }
+                disabled={!canEditAllFields && !canEditLimitedFields}
               />
               <br />
               <>
@@ -838,6 +851,7 @@ const ParkingEdit = ({
                       ? newPostcode
                       : parkingdata.Postcode
                   }
+                  disabled={!canEditAllFields && !canEditLimitedFields}
                 />
                 <FormInput
                   key="i-plaats"
@@ -850,9 +864,13 @@ const ParkingEdit = ({
                   value={
                     newPlaats !== undefined ? newPlaats : parkingdata.Plaats
                   }
+                  disabled={!canEditAllFields && !canEditLimitedFields}
                 />
-                {addressValid() && (
-                  <Button className="mr-4 mt-4" onClick={handleAddressLookup}>
+                {addressValid() && (canEditAllFields || canEditLimitedFields) && (
+                  <Button 
+                    className="mr-4 mt-4" 
+                    onClick={handleAddressLookup}
+                  >
                     Toon op kaart
                   </Button>
                 )}
@@ -869,7 +887,7 @@ const ParkingEdit = ({
                 {allServices &&
                   allServices.map(service => (
                     <div key={service.ID}>
-                      <label className="block cursor-pointer py-1 hover:bg-gray-100">
+                      <label className={`block py-1 ${(canEditAllFields || canEditLimitedFields) ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-50'}`}>
                         <input
                           type="checkbox"
                           className="mr-2 inline-block"
@@ -877,6 +895,7 @@ const ParkingEdit = ({
                           onChange={e =>
                             handleSelectService(service.ID, e.target.checked)
                           }
+                          disabled={!canEditAllFields && !canEditLimitedFields}
                         />
                         {service.Name}
                       </label>
@@ -903,6 +922,8 @@ const ParkingEdit = ({
                 onChange={event => {
                   setNewStallingType(event.target.value);
                 }}
+                disabled={!canEditAllFields}
+                className={!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}
               >
                 {allTypes.map(type => (
                   <option key={type.id} value={type.id}>
@@ -920,13 +941,14 @@ const ParkingEdit = ({
               <input
                 type="checkbox"
                 id="fms-checkbox"
-                className="mr-2 h-4 w-4"
+                className={`mr-2 h-4 w-4 ${!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}`}
                 checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
                 onChange={e => {
                   setNewFMS(e.target.checked);
                 }}
+                disabled={!canEditAllFields}
               />
-              <label htmlFor="fms-checkbox" className="text-sm font-medium text-gray-700">
+              <label htmlFor="fms-checkbox" className={`text-sm font-medium ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
                 Stalling communiceert met FMS-webserver
               </label>
             </div>
@@ -981,6 +1003,7 @@ const ParkingEdit = ({
             placeholder="latitude"
             onChange={updateCoordinatesFromForm(true)}
             value={getCoordinate(true)}
+            disabled={!canEditAllFields && !canEditLimitedFields}
           />
           <FormInput
             key="i-lng"
@@ -990,8 +1013,9 @@ const ParkingEdit = ({
             placeholder="longitude"
             onChange={updateCoordinatesFromForm(false)}
             value={getCoordinate(false)}
+            disabled={!canEditAllFields && !canEditLimitedFields}
           />
-          {(newCoordinaten || !addressValid()) && (
+          {(newCoordinaten || !addressValid()) && (canEditAllFields || canEditLimitedFields) && (
             <Button className="mt-4" onClick={handleCoordinatesLookup}>
               Adres opzoeken
             </Button>
@@ -1045,6 +1069,8 @@ const ParkingEdit = ({
         <ParkingEditOpening
           parkingdata={parkingdata}
           openingChanged={handlerSetNewOpening}
+          canEditAllFields={canEditAllFields}
+          canEditLimitedFields={canEditLimitedFields}
         />
       </div>
     );
@@ -1198,6 +1224,7 @@ const ParkingEdit = ({
                       }}
                       value={selectedExploitantID}
                       options={exploitantOptions}
+                      disabled={!canEditAllFields}
                     />
                   </div>
                 </div>
@@ -1216,12 +1243,13 @@ const ParkingEdit = ({
                       </label>
                       <input
                         type="text"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white"
+                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md ${!canEditAllFields ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
                         value={newBeheerder !== undefined && newBeheerder !== null && newBeheerder !== "" ? newBeheerder : parkingdata.Beheerder || ""}
                         onChange={e => {
                           setNewBeheerder(e.target.value);
                         }}
                         placeholder="Website en contactgegevens"
+                        disabled={!canEditAllFields}
                       />
                     </div>
                   </div>
@@ -1250,6 +1278,7 @@ const ParkingEdit = ({
                           ? newBeheerderContact
                           : parkingdata.BeheerderContact
                       }
+                      disabled={!canEditAllFields}
                     />
                   </div>
                 </div>

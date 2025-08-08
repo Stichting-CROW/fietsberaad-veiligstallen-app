@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Prisma } from "~/generated/prisma-client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "~/server/db";
-import { type VSFietsenstallingLijst, fietsenstallingLijstSelect } from "~/types/fietsenstallingen";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
+import { type VSFietsenstallingLijst, fietsenstallingLijstSelect } from "~/types/fietsenstallingen";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type FietsenstallingenCompactResponse = {
   data?: VSFietsenstallingLijst[];
@@ -16,6 +18,17 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
+  
+  // Check if user has access to fietsenstallingen
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+  
+  if (!hasFietsenstallingenAccess) {
+    res.status(403).json({ error: "Access denied - insufficient permissions" });
+    return;
+  }
+  
   const validationResult = await validateUserSession(session, "any");
   
   let whereClause: Prisma.fietsenstallingenWhereInput = {

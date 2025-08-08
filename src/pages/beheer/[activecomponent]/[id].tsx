@@ -38,6 +38,8 @@ import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import ExploreArticlesComponent from '~/components/ExploreArticlesComponent';
 
 import { VSMenuTopic } from "~/types/index";
+import { VSSecurityTopic } from "~/types/securityprofile";
+import { userHasRight } from "~/types/utils";
 
 // import Styles from "~/pages/content.module.css";
 import { useSession } from "next-auth/react";
@@ -55,6 +57,27 @@ import { setActiveMunicipalityInfo } from '~/store/adminSlice';
 import { useDispatch } from 'react-redux';
 import { getMunicipalityById } from '~/utils/municipality';
 import { VSContact } from '~/types/contacts';
+
+// Access Denied Component
+const AccessDenied: React.FC = () => {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Toegang Geweigerd</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            U heeft geen rechten om deze pagina te bekijken. Neem contact op met uw beheerder als u denkt dat dit een fout is.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 //   .ContentPage_Body h2 {
 //     font-size: 1.1em;
@@ -203,6 +226,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const renderComponent = () => {
     try {
       let selectedComponent = undefined;
+      
+      // Check user rights for Fietsenstallingen access
+      const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+      const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+      const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+      
       switch (activecomponent) {
         case VSMenuTopic.Home:
           selectedComponent = <HomeInfoComponent gemeentenaam={gemeentenaam||exploitantnaam} />;
@@ -285,13 +314,25 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <UsersComponent siteID={selectedContactID} contacts={contacts} />;
           break;
         case VSMenuTopic.Fietsenstallingen:
-          selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" />;
+          if (!hasFietsenstallingenAccess) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" />;
+          }
           break;
         case VSMenuTopic.Fietskluizen:
-          selectedComponent = <FietsenstallingenComponent type="fietskluizen" />;
+          if (!hasFietsenstallingenAccess) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <FietsenstallingenComponent type="fietskluizen" />;
+          }
           break;
         case VSMenuTopic.Buurtstallingen:
-          selectedComponent = <FietsenstallingenComponent type="buurtstallingen" />;
+          if (!hasFietsenstallingenAccess) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" />;
+          }
           break;
         // case VSMenuTopic.BarcodereeksenUitgifteBarcodes:
         //   selectedComponent = <BarcodereeksenComponent type="uitgifte-barcodes" />;

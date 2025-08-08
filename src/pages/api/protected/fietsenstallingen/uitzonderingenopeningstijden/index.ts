@@ -3,6 +3,8 @@ import { prisma } from "~/server/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]';
 import { validateUserSession } from "~/utils/server/database-tools";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export default async function handle(
   req: NextApiRequest,
@@ -11,6 +13,16 @@ export default async function handle(
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     res.status(401).json({ error: "Unauthorized - no session found" });
+    return;
+  }
+
+  // Check if user has access to fietsenstallingen
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+  
+  if (!hasFietsenstallingenAccess) {
+    res.status(403).json({ error: "Access denied - insufficient permissions" });
     return;
   }
 
