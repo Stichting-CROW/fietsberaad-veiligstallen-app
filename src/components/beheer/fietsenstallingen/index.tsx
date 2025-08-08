@@ -70,7 +70,13 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       const id = router.query.id;
       if(id) {
         setCurrentParkingId(id as string);
+      } else {
+        // Clear the current parking ID when navigating to the overview page
+        setCurrentParkingId(undefined);
       }
+    } else {
+      // Clear the current parking ID when no ID is in the URL
+      setCurrentParkingId(undefined);
     }   
   }, [router.query.id]);
 
@@ -141,6 +147,12 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         // This will automatically show the edit form
         setCurrentParkingId(newParkingId);
         
+        // Update the URL to include the new parking ID
+        router.push({
+          pathname: router.pathname,
+          query: { ...router.query, id: newParkingId }
+        });
+        
         // Reload the parking list to include the new parking
         reloadFietsenstallingen();
       } catch (error) {
@@ -149,6 +161,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       }
     } else {
       setCurrentParkingId(id);
+      // Update the URL to include the parking ID
+      router.push({
+        pathname: router.pathname,
+        query: { ...router.query, id }
+      });
     }
   };
 
@@ -176,6 +193,12 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       return;
     }
     setCurrentParkingId(undefined);
+    // Update the URL to remove the parking ID
+    const { id, ...queryWithoutId } = router.query;
+    router.push({
+      pathname: router.pathname,
+      query: queryWithoutId
+    });
     // Refresh the fietsenstallingen list
     reloadFietsenstallingen();
   };

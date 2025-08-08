@@ -60,6 +60,20 @@ import { VSContact } from '~/types/contacts';
 
 // Access Denied Component
 const AccessDenied: React.FC = () => {
+  const [showComponent, setShowComponent] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowComponent(true);
+    }, 4000); // 4 seconds
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!showComponent) {
+    return <></>;
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
@@ -174,7 +188,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
   const handleSelectComponent = (componentKey: VSMenuTopic) => {
     try {
-      queryRouter.push(`/beheer/${componentKey}`);
+      // If navigating to fietsenstallingen, clear any existing parking ID from the URL
+      if (componentKey === VSMenuTopic.Fietsenstallingen) {
+        queryRouter.push(`/beheer/${componentKey}`);
+      } else {
+        queryRouter.push(`/beheer/${componentKey}`);
+      }
     } catch (error) {
       console.error("Error in handleSelectComponent:", error);
     }

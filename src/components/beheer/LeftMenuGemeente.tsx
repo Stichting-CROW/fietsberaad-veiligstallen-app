@@ -80,7 +80,8 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
                 component={VSMenuTopic.Fietsenstallingen} 
                 title={'Fietsenstallingen'} 
                 activecomponent={activecomponent} 
-                onSelect={onSelect} /> }
+                onSelect={onSelect} />
+          }
 
           {hasInstellingenSiteContent && 
             <>
