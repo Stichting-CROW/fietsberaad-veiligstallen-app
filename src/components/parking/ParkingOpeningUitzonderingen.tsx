@@ -67,7 +67,7 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
     try {
       const res = await fetch(`${API_URL}?fietsenstallingID=${fietsenstallingID}`);
       const data = await res.json();
-      console.log('++++ data', data);
+      // console.log('++++ data', data);
       setRecords((data.data || []).sort((a: UitzonderingOpeningstijden, b: UitzonderingOpeningstijden) => {
         const aDate = a.openingDateTime ? moment.utc(a.openingDateTime).valueOf() : 0;
         const bDate = b.openingDateTime ? moment.utc(b.openingDateTime).valueOf() : 0;

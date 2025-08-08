@@ -92,8 +92,56 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     setFilteredParkings(filtered);
   }, [fietsenstallingen, selectedTypeFilter, selectedVisibilityFilter]);
 
-  const handleEdit = (id: string) => {
-    setCurrentParkingId(id);
+  const handleEdit = async (id: string) => {
+    if (id === 'new') {
+      try {
+        // First get a new fietsenstalling object
+        const response_parking_template = await fetch('/api/protected/fietsenstallingen/new', {
+          method: 'GET',
+        });
+        if (!response_parking_template.ok) {
+          throw new Error('Failed to get new parking');
+        }
+
+        const parking_template = await response_parking_template.json();
+
+        // Now create the new parking in the database
+        const response_new_parking = await fetch('/api/protected/fietsenstallingen/new', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(Object.assign(parking_template.data, {
+            Title: 'Nieuwe stalling',
+            Status: '1',
+            Type: 'bewaakt',
+            SiteID: selectedGemeenteID,
+            DateCreated: new Date(),
+            DateModified: new Date(),
+          })),
+        });
+
+        if (!response_new_parking.ok) {
+          console.error(response);
+          throw new Error('Failed to create new parking');
+        }
+
+        const result = await response_new_parking.json();
+        const newParkingId = result.data[0].ID;
+        
+        // Set the current parking ID to the newly created parking
+        // This will automatically show the edit form
+        setCurrentParkingId(newParkingId);
+        
+        // Reload the parking list to include the new parking
+        reloadFietsenstallingen();
+      } catch (error) {
+        console.error('Error creating new parking:', error);
+        alert('Er is een fout opgetreden bij het aanmaken van de nieuwe stalling');
+      }
+    } else {
+      setCurrentParkingId(id);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -203,11 +251,21 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
     return (
       <div>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
+          <button 
+            onClick={() => handleEdit('new')}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Nieuwe stalling
+          </button>
+        </div>
+
         <div className="mb-4">
           <input
             type="text"
             placeholder="Vind stalling..."
-            className="w-full p-2 border rounded"
+            className="w-full p-2 mb-4 border rounded"
             onChange={(e) => {
               const searchTerm = e.target.value.toLowerCase();
               setFilteredParkings(

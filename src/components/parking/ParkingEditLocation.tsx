@@ -55,7 +55,7 @@ function ParkingEditLocation({
     if (centerCoords !== undefined) {
       ccoords = centerCoords.split(",").map((coord: any) => Number(coord));
     } else {
-      ccoords = parkingCoords.split(",").map((coord: any) => Number(coord));
+      ccoords = parkingCoords?.split(",").map((coord: any) => Number(coord));
     }
 
     // otherwise, create a map instance

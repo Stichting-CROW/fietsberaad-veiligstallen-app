@@ -45,7 +45,7 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
 const createEditGeoJson = (Coordinaten: string) => {
   const features: GeoJsonFeature[] = [];
 
-  const coords = Coordinaten.split(",").map((coord: any) => Number(coord)); // I.e.: 52.508011,5.473280;
+  const coords = Coordinaten?.split(",").map((coord: any) => Number(coord)) ?? [52.508011, 5.47328]; // I.e.: 52.508011,5.473280;
   if(undefined!==coords[0] && undefined!==coords[1]) { 
     features.push({
       type: "Feature",
