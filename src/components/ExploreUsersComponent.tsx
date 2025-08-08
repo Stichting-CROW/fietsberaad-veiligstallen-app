@@ -29,7 +29,6 @@ const ExploreUsersComponent = () => {
     const [selectedUserID, setSelectedUserID] = useState<string | null>(queryUserID || null);
 
     const [emailFilter, setEmailFilter] = useState<string>("");
-    const [roleFilter, setRoleFilter] = useState<VSUserRoleValuesNew | undefined>(undefined);
     const [contactFilter, setContactFilter] = useState<"Yes" | "No">("No");
     const [organisatieFilter, setOrganisatieFilter] = useState<string>("all-organizations");
     const [invalidDataFilter, setInvalidDataFilter] = useState<"Yes" | "No" | "Only">("No");
@@ -46,7 +45,7 @@ const ExploreUsersComponent = () => {
         if(selectedUserID && !filteredUsers.some((user) => user.UserID === selectedUserID)) {
             setSelectedUserID(null);
         }
-    }, [emailFilter, roleFilter, contactFilter, organisatieFilter, invalidDataFilter, filteredUsers]);
+    }, [emailFilter, contactFilter, organisatieFilter, invalidDataFilter, filteredUsers]);
 
     useEffect(() => {
         const currentUserID = router.query.userID;
@@ -89,7 +88,6 @@ const ExploreUsersComponent = () => {
                 if(contactFilter === "Yes") return user.isContact;
                 return !user.isContact;
             })
-            .filter((user) => (roleFilter === undefined || user.securityProfile?.roleId === roleFilter))
             .filter((user) => {
                 const isArchived = archivedUserIds.includes(user.UserID);
                 if (archivedFilter === "Yes") {
@@ -117,7 +115,7 @@ const ExploreUsersComponent = () => {
             });
 
         setFilteredUsers(filteredUsers);
-    }, [users, emailFilter, roleFilter, contactFilter, organisatieFilter, invalidDataFilter, archivedFilter, archivedUserIds, showInactiveDays]);
+    }, [users, emailFilter, contactFilter, organisatieFilter, invalidDataFilter, archivedFilter, archivedUserIds, showInactiveDays]);
 
 
     useEffect(() => {
@@ -193,7 +191,6 @@ const ExploreUsersComponent = () => {
 
     const resetFilters = () => {
         setEmailFilter("");
-        setRoleFilter(undefined);
         setContactFilter("No");
         setOrganisatieFilter("");
         setInvalidDataFilter("Yes");
@@ -227,21 +224,6 @@ const ExploreUsersComponent = () => {
                             value={emailFilter}
                             onChange={filterEmailHandler} 
                         />
-                    </div>
-                    <div className="flex flex-col">
-                        <label htmlFor="role" className="text-sm font-medium text-gray-700">Selecteer Rol:</label>
-                        <select 
-                            id="role" 
-                            name="role" 
-                            className="mt-1 p-2 border border-gray-300 rounded-md" 
-                            value={roleFilter ?? ""}
-                            onChange={(e) => setRoleFilter(e.target.value as VSUserRoleValuesNew || undefined)}
-                        >
-                            <option value="">Alle Rollen</option>
-                            {roles.map((role) => (
-                                <option value={role} key={`role-${role}`}>{getNewRoleLabel(role)}</option>
-                            ))}
-                        </select>
                     </div>
                     <div className="flex flex-col">
                         <label htmlFor="contact" className="text-sm font-medium text-gray-700">Alleen contactpersonen weergeven:</label>
