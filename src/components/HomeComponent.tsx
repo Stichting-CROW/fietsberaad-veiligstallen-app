@@ -54,7 +54,7 @@ import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
 import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
 import InfomodalComponent from "./InfomodalComponent";
-import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
+import { useAllFietsenstallingen } from "~/hooks/useAllFietsenstallingen";
 
 export interface HomeComponentProps {
     online: boolean,
@@ -68,7 +68,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const { query } = useRouter();
     const { data: session } = useSession();
 
-    const { fietsenstallingen: allparkingdata, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadFietsenstallingen } = useFietsenstallingen(undefined);
+    const { fietsenstallingen: allparkingdata, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadAllFietsenstallingen } = useAllFietsenstallingen();
 
     const currentLatLong = useSelector(
       (state: AppState) => state.map.currentLatLng,
@@ -208,7 +208,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
 
     useEffect(() => {
       console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
-      reloadFietsenstallingen();
+      reloadAllFietsenstallingen();
     }, [activeTypes2]);
     
     const renderLogo = () => {

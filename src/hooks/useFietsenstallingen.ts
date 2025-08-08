@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ParkingDetailsType } from '~/types/parking';
 
-type FietsenstallingenResponse = {
+export type FietsenstallingenResponse = {
   data?: (ParkingDetailsType)[];
   error?: string;
 };
 
-export const useFietsenstallingen = (GemeenteID: string | undefined) => {
+export const useFietsenstallingen = (GemeenteID: string) => {
   const [fietsenstallingen, setFietsenstallingen] = useState<(ParkingDetailsType)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +17,14 @@ export const useFietsenstallingen = (GemeenteID: string | undefined) => {
       setIsLoading(true);
       setError(null);
 
-      const apiUrl = "/api/protected/fietsenstallingen?" + ((GemeenteID && GemeenteID!=="") ? `GemeenteID=${GemeenteID}&` : "")
+      if(GemeenteID==="") {
+        console.log("fetchFietsenstallingen", GemeenteID, "=> no GemeenteID");
+        setFietsenstallingen([]);
+        return;
+      }
+
+
+      const apiUrl = `/api/protected/fietsenstallingen?GemeenteID=${GemeenteID}`
       const response = await fetch(apiUrl);
       const result: FietsenstallingenResponse = await response.json();
 
@@ -32,11 +39,12 @@ export const useFietsenstallingen = (GemeenteID: string | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [GemeenteID]);
+  }, [GemeenteID, version]);
 
   useEffect(() => {
+    console.log("useEffect fetchFietsenstallingen", GemeenteID);
     fetchFietsenstallingen();
-  }, [fetchFietsenstallingen, version]);
+  }, [fetchFietsenstallingen, version, GemeenteID]);
 
   return {
     fietsenstallingen,

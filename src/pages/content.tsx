@@ -30,7 +30,7 @@ import {
   setActiveMunicipalityInfo,
 } from "~/store/mapSlice";
 
-import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
+import { useAllFietsenstallingen } from "~/hooks/useAllFietsenstallingen";
 
 const Content: NextPage = () => {
   
@@ -40,7 +40,7 @@ const Content: NextPage = () => {
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
   const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
 
-  const { fietsenstallingen: allparkingdata } = useFietsenstallingen(undefined);
+  const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -208,7 +208,6 @@ const Content: NextPage = () => {
         >
           <Parking id={'parking-' + currentStallingId}
             stallingId={currentStallingId}
-            // allparkingdata={allparkingdata}
             onStallingIdChanged={newId => {
               console.log("content - onStallingIdChanged overlay", newId);
               setCurrentStallingId(newId);
@@ -226,7 +225,6 @@ const Content: NextPage = () => {
           <Parking
             id={'parking-' + currentStallingId}
             stallingId={currentStallingId}
-            // allparkingdata={allparkingdata}
             onStallingIdChanged={newId => {
               console.log("content - onStallingIdChanged modal", newId);
               setCurrentStallingId(newId);
