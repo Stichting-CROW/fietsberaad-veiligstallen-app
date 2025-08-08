@@ -87,7 +87,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
   },
   {
     topic: VSSecurityTopic.gebruikers_dataeigenaar_admin,
-    name: "Gebruikers huidige organisatie (dataeigenaar)",
+    name: "Gebruikers huidige organisatie (data-eigenaar)",
     description: [
       "Toevoegen / archiveren van gebruikers",
       "Instellen van de rol van een gebruiker",
@@ -95,7 +95,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
   },
   { 
     topic: VSSecurityTopic.gebruikers_dataeigenaar_beperkt,
-    name: "Gebruikers huidige organisatie (dataeigenaar)",
+    name: "Gebruikers huidige organisatie (data-eigenaar)",
     description: [
       "Instellen overige gegevens van een gebruiker"
     ].join(",")

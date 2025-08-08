@@ -176,3 +176,14 @@ export async function updateSecurityProfile(session: any, userId: string): Promi
     return { session, error: "Fout bij het bijwerken van beveiligingsprofiel" };
   }
 } 
+
+export const getOrganisationTypeByID = async (contactID: string)=> {
+  return (await prisma.contacts.findFirst({
+    where: {
+      ID: contactID,
+    },
+    select: {
+      ItemType: true,
+    },
+  }))?.ItemType || null;
+}

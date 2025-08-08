@@ -1,6 +1,7 @@
 import { prisma } from "~/server/db";
 import { VSUserRoleValuesNew, type VSUserWithRolesNew } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
+import { getOrganisationTypeByID } from "./database-tools";
 
 export const getSecurityUserNew = async (id: string, activeContactID: string): Promise<VSUserWithRolesNew|false> => {
   const data = await prisma.security_users.findFirst({
@@ -35,14 +36,7 @@ export const getSecurityUserNew = async (id: string, activeContactID: string): P
     }
   })
 
-  const activeContactItemType = (await prisma.contacts.findFirst({
-    where: {
-      ID: activeContactID,
-    },
-    select: {
-      ItemType: true,
-    },
-  }))?.ItemType || null;
+  const activeContactItemType = await getOrganisationTypeByID(activeContactID);
 
   if(!data) {
     console.error("Security user not found:", id);

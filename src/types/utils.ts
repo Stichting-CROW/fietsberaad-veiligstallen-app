@@ -55,17 +55,6 @@ export const initAllTopics = (value: VSCRUDRight) => {
     return result;
 }
 
-export const changeTopics = (
-    currentTopics: Record<VSSecurityTopic, VSCRUDRight>,
-    changeTopics: VSSecurityTopic[],
-    newValue: VSCRUDRight
-): Record<VSSecurityTopic, VSCRUDRight> => {
-    return changeTopics.reduce<Record<VSSecurityTopic, VSCRUDRight>>((acc, topic) => {
-        acc[topic] = { ...newValue };
-        return acc;
-    }, currentTopics);
-}
-
 export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: VSSecurityTopic): boolean => {
     if(!profile) {
         console.log("### profile is undefined");
