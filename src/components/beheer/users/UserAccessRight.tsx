@@ -2,13 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { type VSUserRoleRightsResult } from '~/pages/api/protected/security/rolerights/[newRoleID]'
 import { type VSUserRoleValuesNew } from '~/types/users';
 import { type VSUserRoleRights } from '~/utils/securitycontext';
+import { SECURITY_TOPIC_INFO } from '~/types/securityprofile';
 
 interface UserAccessRightProps {
   newRoleID: VSUserRoleValuesNew;
+  showRoleInfo: boolean;
 }
 
 export const UserAccessRight: React.FC<UserAccessRightProps> = ({
   newRoleID,
+  showRoleInfo = false,
 }) => {
   const [rights, setRights] = useState<VSUserRoleRights | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -86,11 +89,18 @@ export const UserAccessRight: React.FC<UserAccessRightProps> = ({
           </div>
 
           <div className="flex-1 overflow-x-auto">
-            <table className="w-full">
+            <table className="table-fixed w-full">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Onderdeel</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 w-fit">Onderdeel</th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">
+                    <div>Rechten</div>
+                  </th>
+                  {showRoleInfo && <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 w-auto">
+                    <div>Beschrijving</div>
+                  </th>}
+
+                  {/* <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">
                     <div>Toevoegen</div>
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">
@@ -101,7 +111,7 @@ export const UserAccessRight: React.FC<UserAccessRightProps> = ({
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500">
                     <div>Verwijderen</div>
-                  </th>
+                  </th> */}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -109,10 +119,26 @@ export const UserAccessRight: React.FC<UserAccessRightProps> = ({
                   const hasRights = rights.create || rights.read || rights.update || rights.delete;
                   if (!showAllAccessRights && !hasRights) return null;
 
+                  const topicInfo = SECURITY_TOPIC_INFO.find(t => t.topic === topic);
+
+                  console.log("topicInfo", topicInfo);
+
                   return (
                     <tr key={topic} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-xs font-medium text-gray-900">{topic}</td>
+                      <td className="px-4 py-2 text-xs font-medium text-gray-900 text-left w-fit">{topicInfo?.name || ""}</td>
                       <td className="px-2 py-2 text-center">
+                        <span className={`text-xs ${hasRights ? 'text-green-600' : 'text-red-600'}`}>
+                          {rights.create ? '✓' : '✗'}
+                        </span>
+                      </td>
+                      {showRoleInfo && <td className="px-4 py-2 text-xs font-medium text-gray-900 text-left w-auto">
+                        <div className="flex flex-col">
+                            {(topicInfo?.description || "").split(",").map((line, index) => (
+                              <span key={index}>{line}</span>
+                            ))}
+                        </div>
+                      </td>}
+                      {/* <td className="px-2 py-2 text-center">
                         <span className={`text-xs ${rights.create ? 'text-green-600' : 'text-red-600'}`}>
                           {rights.create ? '✓' : '✗'}
                         </span>
@@ -131,7 +157,7 @@ export const UserAccessRight: React.FC<UserAccessRightProps> = ({
                         <span className={`text-xs ${rights.delete ? 'text-green-600' : 'text-red-600'}`}>
                           {rights.delete ? '✓' : '✗'}
                         </span>
-                      </td>
+                      </td> */}
                     </tr>
                   );
                 })}
