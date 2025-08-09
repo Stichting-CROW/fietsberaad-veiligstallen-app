@@ -170,7 +170,7 @@ const ParkingView = ({
                 Bewerken
               </Button>
             ) : null}
-            {isLoggedIn && onToggleStatus !== undefined && parkingdata.Status && ["0", "1"].includes(parkingdata.Status) ? (
+            {isLoggedIn && onToggleStatus !== undefined && ["0", "1"].includes(parkingdata.Status || "") ? (
               <Button
                 key="b-2"
                 className="mt-3 ml-3 sm:mt-0 hidden sm:block"
