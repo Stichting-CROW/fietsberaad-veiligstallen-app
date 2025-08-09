@@ -1187,7 +1187,7 @@ const ParkingEdit = ({
     const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
     
     // Create options for the dropdown
-    let exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
+    const exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
     exploitanten.forEach(exp => {
       exploitantOptions.push({
         label: exp.CompanyName || 'Onbekende exploitant',

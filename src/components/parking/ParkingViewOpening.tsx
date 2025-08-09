@@ -1,9 +1,7 @@
 import React from "react";
 import { formatOpeningTimes, hasCustomOpeningTimesComingWeek } from "~/utils/parkings-openclose";
 import moment from "moment";
-import { ParkingDetailsType, UitzonderingOpeningstijden } from "~/types/parking";
-
-import { type ParkingDetailsType, UitzonderingOpeningstijden } from "~/types/parking";
+import type { ParkingDetailsType } from "~/types/parking";
 
 import SectionBlock from "~/components/SectionBlock";
 import HorizontalDivider from "~/components/HorizontalDivider";
@@ -47,7 +45,7 @@ const ParkingViewOpening = ({ parkingdata }: { parkingdata: ParkingDetailsType }
           <div className="col-span-2">
             <div>
               <br />
-              <div dangerouslySetInnerHTML={{ __html: parkingdata.Openingstijden }} />
+              <div dangerouslySetInnerHTML={{ __html: parkingdata.Openingstijden || "" }} />
             </div>
           </div>
         )}

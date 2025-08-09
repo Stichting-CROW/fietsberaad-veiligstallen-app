@@ -8,7 +8,7 @@ import { type VSservice } from "~/types/services";
 
 
 const ParkingViewServices = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
-  const [allServices, setAllServices] = React.useState<ServiceType[]>([]);
+  const [allServices, setAllServices] = React.useState<VSservice[]>([]);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {

@@ -24,7 +24,7 @@ export default async function handle(
     },
     StallingsID: { not: null },
   };
-  if ('error' in validationResult === false) {
+  if (!('error' in validationResult)) {
     const { GemeenteID } = req.query;
     const { sites } = validationResult;
     whereClause.SiteID = { in: GemeenteID ? [GemeenteID as string] : sites };
