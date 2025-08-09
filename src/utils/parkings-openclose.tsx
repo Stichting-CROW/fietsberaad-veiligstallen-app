@@ -30,7 +30,7 @@ export type openingTodayType = {
 }
 
 // Get manually added exceptions
-const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopeningstijden: UitzonderingenOpeningstijden) => {
+const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopeningstijden: UitzonderingenOpeningstijden | null) => {
   if (!uitzonderingenopeningstijden) {
     return [null, null];
   }
@@ -77,7 +77,7 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
 
   // handle exceptions
   let result = undefined;
-  if (getExceptionTypes().includes(parkingdata.Type)) {
+  if (getExceptionTypes().includes((parkingdata.Type||""))) {
     result = { isOpen: undefined, message: "" }; // no opening times
   } else if (null === opentime || null === closetime) {
     result = { isOpen: undefined, message: "" }; // undefined
@@ -225,7 +225,7 @@ export const formatOpeningTimes = (
 
   let value = `${hoursopen}:${minutesopen} - ${hoursclose}:${minutesclose}`;
 
-  if (getExceptionTypes().includes(parkingdata.Type)) {
+  if (getExceptionTypes().includes(parkingdata.Type||"")) {
     return null; // no opening times
   } else if (null === opentime || null === closetime) {
     value = "Onbekend"; // onbekend
