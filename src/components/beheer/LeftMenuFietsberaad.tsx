@@ -21,29 +21,10 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
   onSelect,
 }) => {
   // Do only show reports? Temporary for testing, 2025-05
-  const doOnlyShowReports = (): boolean => {
-    return !['veiligstallen.work', 'localhost:3000'].includes(window?.location?.host);
-  }
-
-  // for now, only show the temporary production menu in production
-  // const isProduction = process.env.NODE_ENV === 'production';
-  // if(isProduction) {
-  //   return (
-  //     <ul id="leftMenu" className="shadow w-64 min-h-screen p-4">
-  //       {formatLi(VSMenuTopic.Report, 'Rapportages', true)}
-  //     </ul>
-  //   )
-  // }
-
-  const isAdmin = userHasRole(securityProfile, VSUserRoleValuesNew.RootAdmin) || userHasRole(securityProfile, VSUserRoleValuesNew.Admin);
 
   const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
-  const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
-  const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
-  const hasInstellingenSiteContent = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content);
-
-  const hasDatabaseRight = hasFietsberaadSuperadmin;
+  const hasAcceptatieOntwikkeling = userHasRight(securityProfile, VSSecurityTopic.acceptatie_ontwikkeling);
 
   return (
     <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4">
@@ -106,7 +87,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
             onSelect={onSelect} />
         }
 
-        { hasFietsberaadSuperadmin && 
+        { hasAcceptatieOntwikkeling && 
           <LeftMenuItem 
             component={false} 
             title={'Ontwikkeling'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
