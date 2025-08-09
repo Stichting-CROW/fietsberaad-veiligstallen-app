@@ -24,10 +24,15 @@ export default async function handle(
     },
     StallingsID: { not: null },
   };
+
+
   if (!('error' in validationResult)) {
     const { GemeenteID } = req.query;
     const { sites } = validationResult;
+    // authenticated user: return stallingen for the user's sites or for a specific GemeenteID when provided
     whereClause.SiteID = { in: GemeenteID ? [GemeenteID as string] : sites };
+  } else {
+    // public access: return all fietsenstallingen
   }
 
   switch (req.method) {
