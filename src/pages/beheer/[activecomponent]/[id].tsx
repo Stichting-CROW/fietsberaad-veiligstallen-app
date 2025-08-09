@@ -18,7 +18,7 @@ import ApisComponent from '~/components/beheer/apis';
 import ArticlesComponent from '~/components/beheer/articles';
 // import BarcodereeksenComponent from '~/components/beheer/barcodereeksen';
 import GemeenteComponent from '~/components/beheer/contacts/gemeente';
-import ExploitantComponent from '~/components/beheer/contacts/expoitant';
+import ExploitantComponent from '~/components/beheer/contacts/exploitant';
 import DataproviderComponent from '~/components/beheer/contacts/dataprovider';
 import DocumentsComponent from '~/components/beheer/documenten';
 import ExportComponent from '~/components/beheer/exports';

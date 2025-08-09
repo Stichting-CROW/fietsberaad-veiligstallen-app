@@ -56,7 +56,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
   },
   {
     topic: VSSecurityTopic.exploitant_superadmin,
-    name: "Beheer van exploitant gebruikers door expoitant",
+    name: "Beheer van exploitant gebruikers door exploitant",
     description: [
       "koppelen exploitantgebruiker aan data-eigenaar",
       "Instellen rol exploitantgebruiker bij data-eigenaar"
