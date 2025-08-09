@@ -88,7 +88,7 @@ export default async function handle(
           });
 
           if(duplicate) {
-            res.status(200).json({valid: false, message: `${data[field.field]} - ${field.message}`});
+            res.status(200).json({valid: false, message: field.message});
             return;
           }      
         }
