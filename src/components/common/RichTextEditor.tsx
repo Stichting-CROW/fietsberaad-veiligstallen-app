@@ -7,16 +7,17 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
 import { ListItemNode, ListNode, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list';
 import { CodeHighlightNode, CodeNode } from '@lexical/code';
-import { AutoLinkNode, LinkNode } from '@lexical/link';
+import { AutoLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link';
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin';
 import { TRANSFORMERS } from '@lexical/markdown';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getRoot, $createParagraphNode, $createTextNode, FORMAT_TEXT_COMMAND, LexicalEditor } from 'lexical';
+import { $getRoot, type LexicalEditor, $getSelection, $isRangeSelection, createCommand } from 'lexical';
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
 import { useEffect } from 'react';
 import styles from './RichTextEditor.module.css';
+import Toolbar from './Toolbar';
 
 interface RichTextEditorProps {
   value: string;
@@ -25,38 +26,39 @@ interface RichTextEditorProps {
   className?: string;
 }
 
-const Toolbar = () => {
-  const [editor] = useLexicalComposerContext();
-
-  return (
-    <div className={styles.toolbar}>
-      <button
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold')}
-        className={styles.toolbarItem}
-        type="button"
-      >
-        <strong>B</strong>
-      </button>
-      <button
-        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic')}
-        className={styles.toolbarItem}
-        type="button"
-      >
-        <em>I</em>
-      </button>
-      <button
-        onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
-        className={styles.toolbarItem}
-        type="button"
-      >
-        • List
-      </button>
-    </div>
-  );
-};
-
 const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
   return <div className={styles.editorErrorBoundary}>{children}</div>;
+};
+
+const LINK_COMMAND = createCommand<string>('LINK');
+
+// Plugin to handle link creation
+const LinkCommandPlugin = () => {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return editor.registerCommand(
+      LINK_COMMAND,
+      (payload) => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const url = payload;
+          if (url) {
+            // Ensure URL has protocol
+            const urlWithProtocol = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')
+              ? url 
+              : `https://${url}`;
+            
+            editor.dispatchCommand(TOGGLE_LINK_COMMAND, urlWithProtocol);
+          }
+        }
+        return true;
+      },
+      0
+    );
+  }, [editor]);
+
+  return null;
 };
 
 const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -107,7 +109,15 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <HistoryPlugin />
           <AutoFocusPlugin />
           <ListPlugin />
-          <LinkPlugin />
+          <LinkPlugin validateUrl={(url) => {
+            try {
+              new URL(url);
+              return true;
+            } catch {
+              return false;
+            }
+          }} />
+          <LinkCommandPlugin />
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <OnChangePlugin onChange={onChange} />
         </div>

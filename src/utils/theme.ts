@@ -1,4 +1,4 @@
-export const getParkingColor = (parkingType: string) => {
+export const getParkingColor = (parkingType: string | null) => {
   // console.log(parkingType);
 
   let color;

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
 import { articleSchema, articleCreateSchema, getDefaultNewArticle } from "~/types/articles";
 import { type VSArticle, articleSelect } from "~/types/articles";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type ArticleResponse = {
   data?: VSArticle;
@@ -17,9 +19,37 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
+  const id = req.query.id as string;
+
+  // For GET requests, allow public access
+  if (req.method === "GET") {
+    if (id === "new") {
+      // add timestamp to the title
+      const defaultRecord = getDefaultNewArticle('Testpagina ' + new Date().toISOString());
+      res.status(200).json({data: defaultRecord});
+      return;
+    }
+
+    const article = (await prisma.articles.findFirst({
+      where: {
+        ID: id,
+      },
+      select: articleSelect
+    })) as unknown as VSArticle;
+    res.status(200).json({data: article});
+    return;
+  }
+
+  // For POST/PUT/DELETE, require authentication and specific rights
   if (!session?.user) {
     console.error("Unauthorized - no session found");
     res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+    return;
+  }
+
+  const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+  if (!hasInstellingenSiteContent) {
+    res.status(403).json({ error: "Access denied - insufficient permissions" });
     return;
   }
 
@@ -31,8 +61,6 @@ export default async function handle(
   }
 
   const { sites, userId } = validateUserSessionResult;
-
-  const id = req.query.id as string;
   // if (!sites.includes(id) && id !== "new") {
   //   console.error("Unauthorized - no access to this article", id);
   //   res.status(403).json({ error: "Geen toegang tot dit artikel" });
@@ -40,23 +68,6 @@ export default async function handle(
   // }
 
   switch (req.method) {
-    case "GET": {
-      if (id === "new") {
-        // add timestamp to the title
-        const defaultRecord = getDefaultNewArticle('Testpagina ' + new Date().toISOString());
-        res.status(200).json({data: defaultRecord});
-        return;
-      }
-
-      const article = (await prisma.articles.findFirst({
-        where: {
-          ID: id,
-        },
-        select: articleSelect
-      })) as unknown as VSArticle;
-      res.status(200).json({data: article});
-      break;
-    }
     case "POST": {
       try {
 
@@ -108,31 +119,8 @@ export default async function handle(
           return;
         }
 
-        // add a record to the security_users_sites table that links the new article to the user's sites
-        const newLink = await prisma.security_users_sites.create({
-          data: {
-            UserID: userId,
-            SiteID: newArticle.ID,
-            IsContact: false
-          }
-        });
-        if(!newLink) {
-          console.error("Error creating link to new article:", newArticle.ID);
-          res.status(500).json({error: "Error creating link to new article"});
-          return;
-        }
-
-        // Update security profile
-        const { session: updatedSession, error: profileError } = await updateSecurityProfile(session, userId);
-        if (profileError) {
-          console.error("Error updating security profile:", profileError);
-          res.status(500).json({error: profileError});
-          return;
-        }
-
         res.status(201).json({ 
-          data: newArticle,
-          session: updatedSession
+          data: newArticle
         });
       } catch (e) {
         console.error("Error creating article:", e);

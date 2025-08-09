@@ -10,7 +10,7 @@ import {
   setSelectedParkingId,
 } from "~/store/mapSlice";
 
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 
 // Import utils
 // import { getParkingColor } from "~/utils/theme";
@@ -76,7 +76,7 @@ function ParkingOnTheMap({ parking }) {
     if (stateMap) return;
 
     // Get coords from parking variable
-    let coords = parking.Coordinaten
+    const coords = parking.Coordinaten
       ? parking.Coordinaten.split(",").map((coord: any) => Number(coord))
       : null; // I.e.: 52.508011,5.473280;
 

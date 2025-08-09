@@ -1,5 +1,5 @@
-import { configureStore, ThunkAction, Action } from "@reduxjs/toolkit";
-import rootReducer, { RootState } from "./rootReducer";
+import { configureStore, type ThunkAction, type Action } from "@reduxjs/toolkit";
+import rootReducer, { type RootState } from "./rootReducer";
 import { createWrapper } from "next-redux-wrapper";
 
 const makeStore = () =>

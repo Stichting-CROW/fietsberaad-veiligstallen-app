@@ -1,12 +1,9 @@
-// @ts-nocheck
-
 import React, { useCallback, useEffect, useRef } from "react";
-import ReactDOM from "react-dom";
 
 // Import components
 import AppHeaderMobile from "~/components/AppHeaderMobile";
 import Modal from "~/components/Modal";
-export const displayInOverlay = (content: React.ReactNode, isSm: boolean = false, title: string = "", onClose: () => void) => {
+export const displayInOverlay = (content: React.ReactNode, isSm = false, title = "", onClose: () => void) => {
   if(isSm) {
     return (
       <Overlay title={title} onClose={onClose}>{ content }</Overlay>
@@ -36,7 +33,7 @@ interface OverlayProps {
 const Overlay: React.FC<OverlayProps> = ({
   onClose,
   children,
-  title,
+  title = '',
 }) => {
   const overlayWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -63,10 +60,7 @@ const Overlay: React.FC<OverlayProps> = ({
     };
   }, [backDropHandler]);
 
-  const handleCloseClick = (
-    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
-  ) => {
-    e.preventDefault();
+  const handleCloseClick = () => {
     if(onClose) onClose();
   };
 
@@ -84,7 +78,6 @@ const Overlay: React.FC<OverlayProps> = ({
           <div className="overlay min-h-full">
             {onClose ? <AppHeaderMobile
               title={title}
-              showCloseButton={true}
               handleCloseClick={handleCloseClick}
             /> : ''}
             <div className="overlay-body px-6 min-h-full">

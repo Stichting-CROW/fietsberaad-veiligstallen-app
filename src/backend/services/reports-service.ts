@@ -1,11 +1,11 @@
 import { getSQL as getTransactionsByPeriodSQL } from "~/backend/services/reports/transactionsByPeriod";
 import { getSQL as getBezettingsdataSQL } from "~/backend/services/reports/bezettingsdataByPeriod";
 import { getSQL as getStallingsduurSQL } from "~/backend/services/reports/stallingsduur";
-import { ReportParams, ReportType } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportParams, type ReportType } from "~/components/beheer/reports/ReportsFilter";
 import { getData } from "~/backend/services/reports/ReportFunctions";
 import {
-  AvailableDataDetailedResult,
-  AvailableDataPerStallingResult,
+  type AvailableDataDetailedResult,
+  type AvailableDataPerStallingResult,
   getSQLDetailed as getAvailableDataSQLDetailed,
   getSQLPerBikepark as getAvailableDataSQLPerBikepark
 } from "~/backend/services/reports/availableData";

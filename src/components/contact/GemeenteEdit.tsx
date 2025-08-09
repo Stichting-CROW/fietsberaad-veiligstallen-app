@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import { Tabs, Tab } from '@mui/material';
-// import ContactFietsenstallingen from './ContactFietsenstallingen';
-import type { fietsenstallingtypen } from '@prisma/client';
+import type { VSFietsenstallingType } from "~/types/parking";
 import FormInput from "~/components/Form/FormInput";
 import FormTimeInput from "~/components/Form/FormTimeInput";
 import ContactEditLogo from "~/components/contact/ContactEditLogo";
@@ -10,35 +9,39 @@ import SectionBlockEdit from "~/components/SectionBlock";
 import PageTitle from "~/components/PageTitle";
 import Button from '@mui/material/Button';
 
-import type { VSContactGemeente } from '~/types/contacts';
+import { type VSContactGemeente, VSContactItemType } from '~/types/contacts';
 import type { GemeenteValidateResponse } from '~/pages/api/protected/gemeenten/validate';
 
 // import ContactUsers from './ContactUsers';
 import FormSelect from '../Form/FormSelect';
 import { useGemeente } from '~/hooks/useGemeente';
 import { useUsers } from '~/hooks/useUsers';
+import { useModulesContacts } from '~/hooks/useModulesContacts';
 import { getDefaultNewGemeente } from '~/types/database';
 import { makeClientApiCall } from '~/utils/client/api-tools';
-import { GemeenteResponse } from '~/pages/api/protected/gemeenten/[id]';
+import { type GemeenteResponse } from '~/pages/api/protected/gemeenten/[id]';
+import { FormGroup, FormLabel, FormControlLabel, Checkbox } from '@mui/material';
+import { AVAILABLE_MODULES } from '~/types/modules';
 
 type GemeenteEditProps = {
     id: string;
-    fietsenstallingtypen: fietsenstallingtypen[]; 
+    fietsenstallingtypen: VSFietsenstallingType[]; 
     onClose?: (confirmClose: boolean) => void;
     onEditStalling: (stallingID: string | undefined) => void;
     onEditUser: (userID: string | undefined) => void;
     onSendPassword: (userID: string | undefined) => void;
 }
 
-const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Testgemeente " + new Date().toISOString());
+const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Nieuw " + new Date().toISOString());
 
 const GemeenteEdit = (props: GemeenteEditProps) => {
     const [selectedTab, setSelectedTab] = useState<string>("tab-algemeen");
     const [centerCoords, setCenterCoords] = React.useState<string | undefined>(undefined);
     const [isEditing, setIsEditing] = useState(!!props.onClose);
 
-    const { gemeente: activecontact, isLoading: isLoading, error: error } = useGemeente(props.id);
-    const { users } = useUsers();
+    const { gemeente: activecontact, isLoading: isLoading, error: error, reloadGemeente: reloadGemeente } = useGemeente(props.id);
+    const { modulesContacts, loading: modulesLoading, error: modulesError, createModulesContacts, deleteModulesContactsForContact } = useModulesContacts(props.id === "new" ? undefined : props.id);
+    const { users: contactpersons } = useUsers(props.id);
 
     type CurrentState = {
       CompanyName: string|null,
@@ -54,16 +57,20 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Tnv: string|null,
       Notes: string|null,
       DateRegistration: Date|null,
+      Modules: string,
+      selectedModules: string[]
     }
   
     const isNew = props.id === "new";
 
+    // const [contactpersons, setContactPersons] = useState<VSUsersForContact[]>([]);
     const [CompanyName, setCompanyName] = useState<string|null>(null);
     const [AlternativeCompanyName, setAlternativeCompanyName] = useState<string|null>(null);
     const [UrlName, setUrlName] = useState<string|null>(null);
     const [ZipID, setZipID] = useState<string|null>(null);
     const [Helpdesk, setHelpdesk] = useState<string|null>(null);
     const [DayBeginsAt, setDayBeginsAt] = useState<Date|null>(null);
+    const [selectedModules, setSelectedModules] = useState<string[]>([]);
     const [Coordinaten, setCoordinaten] = useState<string|null>(null);
     const [Zoom, setZoom] = useState<number>(13);
     const [Bankrekeningnr, setBankrekeningnr] = useState<string|null>(null);
@@ -90,10 +97,29 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Tnv: null,
       Notes: null,
       DateRegistration: null,
+      Modules: "",
+      selectedModules: [],
     });
+
+    useEffect(() => {
+      if (modulesContacts) {
+        const moduleIds = modulesContacts.map(mc => mc.ModuleID);
+        setSelectedModules(moduleIds);
+      }
+    }, [modulesContacts]);
+
+    // useEffect(() => {
+    //   const fetchUsers = async () => {
+    //     const response = await fetch(`/api/protected/gemeenten/${props.id}/contactpersons`);
+    //     const responsejson = await response.json() as unknown as VSUsersForContactResponse;
+    //     const contactpersons = responsejson.data.filter(user => ["rootadmin", "admin", "editor"].includes(user.NewRoleID));
+    //     setContactPersons(contactpersons); 
+    //   }
+
+    //   fetchUsers();
+    // }, [props.id]);
   
     useEffect(() => {
-  
         if (isNew) {
             // Use default values for new record
             const initial: CurrentState = {
@@ -110,6 +136,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 Tnv: DEFAULTGEMEENTE.Tnv,
                 Notes: DEFAULTGEMEENTE.Notes,
                 DateRegistration: DEFAULTGEMEENTE.DateRegistration,
+                Modules: "",
+                selectedModules: [],
             };
 
             setCompanyName(initial.CompanyName);
@@ -125,10 +153,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             setTnv(initial.Tnv);
             setNotes(initial.Notes);
             setDateRegistration(initial.DateRegistration);
+            setSelectedModules([]);
 
             setInitialData(initial);
         } else {
             if (activecontact) {
+                // Get current modules for this contact
+                const currentModules = modulesContacts
+                    .filter(mc => mc.SiteID === props.id)
+                    .map(mc => mc.ModuleID);
+
                 const initial = {
                     CompanyName: activecontact.CompanyName || initialData.CompanyName,
                     AlternativeCompanyName: activecontact.AlternativeCompanyName || initialData.AlternativeCompanyName,
@@ -143,6 +177,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     Tnv: activecontact.Tnv || initialData.Tnv,
                     Notes: activecontact.Notes || initialData.Notes,
                     DateRegistration: activecontact.DateRegistration || initialData.DateRegistration,
+                    Modules: "",
+                    selectedModules: currentModules,
                 };
         
                 setCompanyName(initial.CompanyName);
@@ -162,11 +198,11 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setInitialData(initial);
             }
         }
-    }, [props.id, activecontact, isNew]);
+    }, [props.id, activecontact, isNew, modulesContacts]);
 
     const isDataChanged = () => {
       if (isNew) {
-        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!Coordinaten || !!Zoom;
+        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!Coordinaten || !!Zoom || selectedModules.length > 0;
       }
 
       return (
@@ -182,8 +218,40 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           PlaatsBank !== initialData.PlaatsBank ||
           Tnv !== initialData.Tnv ||
           Notes !== initialData.Notes ||
-          DateRegistration !== initialData.DateRegistration
+          DateRegistration !== initialData.DateRegistration ||
+          selectedModules.length !== initialData.selectedModules.length ||
+          selectedModules.some(module => !initialData.selectedModules.includes(module)) ||
+          initialData.selectedModules.some(module => !selectedModules.includes(module))
       );
+    };
+
+    const handleModuleChange = (moduleId: string, checked: boolean) => {
+      if (checked) {
+        setSelectedModules(prev => [...prev, moduleId]);
+      } else {
+        setSelectedModules(prev => prev.filter(id => id !== moduleId));
+      }
+    };
+
+    const saveModules = async () => {
+      if (!props.id || props.id === "new") return;
+
+      try {
+        // First delete all existing modules for this contact
+        await deleteModulesContactsForContact(props.id);
+
+        // Then create the new selected modules
+        if (selectedModules.length > 0) {
+          const modulesData = selectedModules.map(moduleId => ({
+            ModuleID: moduleId,
+            SiteID: props.id
+          }));
+          await createModulesContacts(modulesData);
+        }
+      } catch (error) {
+        console.error('Error saving modules:', error);
+        setErrorMessage('Fout bij het opslaan van modules: ' + (error instanceof Error ? error.message : String(error)));
+      }
     };
     
       const handleUpdate = async () => {
@@ -197,7 +265,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         try {
           const data: Partial<VSContactGemeente> = {
             ID:id,
-            ItemType: "organizations",
+            ItemType: VSContactItemType.Organizations,
             CompanyName: CompanyName || '',
             AlternativeCompanyName: AlternativeCompanyName || '',
             UrlName: UrlName || '',
@@ -234,6 +302,10 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           }
     
           if (!response.result?.error) {
+            if (!isNew && props.id) {
+              await saveModules();
+            }
+            
             if (props.onClose) {
               props.onClose(false);
             }
@@ -261,6 +333,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setTnv(null);
           setNotes(null);
           setDateRegistration(null);
+          setSelectedModules([]);
         } else {
           setCompanyName(initialData.CompanyName);
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
@@ -275,6 +348,10 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setTnv(initialData.Tnv);
           setNotes(initialData.Notes);
           setDateRegistration(initialData.DateRegistration);
+          if (modulesContacts) {
+            const moduleIds = modulesContacts.map(mc => mc.ModuleID);
+            setSelectedModules(moduleIds);
+          }
         }
       };
     
@@ -383,16 +460,6 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         );
     };
 
-    const userlist: { label: string, value: string | undefined }[] = [
-        { label: "Geen", value: undefined },
-        ...users
-          .filter(user => user.sites.some((site) => site.SiteID === activecontact?.ID))
-          .map(user => ({ 
-              label: (user.DisplayName || "") + " (" + (user.UserName || "") + ")", 
-              value: user.UserID || "" 
-          }))
-    ];
-
     return (
       <div style={{ minHeight: "65vh" }}>
       <div
@@ -406,7 +473,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             <Tabs value={selectedTab} onChange={handleChange} aria-label="Edit contact">
               <Tab label="Algemeen" value="tab-algemeen" />
               <Tab label="Logos" value="tab-logos" />
-              <Tab label="Coordinaten" value="tab-coordinaten" />
+              {/* <Tab label="Coordinaten" value="tab-coordinaten" /> */}
             </Tabs>
             {selectedTab === "tab-algemeen" && (
               <div className="mt-4 w-full">
@@ -423,13 +490,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     disabled={!isEditing}
                   />
                   <br />
-                  { users.length > 0 ?
+                  { contactpersons.length > 0 ?
                       <FormSelect 
                         label="Contactpersoon"
                         value={contactID || ''} 
                         onChange={(e) => setContactID(e.target.value || null)} 
                         required
-                        options={userlist}
+                        options={
+                          contactpersons
+                            .filter(user => user.DisplayName !== null && user.DisplayName !== "")
+                            .map(user => ({ label: user.DisplayName || "", value: user.UserID }))}
                         disabled={!isEditing}
                       /> 
                       : 
@@ -470,6 +540,23 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     onChange={(newDate: Date|null) => setDayBeginsAt(newDate)} 
                     disabled={!isEditing}
                   />
+                  <br />
+                  <FormGroup>
+                    <FormLabel>Modules</FormLabel>
+                    {AVAILABLE_MODULES.map((module) => (
+                      <FormControlLabel
+                        key={module.ID}
+                        control={
+                          <Checkbox 
+                            checked={selectedModules.includes(module.ID)}
+                            onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
+                            disabled={!isEditing}
+                          />
+                        }
+                        label={module.Name}
+                      />
+                    ))}
+                  </FormGroup>
               </div>
             )}
             {selectedTab === "tab-coordinaten" && (
@@ -481,9 +568,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               <div className="border px-4 py-2 space-y-4">
                 <SectionBlockEdit heading="Logo">
                 { isNew ? (
-                    <ContactEditLogo contactdata={DEFAULTGEMEENTE} isLogo2={false} />
+                    <ContactEditLogo ID={DEFAULTGEMEENTE.ID} CompanyLogo={DEFAULTGEMEENTE.CompanyLogo} CompanyLogo2={DEFAULTGEMEENTE.CompanyLogo2} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : activecontact ? (
-                    <ContactEditLogo contactdata={activecontact} isLogo2={false} />
+                    <ContactEditLogo ID={activecontact.ID} CompanyLogo={activecontact.CompanyLogo} CompanyLogo2={activecontact.CompanyLogo2} isLogo2={false} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : (
                     <div>
                         <p>Geen contact geselecteerd</p>
@@ -493,9 +580,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
                 <SectionBlockEdit heading="Logo 2 (optioneel)">
                 { isNew ? (
-                    <ContactEditLogo contactdata={DEFAULTGEMEENTE} isLogo2={true} />
+                    <ContactEditLogo ID={DEFAULTGEMEENTE.ID} CompanyLogo={DEFAULTGEMEENTE.CompanyLogo} CompanyLogo2={DEFAULTGEMEENTE.CompanyLogo2} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : activecontact ? (
-                    <ContactEditLogo contactdata={activecontact} isLogo2={true} />
+                    <ContactEditLogo ID={activecontact.ID} CompanyLogo={activecontact.CompanyLogo} CompanyLogo2={activecontact.CompanyLogo2} isLogo2={true} onUpdateAfbeelding={() => reloadGemeente()} />
                 ) : (
                     <div>
                         <p>Geen contact geselecteerd</p>

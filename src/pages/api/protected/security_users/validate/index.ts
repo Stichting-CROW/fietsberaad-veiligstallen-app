@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSUserWithRolesNew, securityUserSelectNew } from "~/types/users";
+import { type z } from "zod";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
 import { securityuserSchema } from "~/types/database";
+import { type securityUserCreateSchema, type securityUserUpdateSchema } from "../[id]/index";
+import { getSecurityUserNew } from "~/utils/server/security-users-tools";
 
 export type SecurityUserValidateResponse = {
   valid: boolean;
@@ -30,7 +32,7 @@ export default async function handle(
   }
 
   // get id from the query params and the data from the body
-  const data = req.body as VSUserWithRolesNew | undefined;
+  const data = req.body as z.infer<typeof securityUserCreateSchema> | z.infer<typeof securityUserUpdateSchema> | undefined;
   if(!data) {
     console.error("Geen data opgegeven");
     res.status(400).json({valid: false, message: "Geen data opgegeven"});
@@ -43,10 +45,18 @@ export default async function handle(
     return;
   }
 
-  if (!validateUserSessionResult.sites.includes(data.UserID) && data.UserID !== "new") {
-    console.error("Geen toegang tot deze organisatie", data.UserID);
-    res.status(403).json({ valid: false, error: "Geen toegang tot deze organisatie" });
-    return;
+  if(data.UserID !== "new") {
+    // check if the logged in user can manage this user
+    const allowed = 
+      data.SiteID!==undefined && 
+      (data.SiteID===null && validateUserSessionResult.activeContactId==="1") ||  // internal user veiligstallen
+      validateUserSessionResult.activeContactId === data.SiteID || // own organization
+      data.SiteID !== null && data.SiteID !== undefined && validateUserSessionResult.sites.includes(data.SiteID ); // managed organization
+    if (!allowed) {
+      console.error("Geen toegang tot deze organisatie", data.SiteID, validateUserSessionResult.activeContactId);
+      res.status(403).json({ valid: false, error: "Geen toegang tot deze organisatie" });
+      return;
+    }
   }
 
   switch (req.method) {
@@ -69,12 +79,7 @@ export default async function handle(
         {field: "UserName" as const, message: "Er bestaat al een gebruiker met deze email"},
       ];
 
-      const oldValues = !isNew ? await prisma.security_users.findUnique({
-        where: {
-          UserID: data.UserID,
-        },
-          select: securityUserSelectNew
-      }) : undefined;
+      const oldValues = !isNew ? await getSecurityUserNew(data.UserID, validateUserSessionResult.activeContactId) : undefined;
 
       for(const field of uniqueFields) {
         const isChanged = oldValues && (oldValues[field.field] !== data[field.field]);

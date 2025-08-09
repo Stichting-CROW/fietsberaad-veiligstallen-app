@@ -1,17 +1,19 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { AppState } from "./store";
 import { HYDRATE } from "next-redux-wrapper";
-import { VSContactGemeente } from "~/types/contacts";
+import { type VSContactGemeente } from "~/types/contacts";
+
 // Type for our state
 export interface MapState {
-  extent: Number[];
-  zoom: Number | undefined;
+  extent: number[];
+  zoom: number | undefined;
   selectedParkingId: string | undefined; // selected on map / in list
   activeParkingId: string | undefined;  // visible in modal
   activeMunicipalityInfo: VSContactGemeente | undefined;
   initialLatLng: string[] | undefined;
   currentLatLng: string[] | undefined;
   visibleFeatures: string[];
+  visibleFeaturesHash: string;
 }
 
 // Initial state
@@ -19,6 +21,7 @@ const initialState: MapState = {
   extent: [],
   zoom: undefined,
   visibleFeatures: [],
+  visibleFeaturesHash: "",
   selectedParkingId: undefined,
   activeParkingId: undefined,
   activeMunicipalityInfo: undefined,
@@ -46,6 +49,7 @@ export const mapSlice = createSlice({
     // Action to set visible features
     setMapVisibleFeatures(state, action) {
       state.visibleFeatures = action.payload;
+      state.visibleFeaturesHash = action.payload.join(",");
     },
     // Set selectedParkingId
     setSelectedParkingId(state, action) {

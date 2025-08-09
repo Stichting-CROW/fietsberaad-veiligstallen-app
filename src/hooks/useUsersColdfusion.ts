@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { VSUserWithRoles } from '~/types/users';
-import { SecurityUsersColdfusionResponse } from '~/pages/api/protected/security_users/coldfusion';
+import { type VSUserWithRoles } from '~/types/users-coldfusion';
+import { type SecurityUsersColdfusionResponse } from '~/pages/api/protected/security_users/coldfusion';
 
 /*
   This hook is used to fetch users with the data from the old security model as used in the ols Veiligstallen dashboard
@@ -22,7 +22,7 @@ export const useUsersColdfusion = () => {
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
-      const data: SecurityUsersColdfusionResponse = await response.json();
+      const data = await response.json() as SecurityUsersColdfusionResponse;
       if (data.data) {
         setUsers(data.data);
       } else {
@@ -38,7 +38,9 @@ export const useUsersColdfusion = () => {
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers().catch(err => {
+      console.error("Error fetching users", err);
+    });
   }, [version]);
 
   return {

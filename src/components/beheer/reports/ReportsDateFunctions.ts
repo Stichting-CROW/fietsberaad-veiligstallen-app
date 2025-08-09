@@ -1,5 +1,5 @@
 import moment, { utc } from "moment";
-import { ReportState } from "./ReportsFilter";
+import { type ReportState } from "./ReportsFilter";
 
 export const getWeekNumber = (date: Date): number => {
   const start = new Date(date.getFullYear(), 0, 1);
@@ -179,11 +179,11 @@ export const getAdjustedStartEndDates = (
   dayBeginsAt: string | undefined
 ) => {
   // Calculate diff to apply because of municipality specific start time
-  let dayBeginsAtDateTime: string = moment(dayBeginsAt ? dayBeginsAt : new Date(0, 0, 0)).utc().format('YYYY-MM-DD HH:mm');
+  const dayBeginsAtDateTime: string = moment(dayBeginsAt ? dayBeginsAt : new Date(0, 0, 0)).utc().format('YYYY-MM-DD HH:mm');
   const timeIntervalInMinutes = new Date(dayBeginsAtDateTime).getHours() * 60 + new Date(dayBeginsAtDateTime).getMinutes();
 
-  let adjustedStartDate = undefined !== startDT ? moment(startDT).add(timeIntervalInMinutes, 'minutes') : undefined;
-  let adjustedEndDate = undefined !== endDT ? moment(endDT).add(timeIntervalInMinutes, 'minutes') : undefined;
+  const adjustedStartDate = undefined !== startDT ? moment(startDT).add(timeIntervalInMinutes, 'minutes') : undefined;
+  const adjustedEndDate = undefined !== endDT ? moment(endDT).add(timeIntervalInMinutes, 'minutes') : undefined;
 
   return { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate };
 }
@@ -213,6 +213,6 @@ export const getStartEndDT = (state: ReportState, firstDate: Date, lastDate: Dat
     default: {
       console.warn("Unhandled reportUnit", state.reportRangeUnit);
       return { startDT: new Date(), endDT: new Date() };
-    };
+    }
   }
 }

@@ -1,8 +1,8 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../auth/[...nextauth]";
 import { VSUserRoleValuesNew } from "~/types/users";
-import { getRoleRights, VSUserRoleRights } from "~/utils/securitycontext";
+import { getRoleRights, type VSUserRoleRights } from "~/utils/securitycontext";
 
 export interface VSUserRoleRightsResult {
     rights: VSUserRoleRights;
@@ -36,7 +36,9 @@ export default async function handler(
             return res.status(400).json({ error: 'Invalid role ID' });
         }
 
-        const rights = getRoleRights(newRoleID as VSUserRoleValuesNew);
+        const contactItemType = session.user.organizationID === "1" ? "admin" : "exploitant";
+
+        const rights = getRoleRights(newRoleID as VSUserRoleValuesNew, contactItemType);
         return res.status(200).json({ rights });
     } catch (error) {
         console.error('Error fetching user roles:', error);

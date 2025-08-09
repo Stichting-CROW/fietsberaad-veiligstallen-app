@@ -1,5 +1,5 @@
 import { prisma } from "~/server/db";
-import { CacheParams, CacheStatus } from "~/backend/services/database-service";
+import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
 import moment from "moment";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
@@ -16,7 +16,7 @@ export const getBezettingCacheStatus = async (params: CacheParams) => {
   const sqldetecttable = `SELECT COUNT(*) As count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name= 'bezettingsdata_day_hour_cache'`;
 
   let tableExists = false;
-  let status: CacheStatus | false = {
+  const status: CacheStatus | false = {
     status: 'missing',
     indexstatus: 'missing',
     size: undefined,

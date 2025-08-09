@@ -1,14 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
-import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
+import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { fietsenstallingSchema, getDefaultNewFietsenstalling } from "~/types/fietsenstallingen";
-import { type VSFietsenstalling, fietsenstallingSelect, fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
+import { fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
+import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type FietsenstallingResponse = {
-  data?: VSFietsenstalling;
+  data?: ParkingDetailsType;
   error?: string;
 };
 
@@ -17,9 +21,38 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
+  const id = req.query.id as string;
+  
+  // For GET requests with non-new IDs, allow access without authentication
+  if (req.method === "GET" && id !== "new") {
+    const fietsenstalling = await prisma.fietsenstallingen.findFirst({
+      where: { ID: id },
+      select: selectParkingDetailsType
+    });
+    res.status(200).json({data: fietsenstalling});
+    return;
+  }
+  
+  // For all other operations, require authentication
   if (!session?.user) {
     console.error("Unauthorized - no session found");
     res.status(401).json({error: "Unauthorized - no session found"}); // Unauthorized
+    return;
+  }
+
+  // Check user rights
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  
+  // For POST and DELETE, require admin rights
+  if ((req.method === "POST" || req.method === "DELETE") && !hasFietsenstallingenAdmin) {
+    res.status(403).json({ error: "Access denied - admin rights required for this operation" });
+    return;
+  }
+  
+  // For PUT, require either admin or beperkt rights
+  if (req.method === "PUT" && !hasFietsenstallingenAdmin && !hasFietsenstallingenBeperkt) {
+    res.status(403).json({ error: "Access denied - insufficient permissions" });
     return;
   }
 
@@ -32,7 +65,6 @@ export default async function handle(
 
   const { sites, userId } = validateUserSessionResult;
 
-  const id = req.query.id as string;
   // user has access to this stalling if the SiteID for this site is 
   // in the sites array 
   if(id!=='new') {
@@ -58,12 +90,11 @@ export default async function handle(
         return;
       }
 
-      const fietsenstalling = (await prisma.fietsenstallingen.findFirst({
-        where: {
-          ID: id,
-        },
-        select: fietsenstallingSelect
-      })) as unknown as VSFietsenstalling;
+      const fietsenstalling = await prisma.fietsenstallingen.findFirst({
+        where: { ID: id },
+        select: selectParkingDetailsType
+      });
+
       res.status(200).json({data: fietsenstalling});
       break;
     }
@@ -143,41 +174,18 @@ export default async function handle(
           BronBezettingsdata: parsed.BronBezettingsdata ?? "FMS",
           reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
           wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
-          freeHoursReservation: parsed.freeHoursReservation ?? undefined,
           thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
         }
 
-        const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: fietsenstallingSelect}) as unknown as VSFietsenstalling;
+        const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
         if(!newFietsenstalling) {
           console.error("Error creating new fietsenstalling:", newData);
           res.status(500).json({error: "Error creating new fietsenstalling"});
           return;
         }
 
-        // add a record to the security_users_sites table that links the new fietsenstalling to the user's sites
-        const newLink = await prisma.security_users_sites.create({
-          data: {
-            UserID: userId,
-            SiteID: newFietsenstalling.ID
-          }
-        });
-        if(!newLink) {
-          console.error("Error creating link to new fietsenstalling:", newFietsenstalling.ID);
-          res.status(500).json({error: "Error creating link to new fietsenstalling"});
-          return;
-        }
-
-        // Update security profile
-        const { session: updatedSession, error: profileError } = await updateSecurityProfile(session, userId);
-        if (profileError) {
-          console.error("Error updating security profile:", profileError);
-          res.status(500).json({error: profileError});
-          return;
-        }
-
         res.status(201).json({ 
-          data: [newFietsenstalling],
-          session: updatedSession
+          data: [newFietsenstalling]
         });
       } catch (e) {
         console.error("Error creating fietsenstalling:", e);
@@ -195,10 +203,13 @@ export default async function handle(
         }
 
         const parsed = parseResult.data;
-        const updatedFietsenstalling = await prisma.fietsenstallingen.update({
-          select: fietsenstallingSelect,
-          where: { ID: id },
-          data: {
+        
+        // If user has beperkt rights, filter out restricted fields
+        let updateData: any = {};
+        
+        if (hasFietsenstallingenAdmin) {
+          // Admin can update all fields
+          updateData = {
             StallingsID: parsed.StallingsID ?? undefined,
             SiteID: parsed.SiteID ?? undefined,
             Title: parsed.Title ?? undefined,
@@ -255,9 +266,44 @@ export default async function handle(
             BronBezettingsdata: parsed.BronBezettingsdata ?? undefined,
             reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
             wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
-            freeHoursReservation: parsed.freeHoursReservation ?? undefined,
             thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
-          }
+          };
+        } else {
+          // Beperkt users can only update specific fields
+          updateData = {
+            Title: parsed.Title ?? undefined,
+            Image: parsed.Image ?? undefined,
+            Description: parsed.Description ?? undefined,
+            Location: parsed.Location ?? undefined,
+            Postcode: parsed.Postcode ?? undefined,
+            Plaats: parsed.Plaats ?? undefined,
+            IsStationsstalling: parsed.IsStationsstalling ?? undefined,
+            MaxStallingsduur: parsed.MaxStallingsduur ?? undefined,
+            ExtraServices: parsed.ExtraServices ?? undefined,
+            Openingstijden: parsed.Openingstijden ?? undefined,
+            Open_ma: parsed.Open_ma ? new Date(parsed.Open_ma) : undefined,
+            Dicht_ma: parsed.Dicht_ma ? new Date(parsed.Dicht_ma) : undefined,
+            Open_di: parsed.Open_di ? new Date(parsed.Open_di) : undefined,
+            Dicht_di: parsed.Dicht_di ? new Date(parsed.Dicht_di) : undefined,
+            Open_wo: parsed.Open_wo ? new Date(parsed.Open_wo) : undefined,
+            Dicht_wo: parsed.Dicht_wo ? new Date(parsed.Dicht_wo) : undefined,
+            Open_do: parsed.Open_do ? new Date(parsed.Open_do) : undefined,
+            Dicht_do: parsed.Dicht_do ? new Date(parsed.Dicht_do) : undefined,
+            Open_vr: parsed.Open_vr ? new Date(parsed.Open_vr) : undefined,
+            Dicht_vr: parsed.Dicht_vr ? new Date(parsed.Dicht_vr) : undefined,
+            Open_za: parsed.Open_za ? new Date(parsed.Open_za) : undefined,
+            Dicht_za: parsed.Dicht_za ? new Date(parsed.Dicht_za) : undefined,
+            Open_zo: parsed.Open_zo ? new Date(parsed.Open_zo) : undefined,
+            Dicht_zo: parsed.Dicht_zo ? new Date(parsed.Dicht_zo) : undefined,
+            EditorModified: parsed.EditorModified ?? undefined,
+            DateModified: parsed.DateModified ? new Date(parsed.DateModified) : undefined,
+          };
+        }
+
+        const updatedFietsenstalling = await prisma.fietsenstallingen.update({
+          select: selectParkingDetailsType,
+          where: { ID: id },
+          data: updateData
         });
         res.status(200).json({data: updatedFietsenstalling});
       } catch (e) {

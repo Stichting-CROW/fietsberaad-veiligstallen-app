@@ -1,5 +1,5 @@
 import { prisma } from "~/server/db";
-import { CacheParams, CacheStatus } from "~/backend/services/database-service";
+import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
 import moment from "moment";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
@@ -16,7 +16,7 @@ export const getTransactionCacheStatus = async (params: CacheParams) => {
     const sqldetecttable = `SELECT COUNT(*) As count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name= 'transacties_archief_day_cache'`
 
     let tableExists = false;
-    let status: CacheStatus | false = { 
+    const status: CacheStatus | false = { 
         status: 'missing', 
         indexstatus: 'missing',
         size: undefined, 
@@ -41,7 +41,7 @@ export const getTransactionCacheStatus = async (params: CacheParams) => {
                 status.size = parseInt(resultStatistics[0].count.toString());    
                 status.firstUpdate = resultStatistics[0].firstUpdate;
                 status.lastUpdate = resultStatistics[0].lastupdate;
-            };
+            }
 
             // const sqlGetOriginalStatistics = `SELECT COUNT(*) As count, MIN(checkoutdate) AS firstUpdate, MAX(checkoutdate) AS lastUpdate FROM transacties_archief WHERE NOT ISNULL(checkoutdate)`;
             // const resultOriginalStatistics = await prisma.$queryRawUnsafe<{ count: number, firstUpdate: Date, lastUpdate: Date }[]>(sqlGetOriginalStatistics);

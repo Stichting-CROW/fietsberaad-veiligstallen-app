@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSArticle, articleSelect } from "~/types/articles";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
 import { articleSchema } from "~/types/articles";
+import { type VSArticle, articleSelect } from "~/types/articles";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type ArticleValidateResponse = {
   valid: boolean;
@@ -16,13 +18,23 @@ export default async function handle(
   res: NextApiResponse
 ) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user) {
-    console.error("Unauthorized - no session found");
-    res.status(401).json({valid: false, error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
-    return;
+  
+  // For POST requests, require authentication and specific rights
+  if (req.method === "POST") {
+    if (!session?.user) {
+      console.error("Unauthorized - no session found");
+      res.status(401).json({valid: false, error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+      return;
+    }
+
+    const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+    if (!hasInstellingenSiteContent) {
+      res.status(403).json({valid: false, error: "Access denied - insufficient permissions"});
+      return;
+    }
   }
 
-  const validateUserSessionResult = await validateUserSession(session, "articles");
+  const validateUserSessionResult = await validateUserSession(session, "all");
   if ('error' in validateUserSessionResult) {
     console.error("Unauthorized - invalid session", validateUserSessionResult.error);
     res.status(401).json({valid: false, error: validateUserSessionResult.error}); // Unauthorized
@@ -41,10 +53,7 @@ export default async function handle(
     return;
   }
 
-  if (!validateUserSessionResult.sites.includes(data.ID) && data.ID !== "new") {
-    res.status(403).json({ valid: false, error: "No access to this article" });
-    return;
-  }
+  // TODO: check if the article is accessible to the user
 
   switch (req.method) {
     case "POST": {

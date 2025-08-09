@@ -13,7 +13,7 @@ import { signIn } from "next-auth/react";
 
 // Import styles
 import Styles from "./login.module.css";
-import { NextPage } from "next/types";
+import { type NextPage } from "next/types";
 
 const Login: NextPage = () => {
   const emailRef = useRef<HTMLInputElement | null>(null);
@@ -178,26 +178,25 @@ const Login: NextPage = () => {
                 </div>
               </form>
 
+              <div className="text-center">
+                <p className="text-sm my-4">
+                  Ben je een pashouder, heb je een abonnement of wil je stallingstegoed opwaarderen? ➡️ <a href="https://www.veiligstallen.nl/fietsberaad/login" target="_blank" rel="external" className="underline">Klik hier om in te loggen</a>.
+                </p>
+              </div>
+
               <div data-name="Footer: Password forgotten & Contact helpdesk">
-                <div className="text-center">
+                <p className="text-center my-4">
                   <a href="/reset-password" className="mr-5 text-sm underline">
                     Wachtwoord vergeten?
                   </a>
                   <br />
-                  <a
-                    href="https://www.veiligstallen.nl/fietsberaad/login"
-                    target="_blank"
-                    className="mr-5 text-sm underline"
-                  >
-                    Stallingstegoed opwaarderen
-                  </a>
                   <a
                     href="mailto:fietsberaad@crow.nl"
                     className="text-sm underline"
                   >
                     Contact helpdesk
                   </a>
-                </div>
+                </p>
               </div>
             </div>
           </div>

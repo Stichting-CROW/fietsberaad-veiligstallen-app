@@ -8,6 +8,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
   });
 
-  let data = { sectieId: result._max.sectieId !== null ? result._max.sectieId + 1 : 1 }
+  const data = { sectieId: result._max.sectieId !== null ? result._max.sectieId + 1 : 1 }
   res.json(data);
 }

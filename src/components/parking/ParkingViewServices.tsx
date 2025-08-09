@@ -1,24 +1,29 @@
 import React from "react";
 import HorizontalDivider from "~/components/HorizontalDivider";
+import { type ParkingDetailsType } from "~/types/parking";
 
 import SectionBlock from "~/components/SectionBlock";
 
-import {
-  getAllServices
-} from "~/utils/parkings";
+import { type VSservice } from "~/types/services";
 
-export type ServiceType = { ID: string, Name: string };
 
-const ParkingViewServices = ({ parkingdata }: { parkingdata: any }) => {
-  const [allServices, setAllServices] = React.useState<ServiceType[]>([]);
+const ParkingViewServices = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
+  const [allServices, setAllServices] = React.useState<VSservice[]>([]);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
-    (async () => {
-      const result = await getAllServices();
-      setAllServices(result);
-    })();
-  }, [])
+    const updateServices = async () => {
+      const response = await fetch(`/api/protected/services`);
+      const json = await response.json() as VSservice[];
+      if (!json) return [];
+
+      setAllServices(json);
+    }
+
+    updateServices().catch(err => {
+      console.error("get all services error", err);
+    });
+  }, []);
 
   const serviceIsActive = (ID: string): boolean => {
     for (const x of parkingdata.fietsenstallingen_services) {

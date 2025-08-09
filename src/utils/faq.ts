@@ -1,5 +1,4 @@
-import { VSFaqFull } from "~/types/faq";
-import { VSArticle } from "../types/articles";
+import { type VSFaqFull } from "~/types/faq";
 
 export const getFaqSections = async (siteId: string): Promise<VSFaqFull[]> => {
   try {

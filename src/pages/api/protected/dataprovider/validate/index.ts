@@ -66,8 +66,8 @@ export default async function handle(
       // Formally in the old code, the unique key for CompanyName was ItemType, CompanyName, but there are no cases 
       // where an organization name is used with multiple itemtypes, so this will work.
       const uniqueFields: {field: keyof VSContactDataprovider, message: string}[] = [
-        {field: "CompanyName", message: "Er bestaat al een organisatie met deze naam"},
-        {field: "UrlName", message: "DezeURL vriendelijke naam bestaat al"}
+        {field: "CompanyName", message: "Er bestaat al een dataleverancier met deze naam"},
+        {field: "UrlName", message: "Deze ContractorID bestaat al"}
       ];
 
       const oldValues = !isNew ? await prisma.contacts.findUnique({

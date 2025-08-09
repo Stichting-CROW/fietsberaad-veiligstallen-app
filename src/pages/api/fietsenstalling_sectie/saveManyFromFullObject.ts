@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import type { ParkingSection, ParkingSectionPerBikeType, UpdateParkingSectionsData } from "~/types/parking";
-import type { fietstypen } from "~/generated/prisma-client";
+import { type VSFietstype, VSFietsTypenWaarden } from "~/types/fietstypen";
 
-const updateSingleSubSection = async (parkingId: string, sectionId: number, subSectionPerFietstype: ParkingSectionPerBikeType, fietstypen: fietstypen[]) => {
+const updateSingleSubSection = async (parkingId: string, sectionId: number, subSectionPerFietstype: ParkingSectionPerBikeType, fietstypen: VSFietstype[]) => {
   const fietstypedata = fietstypen.find((fietstype) => {
     return fietstype.Name === subSectionPerFietstype.fietstype.Name;
   })
@@ -47,7 +46,7 @@ const updateSingleSubSection = async (parkingId: string, sectionId: number, subS
   }
 }
 
-const updateSingleSection = async (parkingId: string, sectionId: number, section: ParkingSection, fietstypen: fietstypen[]) => {
+const updateSingleSection = async (parkingId: string, sectionId: number, section: ParkingSection, fietstypen: VSFietstype[]) => {
   // Go over given sections
   section.secties_fietstype.map(async (subSectionPerFietstype) => {
     if (false === await updateSingleSubSection(parkingId, sectionId, subSectionPerFietstype, fietstypen)) {
@@ -70,8 +69,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   }
 
   // Get fietstypes
-  const fietstypen = await prisma.fietstypen.findMany();
-  if (!updateSingleSection(data.parkingId, data.sectionId, data.parkingSections[0], fietstypen)) {
+  if (!updateSingleSection(data.parkingId, data.sectionId, data.parkingSections[0], VSFietsTypenWaarden)) {
     res.status(405).end();
   }
 

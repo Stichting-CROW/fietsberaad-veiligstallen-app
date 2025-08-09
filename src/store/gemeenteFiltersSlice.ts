@@ -1,11 +1,12 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { RootState } from './rootReducer';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { type RootState } from './rootReducer';
 
 interface GemeenteFiltersState {
   nameFilter: string;
   showGemeentenWithoutStallingen: "yes" | "no" | "only";
   showGemeentenWithoutUsers: "yes" | "no" | "only";
   showGemeentenWithoutExploitanten: "yes" | "no" | "only";
+  selectedModuleFilter: string; // "all", "none", "wel_<moduleId>", or "geen_<moduleId>"
 }
 
 // Load initial state from session storage if available
@@ -25,6 +26,7 @@ const loadInitialState = (): GemeenteFiltersState => {
     showGemeentenWithoutStallingen: "yes",
     showGemeentenWithoutUsers: "yes",
     showGemeentenWithoutExploitanten: "yes",
+    selectedModuleFilter: "all",
   };
 };
 
@@ -66,11 +68,20 @@ export const gemeenteFiltersSlice = createSlice({
         console.error('Error saving filters to session storage:', e);
       }
     },
+    setSelectedModuleFilter: (state, action: PayloadAction<string>) => {
+      state.selectedModuleFilter = action.payload;
+      try {
+        sessionStorage.setItem('gemeente-filters', JSON.stringify(state));
+      } catch (e) {
+        console.error('Error saving filters to session storage:', e);
+      }
+    },
     resetFilters: (state) => {
       state.nameFilter = "";
       state.showGemeentenWithoutStallingen = "no";
       state.showGemeentenWithoutUsers = "no";
       state.showGemeentenWithoutExploitanten = "yes";
+      state.selectedModuleFilter = "all";
       try {
         sessionStorage.setItem('gemeente-filters', JSON.stringify(state));
       } catch (e) {
@@ -85,6 +96,7 @@ export const {
   setShowGemeentenWithoutStallingen,
   setShowGemeentenWithoutUsers,
   setShowGemeentenWithoutExploitanten,
+  setSelectedModuleFilter,
   resetFilters,
 } = gemeenteFiltersSlice.actions;
 

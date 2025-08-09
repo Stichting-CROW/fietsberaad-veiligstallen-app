@@ -47,6 +47,14 @@ const testSections: ApiTestSection[] = [
     isLoading: false
   },
   {
+    name: "Contacts API",
+    endpoint: "/api/protected/contacts/test",
+    expanded: false,
+    results: null,
+    error: null,
+    isLoading: false
+  },
+  {
     name: "Fietsenstallingen API",
     endpoint: "/api/protected/fietsenstallingen/test",
     expanded: false,

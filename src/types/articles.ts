@@ -163,7 +163,7 @@ export const articleSchema = z.object({
 
 export const articleCreateSchema = articleSchema.omit({ ID: true });
 
-export const getDefaultNewArticle = (title: string = "New Article") => {
+export const getDefaultNewArticle = (title = "New Article") => {
   return {
     ID: 'new',
     Title: title,

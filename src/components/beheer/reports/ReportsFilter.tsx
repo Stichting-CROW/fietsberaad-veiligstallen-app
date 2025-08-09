@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import BikeparkSelect from './BikeparkSelect';
 import { getMaanden, getWeekNumber, getQuarter } from "./ReportsDateFunctions";
-import { createHash } from 'crypto';
-import BikeparkDataSourceSelect, { BikeparkWithDataSource } from "./BikeparkDataSourceSelect";
+import BikeparkDataSourceSelect, { type BikeparkWithDataSource } from "./BikeparkDataSourceSelect";
+import { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
 export type ReportType = "transacties_voltooid" | "inkomsten" | "abonnementen" | "abonnementen_lopend" | "bezetting" | "stallingsduur" | "volmeldingen" | "gelijktijdig_vol" | "downloads"
 export const reportTypeValues: [string, ...string[]] = ["transacties_voltooid", "inkomsten", "abonnementen", "abonnementen_lopend", "bezetting", "stallingsduur", "volmeldingen", "gelijktijdig_vol", "downloads"]
@@ -20,13 +20,7 @@ export type ReportRangeUnit = "range_all" | "range_year" | "range_month" | "rang
 export const reportRangeUnitValues = ["range_all", "range_year", "range_month", "range_quarter", "range_week"]
 // export type ReportUnit = "reportUnit_day" | "reportUnit_weekDay" | "reportUnit_week" | "range_month" | "reportUnit_quarter" | "reportUnit_year" // | "reportUnit_onequarter" | "reportUnit_oneyear"
 
-export type ReportBikepark = {
-  id: string;
-  StallingsID: string;
-  Title: string;
-  GemeenteID: string;
-  hasData: boolean;
-};
+export type ReportBikepark = VSFietsenstallingLijst
 
 export interface ReportParams {
   reportType: ReportType;
@@ -169,7 +163,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
   const previousStateRef = useRef<ReportState | null>(null);
 
   useEffect(() => {
-    setSelectedBikeparkIDs(bikeparks.map((bikepark) => bikepark.StallingsID));
+    setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
   }, [bikeparks]);
 
   useEffect(() => {
@@ -178,7 +172,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
       reportGrouping,
       reportCategories,
       reportRangeUnit,
-      selectedBikeparkIDs: reportCategories === "per_stalling" ? bikeparks.map((bikepark) => bikepark.StallingsID) : selectedBikeparkIDs,
+      selectedBikeparkIDs,
       reportRangeYear,
       reportRangeValue,
       fillups,
@@ -293,7 +287,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     return true;
   }
 
-  const renderWeekSelect = (showLastPeriod: boolean = true) => {
+  const renderWeekSelect = (showLastPeriod = true) => {
     return (
       <div className="mt-2 w-56 flex flex-col">
         <select
@@ -326,7 +320,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     )
   }
 
-  const renderMonthSelect = (showLastPeriod: boolean = true) => {
+  const renderMonthSelect = (showLastPeriod = true) => {
     return (
       <div className="mt-2 w-56 flex flex-col">
         <select
@@ -345,7 +339,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     )
   }
 
-  const renderQuarterSelect = (showLastPeriod: boolean = true) => {
+  const renderQuarterSelect = (showLastPeriod = true) => {
     return (
       <div className="mt-2 w-56 flex flex-col">
         <select
@@ -375,7 +369,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     )
   }
 
-  const renderYearSelect = (showLastPeriod: boolean = true) => {
+  const renderYearSelect = (showLastPeriod = true) => {
     return <div className="mt-2 w-56 flex flex-col">
       <select
         value={reportRangeYear}

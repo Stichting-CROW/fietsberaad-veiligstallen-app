@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import type { fietsenstallingtypen } from "~/generated/prisma-client";
+import type { VSFietsenstallingType } from "~/types/parking";
 import type { VSContact } from "~/types/contacts";
 import type { VSParking } from "~/types/parking";
 
 interface ContactFietsenstallingenProps {
   contact: VSContact | undefined;
-  fietsenstallingtypen: fietsenstallingtypen[] | undefined;
+  fietsenstallingtypen: VSFietsenstallingType[] | undefined;
   onEditStalling: (stallingID: string | undefined) => void;
 }
 
@@ -14,7 +14,7 @@ const ContactFietsenstallingen: React.FC<ContactFietsenstallingenProps> = ({ con
 
   // Create filter options based on available types
   const availableTypes = fietsenstallingtypen?.filter(type => 
-    contact?.fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.some(fietsenstalling => fietsenstalling.Type === type.id)
+    contact?.managesFietsenstallingen?.some(fietsenstalling => fietsenstalling.Type === type.id)
   );
 
   // Set default selected type to the one with the lowest sequence value
@@ -27,7 +27,7 @@ const ContactFietsenstallingen: React.FC<ContactFietsenstallingenProps> = ({ con
     }
   }, [availableTypes]);
 
-  const filteredFietsenstallingen = contact?.fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.filter(fietsenstalling => 
+  const filteredFietsenstallingen = contact?.managesFietsenstallingen?.filter(fietsenstalling => 
     selectedType === false || fietsenstalling.Type === selectedType
   );
 

@@ -1,7 +1,7 @@
 import React from 'react';
-import { GetServerSidePropsContext } from 'next';
+import { type GetServerSidePropsContext } from 'next';
 
-import BeheerPage, { getServerSideProps as externalServerSideProps, BeheerPageProps } from './[id]';
+import BeheerPage, { getServerSideProps as externalServerSideProps, type BeheerPageProps } from './[id]';
 
 export const getServerSideProps = async (props: GetServerSidePropsContext) => {
   return externalServerSideProps(props);

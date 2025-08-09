@@ -1,26 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
-import { VSUserWithRolesNew, VSUserInLijstNew } from '~/types/users';
-import { SecurityUsersResponse } from '~/pages/api/protected/security_users';
+import { useSession } from 'next-auth/react';
+import { useState, useEffect } from 'react';
+import { type VSUserWithRolesNew } from '~/types/users';
 
-type UsersResponse<T extends VSUserWithRolesNew | VSUserInLijstNew> = {
-  data?: T[];
+type UsersResponse = {
+  data?: VSUserWithRolesNew[];
   error?: string;
 };
 
-const useUsersBasis = <T extends VSUserWithRolesNew | VSUserInLijstNew>(compact: boolean) => {
-  const [users, setUsers] = useState<T[]>([]);
+export const useUsers = (id: string | undefined = undefined) => {
+  const session = useSession();
+  const [users, setUsers] = useState<VSUserWithRolesNew[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
-  const mounted = useRef(false);
 
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
       setError(null);
       // Type-level check for compact flag
-      const response = await fetch(`/api/protected/security_users?compact=${compact}`);
-      const result: UsersResponse<T>= await response.json();
+      let url: string | undefined = undefined; //  
+      if(id!==undefined) {
+        url = `/api/protected/security_users?contactId=${id}`;
+      } else {
+        // use active contact ID from session
+        const activeContactId = session.data?.user?.activeContactId;
+        if(!activeContactId) {
+          console.error("No active contact ID found");
+          return [];
+        }
+        url = `/api/protected/security_users?contactId=${activeContactId}`;
+      }
+      const response = await fetch(url);
+      const result: UsersResponse = await response.json();
       if (result.error) {
         throw new Error(result.error);
       }
@@ -36,19 +47,16 @@ const useUsersBasis = <T extends VSUserWithRolesNew | VSUserInLijstNew>(compact:
   };
 
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
+    // Only fetch if session is loaded and not in loading state
+    if (session.status !== 'loading') {
       fetchUsers();
     }
-  }, [version]);
+  }, [session.status, session.data?.user?.activeContactId, id]);
 
   return {
     users,
     isLoading,
     error,
-    reloadUsers: () => setVersion(v => v + 1)
+    reloadUsers: () => { fetchUsers(); }
   };
 }; 
-
-export const useUsersInLijst = () => useUsersBasis<VSUserInLijstNew>(true);
-export const useUsers = () => useUsersBasis<VSUserWithRolesNew>(false);

@@ -17,7 +17,7 @@ class ReportDateUtils {
      * @param firstDayOfWeek - The first day of the week (1 = Sunday, default is 2 for Monday).
      * @returns The ISO day of the week.
      */
-    public static ISODayOfWeek(date: Date, firstDayOfWeek: number = 2): number {
+    public static ISODayOfWeek(date: Date): number {
         const day = date.getUTCDay();
         return ((day + 6) % 7) + 1; // Adjusting to ISO (Monday = 1, Sunday = 7)
     }
@@ -64,7 +64,7 @@ class ReportDateUtils {
         const firstDayOfMonth = new Date(theYear, theMonth - 1, 1);
         const firstDayOfWeek = firstDayOfMonth.getDay() || 7; // Adjust for ISO week (Monday = 1, Sunday = 7)
 
-        let dayInMonth = 1 + (nthOccurrence - 1) * 7 + (theDayOfWeek - firstDayOfWeek + 7) % 7;
+        const dayInMonth = 1 + (nthOccurrence - 1) * 7 + (theDayOfWeek - firstDayOfWeek + 7) % 7;
 
         const lastDayOfMonth = new Date(theYear, theMonth, 0).getDate();
         if (dayInMonth > lastDayOfMonth || dayInMonth < 1) {

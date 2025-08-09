@@ -1,17 +1,25 @@
 import React, { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/router';
+import { useSession } from 'next-auth/react';
 import DataproviderEdit from "~/components/contact/DataproviderEdit";
-
 import { useDataproviders } from '~/hooks/useDataproviders';
+import { LoadingSpinner } from '../../common/LoadingSpinner';
+import { Table } from '~/components/common/Table';
+import { SearchFilter } from '~/components/common/SearchFilter';
+import { VSSecurityTopic, VSCRUDRight } from '~/types/securityprofile';
+import { getSecurityRights, allowNone } from '~/utils/client/security-profile-tools';
 
 type DataproviderComponentProps = { 
 };
 
 const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
   const router = useRouter();
+  const { data: session } = useSession();
 
   const [currentContactID, setCurrentContactID] = useState<string | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string>("Naam");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const {dataproviders, isLoading, error, reloadDataproviders } = useDataproviders();
   
@@ -37,11 +45,11 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
 
   const handleDeleteContact = async (id: string) => {
     try {
-      const response = await fetch(`/api/protected/dataproviders/${id}`, {
+      const response = await fetch(`/api/protected/dataprovider/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
-        throw new Error('Failed to delete gemeente');
+        throw new Error('Failed to delete dataprovider');
       }
 
       reloadDataproviders();
@@ -51,10 +59,53 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
     }
   };
 
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedData = () => {
+    const sorted = [...filteredContacts].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (sortColumn) {
+        case 'Naam':
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+          break;
+        case 'Naam in URL':
+          aValue = a.UrlName || '';
+          bValue = b.UrlName || '';
+          break;
+        case 'Status':
+          aValue = a.Status === "1" ? "Actief" : "Inactief";
+          bValue = b.Status === "1" ? "Actief" : "Inactief";
+          break;
+        default:
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+      }
+
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+
+    return sorted;
+  };
+
   const renderOverview = () => {
     if (isLoading) {
-      return <div>Loading...</div>;
+      return <LoadingSpinner />;
     }
+
+    let rights: VSCRUDRight = getSecurityRights(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    console.log("rights", rights);
 
     return (
       <div>
@@ -71,50 +122,68 @@ const DataproviderComponent: React.FC<DataproviderComponentProps> = (props) => {
               />
             )}
           </div>
-          <button 
+          { rights.create && <button 
             onClick={() => handleEditContact('new')}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
-            Nieuwe Dataprovider
-          </button>
+            Nieuwe Dataleverancier
+          </button> }
         </div>
-        <table className="min-w-full bg-white">
-          <thead>
-            <tr>
-              <th className="py-2">Naam</th>
-              <th className="py-2">Naam in URL</th>
-              <th className="py-2">Status</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredContacts.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || '')).map((contact) => { 
-              return (
-                <tr key={contact.ID}>
-                  <td className="border px-4 py-2">{contact.CompanyName}</td>
-                  <td className="border px-4 py-2">{contact.UrlName}</td>
-                  <td className="border px-4 py-2">{contact.Status === "1" ? "Actief" : "Inactief"}</td>
-                  <td className="border px-4 py-2">
-                    <button onClick={() => handleEditContact(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
-                    <button onClick={() => handleDeleteContact(contact.ID)} className="text-red-500 mx-1 disabled:opacity-40" disabled={true}>🗑️</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+
+        <SearchFilter
+          id="dataproviderName"
+          label="Data-leverancier:"
+          value={filterText}
+          onChange={(value) => setFilterText(value)}
+        />
+
+        <Table 
+          columns={[
+            {
+              header: 'Naam',
+              accessor: 'CompanyName'
+            },
+            {
+              header: 'Naam in URL',
+              accessor: 'UrlName'
+            },
+            {
+              header: 'Status',
+              accessor: (contact) => contact.Status === "1" ? "Actief" : "Inactief"
+            },
+            {
+              header: '',
+              accessor: (contact) => (
+                <>
+                  <button onClick={() => handleEditContact(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40" disabled={!rights.update}>✏️</button>
+                  <button onClick={() => {
+                    if(confirm('Wil je de dataleverancier verwijderen?')) {
+                      handleDeleteContact(contact.ID)
+                    }
+                  }} className="text-red-500 mx-1 disabled:opacity-40" disabled={!rights.delete}>🗑️</button>
+                </>
+              )
+            }
+          ]}
+          data={getSortedData()}
+          className="mt-4 min-w-full bg-white"
+          sortableColumns={["Naam", "Naam in URL", "Status"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
       </div>
     );
   };
 
-  const renderEdit = (isSm: boolean = false) => {
+  const renderEdit = (isSm = false) => {
     const showDataproviderEdit = currentContactID !== undefined;
 
     if(!showDataproviderEdit) {
       return null;
     }
 
-    const handleOnClose = async (confirmClose: boolean = false) => {
+    const handleOnClose = async (confirmClose = false) => {
       if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?')===false)) { 
         return;
       }

@@ -4,16 +4,53 @@
 // import type { User } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "~/server/db";
+import { type security_users } from "@prisma/client";
 import type { User } from "next-auth";
 import {
-  securityUserSelect,
   VSUserRoleValuesNew,
-  VSUserWithRoles,
+  getDefaultSecurityProfile,
 } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
-import { initAllTopics } from "~/types/utils";
 import { checkToken } from "~/utils/token-tools";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
+type OrgAccountData = Pick<security_users, "UserID" | "DisplayName" | "UserName" | "GroupID" | "ParentID" | "SiteID" | "EncryptedPassword"> & {
+  user_contact_roles: { 
+    ContactID: string,
+    isOwnOrganization: boolean,
+    NewRoleID: string
+  }[];
+};
+
+const getProfileUser = async(orgaccount: OrgAccountData): Promise<User|false> => {
+    const profileUserAccount: User = {
+      id: "",
+      name: "",
+      email: "",
+      mainContactId: "",
+      activeContactId: "",
+      securityProfile: getDefaultSecurityProfile(),
+    };
+
+    const mainContactId = orgaccount.user_contact_roles.find((role) => role.isOwnOrganization)?.ContactID || undefined;
+    if (mainContactId === undefined) {
+      return false;
+    }
+
+    const roleId = orgaccount?.user_contact_roles.find((role) => role.ContactID === mainContactId)?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
+    const activeContactType = await getOrganisationTypeByID(mainContactId);
+
+    profileUserAccount.id = orgaccount.UserID || "";
+    profileUserAccount.name = orgaccount?.DisplayName || "";
+    profileUserAccount.email = orgaccount?.UserName || "";
+    profileUserAccount.mainContactId = mainContactId;
+    profileUserAccount.activeContactId = mainContactId;
+    profileUserAccount.securityProfile = createSecurityProfile(roleId, activeContactType);
+
+    return profileUserAccount;
+}
+
+// always returns the user's main account
 export const getUserFromCredentials = async (
   credentials: Record<"email" | "password", string> | undefined,
 ): Promise<User | null> => {
@@ -29,29 +66,21 @@ export const getUserFromCredentials = async (
       return null;
     }
 
-    let validaccount = false;
-    let account: User = {
-      id: "",
-      email: email.toLocaleLowerCase(),
-      activeContactId: "",
-      securityProfile: {
-        managingContactIDs: [],
-        mainContactId: "",
-        roleId: VSUserRoleValuesNew.None,
-        rights: initAllTopics({
-          create: false,
-          read: false,
-          update: false,
-          delete: false,
-        }),
-        modules: [],
-      },
-    };
-
     const orgaccount = await prisma.security_users.findFirst({
       where: { UserName: email.toLowerCase() },
-      select: { UserID: true, EncryptedPassword: true },
-    });
+      select: { 
+        UserID: true, 
+        DisplayName: true,
+        UserName: true,
+        EncryptedPassword: true,
+        user_contact_roles: {
+          select: {
+            ContactID: true,
+            isOwnOrganization: true
+          }
+        }
+      },
+    }) as OrgAccountData;
 
     if (
       orgaccount !== undefined &&
@@ -59,26 +88,23 @@ export const getUserFromCredentials = async (
       orgaccount.EncryptedPassword !== null
     ) {
       if (await bcrypt.compare(password, orgaccount.EncryptedPassword)) {
-        const userdata = (await prisma.security_users.findFirst({
-          where: { UserName: email.toLowerCase() },
-          select: securityUserSelect,
-        })) as VSUserWithRoles;
-        validaccount = true;
-        account.id = userdata?.UserID || "";
-        account.securityProfile = await createSecurityProfile(userdata);
-        if (account.securityProfile) {
-          account.activeContactId = account.securityProfile.mainContactId;
+        const profileUserAccount = await getProfileUser(orgaccount);
+        if (profileUserAccount) {
+          return profileUserAccount;
+        } else {
+          console.error("### getUserFromCredentials - no profile user account");
+          return null;
         }
       } else {
         console.error(
           "### getUserFromCredentials - invalid password for security_users table",
         );
+        return null;
       }
     } else {
       console.error("### getUserFromCredentials - no orgaccount");
+      return null;
     }
-
-    return validaccount ? account : null;
   } catch (error) {
     console.error("Error in getUserFromCredentials:", error);
     if (error instanceof Error) {
@@ -107,58 +133,40 @@ export const getUserFromLoginCode = async (
       return null;
     }
 
-    let validaccount = false;
-    let account: User = {
-      id: "",
-      email: "",
-      activeContactId: "",
-      securityProfile: {
-        managingContactIDs: [],
-        mainContactId: "",
-        roleId: VSUserRoleValuesNew.None,
-        rights: initAllTopics({
-          create: false,
-          read: false,
-          update: false,
-          delete: false,
-        }),
-        modules: [],
-      },
-    };
+    const tokenData = checkToken(token);
 
-    try {
-      const tokenData = checkToken(token);
+    if (
+      tokenData !== false &&
+      tokenData.userid.toLowerCase() === userid.toLowerCase()
+    ) {
+      const orgaccount = await prisma.security_users.findFirst({
+        where: { UserID: userid },
+        select: { 
+          UserID: true, 
+          GroupID: true,
+          ParentID: true,
+          SiteID: true,
+          EncryptedPassword: true,
+          user_contact_roles: {
+            select: {
+              ContactID: true,
+              isOwnOrganization: true
+            }
+          }
+        },
+      }) as OrgAccountData;
 
-      if (
-        tokenData !== false &&
-        tokenData.userid.toLowerCase() === userid.toLowerCase()
-      ) {
-        const userdata = (await prisma.security_users.findFirst({
-          where: { UserID: userid },
-          select: securityUserSelect,
-        })) as VSUserWithRoles;
-        validaccount = true;
-        account.id = userdata?.UserID || "";
-        account.email = userdata?.UserName || "";
-        account.securityProfile = await createSecurityProfile(userdata);
-        if (account.securityProfile) {
-          account.activeContactId = account.securityProfile.mainContactId;
-        }
+      const profileUserAccount = await getProfileUser(orgaccount);
+      if (profileUserAccount) {
+        return profileUserAccount;
       } else {
-        console.error("### getUserFromLoginCode - invalid login code");
+        console.error("### getUserFromCredentials - no profile user account");
+        return null;
       }
-    } catch (error) {
-      console.error("Error processing login code:", error);
-      if (error instanceof Error) {
-        console.error("Error details:", {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-        });
-      }
+    } else {
+      console.error("### getUserFromLoginCode - invalid login code");
+      return null;
     }
-
-    return validaccount ? account : null;
   } catch (error) {
     console.error("Error in getUserFromLoginCode:", error);
     if (error instanceof Error) {

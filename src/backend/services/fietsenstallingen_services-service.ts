@@ -1,4 +1,3 @@
-import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import type { fietsenstallingen_services } from "~/generated/prisma-client";
 import type { ICrudService } from "~/backend/handlers/crud-service-interface";
@@ -29,16 +28,9 @@ const FietsenstallingenServicesService: ICrudService<fietsenstallingen_services>
     // });
     throw new Error("Not implemented");
   },
-  delete: async (_fietsenstallingId: string): Promise<fietsenstallingen_services> => {
-    return await prisma.fietsenstallingen_services.delete({
-      where: { FietsenstallingID: _fietsenstallingId }
-    });
+  delete: async (fietsenstallingId: string): Promise<fietsenstallingen_services> => {
+    throw new Error("Not implemented"); // no single field unique index on this table, so not possible to delete
   },
-  // deleteMany: async (where): Promise<fietsenstallingen_services> => {
-  //   return await prisma.fietsenstallingen_services.deleteMany({
-  //     where: where
-  //   });
-  // },
 };
 
 export default FietsenstallingenServicesService;

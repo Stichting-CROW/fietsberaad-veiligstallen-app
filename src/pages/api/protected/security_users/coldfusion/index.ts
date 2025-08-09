@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSUserWithRoles, securityUserSelect } from "~/types/users";
+import { type VSUserWithRoles } from "~/types/users-coldfusion";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
+import { securityUserSelect } from "~/types/users-coldfusion";
 
 export type SecurityUsersColdfusionResponse = {
   data?: VSUserWithRoles[];

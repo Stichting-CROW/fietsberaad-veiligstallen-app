@@ -1,21 +1,20 @@
 import { VSUserRoleValuesNew } from "~/types/users";
-import { VSSecurityTopic, VSCRUDRight, VSUserSecurityProfile } from "~/types/index";
-import { Session } from "next-auth";
-import { VSModuleValues } from "~/types/modules";
-import { VSUserRoleValues } from "~/types/users";
+import { VSSecurityTopic, type VSCRUDRight, type VSUserSecurityProfile } from "~/types/securityprofile";
+import { type Session } from "next-auth";
+import { VSUserRoleValues } from "~/types/users-coldfusion";
 
 export const getNewRoleLabel = (roleId: VSUserRoleValuesNew): string => {
     switch(roleId) {
         case VSUserRoleValuesNew.RootAdmin:
-            return "Root Admin";
+            return "Super admin";
         case VSUserRoleValuesNew.None:
-            return "None";
+            return "Geen rechten";
         case VSUserRoleValuesNew.Admin:
             return "Admin";
         case VSUserRoleValuesNew.Editor:
             return "Editor";
-        case VSUserRoleValuesNew.DataAnalyst:
-            return "Data Analist";
+        case VSUserRoleValuesNew.Viewer:
+            return "Data-analist";
         default:
             return "Unknown";
     }
@@ -56,17 +55,6 @@ export const initAllTopics = (value: VSCRUDRight) => {
     return result;
 }
 
-export const changeTopics = (
-    currentTopics: Record<VSSecurityTopic, VSCRUDRight>,
-    changeTopics: VSSecurityTopic[],
-    newValue: VSCRUDRight
-): Record<VSSecurityTopic, VSCRUDRight> => {
-    return changeTopics.reduce<Record<VSSecurityTopic, VSCRUDRight>>((acc, topic) => {
-        acc[topic] = { ...newValue };
-        return acc;
-    }, currentTopics);
-}
-
 export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: VSSecurityTopic): boolean => {
     if(!profile) {
         console.log("### profile is undefined");
@@ -82,12 +70,6 @@ export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: 
     const hasRight = theRight.create || theRight.read || theRight.update || theRight.delete;  
     // console.log(`### hasRight ${right}: ${hasRight} | ${JSON.stringify(theRight)}`);
     return hasRight;
-}
-
-export const userHasModule = (profile: VSUserSecurityProfile | undefined, module: VSModuleValues): boolean => {
-    if(!profile) return false;
-
-    return profile.modules.includes(module);
 }
 
 export const userHasRole = (profile: VSUserSecurityProfile | undefined, role: VSUserRoleValuesNew): boolean => {
@@ -119,7 +101,7 @@ export const logSession = (session: Session | null) => {
     logSecurityProfile(session.user.securityProfile, "    ");
 }
 
-export const logSecurityProfile = (profile: VSUserSecurityProfile | undefined, indent: string = '') => {
+export const logSecurityProfile = (profile: VSUserSecurityProfile | undefined, indent = '') => {
     if(!profile) {
         console.log(`${indent}no security profile`);
         return;
@@ -129,11 +111,8 @@ export const logSecurityProfile = (profile: VSUserSecurityProfile | undefined, i
         .filter(([_, right]) => right.create || right.read || right.update || right.delete)
         .map(([key, _]) => key);
 
-    console.log(`${indent}modules: ${profile.modules.join(", ")}`);
     console.log(`${indent}roleId: ${profile.roleId}`);
     console.log(`${indent}rights: ${activeRights.join(", ")}`);
-    console.log(`${indent}mainContactId: ${profile.mainContactId}`);
-    console.log(`${indent}managing: ${profile.managingContactIDs.length} contacts`);
 }
   
 

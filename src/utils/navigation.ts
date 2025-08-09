@@ -2,9 +2,10 @@ import { type VSArticle } from "~/types/articles";
 
 export const getArticlesForMunicipality = async (siteId: string | null): Promise<VSArticle[]> => {
   try {
-    const url = siteId ? `/api/articles/?SiteID=${siteId}` : "/api/articles/";
+    const url = siteId ? `/api/protected/articles/?compact=false&SiteID=${siteId}` : "/api/protected/articles/";
     const response = await fetch(url);
-    return await response.json() as VSArticle[];
+    const json = await response.json();
+    return json.data as VSArticle[];
   } catch (err) {
     console.error(err);
     return [];
@@ -25,9 +26,9 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
       const excludeTitles = ['Tips', 'Contact', 'FAQ'];
       const noContent = (x.Article||'') === '' && (x.Abstract||'') === '';
 
-      return !excludeTitles.includes(x.Title) && !noContent;
+      return !excludeTitles.includes(x.Title as string) && !noContent;
     })
-    .sort((a, b) => a.SortOrder - b.SortOrder)
+    .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
   }
 
   let items = showGemeenteMenu && itemsMunicipality ? filterPrimaryItems(itemsMunicipality) : [];

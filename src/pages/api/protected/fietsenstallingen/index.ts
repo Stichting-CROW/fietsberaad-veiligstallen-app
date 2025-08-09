@@ -1,12 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { Prisma } from "@prisma/client";
 import { prisma } from "~/server/db";
-import { type VSFietsenstalling, type VSFietsenstallingLijst, fietsenstallingSelect, fietsenstallingLijstSelect } from "~/types/fietsenstallingen";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
+import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
 
 export type FietsenstallingenResponse = {
-  data?: VSFietsenstalling[] | VSFietsenstallingLijst[];
+  data?: ParkingDetailsType[];
   error?: string;
 };
 
@@ -17,27 +18,30 @@ export default async function handle(
   const session = await getServerSession(req, res, authOptions);
   const validationResult = await validateUserSession(session, "any");
   
-  if ('error' in validationResult) {
-    res.status(validationResult.status).json({error: validationResult.error});
-    return;
-  }
+  let whereClause: Prisma.fietsenstallingenWhereInput = {
+    Title: { // Never include Systeemstalling
+      not: 'Systeemstalling'
+    },
+    StallingsID: { not: null },
+  };
 
-  const { sites } = validationResult;
-  const { GemeenteID } = req.query;
+
+  if (!('error' in validationResult)) {
+    const { GemeenteID } = req.query;
+    const { sites } = validationResult;
+    // authenticated user: return stallingen for the user's sites or for a specific GemeenteID when provided
+    whereClause.SiteID = { in: GemeenteID ? [GemeenteID as string] : sites };
+  } else {
+    // public access: return all fietsenstallingen
+  }
 
   switch (req.method) {
     case "GET": {
-      // Check if compact mode is requested
-      const compact = req.query.compact === 'true';
-
       // GET all fietsenstallingen user can access
       const fietsenstallingen = (await prisma.fietsenstallingen.findMany({
-        where: {
-          // Get for 1 specific gemeente, or for all sites
-          SiteID: { in: GemeenteID ? [GemeenteID as string] : sites }
-        },
-        select: compact ? fietsenstallingLijstSelect : fietsenstallingSelect
-      })) as unknown as (VSFietsenstalling[] | VSFietsenstallingLijst[]);
+        where: whereClause,
+        select: selectParkingDetailsType
+      })) as unknown as ParkingDetailsType[];
      
       // Loop all fietsenstallingen and console.log any that has a BigInt in any of its fields
       // fietsenstallingen.forEach(fietsenstalling => {
@@ -49,10 +53,10 @@ export default async function handle(
       // });
       
       // Convert all BigInt fields to strings
-      fietsenstallingen.forEach(fietsenstalling => {
+      fietsenstallingen.forEach((fietsenstalling) => {
         Object.keys(fietsenstalling).forEach(key => {
-          if (typeof fietsenstalling[key] === 'bigint') {
-            fietsenstalling[key] = fietsenstalling[key].toString();
+          if (typeof (fietsenstalling as any)[key] === 'bigint') {
+            (fietsenstalling as any)[key] = (fietsenstalling as any)[key].toString();
           }
         });
       });
