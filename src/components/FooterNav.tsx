@@ -74,7 +74,7 @@ const FooterNav = ({ onStallingAanmelden, children }: {
 
   const navItemsPrimary = [
     // { title: 'Stalling toevoegen' },
-    { title: 'Over Veilig Stallen', url: '/fietsberaad/Copyright' },
+    { title: 'Over VeiligStallen', url: '/fietsberaad/Copyright' },
   ];
 
   const footerMenuItems = getFooter(fietsberaadArticles);
@@ -136,7 +136,7 @@ const FooterNav_overlay = ({ onStallingAanmelden, children }: {
 
   const navItemsPrimary = [
     // { title: 'Stalling toevoegen' },
-    { displayTitle: 'Over Veilig Stallen',   // text in menu
+    { displayTitle: 'Over VeiligStallen',   // text in menu
       municipality: 'fietsberaad',
       Title: 'Copyright' // title in URL
     },
