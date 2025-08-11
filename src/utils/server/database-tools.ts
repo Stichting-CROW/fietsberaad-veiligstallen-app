@@ -68,7 +68,7 @@ export async function validateUserSession(session: any, itemType = "organization
   }
 
   const ownRole = theuser.user_contact_roles.find((role) => role.isOwnOrganization);
-  const isAdminFietsberaad = ownRole && ownRole.ContactID === "1" && [VSUserRoleValuesNew.RootAdmin, VSUserRoleValuesNew.Admin].includes(ownRole.NewRoleID as VSUserRoleValuesNew);
+  const isAdminFietsberaad = ownRole && ownRole.ContactID === "1" && [VSUserRoleValuesNew.RootAdmin, VSUserRoleValuesNew.Viewer].includes(ownRole.NewRoleID as VSUserRoleValuesNew);
 
   if(isAdminFietsberaad===false) {
     // get all distinct contact IDs for the user from the user_contact_role table

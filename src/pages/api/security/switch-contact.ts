@@ -26,7 +26,7 @@ export default async function handler(
     }
 
     try {
-        // If user is Fietsberaad rootman: Access to all contacts
+        // If user is Fietsberaad rootadmin: Access to all contacts
         if(session.user.mainContactId === '1') {
           // First, check if user is rootman for contact '1'
           const user = await prisma.security_users.findFirst({
@@ -39,10 +39,11 @@ export default async function handler(
             }
           }) as VSUserWithRoles;
 
-          if(user?.user_contact_roles[0]?.NewRoleID === 'rootadmin') {
+          const userRole = user?.user_contact_roles[0]?.NewRoleID;
+          if(userRole === 'rootadmin' || userRole === 'viewer') {
             // Create new security profile with updated active contact   
             const activeContactType = await getOrganisationTypeByID(contactId);
-            const securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew, activeContactType);
+            const securityProfile = createSecurityProfile(userRole as VSUserRoleValuesNew, activeContactType);
 
             // Create updated user object
             const updatedUser = {
@@ -53,6 +54,9 @@ export default async function handler(
 
             return res.status(200).json({ user: updatedUser });
           }
+          
+          // If Fietsberaad user doesn't have rootadmin role, they can't switch contacts
+          return res.status(403).json({ error: 'Fietsberaad user must have rootadmin or viewer role to switch contacts' });
         }
 
         // If not rootman of Fietsberaad, check if user has access to contact
