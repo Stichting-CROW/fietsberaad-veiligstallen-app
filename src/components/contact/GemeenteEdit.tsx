@@ -32,7 +32,7 @@ type GemeenteEditProps = {
     onSendPassword: (userID: string | undefined) => void;
 }
 
-const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Nieuw " + new Date().toISOString());
+const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Data-eigenaar " + new Date().toISOString().slice(0, 16).replace('T', ' '));
 
 const GemeenteEdit = (props: GemeenteEditProps) => {
     const [selectedTab, setSelectedTab] = useState<string>("tab-algemeen");

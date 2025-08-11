@@ -53,7 +53,7 @@ export default async function handle(
     case "GET": {
       if (id === "new") {
         // add timestamp to the name
-        const defaultRecord = getDefaultNewGemeente('Nieuw ' + new Date().toISOString());
+        const defaultRecord = getDefaultNewGemeente("Data-eigenaar " + new Date().toISOString().slice(0, 16).replace('T', ' '));
         res.status(200).json({data: defaultRecord});
         return;
       }
