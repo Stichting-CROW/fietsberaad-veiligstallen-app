@@ -42,7 +42,7 @@ export const useFietsenstallingen = (GemeenteID: string) => {
   }, [GemeenteID, version]);
 
   useEffect(() => {
-    console.log("useEffect fetchFietsenstallingen", GemeenteID);
+    // console.log("useEffect fetchFietsenstallingen", GemeenteID);
     fetchFietsenstallingen();
   }, [fetchFietsenstallingen, version, GemeenteID]);
 

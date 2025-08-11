@@ -57,7 +57,7 @@ export const initAllTopics = (value: VSCRUDRight) => {
 
 export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: VSSecurityTopic): boolean => {
     if(!profile) {
-        console.log("### profile is undefined");
+        // console.log("### profile is undefined");
         return false;
     }
 

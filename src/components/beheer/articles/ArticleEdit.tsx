@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import type { VSArticle } from '~/types/articles';
 import RichTextEditor from '~/components/common/RichTextEditor';
+import FormInput from '~/components/Form/FormInput';
 
 type ArticleEditProps = {
   id: string;
@@ -25,7 +26,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           Title: '',
           Article: '',
           Navigation: 'article',
-          Status: 'draft',
+          Status: '1',
           DateModified: new Date().toISOString(),
           DateCreated: new Date().toISOString(),
           ModuleID: 'veiligstallenprisma'
@@ -110,6 +111,11 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     }
   };
 
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!article) return;
+    setArticle(prev => prev ? { ...prev, DisplayTitle: e.target.value } : null);
+  };
+
   if (isLoading) {
     return <div>Laden...</div>;
   }
@@ -138,16 +144,11 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="DisplayTitle" className="block text-sm font-medium text-gray-700">
-            Titel
-          </label>
-          <input
+          <FormInput
             type="text"
-            id="DisplayTitle"
-            name="DisplayTitle"
             value={article.DisplayTitle || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            onChange={handleTitleChange}
+            label="Titel"
             required
           />
         </div>
@@ -170,7 +171,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
               type="checkbox" 
               id="Status" 
               name="Status" 
-              checked={article.Status === '1'} 
+              checked={article.Status === '1' || id === 'new'} 
               onChange={handleChange}
               className="mr-2"
             />

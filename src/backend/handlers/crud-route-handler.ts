@@ -3,6 +3,14 @@ import type { ICrudService } from "./crud-service-interface";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+// Helper function to serialize BigInt values
+const serializeBigInt = (data: any) => {
+  const datafixed = JSON.stringify(data, (key, value) =>
+    typeof value === "bigint" ? value.toString() : value
+  );
+  return JSON.parse(datafixed);
+};
+
 export const CrudRouteHandler = async <T>(
   request: NextApiRequest,
   response: NextApiResponse,
@@ -14,10 +22,7 @@ export const CrudRouteHandler = async <T>(
   if ((request.method as HttpMethod) === "GET") {
     if (!id) {
       data = await service.getAll();
-      const datafixed = JSON.stringify(data, (key, value) =>
-        typeof value === "bigint" ? value.toString() : value
-      );
-      return response.status(200).json(JSON.parse(datafixed));
+      return response.status(200).json(serializeBigInt(data));
     } else {
     }
 
@@ -27,27 +32,24 @@ export const CrudRouteHandler = async <T>(
       return response.status(404).send(null);
     }
 
-    const datafixed2 = JSON.stringify(getSingleResponse, (key, value) =>
-      typeof value === "bigint" ? value.toString() : value
-    );
-    return response.status(200).json(JSON.parse(datafixed2));
+    return response.status(200).json(serializeBigInt(getSingleResponse));
   }
 
   if ((request.method as HttpMethod) === "POST") {
     const data = request.body as T;
     const createResponse = await service.create(data);
-    return response.status(201).json(createResponse);
+    return response.status(201).json(serializeBigInt(createResponse));
   }
 
   if ((request.method as HttpMethod) === "PUT") {
     const data = request.body as T;
     const updateResponse = await service.update(id, data);
-    return response.status(200).json(updateResponse);
+    return response.status(200).json(serializeBigInt(updateResponse));
   }
 
   if ((request.method as HttpMethod) === "DELETE") {
     const deleteResponse = await service.delete(id);
-    return response.status(200).json(deleteResponse);
+    return response.status(200).json(serializeBigInt(deleteResponse));
   }
 
   return response.status(405).send("Method not allowed");
