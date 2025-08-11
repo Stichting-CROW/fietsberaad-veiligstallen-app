@@ -153,7 +153,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
 
             {showStallingenFilter && (
               <div className="flex items-center">
-                <label htmlFor="showGemeentenWithoutStallingen" className="text-sm font-medium text-gray-700">Toon data-eigenaren zonder stallingen:</label>
+                <label htmlFor="showGemeentenWithoutStallingen" className="w-80 text-sm font-medium text-gray-700">Toon data-eigenaren zonder stallingen:</label>
                 <select 
                   id="showGemeentenWithoutStallingen" 
                   name="showGemeentenWithoutStallingen" 
@@ -170,7 +170,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
 
             {showUsersFilter && (
               <div className="flex items-center">
-                <label htmlFor="showGemeentenWithoutUsers" className="text-sm font-medium text-gray-700">Toon data-eigenaren zonder gebruikers:</label>
+                <label htmlFor="showGemeentenWithoutUsers" className="w-80 text-sm font-medium text-gray-700">Toon data-eigenaren zonder gebruikers:</label>
                 <select 
                   id="showGemeentenWithoutUsers" 
                   name="showGemeentenWithoutUsers" 
@@ -187,7 +187,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
 
             {showExploitantenFilter && (
               <div className="flex items-center">
-                <label htmlFor="showGemeentenWithoutExploitanten" className="text-sm font-medium text-gray-700">Toon data-eigenaren zonder exploitanten:</label>
+                <label htmlFor="showGemeentenWithoutExploitanten" className="w-80 text-sm font-medium text-gray-700">Toon data-eigenaren zonder exploitanten:</label>
                 <select 
                   id="showGemeentenWithoutExploitanten" 
                   name="showGemeentenWithoutExploitanten" 
@@ -204,7 +204,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
 
             {showModulesFilter && (
               <div className="flex items-center">
-                <label htmlFor="selectedModuleFilter" className="text-sm font-medium text-gray-700">Module filter: Data-eigenaar heeft </label>
+                <label htmlFor="selectedModuleFilter" className="w-80 text-sm font-medium text-gray-700">Module filter: Data-eigenaar heeft </label>
                 <select 
                   id="selectedModuleFilter" 
                   name="selectedModuleFilter" 
