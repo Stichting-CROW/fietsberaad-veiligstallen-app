@@ -79,7 +79,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           </LeftMenuItem>
         }
 
-        {hasFietsberaadAdmin && 
+        {(hasFietsberaadAdmin  || hasFietsberaadSuperadmin) && 
           <LeftMenuItem 
             component={VSMenuTopic.Database} 
             title={'Database'} 
