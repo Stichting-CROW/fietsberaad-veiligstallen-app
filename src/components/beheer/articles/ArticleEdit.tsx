@@ -26,7 +26,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           Title: '',
           Article: '',
           Navigation: 'article',
-          Status: 'draft',
+          Status: '1',
           DateModified: new Date().toISOString(),
           DateCreated: new Date().toISOString(),
           ModuleID: 'veiligstallenprisma'
@@ -171,7 +171,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
               type="checkbox" 
               id="Status" 
               name="Status" 
-              checked={article.Status === '1'} 
+              checked={article.Status === '1' || id === 'new'} 
               onChange={handleChange}
               className="mr-2"
             />
