@@ -5,35 +5,33 @@ import { useSelector } from "react-redux";
 import { useSession, signOut } from "next-auth/react"
 import { type AppState } from "~/store/store";
 import type { VSContactExploitant, VSContactGemeenteInLijst, VSContact } from "~/types/contacts";
-import { logSession } from '~/types/utils';
+import { getNewRoleLabel, logSession } from '~/types/utils';
 import { getOrganisationByID } from "~/utils/organisations";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
 
 interface TopBarProps {
-  title: string;
-  currentComponent: string;
   gemeenten: VSContactGemeenteInLijst[] | undefined;
   exploitanten: VSContactExploitant[] | undefined;
-  selectedGemeenteID: string | undefined;
-  onGemeenteSelect: (gemeenteID: string) => void;
+  ownOrganisationID: string | undefined;
+  selectedOrganisatieID: string | undefined;
+  onOrganisatieSelect: (gemeenteID: string) => void;
 }
 
-const getSelectedOrganisationInfo = (gemeenten: VSContactGemeenteInLijst[], exploitanten: VSContactExploitant[], selectedGemeenteID: string) => {
+const getSelectedOrganisationInfo = (gemeenten: VSContactGemeenteInLijst[], exploitanten: VSContactExploitant[], selectedOrganisatieID: string) => {
   // Merge gemeenten and exploitanten
   const organisations = [...gemeenten, ...exploitanten];
   // Get organisation info
-  const organisation: VSContact | undefined = getOrganisationByID(organisations as unknown as VSContact[], selectedGemeenteID || "");
+  const organisation: VSContact | undefined = getOrganisationByID(organisations as unknown as VSContact[], selectedOrganisatieID || "");
 
   return organisation;
 }
 
 const TopBar: React.FC<TopBarProps> = ({
-  title,
-  currentComponent,
   gemeenten,
   exploitanten,
-  selectedGemeenteID,
-  onGemeenteSelect,
+  ownOrganisationID,
+  selectedOrganisatieID,
+  onOrganisatieSelect,
 }) => {
   const { push } = useRouter();
   const { data: session } = useSession()
@@ -55,11 +53,11 @@ const TopBar: React.FC<TopBarProps> = ({
     ? `#${activeMunicipalityInfo.ThemeColor2}`
     : '#15aeef';
 
-  const handleGemeenteChange = (
+  const handleOrganisatieChange = (
     event: React.ChangeEvent<HTMLSelectElement>,
   ) => {
     event.preventDefault();
-    onGemeenteSelect(event.target.value);
+    onOrganisatieSelect(event.target.value);
   };
 
   const handleLoginClick = () => {
@@ -79,14 +77,6 @@ const TopBar: React.FC<TopBarProps> = ({
     }
   };
 
-  const showFietsberaadInList = session?.user?.mainContactId === "1";
-  const fietsberaad = {
-    ID: "1",
-    CompanyName: "Fietsberaad",
-  }
-
-  const selectedOrganisationInfo: VSContact | undefined = getSelectedOrganisationInfo(gemeenten || [], exploitanten || [], selectedGemeenteID || "");
-
   const gemeentenKort = gemeenten?.map(gemeente => ({
     ID: gemeente.ID,
     CompanyName: gemeente.CompanyName,
@@ -99,10 +89,7 @@ const TopBar: React.FC<TopBarProps> = ({
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
   });
 
-  // Only add exploitanten if users' main contact is an exploitant or is fietsberaad:
-  const isMainContactExploitantOrFietsberaad = session?.user?.mainContactId == "1" || exploitanten?.some(exploitant => exploitant.ID === session?.user?.mainContactId);
-
-  const exploitantenKort = isMainContactExploitantOrFietsberaad ? exploitanten?.map(exploitant => ({
+  const exploitantenKort = exploitanten?.map(exploitant => ({
     ID: exploitant.ID,
     CompanyName: "** " + exploitant.CompanyName + " **",
   })).sort((a, b) => {
@@ -112,12 +99,7 @@ const TopBar: React.FC<TopBarProps> = ({
     if (b.ID === (session?.user?.mainContactId || "")) return 1;
     // Otherwise sort alphabetically
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
-  }) : [];
-
-  const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])];
-  if(showFietsberaadInList) {
-    organisaties.unshift(fietsberaad);
-  }
+  });
 
   const renderLogo = () => {
     const activecontact = selectedOrganisationInfo;
@@ -149,6 +131,42 @@ const TopBar: React.FC<TopBarProps> = ({
     return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-16 w-auto bg-white p-2" />
   }
 
+
+  const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])].filter(organisatie => organisatie.ID !== ownOrganisationID);
+  const selecteerOrganisatie = {
+    ID: "selecteer",
+    CompanyName: "Selecteer een organisatie",
+  }
+
+  organisaties.unshift(selecteerOrganisatie);
+
+  let ownOrganisationName 
+  if(ownOrganisationID === "1") {
+    ownOrganisationName = "Fietsberaad";
+  } else {
+    const ownOrganisation = getSelectedOrganisationInfo(gemeenten || [], exploitanten || [], ownOrganisationID || "");
+    ownOrganisationName = ownOrganisation?.CompanyName || "";
+  }
+
+  const selectedOrganisationInfo: VSContact | undefined = getSelectedOrganisationInfo(gemeenten || [], exploitanten || [], selectedOrganisatieID || "");
+
+  const titlename = " " + (ownOrganisationID === selectedOrganisatieID ? ownOrganisationName : selectedOrganisationInfo?.CompanyName || "---");
+  const title = `VeiligStallen ${titlename}`; 
+
+  // Show organization list if user is fietsberaad or from exploitanten, show button if user is from gemeenten
+  const isOwnOrganisation = ownOrganisationID === selectedOrganisatieID;
+  const isExploitant = exploitanten?.some(exploitant => exploitant.ID === ownOrganisationID);
+  const isFietsberaad = ownOrganisationID === "1";
+
+  const shouldShowOrganisatieList = 
+    isFietsberaad  && isOwnOrganisation ||
+    isExploitant && isOwnOrganisation;
+  
+  const shouldShowBackButton = !isOwnOrganisation;
+
+  const userRole = session?.user?.securityProfile?.roleId ? 
+    ` (${getNewRoleLabel(session?.user?.securityProfile?.roleId)})` : "";
+
   return (
     <div
       className="
@@ -157,7 +175,7 @@ const TopBar: React.FC<TopBarProps> = ({
     "
     style={{minHeight: '64px'}}
     >
-      <div style={{ flex: 1 }}>
+      <div>
         {renderLogo()}
       </div>
       <div
@@ -187,22 +205,22 @@ const TopBar: React.FC<TopBarProps> = ({
           </a>
         </div>
         <div className="PrimaryMenuItem px-5">
-          <h1 className="text-lg font-semibold">{title}</h1>
+          <h1 className="text-sm font-semibold">{title}</h1>
+          {session?.user?.name && (
+            <div className="font-normal text-xs" onClick={handleDisplaySessionInfo}>
+              {session?.user?.name || "---"}{userRole}
+            </div>
+          )}
         </div>
       </div>
       <div
         className="flex items-center justify-end space-x-4 text-sm whitespace-nowrap"
         style={{ flex: 3 }}
       >
-        {session?.user?.name && (
-          <div className="text-sm" onClick={handleDisplaySessionInfo}>
-            {session?.user?.name || "---"}
-          </div>
-        )}
-        {organisaties && organisaties.length > 0 && (
+        {shouldShowOrganisatieList && organisaties && organisaties.length > 0 && (
           <select
-            onChange={handleGemeenteChange}
-            value={selectedGemeenteID || ""}
+            onChange={handleOrganisatieChange}
+            value={selectedOrganisatieID || ""}
             className="rounded bg-gray-700 px-2 py-1 text-white"
           >
             {organisaties.map(organisatie => (
@@ -214,6 +232,15 @@ const TopBar: React.FC<TopBarProps> = ({
               </option>
             ))}
           </select>
+        )}
+        
+        {shouldShowBackButton && (
+          <button
+            onClick={() => onOrganisatieSelect(ownOrganisationID||"")}
+            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+          >
+            Terug naar {ownOrganisationName}
+          </button>
         )}
 
         <a
