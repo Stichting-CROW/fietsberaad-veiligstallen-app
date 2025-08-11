@@ -61,7 +61,7 @@ mysql-db/export-db.zip
 /public/uploads*
 
 #auto generated test scripts
-create-test-user.sql
+scripts/*.sql
 
 #temporary files
 /broncode

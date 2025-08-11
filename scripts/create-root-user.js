@@ -14,31 +14,26 @@ const c_intern_data_analyst = 9;
 
 const saltRounds = 13; // 13 salt rounds used in the original code
 
-const stallingenIDs_utrecht = [
-    'E197BE1D-B9CC-9B59-D88D7A356D6FEEE8',
-    'E197C7FD-C31E-050A-EAB81894CEB8C946',
-    'E197C889-9EB9-5F9B-AEA4F4D7B993E795',
-    'E197CD25-9F4F-A2D5-26007A22650A4DC0',
-    'E197D9DC-C0B9-D9B2-9737C96AED1E68B0',
-    'E197DD9B-C7B6-C306-07C6F96E7F42A79B',
-    'E197EB66-A859-3EDA-D243C3789EEAE4F0',
-    'E198D753-B00C-0F41-9A8C0F275D822E6D',
-    'E199038B-DF30-10EB-93C7A52E7AA26808',
-    'E1991A95-08EF-F11D-FF946CE1AA0578FB',
-    'E199235E-A49E-734E-67A5836FA2358C14',
-    'E1994219-9047-F340-067A1D64587BC21D',
-    'E1994396-D16A-35F2-2D710CBCEC414338',    
-]
-
 // +++++++++++++++++++++++++++++++++++++++++++
-// Fill these fields
+// Configuration
 
-const username = "";
-const email = "";
-const password = "";
+const username = "superadmin2@veiligstallen.nl";
+const email = "superadmin2@veiligstallen.nl";
+const password = process.argv[2]; // Get password from command line argument
 const roleID = c_root_admin;
+const fietsberaadSiteID = "1"; // Fietsberaad site ID
 
 // +++++++++++++++++++++++++++++++++++++++++++
+
+// Check if password is provided
+if (!password) {
+    console.error("Error: Password must be provided as command line argument");
+    console.error("Usage: node create-root-user.js <password>");
+    process.exit(1);
+}
+
+
+
 function generateCustomId() {
     // Function to generate a random hex string of a given length
     const randomHex = (length) => {
@@ -61,11 +56,23 @@ function generateCustomId() {
 }
 
 const hashedPassword = bcrypt.hashSync(password, saltRounds);
-// const newUserUUID = generateCustomId();
-const newUserUUID = "D4351342-685D-D17A-B3617EEBBF39451C";
+const newUserUUID = generateCustomId();
+const newContactRoleID = generateCustomId();
 
+// SQL statements array
+const sql = [];
 
-const sqluser = `INSERT INTO 'security_users' (
+// 1. Check if user exists and drop related records
+sql.push(`-- Check if user exists for veiligstallen.nl`);
+sql.push(`SET @existingUserID = (SELECT UserID FROM security_users WHERE UserName = '${email}' LIMIT 1);`);
+
+sql.push(`-- If user exists, drop related records`);
+sql.push(`DELETE FROM security_users_sites WHERE UserID = @existingUserID;`);
+sql.push(`DELETE FROM user_contact_role WHERE UserID = @existingUserID;`);
+sql.push(`DELETE FROM security_users WHERE UserID = @existingUserID;`);
+
+// 2. Create new user
+const sqluser = `INSERT INTO security_users (
             UserID,
             Locale,
             RoleID,
@@ -96,13 +103,21 @@ const sqluser = `INSERT INTO 'security_users' (
                 '1'
             );`;
 
-            const sql = [];
-            sql.push(sqluser);
+sql.push(sqluser);
 
-stallingenIDs_utrecht.forEach((stallingID, idx) => {
-    const sqlstalling = `INSERT INTO security_users_sites (ID,UserID,SiteID,IsContact) VALUES (${1000000+idx},'${newUserUUID}','${stallingID}','0');`
-    sql.push(sqlstalling);
-});
+// 3. Add record to security_users_sites for Fietsberaad (isContact = 0)
+const sqlSecurityUserSites = `INSERT INTO security_users_sites (UserID, SiteID, IsContact) VALUES ('${newUserUUID}', '${fietsberaadSiteID}', b'0');`;
+sql.push(sqlSecurityUserSites);
 
-fs.writeFileSync('create-test-user.sql', sql.join('\n'));
-// console.log(sql);
+// 5. Add record to user_contact_role for Fietsberaad (newRoleID=rootadmin, isOwnOrganization = 1)
+const sqlUserContactRole = `INSERT INTO user_contact_role (ID, UserID, ContactID, NewRoleID, isOwnOrganization) VALUES ('${newContactRoleID}', '${newUserUUID}', '${fietsberaadSiteID}', 'rootadmin', 1);`;
+sql.push(sqlUserContactRole);
+
+// Write SQL to file
+fs.writeFileSync('create-root-user.sql', sql.join('\n'));
+
+console.log('SQL script generated: create-root-user.sql');
+console.log(`New user created: ${username}`);
+console.log(`User ID: ${newUserUUID}`);
+console.log(`Role: Root Admin`);
+console.log(`Site: Fietsberaad (ID: ${fietsberaadSiteID})`);
