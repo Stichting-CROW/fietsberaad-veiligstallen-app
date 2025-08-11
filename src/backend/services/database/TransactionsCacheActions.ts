@@ -94,6 +94,10 @@ export const updateTransactionCache = async (params: CacheParams) => {
       FROM transacties_archief
       ${whereClause}
       GROUP BY locationID, date;`
+    
+    console.log("*** Update cache sql", sql);
+    return getTransactionCacheStatus(params);
+
     /* const result = */ await prisma.$executeRawUnsafe(sql);
     return getTransactionCacheStatus(params);
 }
