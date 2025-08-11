@@ -456,7 +456,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
       const renderTopBar = (currentContact: VSContactGemeente | undefined) => {
         const contact = isNew ? DEFAULTGEMEENTE : currentContact;
-        const title: string = "Instellingen " + (contact?.CompanyName || "") + (isNew ? " (Nieuw)" : "");
+        const title: string = "" + (contact?.CompanyName || "") + (isNew ? " (Nieuw)" : "");
         const showUpdateButtons: boolean = isEditing;
         const allowSave: boolean = isDataChanged();
 
@@ -513,7 +513,6 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         );
     };
 
-    // console.log('contactID', contactID, initialData.contactID);
     return (
       <div style={{ minHeight: "65vh" }}>
       <div
