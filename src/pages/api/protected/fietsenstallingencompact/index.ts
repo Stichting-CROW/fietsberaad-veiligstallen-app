@@ -24,10 +24,10 @@ export default async function handle(
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
   
-  if (!hasFietsenstallingenAccess) {
-    res.status(403).json({ error: "Access denied - insufficient permissions" });
-    return;
-  }
+  // if (!hasFietsenstallingenAccess) {
+  //   res.status(403).json({ error: "Access denied - insufficient permissions" });
+  //   return;
+  // }
   
   const validationResult = await validateUserSession(session, "any");
   
@@ -37,6 +37,7 @@ export default async function handle(
       not: 'Systeemstalling'
     }
   };
+  
   if ('error' in validationResult === false) {
     const { GemeenteID } = req.query;
     const { sites } = validationResult;

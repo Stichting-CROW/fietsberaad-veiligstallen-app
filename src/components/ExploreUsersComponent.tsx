@@ -198,6 +198,34 @@ const ExploreUsersComponent = () => {
         setShowInactiveDays(undefined);
     };
 
+    const exportToCSV = () => {
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() +
+            (now.getMonth() + 1).toString().padStart(2, '0') +
+            now.getDate().toString().padStart(2, '0') + '-' +
+            now.getHours().toString().padStart(2, '0') +
+            now.getMinutes().toString().padStart(2, '0');
+        
+        const filename = `${timestamp}-selected-users.csv`;
+        
+        // Create CSV content
+        const csvContent = [
+            'ID,DisplayName,UserName',
+            ...filteredUsers.map(user => `${user.UserID},"${user.DisplayName || ''}","${user.UserName || ''}"`)
+        ].join('\n');
+        
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const renderFilterSection = (contacts: {ID: string, CompanyName: string}[]) => {
         const roles= Object.values(VSUserRoleValuesNew);
 
@@ -299,7 +327,16 @@ const ExploreUsersComponent = () => {
                         </select>                        
                     </div>
                     <div>
-                        <h2 className="text-xl font-semibold mt-6">Gebruikerslijst</h2>
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-semibold mt-6">Gebruikerslijst</h2>
+                            <button 
+                                type="button"
+                                className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                                onClick={exportToCSV}
+                            >
+                                Export
+                            </button>
+                        </div>
                         <ul className="list-disc list-inside max-h-fit overflow-y-auto">
                             {filteredUsers.map((user) => { 
                                 const organizationName: string = contacts.find(contact => contact.ID === user.ownOrganizationID)?.CompanyName || "Onbekende organisatie";

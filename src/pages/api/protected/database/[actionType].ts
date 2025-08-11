@@ -42,6 +42,7 @@ const AvailableDataParamsSchema = z.object({
 });
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+  console.log("*** database (protected) actionType", req.query.actionType);
   // Require authentication and rapportages role for report-related database operations
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
@@ -50,8 +51,10 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return;
   }
 
-  const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
-  if (!hasRapportages) {
+  const hasDatabase = 
+    userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) ||
+    userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin); 
+  if (!hasDatabase) {
     console.error("Access denied - insufficient permissions for database operations");
     res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
     return;

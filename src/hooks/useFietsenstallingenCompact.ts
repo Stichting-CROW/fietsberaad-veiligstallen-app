@@ -28,8 +28,8 @@ export const useFietsenstallingenCompact = (GemeenteID: string | undefined) => {
 
       setFietsenstallingen(result.data || []);
     } catch (err) {
-      console.error("Error in fetchFietsenstallingen:", err);
-      setError(err instanceof Error ? err.message : 'An error occurred while fetching fietsenstallingen');
+      console.error("Error in fetchFietsenstallingenCompact:", err);
+      setError(err instanceof Error ? err.message : 'An error occurred while fetching fietsenstallingenCompact');
     } finally {
       setIsLoading(false);
     }
