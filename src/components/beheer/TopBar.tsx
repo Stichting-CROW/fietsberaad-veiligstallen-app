@@ -99,7 +99,10 @@ const TopBar: React.FC<TopBarProps> = ({
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
   });
 
-  const exploitantenKort = exploitanten?.map(exploitant => ({
+  // Only add exploitanten if users' main contact is an exploitant or is fietsberaad:
+  const isMainContactExploitantOrFietsberaad = session?.user?.mainContactId === "1" || exploitanten?.some(exploitant => exploitant.ID === session?.user?.mainContactId);
+
+  const exploitantenKort = isMainContactExploitantOrFietsberaad ? exploitanten?.map(exploitant => ({
     ID: exploitant.ID,
     CompanyName: "** " + exploitant.CompanyName + " **",
   })).sort((a, b) => {
@@ -109,7 +112,7 @@ const TopBar: React.FC<TopBarProps> = ({
     if (b.ID === (session?.user?.mainContactId || "")) return 1;
     // Otherwise sort alphabetically
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
-  });
+  }) : [];
 
   const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])];
   if(showFietsberaadInList) {
