@@ -490,21 +490,24 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     disabled={!isEditing}
                   />
                   <br />
-                  { contactpersons.length > 0 ?
-                      <FormSelect 
-                        label="Contactpersoon"
-                        value={contactID || ''} 
-                        onChange={(e) => setContactID(e.target.value || null)} 
-                        required
-                        options={
-                          contactpersons
-                            .filter(user => user.DisplayName !== null && user.DisplayName !== "")
-                            .map(user => ({ label: user.DisplayName || "", value: user.UserID }))}
-                        disabled={!isEditing}
-                      /> 
-                      : 
-                      <FormInput label="Contactpersoon" value="Voor deze gemeente zijn geen gebruikers geregistreerd" disabled />}
-                  <br />
+                  {props.id !== "new" && <>
+                    { contactpersons.length > 0 ?
+                        <FormSelect 
+                          label="Contactpersoon"
+                          value={contactID || ''} 
+                          onChange={(e) => setContactID(e.target.value || null)} 
+                          required
+                          options={
+                            contactpersons
+                              .filter(user => user.DisplayName !== null && user.DisplayName !== "")
+                              .map(user => ({ label: user.DisplayName || "", value: user.UserID }))}
+                          disabled={!isEditing}
+                        /> 
+                        : 
+                        <FormInput label="Contactpersoon" value="Voor deze gemeente zijn geen gebruikers geregistreerd" disabled />}
+                      <br />
+                    </>
+                  }
                   <FormInput 
                     label="Alternatieve naam"
                     value={AlternativeCompanyName || ''} 
