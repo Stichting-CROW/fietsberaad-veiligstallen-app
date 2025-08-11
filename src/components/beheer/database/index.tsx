@@ -70,7 +70,7 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
       />
       
       {/* Temporary section for validate incremental update */}
-      <div className="mt-8 p-6 bg-gray-50 rounded-lg border">
+      {/* <div className="mt-8 p-6 bg-gray-50 rounded-lg border">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Validate Incremental Update</h2>
         <div className="flex gap-4">
           <button
@@ -106,7 +106,7 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
         <p className="text-sm text-gray-600 mt-3">
           Test section for cache update functionality - calls /api/protected/database/test-update-cache
         </p>
-      </div>
+      </div> */}
     </div>
   );
 };

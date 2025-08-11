@@ -31,22 +31,25 @@ const testTransactionCache = async (startDate: string, endDate: string, full: bo
         startDate: moment(startDate).toDate(),
         endDate: moment(endDate).toDate(),
         selectedBikeparkIDs: [],
-        allDates: true,
+        allDates: false,
         allBikeparks: true
       }
+      console.log("*** Update cache full mode", updateParamsFull);
       result = await updateTransactionCache(updateParamsFull);
     } else {
-      for(let thedate = moment(startDate); thedate.isBefore(moment(endDate)add(1, 'day')); thedate.add(1, 'day')) {
+      for(let thedate = moment(startDate); thedate.isBefore(moment(endDate).add(1, 'day')); thedate.add(1, 'day')) {
+        const updateParamsIncremental: CacheParams = {
+          action: 'update',
+          startDate: thedate.toDate(),
+          endDate: thedate.add(1, 'day').toDate(),
+          selectedBikeparkIDs: [],
+          allDates: true,
+          allBikeparks: true
+        }
 
-      const updateParamsIncremental: CacheParams = {
-        action: 'update',
-        startDate: moment(startDate).toDate(),
-        endDate: moment(endDate).toDate(),
-        selectedBikeparkIDs: [],
-        allDates: true,
-        allBikeparks: true
-      }
-      result = await updateTransactionCache(updateParamsIncremental);
+        console.log("*** Update cache incremental mode", updateParamsIncremental);
+        // result = await updateTransactionCache(updateParamsIncremental);
+     }
     }
 
     return result;
@@ -73,7 +76,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const isFull = full === true;
 
     const thestart = "1/1/2025"
-    const theend = "1/3/2025"
+    const theend = "1/2/2025"
     
     const startDate = moment(thestart).toISOString();
     const endDate = moment(theend).toISOString(); 
