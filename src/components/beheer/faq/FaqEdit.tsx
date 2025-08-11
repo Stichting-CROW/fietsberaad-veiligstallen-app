@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import type { VSFAQ } from '~/types/faq';
 import RichTextEditor from '~/components/common/RichTextEditor';
+import FormSelect from '~/components/Form/FormSelect';
+import FormInput from '~/components/Form/FormInput';
 
 type FaqEditProps = {
   id: string;
@@ -131,38 +133,33 @@ const FaqEdit: React.FC<FaqEditProps> = ({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="ParentID" className="block text-sm font-medium text-gray-700">
-            Categorie
-          </label>
-          <select
-            id="ParentID"
-            name="ParentID"
+          <FormSelect
             value={faq.ParentID || ''}
-            defaultValue={faq.ParentID || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            onChange={(e) => {
+              if (!faq) return;
+              setFaq(prev => prev ? { ...prev, ParentID: e.target.value } : null);
+            }}
+            label="Categorie"
+            placeholder="Selecteer een categorie"
             required
-          >
-            <option value="">Selecteer een categorie</option>
-            {sections.filter((section: VSFAQ) => section.Title !== '').map((section) => (
-              <option key={section.ID} value={section.ID || ''}>
-                {section.Title}
-              </option>
-            ))}
-          </select>
+            options={sections
+              .filter((section: VSFAQ) => section.Title && section.Title !== '')
+              .map((section) => ({
+                label: section.Title!,
+                value: section.ID || ''
+              }))}
+          />
         </div>
 
         <div>
-          <label htmlFor="Question" className="block text-sm font-medium text-gray-700">
-            Vraag
-          </label>
-          <input
+          <FormInput
             type="text"
-            id="Question"
-            name="Question"
             value={faq.Question || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            onChange={(e) => {
+              if (!faq) return;
+              setFaq(prev => prev ? { ...prev, Question: e.target.value } : null);
+            }}
+            label="Vraag"
             required
           />
         </div>
