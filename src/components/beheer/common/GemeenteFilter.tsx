@@ -133,7 +133,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
         <CollapsibleContent 
           buttonText="Extra filter opties"
           isOpen={
-            !!filters?.nameFilter ||
+            // !!filters?.nameFilter ||
             filters?.showGemeentenWithoutStallingen !== "yes" ||
             filters?.showGemeentenWithoutUsers !== "yes" ||
             filters?.showGemeentenWithoutExploitanten !== "yes" ||
