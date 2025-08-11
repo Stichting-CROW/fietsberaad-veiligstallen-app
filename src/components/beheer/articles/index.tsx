@@ -199,7 +199,7 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
             {
               header: 'Acties',
               accessor: (article) => (
-                <>
+                <div className="whitespace-nowrap">
                   <button 
                     onClick={() => handleEditArticle(article.ID)} 
                     className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -214,7 +214,7 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
                       🗑️
                     </button>
                   )}
-                </>
+                </div>
               )
             }
           ]}
