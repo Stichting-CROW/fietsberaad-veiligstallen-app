@@ -100,7 +100,7 @@ const TopBar: React.FC<TopBarProps> = ({
   });
 
   // Only add exploitanten if users' main contact is an exploitant or is fietsberaad:
-  const isMainContactExploitantOrFietsberaad = session?.user?.mainContactId === "1" || exploitanten?.some(exploitant => exploitant.ID === session?.user?.mainContactId);
+  const isMainContactExploitantOrFietsberaad = session?.user?.mainContactId == "1" || exploitanten?.some(exploitant => exploitant.ID === session?.user?.mainContactId);
 
   const exploitantenKort = isMainContactExploitantOrFietsberaad ? exploitanten?.map(exploitant => ({
     ID: exploitant.ID,
@@ -113,6 +113,7 @@ const TopBar: React.FC<TopBarProps> = ({
     // Otherwise sort alphabetically
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
   }) : [];
+  console.log(exploitanten, 'exploitantenKort', exploitantenKort)
 
   const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])];
   if(showFietsberaadInList) {
