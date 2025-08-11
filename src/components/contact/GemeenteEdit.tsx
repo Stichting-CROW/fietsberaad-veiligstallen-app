@@ -32,7 +32,7 @@ type GemeenteEditProps = {
     onSendPassword: (userID: string | undefined) => void;
 }
 
-const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Nieuw " + new Date().toISOString());
+const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Data-eigenaar " + new Date().toISOString().slice(0, 16).replace('T', ' '));
 
 const GemeenteEdit = (props: GemeenteEditProps) => {
     const [selectedTab, setSelectedTab] = useState<string>("tab-algemeen");
@@ -41,12 +41,13 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
     const { gemeente: activecontact, isLoading: isLoading, error: error, reloadGemeente: reloadGemeente } = useGemeente(props.id);
     const { modulesContacts, loading: modulesLoading, error: modulesError, createModulesContacts, deleteModulesContactsForContact } = useModulesContacts(props.id === "new" ? undefined : props.id);
-    const { users: contactpersons } = useUsers(props.id);
+    const { users: contactpersons, reloadUsers } = useUsers(props.id);
 
     type CurrentState = {
       CompanyName: string|null,
       AlternativeCompanyName: string|null,
       UrlName: string|null,
+      contactID: string|null,
       ZipID: string|null,
       Helpdesk: string|null,
       DayBeginsAt: Date|null,
@@ -87,6 +88,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       CompanyName: '',
       AlternativeCompanyName: null,
       UrlName: null,
+      contactID: null,
       ZipID: null,
       Helpdesk: null,
       DayBeginsAt: null,
@@ -126,6 +128,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 CompanyName: DEFAULTGEMEENTE.CompanyName,
                 AlternativeCompanyName: DEFAULTGEMEENTE.AlternativeCompanyName,
                 UrlName: DEFAULTGEMEENTE.UrlName,
+                contactID: null,
                 ZipID: DEFAULTGEMEENTE.ZipID,
                 Helpdesk: DEFAULTGEMEENTE.Helpdesk,
                 DayBeginsAt: DEFAULTGEMEENTE.DayBeginsAt,
@@ -167,6 +170,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     CompanyName: activecontact.CompanyName || initialData.CompanyName,
                     AlternativeCompanyName: activecontact.AlternativeCompanyName || initialData.AlternativeCompanyName,
                     UrlName: activecontact.UrlName || initialData.UrlName,
+                    contactID: null, // Will be set below if contactpersons are available
                     ZipID: activecontact.ZipID || initialData.ZipID,
                     Helpdesk: activecontact.Helpdesk || initialData.Helpdesk,
                     DayBeginsAt: activecontact.DayBeginsAt || initialData.DayBeginsAt,
@@ -196,9 +200,19 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setDateRegistration(initial.DateRegistration);
         
                 setInitialData(initial);
+                
+                // Set default contact person if available
+                if (contactpersons.length > 0) {
+                    // Find the user who is marked as the contact person for this gemeente
+                    const contactPerson = contactpersons.find(user => user.isContact);
+                    
+                    if (contactPerson) {
+                        setContactID(contactPerson.UserID);
+                    }
+                }
             }
         }
-    }, [props.id, activecontact, isNew, modulesContacts]);
+    }, [props.id, activecontact, isNew, modulesContacts, contactpersons]);
 
     const isDataChanged = () => {
       if (isNew) {
@@ -209,6 +223,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           CompanyName !== initialData.CompanyName ||
           AlternativeCompanyName !== initialData.AlternativeCompanyName ||
           UrlName !== initialData.UrlName ||
+          contactID !== initialData.contactID ||
           ZipID !== initialData.ZipID ||
           Helpdesk !== initialData.Helpdesk ||
           DayBeginsAt !== initialData.DayBeginsAt ||
@@ -251,6 +266,41 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       } catch (error) {
         console.error('Error saving modules:', error);
         setErrorMessage('Fout bij het opslaan van modules: ' + (error instanceof Error ? error.message : String(error)));
+      }
+    };
+
+    const saveContactPerson = async () => {
+      if (!props.id || props.id === "new") return;
+
+      try {
+        // Get the previous contact person from initial data
+        const previousContactID = initialData.contactID;
+        const newContactID = contactID;
+
+        // If the contact person has changed, update the database
+        if (previousContactID !== newContactID) {
+          const response = await fetch(`/api/protected/gemeenten/${props.id}/contactperson`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contactID: newContactID })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          // Reload the users data to get updated isContact flags
+          await reloadUsers();
+          
+          // Update the initial data to reflect the saved contact person
+          setInitialData(prev => ({
+            ...prev,
+            contactID: newContactID
+          }));
+        }
+      } catch (error) {
+        console.error('Error saving contact person:', error);
+        setErrorMessage('Fout bij het opslaan van contactpersoon: ' + (error instanceof Error ? error.message : String(error)));
       }
     };
     
@@ -304,6 +354,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           if (!response.result?.error) {
             if (!isNew && props.id) {
               await saveModules();
+              await saveContactPerson();
             }
             
             if (props.onClose) {
@@ -334,6 +385,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setNotes(null);
           setDateRegistration(null);
           setSelectedModules([]);
+          setContactID(null);
         } else {
           setCompanyName(initialData.CompanyName);
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
@@ -348,6 +400,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setTnv(initialData.Tnv);
           setNotes(initialData.Notes);
           setDateRegistration(initialData.DateRegistration);
+          setContactID(initialData.contactID);
           if (modulesContacts) {
             const moduleIds = modulesContacts.map(mc => mc.ModuleID);
             setSelectedModules(moduleIds);
@@ -460,6 +513,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         );
     };
 
+    console.log('contactID', contactID, initialData.contactID);
     return (
       <div style={{ minHeight: "65vh" }}>
       <div
@@ -490,21 +544,26 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     disabled={!isEditing}
                   />
                   <br />
-                  { contactpersons.length > 0 ?
-                      <FormSelect 
-                        label="Contactpersoon"
-                        value={contactID || ''} 
-                        onChange={(e) => setContactID(e.target.value || null)} 
-                        required
-                        options={
-                          contactpersons
-                            .filter(user => user.DisplayName !== null && user.DisplayName !== "")
-                            .map(user => ({ label: user.DisplayName || "", value: user.UserID }))}
-                        disabled={!isEditing}
-                      /> 
-                      : 
-                      <FormInput label="Contactpersoon" value="Voor deze gemeente zijn geen gebruikers geregistreerd" disabled />}
-                  <br />
+                  {props.id !== "new" && <>
+                    { contactpersons.length > 0 ?
+                        <FormSelect 
+                          label="Contactpersoon"
+                          value={contactID || ''} 
+                          onChange={(e) => setContactID(e.target.value || null)} 
+                          required
+                          options={[
+                            { label: "Selecteer een contactpersoon", value: "" },
+                            ...contactpersons
+                              .filter(user => user.DisplayName !== null && user.DisplayName !== "")
+                              .map(user => ({ label: user.DisplayName || "", value: user.UserID }))
+                          ]}
+                          disabled={!isEditing}
+                        /> 
+                        : 
+                        <FormInput label="Contactpersoon" value="Voor deze gemeente zijn geen gebruikers geregistreerd" disabled />}
+                      <br />
+                    </>
+                  }
                   <FormInput 
                     label="Alternatieve naam"
                     value={AlternativeCompanyName || ''} 

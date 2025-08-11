@@ -100,7 +100,8 @@ export interface VSContactExploitant {
       "ThemeColor1" |
       "ThemeColor2" |
       "CompanyLogo" |
-      "CompanyLogo2"
+      "CompanyLogo2" |
+      "contactID"
   > & {
           isManagingContacts?: {
               ID: number;
