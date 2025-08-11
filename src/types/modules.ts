@@ -32,7 +32,7 @@ export const AVAILABLE_MODULES: VSmodule[] = [
     },
     {
         ID: "veiligstallen",
-        Name: "Veilig Stallen",
+        Name: "VeiligStallen",
         parent: null,
     },
   ]
