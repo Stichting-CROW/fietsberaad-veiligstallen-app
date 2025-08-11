@@ -113,7 +113,6 @@ const TopBar: React.FC<TopBarProps> = ({
     // Otherwise sort alphabetically
     return (a.CompanyName || '').localeCompare(b.CompanyName || '');
   }) : [];
-  console.log(exploitanten, 'exploitantenKort', exploitantenKort)
 
   const organisaties = [...(gemeentenKort || []), ...(exploitantenKort || [])];
   if(showFietsberaadInList) {
