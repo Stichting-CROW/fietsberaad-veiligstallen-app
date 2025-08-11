@@ -373,9 +373,13 @@ const ExploreUsersComponent = () => {
     }
 
     const contacts = [
-        {ID: "1", CompanyName: "Fietsberaad"},
-        ...gemeenten.map((gemeente) => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID})), 
-        ...exploitanten.map((exploitant) => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+        {ID: "1", CompanyName: "** Fietsberaad"},
+            ...gemeenten
+                .map((gemeente) => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID}))
+                .sort((a, b) => a.CompanyName.localeCompare(b.CompanyName)), 
+            ...exploitanten
+                .map((exploitant) => ({ID: exploitant.ID, CompanyName: "**" + exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+                .sort((a, b) => a.CompanyName.localeCompare(b.CompanyName))
     ];
 
     return (
