@@ -151,8 +151,7 @@ const TopBar: React.FC<TopBarProps> = ({
   const selectedOrganisationInfo: VSContact | undefined = getSelectedOrganisationInfo(gemeenten || [], exploitanten || [], selectedOrganisatieID || "");
 
   const titlename = " " + (ownOrganisationID === selectedOrganisatieID ? ownOrganisationName : selectedOrganisationInfo?.CompanyName || "---");
-  const title=`VeiligStallen Beheersomgeving${titlename}`; 
-    
+  const title = `VeiligStallen ${titlename}`; 
 
   // Show organization list if user is fietsberaad or from exploitanten, show button if user is from gemeenten
   const isOwnOrganisation = ownOrganisationID === selectedOrganisatieID;
@@ -176,7 +175,7 @@ const TopBar: React.FC<TopBarProps> = ({
     "
     style={{minHeight: '64px'}}
     >
-      <div style={{ flex: 1 }}>
+      <div>
         {renderLogo()}
       </div>
       <div
@@ -206,18 +205,18 @@ const TopBar: React.FC<TopBarProps> = ({
           </a>
         </div>
         <div className="PrimaryMenuItem px-5">
-          <h1 className="text-lg font-semibold">{title}</h1>
+          <h1 className="text-sm font-semibold">{title}</h1>
+          {session?.user?.name && (
+            <div className="font-normal text-xs" onClick={handleDisplaySessionInfo}>
+              {session?.user?.name || "---"}{userRole}
+            </div>
+          )}
         </div>
       </div>
       <div
         className="flex items-center justify-end space-x-4 text-sm whitespace-nowrap"
         style={{ flex: 3 }}
       >
-        {session?.user?.name && (
-          <div className="text-sm" onClick={handleDisplaySessionInfo}>
-            {session?.user?.name || "---"}{userRole}
-          </div>
-        )}
         {shouldShowOrganisatieList && organisaties && organisaties.length > 0 && (
           <select
             onChange={handleOrganisatieChange}
