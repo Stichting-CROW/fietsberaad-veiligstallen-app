@@ -35,7 +35,8 @@ const FaqEdit: React.FC<FaqEditProps> = ({
           Question: '',
           Answer: '',
           DateModified: new Date(),
-          DateCreated: new Date()
+          DateCreated: new Date(),
+          SortOrder: 1
         });
         setIsLoading(false);
         return;
@@ -172,6 +173,20 @@ const FaqEdit: React.FC<FaqEditProps> = ({
             value={faq.Answer || ''}
             onChange={(value) => setFaq(prev => prev ? { ...prev, Answer: value } : null)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <FormInput
+            type="number"
+            value={faq.SortOrder || ''}
+            style={{width: '100px'}}
+            onChange={(e) => {
+              if (!faq) return;
+              setFaq(prev => prev ? { ...prev, SortOrder: parseInt(e.target.value) } : null);
+            }}
+            label="Sorteervolgorde"
+            required
           />
         </div>
 
