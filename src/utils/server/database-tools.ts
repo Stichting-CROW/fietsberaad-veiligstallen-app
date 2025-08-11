@@ -83,7 +83,7 @@ export async function validateUserSession(session: any, itemType = "organization
     data.sites = items.map((item) => item.ContactID);
   }
   
-  // Fietsberaad rootman: Access to all contacts
+  // Fietsberaad rootadmin: Access to all contacts
   else {
     const allSites = await prisma.contacts.findMany({
       select: {

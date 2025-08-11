@@ -366,7 +366,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
               {
                 header: 'Acties',
                 accessor: (parking: ParkingDetailsType) => (
-                  <>
+                  <div className="whitespace-nowrap">
                     <button
                       onClick={() => handleEdit(parking.ID)}
                       className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -381,7 +381,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                         🗑️
                       </button>
                     )}
-                  </>
+                  </div>
                 ),
               }
             ]}

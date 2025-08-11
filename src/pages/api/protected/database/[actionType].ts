@@ -54,16 +54,17 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const hasDatabase = 
     userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) ||
     userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin); 
-  if (!hasDatabase) {
-    console.error("Access denied - insufficient permissions for database operations");
-    res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
-    return;
-  }
 
   try {
     if (req.method === 'POST') {
       switch (req.query.actionType) {
         case "userstatus": {
+          if (!hasDatabase) {
+            console.error("Access denied - insufficient permissions for database operations");
+            res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+            return;
+          }
+
           const parseResult = UserStatusParamsSchema.safeParse(req.body);
           if (!parseResult.success) {
             return res.status(400).json({
@@ -77,6 +78,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           return res.json(result);
         }
         case "usercontactrole": {
+          if (!hasDatabase) {
+            console.error("Access denied - insufficient permissions for database operations");
+            res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+            return;
+          }
+
           const parseResult = UserContactRoleParamsSchema.safeParse(req.body);
           if (!parseResult.success) {
             return res.status(400).json({
@@ -94,6 +101,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         case "transactionscache":
         case "bezettingencache":
         case "stallingsduurcache": {
+          if (!hasDatabase) {
+            console.error("Access denied - insufficient permissions for database operations");
+            res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+            return;
+          }
+
           const parseResult = CacheParamsSchema.safeParse(req.body);
           if (!parseResult.success) {
             console.log("BAD REQUEST", req.body, parseResult.error.errors);

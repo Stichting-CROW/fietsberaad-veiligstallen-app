@@ -513,7 +513,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         );
     };
 
-    console.log('contactID', contactID, initialData.contactID);
+    // console.log('contactID', contactID, initialData.contactID);
     return (
       <div style={{ minHeight: "65vh" }}>
       <div
