@@ -476,7 +476,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     }
 
     const updateUrl = (to: string, path?: string) => {
-      console.debug("#### HomeComponent - updateUrl", to, path);
+      // console.debug("#### HomeComponent - updateUrl", to, path);
 
       // If activeParkingId is set: Don't update URL
       if (activeParkingId) return;
@@ -495,7 +495,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       if (window.location.pathname !== desiredUrl) {
         window.history.pushState({}, "", desiredUrl);
       } else {
-        console.debug("#### HomeComponent - updateUrl - no change in URL");
+        // console.debug("#### HomeComponent - updateUrl - no change in URL");
       }
     };
   
@@ -560,7 +560,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
               id={"parking-modal"}
               stallingId={activeParkingId}
               onStallingIdChanged={newId => {
-                console.log("HomeComponent - onStallingIdChanged", newId);
+                // console.log("HomeComponent - onStallingIdChanged", newId);
                 updateStallingId(newId);
               }}
               onClose={handleCloseParking}
