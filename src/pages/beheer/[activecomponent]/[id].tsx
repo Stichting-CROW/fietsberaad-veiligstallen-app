@@ -199,7 +199,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
   };
 
-  const handleSelectGemeente = async (gemeenteID: string) => {
+  const handleSelectGemeente = async (organisatieID: string) => {
     try {
       if (!session) return;
 
@@ -208,7 +208,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ contactId: gemeenteID })
+        body: JSON.stringify({ contactId: organisatieID })
       });
 
       if (!response.ok) {
@@ -492,12 +492,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   return (
     <div className="flex flex-col h-screen overflow-y-hidden">
       <TopBar
-        title="VeiligStallen beheer"
-        currentComponent={activecomponent}
         gemeenten={gemeenten}
         exploitanten={exploitanten}
-        selectedGemeenteID={selectedContactID}
-        onGemeenteSelect={handleSelectGemeente}
+        ownOrganisationID={session?.user?.mainContactId || ""}
+        selectedOrganisatieID={selectedContactID}
+        onOrganisatieSelect={handleSelectGemeente}
       />
       <div className="flex">
         {renderLeftMenu()}
