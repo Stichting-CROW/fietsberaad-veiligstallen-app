@@ -378,7 +378,7 @@ const ExploreUsersComponent = () => {
                 .map((gemeente) => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID}))
                 .sort((a, b) => a.CompanyName.localeCompare(b.CompanyName)), 
             ...exploitanten
-                .map((exploitant) => ({ID: exploitant.ID, CompanyName: "**" + exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+                .map((exploitant) => ({ID: exploitant.ID, CompanyName: "**" + (exploitant.CompanyName || "Exploitant " + exploitant.ID)}))
                 .sort((a, b) => a.CompanyName.localeCompare(b.CompanyName))
     ];
 
