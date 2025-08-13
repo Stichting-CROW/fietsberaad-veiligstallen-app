@@ -223,7 +223,9 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user }) {
       try {
         if (user?.id) {
-          console.log("Updating LastLogin for user:", user.id);
+          if (process.env.NODE_ENV === "development") {
+            console.log("Updating LastLogin for user:", user.id);
+          }
           await prisma.security_users.update({
             where: { UserID: user.id as string },
             data: { LastLogin: new Date() },
