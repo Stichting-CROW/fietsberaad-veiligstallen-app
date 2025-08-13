@@ -60,11 +60,6 @@ export const getTransactionCacheStatus = async (params: CacheParams) => {
 }
 
 export const updateTransactionCache = async (params: CacheParams) => {
-    if(false=== await clearTransactionCache(params)) {
-        console.error(">>> updateTransactionCache ERROR Unable to clear transaction cache");
-        return false;
-    }
-
     const { timeIntervalInMinutes, adjustedStartDate } = getAdjustedStartEndDates(params.startDate, params.endDate, undefined);
 
     if(adjustedStartDate === undefined) {
@@ -93,11 +88,11 @@ export const updateTransactionCache = async (params: CacheParams) => {
         SUM(price) AS sum_inkomsten
       FROM transacties_archief
       ${whereClause}
-      GROUP BY locationID, date;`
+      GROUP BY locationID, date
+      ON DUPLICATE KEY UPDATE
+        count_transacties = VALUES(count_transacties),
+        sum_inkomsten = VALUES(sum_inkomsten);`
     
-    console.log("*** Update cache sql", sql);
-    return getTransactionCacheStatus(params);
-
     /* const result = */ await prisma.$executeRawUnsafe(sql);
     return getTransactionCacheStatus(params);
 }
@@ -134,7 +129,8 @@ export const createTransactionCacheTable = async (params: CacheParams) => {
         checkoutdate DATE NULL,
         count_transacties INT,
         sum_inkomsten DECIMAL(10, 2),
-        PRIMARY KEY (ID)
+        PRIMARY KEY (ID),
+        UNIQUE KEY uk_location_date (locationID, checkoutdate)
     );`;
 
     const sqlCreateIndex = `CREATE INDEX idx_location_date ON transacties_archief_day_cache (locationID, checkoutdate);`
