@@ -7,6 +7,7 @@ import HorizontalDivider from "~/components/HorizontalDivider";
 import FormInput from "~/components/Form/FormInput";
 import FormTextArea from "~/components/Form/FormTextArea";
 import FormCheckbox from "~/components/Form/FormCheckbox";
+import ParkingOpeningUitzonderingen from "~/components/parking/ParkingOpeningUitzonderingen";
 
 import moment from "moment";
 
@@ -46,6 +47,8 @@ const formatOpeningTimesForEdit = (
   label: string,
   handlerChange: Function,
   handlerChangeChecks: Function,
+  canEditAllFields: boolean,
+  canEditLimitedFields: boolean,
 ): React.ReactNode => {
   const wkday = new Date().getDay();
 
@@ -79,35 +82,37 @@ const formatOpeningTimesForEdit = (
     <tr className="h-14">
       <td>{label}</td>
       <td>
-        <FormCheckbox key={"cb-" + day} checked={open24h} onChange={handlerChangeChecks(day, "open24")}>
+        <FormCheckbox key={"cb-" + day} checked={open24h} onChange={handlerChangeChecks(day, "open24")} disabled={!canEditAllFields && !canEditLimitedFields}>
           24h
         </FormCheckbox>
       </td>
       <td>
-        {isNS === false && <FormCheckbox key={"cb-" + day} checked={gesloten} onChange={handlerChangeChecks(day, "gesloten")}>
+        {isNS === false && <FormCheckbox key={"cb-" + day} checked={gesloten} onChange={handlerChangeChecks(day, "gesloten")} disabled={!canEditAllFields && !canEditLimitedFields}>
           gesloten
         </FormCheckbox>}
       </td>
       <td>
-        <FormCheckbox key={"cb-" + day} checked={onbekend} onChange={handlerChangeChecks(day, "onbekend")}>
+        <FormCheckbox key={"cb-" + day} checked={onbekend} onChange={handlerChangeChecks(day, "onbekend")} disabled={!canEditAllFields && !canEditLimitedFields}>
           onbekend
         </FormCheckbox>
       </td>
       <td>
         {showtimes ?
           <div className="flex flex-row">
-            <FormInput
-              type="number"
-              value={hoursopen}
-              style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
-              onChange={handlerChange(day, true, true)}
-            />
-            <FormInput
-              type="number"
-              value={minutesopen}
-              style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
-              onChange={handlerChange(day, true, false)}
-            />
+                    <FormInput
+          type="number"
+          value={hoursopen}
+          style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
+          onChange={handlerChange(day, true, true)}
+          disabled={!canEditAllFields && !canEditLimitedFields}
+        />
+        <FormInput
+          type="number"
+          value={minutesopen}
+          style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
+          onChange={handlerChange(day, true, false)}
+          disabled={!canEditAllFields && !canEditLimitedFields}
+        />
           </div>
           :
           null}
@@ -118,20 +123,22 @@ const formatOpeningTimesForEdit = (
       <td>
         {showtimes ?
           <div className="flex flex-row">
-            <FormInput
-              type="number"
-              value={hoursclose}
-              size={4}
-              style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
-              onChange={handlerChange(day, false, true)}
-            />
-            <FormInput
-              type="number"
-              value={minutesclose}
-              size={4}
-              style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
-              onChange={handlerChange(day, false, false)}
-            />
+                    <FormInput
+          type="number"
+          value={hoursclose}
+          size={4}
+          style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
+          onChange={handlerChange(day, false, true)}
+          disabled={!canEditAllFields && !canEditLimitedFields}
+        />
+        <FormInput
+          type="number"
+          value={minutesclose}
+          size={4}
+          style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
+          onChange={handlerChange(day, false, false)}
+          disabled={!canEditAllFields && !canEditLimitedFields}
+        />
           </div>
           :
           null}
@@ -179,7 +186,17 @@ const setMinutesInDate = (date: moment.Moment, newMinutes: number): moment.Momen
   return newDate;
 };
 
-const ParkingEditOpening = ({ parkingdata, openingChanged }: { parkingdata: ParkingDetailsType, openingChanged: Function }) => {
+const ParkingEditOpening = ({ 
+  parkingdata, 
+  openingChanged, 
+  canEditAllFields = true, 
+  canEditLimitedFields = true 
+}: { 
+  parkingdata: ParkingDetailsType, 
+  openingChanged: Function,
+  canEditAllFields?: boolean,
+  canEditLimitedFields?: boolean
+}) => {
   const startValues = extractParkingFields(parkingdata);
   const isNS = parkingdata.EditorCreated === "NS-connector";
   const [changes, setChanges] = useState<OpeningChangedType>({});
@@ -201,10 +218,10 @@ const ParkingEditOpening = ({ parkingdata, openingChanged }: { parkingdata: Park
     // determine new time
 
     // let oldtime: Date = new Date((key in currentValues) ? currentValues[key]: startValues[key]);
-    let oldtime = moment.utc((key in changes) ? changes[key] : startValues[key]);
+    const oldtime = moment.utc((key in changes) ? changes[key] : startValues[key]);
     let newtime = undefined;
 
-    const newval: number = Number(e.target.value);
+    const newval = Number(e.target.value);
     if (isHoursField) {
       if (newval < 0 || newval > 23) {
         return; // invalid value
@@ -273,38 +290,43 @@ const ParkingEditOpening = ({ parkingdata, openingChanged }: { parkingdata: Park
   );
 
   return (
-    <div className="flex flex-col">
-      <SectionBlock
-        heading="Openingstijden"
-      >
-        {/* <p className="py-2 text-red">
-          Het veranderen van de openingstijden (specifiek uren) werkt tijdelijk niet. We werken hieraan; kom binnenkort terug als je de uren wilt aanpassen.
-        </p> */}
-        <table className="w-full">
-          <tbody>
-            {formatOpeningTimesForEdit(data, isNS, "ma", "Maandag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "di", "Dinsdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "wo", "Woensdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "do", "Donderdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "vr", "Vrijdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "za", "Zaterdag", handleChange, handleChangeChecks)}
-            {formatOpeningTimesForEdit(data, isNS, "zo", "Zondag", handleChange, handleChangeChecks)}
-          </tbody>
-        </table>
-      </SectionBlock>
-      <HorizontalDivider className="my-4" />
-      <SectionBlock
-        heading="Afwijkende Openingstijden"
-        contentClasses="w-full">
-        <FormTextArea
-          value={undefined === openingstijden ? (parkingdata.Openingstijden !== null ? parkingdata.Openingstijden.replaceAll("<br />", "\n") : '') : openingstijden}
-          style={{ width: '100%', borderRadius: '0 10px 10px 0' }}
-          className="w-full"
-          onChange={handleChangeOpeningstijden()}
-          rows={10}
-        />
-      </SectionBlock>
-    </div>
+    <>
+      <div className="flex flex-col">
+        <SectionBlock
+          heading="Openingstijden"
+        >
+          {/* <p className="py-2 text-red">
+            Het veranderen van de openingstijden (specifiek uren) werkt tijdelijk niet. We werken hieraan; kom binnenkort terug als je de uren wilt aanpassen.
+          </p> */}
+          <table className="w-full">
+            <tbody>
+              {formatOpeningTimesForEdit(data, isNS, "ma", "Maandag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "di", "Dinsdag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "wo", "Woensdag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "do", "Donderdag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "vr", "Vrijdag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "za", "Zaterdag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+              {formatOpeningTimesForEdit(data, isNS, "zo", "Zondag", handleChange, handleChangeChecks, canEditAllFields, canEditLimitedFields)}
+            </tbody>
+          </table>
+        </SectionBlock>
+        <HorizontalDivider className="my-4" />
+        <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} />
+        <HorizontalDivider className="my-4" />
+        <SectionBlock
+          heading="Tekst Afwijkende Openingstijden"
+          contentClasses="w-full">
+          <FormTextArea
+            value={undefined === openingstijden ? (parkingdata.Openingstijden !== null ? parkingdata.Openingstijden.replaceAll("<br />", "\n") : '') : openingstijden}
+            style={{ width: '100%', borderRadius: '0 10px 10px 0' }}
+            className="w-full"
+            onChange={handleChangeOpeningstijden()}
+            rows={10}
+            disabled={!canEditAllFields && !canEditLimitedFields}
+          />
+        </SectionBlock>
+      </div>
+    </>
   );
 };
 

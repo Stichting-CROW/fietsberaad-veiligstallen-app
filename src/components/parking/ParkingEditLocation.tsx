@@ -54,8 +54,10 @@ function ParkingEditLocation({
     let ccoords;
     if (centerCoords !== undefined) {
       ccoords = centerCoords.split(",").map((coord: any) => Number(coord));
-    } else {
+    } else if (typeof parkingCoords === "string") {
       ccoords = parkingCoords.split(",").map((coord: any) => Number(coord));
+    } else {
+      ccoords = [52.508011, 5.47328];
     }
 
     // otherwise, create a map instance
@@ -93,7 +95,7 @@ function ParkingEditLocation({
     if (centerCoords !== "" && centerCoords !== undefined) {
       // console.log('recenter map @', centerCoords)
       if (stateMap) {
-        let coords = centerCoords.split(",").map((coord: any) => Number(coord));
+        const coords = centerCoords.split(",").map((coord: any) => Number(coord));
         try {
           stateMap.setCenter([coords[1], coords[0]]);
         } catch (e) {

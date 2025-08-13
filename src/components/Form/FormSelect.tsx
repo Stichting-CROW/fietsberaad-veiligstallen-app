@@ -39,6 +39,7 @@ function FormSelect({
             border
             rounded-full
             my-2
+            ${disabled ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}
             ${className}
           `}
           disabled={disabled === true}

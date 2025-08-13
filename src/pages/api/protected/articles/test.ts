@@ -4,7 +4,7 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession, makeApiCall } from "~/utils/server/database-tools";
 import type { TestResult, TestResponse } from "~/types/test";
 import { TestStatus } from "~/types/test";
-import { ArticleResponse } from "./[id]";
+import { type ArticleResponse } from "./[id]";
 import { TestError } from "~/types/test";
 import moment from "moment";
 

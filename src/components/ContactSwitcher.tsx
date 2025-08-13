@@ -20,7 +20,8 @@ export function ContactSwitcher({ contacts }: { contacts: string[] }) {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to switch contact');
+                alert("Het wisselen van contact is niet gelukt");
+                return;
             }
 
             const { user } = await response.json();

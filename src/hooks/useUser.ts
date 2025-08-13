@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { VSUserWithRolesNew } from '~/types/users';
-import { SecurityUserResponse } from '~/pages/api/protected/security_users/[id]';
+import { type VSUserWithRolesNew } from '~/types/users';
+import { type SecurityUserResponse } from '~/pages/api/protected/security_users/[id]';
 
-export const useUser = (id: string) => {
+export const useUser = (id: string, scopeID?: string) => {
   const [user, setUser] = useState<VSUserWithRolesNew | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,7 +12,19 @@ export const useUser = (id: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch('/api/protected/security_users/' + id);
+
+
+      let url: string = '/api/protected/security_users/' + id;
+      if(scopeID) {
+        url += '/withscope/' + scopeID;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch user');
       }
@@ -33,7 +45,7 @@ export const useUser = (id: string) => {
 
   useEffect(() => {
     fetchUser();
-  }, [version]);
+  }, [version, id]);
 
   return {
     user,

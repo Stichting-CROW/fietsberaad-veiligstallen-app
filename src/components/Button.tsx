@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
 import Styles from './Button.module.css';
 
 export const Button = ({
@@ -53,7 +53,7 @@ export const RadioButton = ({
   htmlBefore,
   className
 }: {
-  isActive?: Boolean,
+  isActive?: boolean,
   onClick?: Function,
   children: any
   htmlBefore?: any

@@ -1,15 +1,24 @@
 import type { contacts } from "~/generated/prisma-client";
 import type { VSParking } from "~/types/parking";
-import type { VSModule } from "~/types/modules";
 
+
+export enum VSContactItemType {
+    Admin = "admin",
+    Dataprovider = "dataprovider",
+    Exploitant = "exploitant",
+    Organizations = "organizations",
+}
 export interface VSContactExploitant {
     ID: string;
     CompanyName: string | null;
-    ItemType: string | null;
+    UrlName: string | null;
+    ItemType: VSContactItemType | null;
     Helpdesk: string | null;
-    Password: string | null;
     Status: string | null;
-    ParentID: string | null;
+    CompanyLogo: string | null;
+    CompanyLogo2: string | null;
+    ThemeColor1: string | null;
+    ThemeColor2: string | null;
     isManagingContacts: {
       ID: number;
       childSiteID: string;
@@ -28,11 +37,10 @@ export interface VSContactExploitant {
   export const exploitantSelect = {
       ID: true,
       CompanyName: true,
+      UrlName: true,
       ItemType: true,
       Helpdesk: true,
-      Password: true,
       Status: true,
-      ParentID: true,
     //   isManagedByContacts: {
     //       select: {
     //           ID: true,
@@ -61,7 +69,10 @@ export interface VSContactExploitant {
 
   export type VSContactGemeenteInLijst = Pick<contacts, 
   "ID" | 
-  "CompanyName"
+  "CompanyName" |
+  "CompanyLogo" | 
+  "ThemeColor1" |
+  "ThemeColor2" 
   > & {
     hasStallingen: boolean;
     hasExploitanten: boolean;
@@ -87,12 +98,8 @@ export interface VSContactExploitant {
       "CompanyLogo" | 
       "CompanyLogo2" |
       "ThemeColor1" |
-      "ThemeColor2" 
+      "ThemeColor2"
   > & {
-          fietsenstallingen_fietsenstallingen_SiteIDTocontacts?: VSParking[];
-      } & {
-          modules_contacts?: { module: VSModule }[];
-      } & {
           isManagingContacts?: {
               ID: number;
               childSiteID: string;
@@ -109,7 +116,16 @@ export interface VSContactExploitant {
     export const gemeenteLijstSelect = {
         ID: true,
         CompanyName: true,
+        CompanyLogo: true,
+        ThemeColor1: true,
+        ThemeColor2: true,
         fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+          where: {
+            StallingsID: { not: null },
+            Title: {
+              not: 'Systeemstalling'
+            }
+          },
           select: {
             ID: true,
             Title: true,
@@ -164,6 +180,12 @@ export interface VSContactExploitant {
       Notes: true,
       DateRegistration: true,
       fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+        where: {
+          StallingsID: { not: null },
+          Title: {
+            not: 'Systeemstalling'
+          }
+        },
         select: {
           ID: true,
           Title: true,
@@ -221,5 +243,74 @@ export const dataproviderSelect = {
   DateRejected: true
 }
 
-export type VSContact = VSContactGemeente | VSContactDataprovider | VSContactExploitant;
-    
+export type VSContactInLijst = Pick<contacts, 
+  "ID" | 
+  "FirstName" |
+  "LastName" |
+  "Email1" |
+  "Phone1"
+> & {
+  hasUsers: boolean;
+  hasStallingen: boolean;
+};
+
+export type VSContact = Pick<contacts, 
+  "ID" | 
+  "FirstName" |
+  "LastName" |
+  "Email1" |
+  "Phone1" |
+  "Mobile1" |
+  "JobTitle" |
+  "Notes" |
+  "DateRegistration" |
+  "DateConfirmed" |
+  "DateRejected" |
+  "ItemType" |
+  "CompanyName" |
+  "CompanyLogo" |
+  "CompanyLogo2"
+> & {
+  managesFietsenstallingen?: VSParking[];
+};
+
+export const contactLijstSelect = {
+  ID: true,
+  FirstName: true,
+  LastName: true,
+  Email1: true,
+  Phone1: true,
+  // managesFietsenstallingen: {
+  //   select: {
+  //     ID: true,
+  //     Title: true,
+  //     StallingsID: true,
+  //     Type: true,
+  //   }
+  // }
+};
+
+export const contactSelect = {
+  ID: true,
+  FirstName: true,
+  LastName: true,
+  Email1: true,
+  Phone1: true,
+  Mobile1: true,
+  JobTitle: true,
+  Notes: true,
+  DateRegistration: true,
+  DateConfirmed: true,
+  DateRejected: true,
+  ItemType: true,
+  CompanyLogo: true,
+  CompanyLogo2: true,
+  // managesFietsenstallingen: {
+  //   select: {
+  //     ID: true,
+  //     Title: true,
+  //     StallingsID: true,
+  //     Type: true,
+  //   }
+  // }
+};

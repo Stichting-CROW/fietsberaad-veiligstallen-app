@@ -8,6 +8,7 @@ function FormCheckbox({
   defaultChecked,
   onChange,
   children,
+  disabled,
 }: {
   required?: boolean,
   classes?: string,
@@ -15,13 +16,14 @@ function FormCheckbox({
   defaultChecked?: boolean,
   onChange?: React.ChangeEventHandler<HTMLInputElement> | undefined,
   children?: any,
+  disabled?: boolean,
 }) {
   return (
     <label
       className={`
         inline-block
         mx-5
-        cursor-pointer
+        ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
         ${classes}
       `}
     >
@@ -36,6 +38,7 @@ function FormCheckbox({
           inline-block
         "
         onChange={(e) => (onChange ? onChange(e) : () => { })}
+        disabled={disabled}
       />
       {children}
     </label>

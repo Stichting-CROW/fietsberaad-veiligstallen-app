@@ -11,14 +11,14 @@ export const createTestContactGemeente = async (req: NextApiRequest): Promise<VS
       return false;
     }
     // Look for the test gemeente
-    const testGemeente = readResult?.data?.find((g: VSContactGemeente) => g.CompanyName === "Testgemeente tbv usertests");
+    const testGemeente = readResult?.data?.find((g: VSContactGemeente) => g.CompanyName === "Test data-eigenaar tbv usertests");
     if (testGemeente) {
       return testGemeente;
     }
 
     // If not found, create it
     const testRecord = JSON.parse(JSON.stringify(testRecordCreateGemeente));
-    testRecord.CompanyName = "Testgemeente tbv usertests";
+    testRecord.CompanyName = "Test data-eigenaar tbv usertests";
     testRecord.ZipID = "T001";
 
     const { success: createSuccess, result: createResult } = await makeApiCall<{ data?: VSContactGemeente[], error?: string }>(req, '/api/protected/gemeenten/new', 'POST', testRecord);

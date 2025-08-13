@@ -1,13 +1,17 @@
 /* This page is used to redirect the user for old style NS links 
    in the format https://www.veiligstallen.nl/ns/stallingen/[id] */
 
-import { getParkingsFromDatabase } from "~/utils/prisma";
-import { GetServerSideProps } from 'next';
+import { prisma } from "~/server/db";
+import { type GetServerSideProps } from 'next';
+
+/* This stub redirects NS stallingen to a generic stalling ID 
+   in the format https://www.veiligstallen.nl/stalling/[id]  
+   Example: http://localhost:3000/ns/stallingen/uto002  */
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const id = context.query?.id || false;
-  if (!id) {
+  if (!id || Array.isArray(id)) {
     // redirect to /, no id given;
     return {
       redirect: {
@@ -17,14 +21,22 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
 
-  const stallingen = await getParkingsFromDatabase([], null);
-  // convert NS stalling code to internal ID 
-  const newstallingen = stallingen.filter((stalling) => stalling.StallingsID == id);
-  if (newstallingen.length === 1 && newstallingen[0] !== undefined) {
-    // redirect to / for given stalling ID
+  const theStalling = await prisma.fietsenstallingen.findFirst({
+    where: {
+      StallingsID: id,
+      Title: {
+        not: 'Systeemstalling'
+      }
+    },
+    select: {
+      ID: true
+    }
+  });
+
+  if(theStalling) {
     return {
       redirect: {
-        destination: `/?stallingid=${newstallingen[0].ID}`,
+        destination: `/?stallingid=${theStalling.ID}`,
         permanent: false,
       },
     };

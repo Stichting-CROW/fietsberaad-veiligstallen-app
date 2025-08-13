@@ -40,8 +40,6 @@ const FormTimeInput: React.FC<FormTimeInputProps> = ({
   }
 
   const handleChange = (hours: string, minutes: string) => {
-    console.log(`handleChange ${hours}:${minutes}`);
-
     const newDate = moment(value).utcOffset(0);
     const validHours = isNaN(parseInt(hours, 10)) ? 0 : Math.max(0, Math.min(23, parseInt(hours, 10)));
     const validMinutes = isNaN(parseInt(minutes, 10)) ? 0 : Math.max(0, Math.min(59, parseInt(minutes, 10)));

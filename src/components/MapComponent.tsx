@@ -17,7 +17,7 @@ import {
   setActiveArticle,
 } from "~/store/appSlice";
 
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 
 // Import utils
 import {
@@ -31,6 +31,7 @@ import useWindowDimensions from "~/hooks/useWindowDimensions";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
+import type { ParkingDetailsType } from "~/types/parking";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -62,10 +63,10 @@ interface GeoJsonFeature {
   };
 }
 
-const createGeoJson = (input: GeoJsonFeature[]) => {
-  let features: GeoJsonFeature[] = [];
+const createGeoJson = (input: ParkingDetailsType[]) => {
+  const features: GeoJsonFeature[] = [];
 
-  input.forEach((x: any) => {
+  input.forEach((x) => {
     if (!x.Coordinaten) return;
 
     const coords = convertCoordinatenToCoords(x.Coordinaten);
@@ -92,7 +93,7 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
   };
 };
 
-function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: any[] }) {
+function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetailsType[] }) {
 
   // this is where the map instance will be stored after initialization
   const [stateMap, setStateMap] = React.useState<maplibregl.Map>();
@@ -356,7 +357,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: any[] }) {
 
       // Filter geojson source data for cluster sources
       (() => {
-        let filteredGeojson = filterGeojsonForClusterSources(createGeoJson(fietsenstallingen));
+        const filteredGeojson = filterGeojsonForClusterSources(createGeoJson(fietsenstallingen));
         const sources = ["fietsenstallingen-clusters", "fietsenstallingen-clusters-count"];
         sources.forEach((sourceKey) => {
           const source: maplibregl.GeoJSONSource = stateMap.getSource(

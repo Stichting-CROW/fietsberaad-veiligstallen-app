@@ -2,37 +2,34 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react"
-import { usePathname } from 'next/navigation';
 import Link from 'next/link'
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import { setActiveArticle } from "~/store/appSlice";
 import Logo from './Logo';
 import { ToggleMenuIcon } from "~/components/ToggleMenuIcon";
+import ImageWithFallback from "~/components/common/ImageWithFallback";
 
 import {
   setIsMobileNavigationVisible
 } from "~/store/appSlice";
 
-import { MenuItem, PrimaryMenuItem, SecundaryMenuItem } from "~/components/MenuItems";
-import { VSContactGemeente } from "~/types/contacts";
-import { VSArticle } from "~/types/articles";
+import { PrimaryMenuItem, SecundaryMenuItem } from "~/components/MenuItems";
+import { type VSContactGemeente } from "~/types/contacts";
+import { type VSArticle } from "~/types/articles";
 
 function AppHeaderDesktop({
   activeMunicipalityInfo,
   primaryMenuItems,
   secundaryMenuItems,
   onStallingAanmelden,
-  children
 }: {
   activeMunicipalityInfo: VSContactGemeente | undefined,
   primaryMenuItems: VSArticle[] | undefined,
   secundaryMenuItems: VSArticle[] | undefined,
   onStallingAanmelden?: () => void,
-  children?: any
 }) {
   const dispatch = useDispatch();
-  const { push } = useRouter();
-  const pathName = usePathname();
+  const router = useRouter();
   const { data: session } = useSession()
 
   const [didNavOverflow, setDidNavOverflow] = useState(false);
@@ -41,11 +38,10 @@ function AppHeaderDesktop({
   //   (state: AppState) => state.auth.authState
   // );
 
-  const mapZoom = useSelector((state: AppState) => state.map.zoom);
+  const mapZoom = useSelector((state: AppState) => state.map.zoom) || 12;
 
-  // 
-  const articlemunicipality = useSelector((state: AppState) => state.app.municipality);
-  const articlepage = useSelector((state: AppState) => state.app.page);
+  const articlemunicipality = useSelector((state: AppState) => (state.app).activeArticleMunicipality);
+  const articlepage = useSelector((state: AppState) => (state.app).activeArticleTitle);
   
   // Handler if screen size changes
   useEffect(() => {
@@ -95,10 +91,14 @@ function AppHeaderDesktop({
 
   const handleLoginClick = () => {
     if (!session) {
-      push('/login');
+      router.push('/login');
     } else {
       // sign out
-      signOut();
+      if(confirm('Wil je uitloggen?')) {
+        signOut().catch(err => {
+          console.error("signOut error", err);
+        });
+      }
     }
   };
 
@@ -112,7 +112,40 @@ function AppHeaderDesktop({
 
   const showMapIcon = articlepage!=='';
 
-  const showStallingAanmaken = session && mapZoom >= 13 && activeMunicipalityInfo;
+  const showStallingAanmaken = session && mapZoom >= 12 && activeMunicipalityInfo;
+
+  const renderLogo = () => {
+    const activecontact = activeMunicipalityInfo;
+
+    // If logo URL starts with http, return the image
+    if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
+      return <img src={activecontact?.CompanyLogo} className="max-h-full w-auto bg-white mr-2" />
+    }
+
+    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+
+    // If logo URL is not null and mapZoom is 12 or higher, return the image
+    if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
+      logofile = activecontact.CompanyLogo;
+      if(!logofile.startsWith('http')) {
+        logofile =logofile.replace('[local]', '')
+        if(!logofile.startsWith('/')) {
+          logofile = '/' + logofile;
+        }
+      }
+
+      return <ImageWithFallback
+        src={logofile}
+        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        alt="Logo"
+        width={64}
+        height={64}
+        className="max-h-full w-auto bg-white mr-2"
+      />
+    }
+
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-full w-auto bg-white mr-2" />
+  }
 
   return (
     <>
@@ -132,18 +165,12 @@ function AppHeaderDesktop({
         "
         style={{ height: '64px' }}
       >
-        <Link href={`/${activeMunicipalityInfo ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
-          <Logo
-            imageUrl={(mapZoom >= 12 && activeMunicipalityInfo && activeMunicipalityInfo.CompanyLogo2) ? `https://static.veiligstallen.nl/library/logo2/${activeMunicipalityInfo.CompanyLogo2}` : undefined}
-            className={`
-              transition-opacity
-              duration-500
-              ${(activeMunicipalityInfo) ? 'opacity-100' : 'opacity-0'}
-            `}
-          />
+        <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
+          {renderLogo()}
         </Link>
         <div className={`
           primaryMenuItems-wrapper
+          relative
           flex-1 flex flex-start
           flex-wrap overflow-hidden
           transition-opacity
@@ -159,11 +186,11 @@ function AppHeaderDesktop({
             url={'/'}
           />}
           {primaryMenuItems ? primaryMenuItems.map((x: VSArticle, idx: number) => <PrimaryMenuItem
-            key={'pmi-h1-' + idx}
+            key={`pmi-h1-${idx}`}
             targetmunicipality={x.SiteID}
             targetpage={x.Title}
             title={x.DisplayTitle ? x.DisplayTitle : x.Title}
-            url={`/${(mapZoom >= 12 && activeMunicipalityInfo) ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`}
+            url={`/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`}
           />) : ''}
           <div className="
           " style={{
@@ -185,14 +212,14 @@ function AppHeaderDesktop({
         <div className="flex flex-end">
           {secundaryMenuItems && secundaryMenuItems.map((x: VSArticle, idx: number) => {
             return <SecundaryMenuItem
-              key={'pmi-h2-' + idx}
+              key={`pmi-h2-${idx}`}
               targetmunicipality={x.SiteID}
               targetpage={x.Title}
               title={x.DisplayTitle}
-              url={`/${(mapZoom >= 12 && activeMunicipalityInfo) ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`}
+              url={`/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`}
               onClick={() => {
                 dispatch(setActiveArticle({
-                  articleTitle: x.Title,
+                  articleTitle: x.Title || "",
                   municipality: ""
                 }));
               }}  
@@ -219,11 +246,11 @@ function AppHeaderDesktop({
             </button> : null
           }
 
-          {session && <a
+          {session && <Link
             href="/beheer"
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
               e.preventDefault();
-              push('/beheer');
+              router.push('/beheer');
             }}
             className="
               mx-2
@@ -244,7 +271,7 @@ function AppHeaderDesktop({
             title="Ga naar het beheer"
           >
             Beheer
-          </a>}
+          </Link>}
 
           <button
             className="

@@ -1,0 +1,14 @@
+# Ignore mysql-db folder and its contents
+mysql-db/
+mysql-db/**
+
+# Also ignore other development and temporary files
+.git/
+.github/
+.gitignore
+.env*
+*.log
+.DS_Store
+coverage/
+.vscode/
+.idea/ 

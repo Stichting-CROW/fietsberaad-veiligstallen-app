@@ -1,15 +1,16 @@
 import React from 'react';
 import type { VSContact } from "~/types/contacts";
 import type { VSUserWithRolesNew } from "~/types/users";
+import { getNewRoleLabel } from '~/types/utils';
 
-interface ContactuserenProps {
+interface ContactusersProps {
   contact: VSContact | undefined;
   users: VSUserWithRolesNew[] | undefined;
   onEditUser: (stallingID: string | undefined) => void;
   onSendPassword?: (userID: string | undefined) => void;
 }
 
-const ContactUsers: React.FC<ContactuserenProps> = ({ users, onEditUser, onSendPassword }) => {
+const ContactUsers: React.FC<ContactusersProps> = ({ users, onEditUser, onSendPassword }) => {
   return (
     <div>
       <div className="flex justify-between my-2">
@@ -27,11 +28,11 @@ const ContactUsers: React.FC<ContactuserenProps> = ({ users, onEditUser, onSendP
             </tr>
           </thead>
           <tbody>
-            {users?.map((user: VSUserWithRolesNew) => (
+            {users?.map((user) => (
               <tr key={'user-' + user.UserID}>
                 <td className="border px-4 py-2">{user.DisplayName}</td>
                 <td className="border px-4 py-2">{user.UserName}</td>
-                <td className="border px-4 py-2">{user.security_roles?.Description}</td>
+                <td className="border px-4 py-2">{getNewRoleLabel(user.securityProfile.roleId)}</td>
                 <td className="border px-4 py-2">
                   {user.Status === "1" ? 
                     <span className="text-green-500">●</span> : 

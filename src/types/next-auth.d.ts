@@ -1,5 +1,5 @@
-import NextAuth, { DefaultSession, NextAuthOptions as OriginalNextAuthOptions, RequestInternal as OriginalRequestInternal } from "next-auth";
-import { VSUserSecurityProfile } from "~/types";
+import { type DefaultSession, type NextAuthOptions as OriginalNextAuthOptions, type RequestInternal as OriginalRequestInternal } from "next-auth";
+import { type VSUserSecurityProfile } from "~/types/securityprofile";
 
 declare module "next-auth" {
   export type ISODateString = string
@@ -9,6 +9,7 @@ declare module "next-auth" {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    mainContactId?: string | null;
     activeContactId?: string | null;  
     securityProfile?: VSUserSecurityProfile;
   } 

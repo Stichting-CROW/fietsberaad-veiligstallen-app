@@ -4,14 +4,16 @@ interface CollapsibleContentProps {
   children: React.ReactNode;
   buttonText?: string;
   className?: string;
+  isOpen?: boolean;
 }
 
 const CollapsibleContent: React.FC<CollapsibleContentProps> = ({
   children,
   buttonText = 'Toggle Content',
   className = '',
+  isOpen = false,
 }) => {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(isOpen);
 
   return (
     <div className={className}>

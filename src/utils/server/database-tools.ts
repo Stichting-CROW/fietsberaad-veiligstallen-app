@@ -1,8 +1,9 @@
-import { Prisma } from "~/generated/prisma-client";
+import { type Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import type { NextApiRequest } from "next";
-import { type VSUserWithRoles, securityUserSelect } from "~/types/users";
-import { createSecurityProfile } from "~/utils/server/securitycontext";
+import { VSContactItemType } from "~/types/contacts";
+import { getSecurityUserNew } from "./security-users-tools";
+import { VSUserRoleValuesNew } from "~/types/users";
 
 type ValidationError = {
   error: string;
@@ -34,7 +35,7 @@ export function generateID() {
 }
 
 // Helper function to validate user session and get their sites
-export async function validateUserSession(session: any, itemType: string = "organizations"): Promise<ValidationError | ValidationSuccess> {
+export async function validateUserSession(session: any, itemType = "organizations"): Promise<ValidationError | ValidationSuccess> {
   if (!session?.user) {
     return { error: "Unauthorized", status: 401 };
   }
@@ -44,12 +45,14 @@ export async function validateUserSession(session: any, itemType: string = "orga
       UserID: session.user.id
     },
     select: {
-      security_users_sites: {
+      UserID: true,
+      user_contact_roles: {
         select: {
-          SiteID: true
+          ContactID: true,
+          isOwnOrganization: true,
+          NewRoleID: true
         }
-      },
-      RoleID: true
+      }
     }
   });
 
@@ -64,22 +67,25 @@ export async function validateUserSession(session: any, itemType: string = "orga
     sites: []
   }
 
-  if(theuser.RoleID !== 1) {
-    data.sites = theuser.security_users_sites.map((site) => site.SiteID);
-  } else {
-    let whereFilter: Prisma.contactsWhereInput = {  ItemType: itemType };
-    if(itemType === "any") {
-      whereFilter = {
-        OR: [
-          { ItemType: "organizations" },
-          { ItemType: "exploitant" },
-          { ItemType: "admin" }
-        ]
+  const ownRole = theuser.user_contact_roles.find((role) => role.isOwnOrganization);
+  const isAdminFietsberaad = ownRole && ownRole.ContactID === "1" && [VSUserRoleValuesNew.RootAdmin, VSUserRoleValuesNew.Viewer].includes(ownRole.NewRoleID as VSUserRoleValuesNew);
+
+  if(isAdminFietsberaad===false) {
+    // get all distinct contact IDs for the user from the user_contact_role table
+    const items = await prisma.user_contact_role.findMany({
+      where: {
+        UserID: session.user.id
+      },
+      select: {
+        ContactID: true
       }
-    }
-    // organizations or admin
+    });
+    data.sites = items.map((item) => item.ContactID);
+  }
+  
+  // Fietsberaad rootadmin: Access to all contacts
+  else {
     const allSites = await prisma.contacts.findMany({
-      // where: whereFilter,
       select: {
         ID: true
       }
@@ -148,25 +154,19 @@ export async function makeApiCall<T>(
 // Helper function to update security profile
 export async function updateSecurityProfile(session: any, userId: string): Promise<{ session: any; error?: string }> {
   try {
-    const updatedUser = await prisma.security_users.findFirst({
-      where: { UserID: userId },
-      select: securityUserSelect
-    }) as VSUserWithRoles;
+    const updatedUser = await getSecurityUserNew(userId, session.user.activeContactId);
 
     if (!updatedUser) {
       console.error("Fout bij het ophalen van bijgewerkte gebruikersgegevens");
       return { session, error: "Fout bij het bijwerken van beveiligingsprofiel" };
     }
 
-    // Create new security profile with updated data
-    const securityProfile = await createSecurityProfile(updatedUser, session.user.activeContactId);
-
     // Update session with new security profile
     const updatedSession = {
       ...session,
       user: {
         ...session.user,
-        securityProfile
+        securityProfile: updatedUser.securityProfile
       }
     };
 
@@ -176,3 +176,14 @@ export async function updateSecurityProfile(session: any, userId: string): Promi
     return { session, error: "Fout bij het bijwerken van beveiligingsprofiel" };
   }
 } 
+
+export const getOrganisationTypeByID = async (contactID: string)=> {
+  return (await prisma.contacts.findFirst({
+    where: {
+      ID: contactID,
+    },
+    select: {
+      ItemType: true,
+    },
+  }))?.ItemType || null;
+}

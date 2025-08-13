@@ -1,7 +1,26 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import ReportService from "~/backend/services/reports-service";
+import { getServerSession } from "next-auth";
+import { authOptions } from '~/pages/api/auth/[...nextauth]'
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+  // Require authentication and rapportages role for all report endpoints
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    console.error("Unauthorized - no session found");
+    res.status(401).json({error: "Niet ingelogd - geen sessie gevonden"}); // Unauthorized
+    return;
+  }
+
+  const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
+  if (!hasRapportages) {
+    console.error("Access denied - insufficient permissions for reports");
+    res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+    return;
+  }
+
   if (req.method === 'POST') {
     let data = undefined;
 
@@ -10,7 +29,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     switch (req.query.reportType) {
       case "transacties_voltooid":
       case "inkomsten": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed
@@ -25,7 +44,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         break;
       }
       case "bezetting": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed
@@ -36,7 +55,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         break;
       }
       case "stallingsduur": {
-        let reportParams = req.body.reportParams;
+        const reportParams = req.body.reportParams;
 
         if (undefined === reportParams) {
           res.status(405).end() // Method Not Allowed

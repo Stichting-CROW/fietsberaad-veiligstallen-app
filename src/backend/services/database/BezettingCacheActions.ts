@@ -1,5 +1,5 @@
 import { prisma } from "~/server/db";
-import { CacheParams, CacheStatus } from "~/backend/services/database-service";
+import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
 import moment from "moment";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
@@ -16,7 +16,7 @@ export const getBezettingCacheStatus = async (params: CacheParams) => {
   const sqldetecttable = `SELECT COUNT(*) As count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name= 'bezettingsdata_day_hour_cache'`;
 
   let tableExists = false;
-  let status: CacheStatus | false = {
+  const status: CacheStatus | false = {
     status: 'missing',
     indexstatus: 'missing',
     size: undefined,
@@ -122,7 +122,12 @@ export const updateBezettingCache = async (params: CacheParams) => {
       sectionID, 
       source,
       fillup,
-      open;`;
+      open
+    ON DUPLICATE KEY UPDATE
+      totalCheckins = VALUES(totalCheckins),
+      totalCheckouts = VALUES(totalCheckouts),
+      totalOccupation = VALUES(totalOccupation),
+      totalCapacity = VALUES(totalCapacity);`;
 
   // console.log("++++++++++++++++++++++")
   // console.log(sql);
@@ -173,7 +178,8 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
     totalOccupation INT,
     totalCapacity INT,
     perc_occupation DECIMAL(5, 2),
-    PRIMARY KEY (ID)
+    PRIMARY KEY (ID),
+    UNIQUE KEY uk_bikepark_section_source_interval_timestamp (bikeparkID, sectionID, source, \`interval\`, timestamp)
   );`;
 
   const result = await prisma.$queryRawUnsafe(sqlCreateTable);
@@ -190,7 +196,10 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
     'CREATE INDEX idx_interval ON bezettingsdata_day_hour_cache(`interval`);',
     `CREATE INDEX idx_bikeparkID_source ON bezettingsdata_day_hour_cache(source, bikeparkID);`,
     `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,// Used for /api/database/availableDataPerBikepark
-    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);'// Used for /api/reports/bezetting
+    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',// Matches unique constraint for upsert performance
+    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`, // Used for /api/database/availableDataPerBikepark
+    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);', // Matches unique constraint for upsert performance
+    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);' // Used for /api/reports/bezetting
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {

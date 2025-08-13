@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { usePathname } from 'next/navigation';
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import AppHeaderDesktop from "~/components/AppHeaderDesktop";
 import AppHeaderMobile from "~/components/AppHeaderMobile";
+
 import {
   getArticlesForMunicipality,
   // getNavigationItemsForMunicipality,
@@ -13,14 +14,13 @@ import {
 } from "~/utils/navigation";
 
 import type { VSArticle } from "~/types/articles";
-import type { VSContactGemeente } from "~/types/contacts";
 
 function AppHeader({
   onStallingAanmelden,
-  showGemeenteMenu
+  showGemeenteMenu = false
 }: {
   onStallingAanmelden?: () => void,
-  showGemeenteMenu: boolean
+  showGemeenteMenu?: boolean
 }) {
   const pathName = usePathname();
 
@@ -28,17 +28,19 @@ function AppHeader({
   const [articlesFietsberaad, setArticlesFietsberaad] = useState<VSArticle[]>([]);
 
   const activeMunicipalityInfo = useSelector(
-    (state: AppState) => state.map.activeMunicipalityInfo as VSContactGemeente | undefined
+    (state: AppState) => (state.map).activeMunicipalityInfo
   );
 
-  const mapZoom = useSelector((state: AppState) => state.map.zoom);
+  const mapZoom = useSelector((state: AppState) => (state.map).zoom);
 
   // Get menu items based on active municipality
   useEffect(() => {
     (async () => {
       const response = await getArticlesForMunicipality(activeMunicipalityInfo?.ID||"1");
       setArticlesMunicipality(filterNavItems(response));
-    })();
+    })().catch(err => {
+      console.error("getArticlesForMunicipality error", err);
+    });
   }, [
     activeMunicipalityInfo,
     pathName,
@@ -49,7 +51,9 @@ function AppHeader({
     (async () => {
       const response = await getArticlesForMunicipality("1");
       setArticlesFietsberaad(filterNavItems(response));
-    })();
+    })().catch(err => {
+      console.error("getArticlesForMunicipality error", err);
+    });
   }, [
     activeMunicipalityInfo,
     pathName,
@@ -58,6 +62,9 @@ function AppHeader({
 
   const primaryMenuItems = getPrimary(articlesMunicipality, articlesFietsberaad, showGemeenteMenu);
   const secundaryMenuItems = getSecondary(articlesMunicipality, articlesFietsberaad, showGemeenteMenu);
+
+  // Check if we're on the home page (root path)
+  const isHomePage = pathName === '/' || pathName === '' || pathName.split('/').length === 2 && pathName.split('/').length === 2;
 
   return (
     <>
@@ -82,7 +89,7 @@ function AppHeader({
           sm:hidden
         `}
       >
-        <AppHeaderMobile />
+        <AppHeaderMobile hideLogo={isHomePage} />
       </div>
     </>
   );

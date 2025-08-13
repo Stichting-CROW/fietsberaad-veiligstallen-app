@@ -4,7 +4,13 @@ import type { ICrudService } from "~/backend/handlers/crud-service-interface";
 
 // 
 const include = {
-  fietsenstalling_type: true,
+  fietsenstalling_type: {
+    select: {
+      id: true,
+      name: true,
+      sequence: true,
+    }
+  },
   fietsenstalling_secties: {
     include: {
       secties_fietstype: {
@@ -31,12 +37,19 @@ const include = {
 const FietsenstallingenService: ICrudService<fietsenstallingen> = {
   getAll: async () => {
     return await prisma.fietsenstallingen.findMany({
-      // where: {
-      //   Title: {
-      //     not: 'Systeemstalling'
-      //   }
-      // },
+      where: {
+        Title: {
+          not: 'Systeemstalling'
+        }
+      },
       include: {
+        fietsenstalling_type: {
+          select: {
+            id: true,
+            name: true,
+            sequence: true,
+          }
+        },
         fietsenstalling_secties: true,
         uitzonderingenopeningstijden: true,
       }
@@ -83,7 +96,7 @@ const FietsenstallingenService: ICrudService<fietsenstallingen> = {
 
         await prisma.fietsenstalling_sectie.create({ data: sectiedata });
         const allTypes = await prisma.fietstypen.findMany();
-        for (let typedata of allTypes) {
+        for (const typedata of allTypes) {
           const newSubSectieIdResult = await prisma.sectie_fietstype.aggregate({
             _max: {
               SectionBiketypeID: true
@@ -99,7 +112,7 @@ const FietsenstallingenService: ICrudService<fietsenstallingen> = {
             BikeTypeID: typedata.ID
           }
           await prisma.sectie_fietstype.create({ data: subsectiedata });
-        };
+        }
       }
 
       return createresult;

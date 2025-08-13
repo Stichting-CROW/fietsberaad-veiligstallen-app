@@ -1,34 +1,9 @@
-import { type VSCRUDRight, type VSUserSecurityProfile, VSSecurityTopic } from "~/types/index";    
-import { VSModuleValues } from "~/types/modules";
-import { type VSContactGemeente, type VSContactExploitant, gemeenteSelect, exploitantSelect } from "~/types/contacts";    
-import { type VSUserWithRoles, VSUserRoleValues,VSUserRoleValuesNew } from '~/types/users';
+import { type VSCRUDRight, type VSUserSecurityProfile, VSSecurityTopic } from "~/types/securityprofile";    
+import { allowNone, allowCRUD, allowRead, allowReadUpdate } from "~/utils/client/security-profile-tools";
+import { VSUserRoleValuesNew } from '~/types/users';
+import { VSUserRoleValues} from '~/types/users-coldfusion';
 
-import { changeTopics, initAllTopics } from "~/types/utils";
-
-const allowNone: VSCRUDRight = {
-    create: false,
-    read: false,
-    update: false,
-    delete: false
-};
-const allowCRUD: VSCRUDRight = {
-    create: true,
-    read: true,
-    update: true,
-    delete: true
-};
-const allowRead: VSCRUDRight = {
-    create: false,
-    read: true,
-    update: false,
-    delete: false
-};
-const allowReadUpdate: VSCRUDRight = {
-    create: false,
-    read: true,
-    update: true,
-    delete: false
-};
+import { initAllTopics } from "~/types/utils";
 
 // Module access definitions per contact type
 // type ModuleAccess = {
@@ -56,7 +31,7 @@ export const convertRoleToNewRole = (roleID: VSUserRoleValues | null, isOwnOrgan
             break;
         case VSUserRoleValues.ExploitantDataAnalyst:
         case VSUserRoleValues.InternDataAnalyst:
-            newRoleID = VSUserRoleValuesNew.DataAnalyst;
+            newRoleID = VSUserRoleValuesNew.Viewer;
             break;
         case VSUserRoleValues.ExternAdmin:
             newRoleID = isOwnOrganization ? VSUserRoleValuesNew.Admin : VSUserRoleValuesNew.None;
@@ -68,7 +43,7 @@ export const convertRoleToNewRole = (roleID: VSUserRoleValues | null, isOwnOrgan
             newRoleID = isOwnOrganization ? VSUserRoleValuesNew.Editor : VSUserRoleValuesNew.None;
             break;
         case VSUserRoleValues.ExternDataAnalyst:
-            newRoleID = isOwnOrganization ? VSUserRoleValuesNew.DataAnalyst : VSUserRoleValuesNew.None;
+            newRoleID = isOwnOrganization ? VSUserRoleValuesNew.Viewer : VSUserRoleValuesNew.None;
             break;
         case VSUserRoleValues.Beheerder:
             newRoleID = isOwnOrganization ? VSUserRoleValuesNew.Admin : VSUserRoleValuesNew.None;
@@ -80,6 +55,30 @@ export const convertRoleToNewRole = (roleID: VSUserRoleValues | null, isOwnOrgan
     return newRoleID;
 }
 
+export const convertNewRoleToOldRole = (newRoleID: VSUserRoleValuesNew | null): VSUserRoleValues | null => {
+    if (!newRoleID) {
+        return null;
+    }
+
+    switch(newRoleID) {
+        case VSUserRoleValuesNew.RootAdmin:
+            return VSUserRoleValues.Root;
+        case VSUserRoleValuesNew.Admin:
+            // Since Admin could come from multiple old roles, we'll return the most restrictive one
+            // that would map back to Admin in the new system
+            return VSUserRoleValues.InternAdmin;
+        case VSUserRoleValuesNew.Editor:
+            return VSUserRoleValues.InternEditor;
+        case VSUserRoleValuesNew.Viewer:
+            return VSUserRoleValues.InternDataAnalyst;
+        case VSUserRoleValuesNew.None:
+            return null;
+        default:
+            return null;
+    }
+}
+
+
 export const getRights = (profile: VSUserSecurityProfile | null, topic: VSSecurityTopic): VSCRUDRight => {
     if (!profile) {
         return allowNone;
@@ -89,53 +88,40 @@ export const getRights = (profile: VSUserSecurityProfile | null, topic: VSSecuri
     return baseRights;
 }
 
-export const hasModuleAccess = (profile: VSUserSecurityProfile | null, module: VSModuleValues): boolean => {
-    if (!profile) {
-        return false;
-    }
-
-    return profile.modules.includes(module);
-}
-
 export const getRoleRights = (
     roleID: VSUserRoleValuesNew | null, 
+    contactItemType: string | null,
 ): VSUserRoleRights => {
-    const noRights = initAllTopics(allowNone);
-    const allrights = initAllTopics(allowCRUD);
 
-    switch(roleID) {
-        case VSUserRoleValuesNew.RootAdmin:
-            return allrights;
-        case VSUserRoleValuesNew.Admin:
-            // only root admin gets to manage system settings and users
-            return changeTopics(allrights, [
-                VSSecurityTopic.System,
-                VSSecurityTopic.Development,
-            ], allowNone);
-        case VSUserRoleValuesNew.Editor:
-            return changeTopics(noRights, [
-                // VSSecurityTopic.ContactsGemeenten,
-                // VSSecurityTopic.ContactsExploitanten,
-                // VSSecurityTopic.Report,
-                // VSSecurityTopic.Buurtstallingen,
-                // VSSecurityTopic.Fietskluizen,
-                VSSecurityTopic.Website,
-            ], allowCRUD);
-        case VSUserRoleValuesNew.DataAnalyst:
-            let rights = changeTopics(noRights, [
-                VSSecurityTopic.ContactsGemeenten,
-                VSSecurityTopic.ContactsExploitanten,
-                VSSecurityTopic.Buurtstallingen,
-                VSSecurityTopic.Fietskluizen,
-                VSSecurityTopic.ApisGekoppeldeLocaties,
-            ], allowRead);
-            rights = changeTopics(rights, [
-                VSSecurityTopic.Report,
-            ], allowCRUD);
-            return rights;
-        case VSUserRoleValuesNew.None:  
-            return noRights;
-    }   
+    const currentTopics: Record<VSSecurityTopic, VSCRUDRight> = initAllTopics(allowNone);
+    if(!roleID) {
+        return currentTopics;
+    }
 
-    return noRights;
+    const isRootAdmin = roleID === VSUserRoleValuesNew.RootAdmin;
+    const isAdmin = roleID === VSUserRoleValuesNew.Admin || isRootAdmin;
+    const isEditor = roleID === VSUserRoleValuesNew.Editor || isAdmin;
+    const isViewer = roleID === VSUserRoleValuesNew.Viewer || isEditor;
+
+    const isFietsberaad = contactItemType === "admin";
+    const isExploitant = contactItemType === "exploitant";
+
+    const isRootAdminFietsberaad = isFietsberaad && isRootAdmin;
+    const isAdminFietsberaad = isFietsberaad && isAdmin;
+    const isRootAdminExploitant = isExploitant && isRootAdmin;
+
+    currentTopics[VSSecurityTopic.fietsberaad_superadmin] = isRootAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.fietsberaad_admin] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.exploitant_superadmin] = isRootAdminExploitant ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.acceptatie_ontwikkeling] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_dataeigenaar] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_admin] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_beperkt] = isAdmin? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.exploitanten_toegangsrecht] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_site_content] = isEditor? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
+
+    return currentTopics;        
 };

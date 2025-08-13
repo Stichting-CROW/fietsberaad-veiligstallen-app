@@ -1,9 +1,9 @@
-// @ts-nocheck
 import * as React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setAuthState } from "~/store/authSlice";
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import Link from 'next/link'
+import Image from 'next/image'
+import ImageWithFallback from "~/components/common/ImageWithFallback";
 
 // Import components
 import Modal from "src/components/Modal";
@@ -17,23 +17,18 @@ import {
 import Logo from './Logo';
 import PageTitle from "~/components/PageTitle";
 
-import { PrimaryMenuItem, SecundaryMenuItem } from "~/components/MenuItems";
-
-
 function AppHeaderMobile({
   title,
   handleCloseClick,
-  children
+  children,
+  hideLogo = false
 }: {
   title?: string,
-  handleCloseClick?: Function,
-  children?: any
+  handleCloseClick?: () => void,
+  children?: React.ReactNode,
+  hideLogo?: boolean
 }) {
   const dispatch = useDispatch();
-
-  const isAuthenticated = useSelector(
-    (state: AppState) => state.auth.authState
-  );
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -43,26 +38,45 @@ function AppHeaderMobile({
     (state: AppState) => state.app.isMobileNavigationVisible
   );
 
-  const mapZoom = useSelector((state: AppState) => state.map.zoom);
+  const mapZoom = useSelector((state: AppState) => state.map.zoom) || 12;
 
-  const handleLoginClick = () => {
-    const authState = isAuthenticated ? false : true;
-    dispatch(setAuthState(authState));
-  };
+  const renderLogo = () => {
+    // Don't render logo if hideLogo is true
+    if (hideLogo) {
+      return null;
+    }
 
-  const primaryMenuItems = [
-    'ICN',
-    'Koop abonnement',
-    'Over Utrecht Fietst!',
-    'Buurtstallingen',
-    'Fietstrommels'
-  ];
+    const activecontact = activeMunicipalityInfo;
 
-  const secundaryMenuItems = [
-    'FAQ',
-    'Tips',
-    'Contact'
-  ];
+    // If logo URL starts with http, return the image
+    if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
+      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" />
+    }
+
+    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+
+    // If logo URL is not null and mapZoom is 12 or higher, return the image
+    if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
+      logofile = activecontact.CompanyLogo;
+      if(!logofile.startsWith('http')) {
+          logofile =logofile.replace('[local]', '')
+          if(!logofile.startsWith('/')) {
+            logofile = '/' + logofile;
+          }
+      }
+
+      return <ImageWithFallback
+        src={logofile}
+        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        alt="Logo"
+        width={64}
+        height={64}
+        className="max-h-12 w-auto bg-white mr-2"
+      />
+    }
+
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" />
+  }
 
   return (
     <>
@@ -78,8 +92,13 @@ function AppHeaderMobile({
           sticky
           top-0
 
+          sm:h-auto
+
           shadow
         "
+        style={{
+          height: '72px'
+        }}
       >
         <div className="
           py-3
@@ -88,16 +107,16 @@ function AppHeaderMobile({
           justify-between
         ">
           <div className="flex flex-col justify-center">
-            <Link href={`/${activeMunicipalityInfo ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
-              <Logo imageUrl={(mapZoom >= 12 && activeMunicipalityInfo && activeMunicipalityInfo.CompanyLogo2) ? `https://static.veiligstallen.nl/library/logo2/${activeMunicipalityInfo.CompanyLogo2}` : undefined} />
+            <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
+              {renderLogo()}
             </Link>
           </div>
           <div className="mx-3 flex-1 flex flex-col justify-center">
             <PageTitle className="mb-0">{title}</PageTitle>
           </div>
-          <a href="#" onClick={(e) => {
+          <a href="#" onClick={() => {
             // Custom set action
-            if (handleCloseClick) handleCloseClick(e);
+            if (handleCloseClick) handleCloseClick();
             // Or default action
             else dispatch(setIsMobileNavigationVisible(true));
           }} className="
@@ -106,9 +125,12 @@ function AppHeaderMobile({
             mr-2
           "
           >
-            <img
+            <Image
               src={(handleCloseClick) ? `/images/icon-close.png` : `/images/icon-hamburger.png`}
-              alt={(handleCloseClick) ? `Sluiten` : 'Open menu'} className="w-6" />
+              alt={(handleCloseClick) ? `Sluiten` : 'Open menu'} 
+              width={24}
+              height={24}
+              className="w-6" />
           </a>
         </div>
       </div>

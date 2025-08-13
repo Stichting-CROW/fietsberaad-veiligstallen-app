@@ -1,4 +1,4 @@
-import { Prisma } from "~/generated/prisma-client";
+import { type Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { VSFaqFull } from "~/types/faq";

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { ReportBikepark, ReportType, getAvailableReports } from "../reports/ReportsFilter";
-import { AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
+import { type ReportBikepark, type ReportType, getAvailableReports } from "../reports/ReportsFilter";
+import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import ExportSectionReport from "./ExportSectionReport";
 import ExportSectionRawData from "./ExportSectionRawData";
 import moment from "moment";

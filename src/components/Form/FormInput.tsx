@@ -53,6 +53,7 @@ function FormInput({
             rounded-full
             my-2
             w-full
+            ${disabled ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}
             ${className}
           `}
           disabled={disabled === true}

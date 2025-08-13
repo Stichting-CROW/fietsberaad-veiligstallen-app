@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import BikeparkSelect from '../reports/BikeparkSelect'; // Adjust the import path if necessary
-import { ReportBikepark } from '../reports/ReportsFilter'; // Adjust the import path if necessary
-import { CacheParams, CacheStatus, CacheActions, CacheResult } from "~/backend/services/database-service";
+import { type CacheParams, type CacheStatus, type CacheActions, type CacheResult } from "~/backend/services/database-service";
 import moment from 'moment';
+import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 
 interface CacheTableComponentProps {
   title: string;
   cacheEndpoint: string;
   firstDate: Date;
   lastDate: Date;
-  bikeparks: ReportBikepark[] | undefined;
+  bikeparks: VSFietsenstallingLijst[] | undefined;
 }
 
 const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheEndpoint,firstDate, lastDate, bikeparks }) => {
   const [allDates, setAllDates] = useState<boolean>(true);
   const [allBikeparks, setAllBikeparks] = useState<boolean>(true);
   const [startDate, setStartDate] = useState<Date>(() => {
-    return moment().subtract(7, 'days').toDate();
+    return moment(firstDate).toDate(); 
    });
   const [selectedBikeparkIDs, setSelectedBikeparkIDs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +33,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action: 'status',
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };
@@ -80,7 +80,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action,
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };
@@ -102,7 +102,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
             throw new Error(`Error: ${response}`);
           }
           
-          let result = await response.json() as CacheResult;
+          const result = await response.json() as CacheResult;
           if(result.success && result.status) {
             setCacheStatus(result.status);
             setErrorState("");
@@ -128,7 +128,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action: indicesExist ? 'dropparentindices' : 'createparentindices',
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };
@@ -150,7 +150,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
             throw new Error(`Error: ${response}`);
           }
           
-          let result = await response.json() as CacheResult;
+          const result = await response.json() as CacheResult;
           if(result.success) {
             setIndicesExist(!indicesExist);
             setErrorState("");

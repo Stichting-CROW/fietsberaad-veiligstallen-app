@@ -31,7 +31,7 @@ const config = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ["static.veiligstallen.nl"],
+    domains: ["static.veiligstallen.nl", "fms.veiligstallen.nl", "localhost", "beta.veiligstallen.nl"],
     remotePatterns: [
       {
         protocol: "https",
@@ -51,5 +51,3 @@ const nextConfig = withPWA({
 })(config);
 
 export default nextConfig;
-
-// export default withPWA(Object.assign({}, pwa, config));

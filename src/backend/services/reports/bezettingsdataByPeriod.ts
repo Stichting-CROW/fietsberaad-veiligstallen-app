@@ -1,4 +1,4 @@
-import { ReportParams } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportParams } from "~/components/beheer/reports/ReportsFilter";
 import {
   getFunctionForPeriod,
   interpolateSQL
@@ -6,7 +6,7 @@ import {
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 
 import moment from 'moment';
-import { BikeparkWithDataSource } from "~/components/beheer/reports/BikeparkDataSourceSelect";
+import { type BikeparkWithDataSource } from "~/components/beheer/reports/BikeparkDataSourceSelect";
 
 const filter_bikeparks_sql = (params: {
   bikeparkIDs: string[],
@@ -36,7 +36,7 @@ const filter_bikeparks_sql = (params: {
   }
 }
 
-export const getSQL = (params: ReportParams, useCache: boolean = true): string | false => {
+export const getSQL = (params: ReportParams, useCache = true): string | false => {
   const {
     reportType,
     reportGrouping,

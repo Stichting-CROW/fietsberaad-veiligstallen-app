@@ -43,7 +43,7 @@ export const dropParentIndices = async (indicesinfo: IndicesInfo) => {
 export const createParentIndices = async (indicesinfo: IndicesInfo) => {
   try {
     console.log(`Creating parent indices for ${indicesinfo.basetable}`);
-    for (const index_name of Object.keys(indicesinfo.indices) as Array<keyof typeof indicesinfo.indices>) {
+    for (const index_name of Object.keys(indicesinfo.indices) ) {
       const result = await prisma.$queryRawUnsafe(`CREATE INDEX ${index_name} ON ${indicesinfo.basetable} (${indicesinfo.indices[index_name]});`);
       if (!result) {
         console.error(`Unable to create index on ${indicesinfo.basetable} [${index_name}]`, result);

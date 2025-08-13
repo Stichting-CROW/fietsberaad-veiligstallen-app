@@ -4,9 +4,9 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession, makeApiCall } from "~/utils/server/database-tools";
 import type { TestResult, TestResponse } from "~/types/test";
 import { TestError, TestStatus } from "~/types/test";
-import { SecurityUsersResponse } from ".";
-import { SecurityUserResponse } from "./[id]";
-import { VSUserRoleValuesNew, VSUserWithRolesNew } from "~/types/users";
+import { type SecurityUsersResponse } from ".";
+import { type SecurityUserResponse } from "./[id]";
+import { VSUserRoleValuesNew, type VSUserWithRolesNew } from "~/types/users";
 import { createTestContactGemeente } from "../test-tools";
 
 export default async function handle(
@@ -154,22 +154,16 @@ async function testCreateSecurityUser(req: NextApiRequest): Promise<TestResult> 
       Status: "1",
       // EncryptedPassword: await hash(testPassword, 10),
       // EncryptedPassword2: await hash(testPassword, 10),
-      sites: [{
-        SiteID: testGemeente.ID,
-        IsContact: false,
-        IsOwnOrganization: true,
-        newRoleId: VSUserRoleValuesNew.Admin
-      }],
-      ParentID: null,
-      SiteID: null,
+      // ParentID: null,
+      // SiteID: null,
       LastLogin: null,
       securityProfile: {
-        modules: [],
         roleId: VSUserRoleValuesNew.Admin,
         rights: {},
-        mainContactId: testGemeente.ID,
-        managingContactIDs: []
-      }
+      },
+      isContact: false,
+      ownOrganizationID: testGemeente.ID,
+      isOwnOrganization: true
     };
 
     const { success, result } = await makeApiCall<SecurityUsersResponse>(req, '/api/protected/security_users', 'POST', testRecord);
@@ -215,8 +209,8 @@ async function testCreateSecurityUser(req: NextApiRequest): Promise<TestResult> 
     }
 
     // check that the created record has the correct role and site info
-    if (result.data?.[0]?.sites?.[0]?.newRoleId !== VSUserRoleValuesNew.Admin ||
-      result.data?.[0]?.sites?.[0]?.SiteID !== testGemeente.ID) {
+    if (result.data?.[0]?.securityProfile?.roleId !== VSUserRoleValuesNew.Admin ||
+      result.data?.[0]?.isOwnOrganization !== true) {
       return {
         name: "Create Record",
         status: TestStatus.Failed,

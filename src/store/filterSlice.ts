@@ -1,9 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { HYDRATE } from "next-redux-wrapper";
 export interface FilterState {
-  activeTypes: String[];
-  query: String;
-  activeTypes2: String[]; // used to store the showSubmissions filter
+  activeTypes: string[];
+  query: string;
+  activeTypes2: string[]; // used to store the showSubmissions filter
 }
 
 // Initial state
@@ -56,7 +56,7 @@ export const filterSlice = createSlice({
       if (!typesToSet) {
         isInvalidInput = true;
       }
-      for (let key in typesToSet) {
+      for (const key in typesToSet) {
         const typeToSet = typesToSet[key];
         if (allowedTypes.indexOf(typeToSet) <= -1) {
           isInvalidInput = true;
@@ -87,7 +87,7 @@ export const filterSlice = createSlice({
       if (!typesToSet) {
         isInvalidInput = true;
       }
-      for (let key in typesToSet) {
+      for (const key in typesToSet) {
         const typeToSet = typesToSet[key];
         if (allowedTypes2.indexOf(typeToSet) <= -1) {
           isInvalidInput = true;

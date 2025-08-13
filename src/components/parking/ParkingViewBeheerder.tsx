@@ -1,9 +1,8 @@
 import React from "react";
-import HorizontalDivider from "~/components/HorizontalDivider";
-
+import { type ParkingDetailsType } from "~/types/parking";
 import SectionBlock from "~/components/SectionBlock";
 
-const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: any }) => {
+const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
   // if (parkingdata.FMS === true) {
   //   return <SectionBlock heading="Beheerder">FMS</SectionBlock>;
   // }  else

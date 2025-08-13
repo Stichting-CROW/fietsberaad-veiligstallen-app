@@ -1,5 +1,5 @@
 import moment from "moment";
-import { ReportGrouping } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportGrouping } from "~/components/beheer/reports/ReportsFilter";
 // import { debugLog } from "~/backend/services/reports/ReportFunctions";
 
 export type XAxisLabelMap = Record<string, string>;
@@ -15,6 +15,49 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
     case 'per_year': return 'Jaar';
     case 'per_bucket': return 'Stallingsduur';
     default: return 'onbekend';
+  }
+}
+
+export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
+  switch (reportGrouping) {
+    case 'per_hour': {
+      return value.toString() + ":00";
+    }
+    case 'per_weekday': {
+      return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
+    }
+    case 'per_day': {
+      return moment(value).format('YYYY-DDD');
+    }
+    case 'per_month': {
+      return moment(value).format('YYYY-M');
+    }
+    case 'per_week': {
+      return moment(value).format('YYYY-W');
+    }
+    case 'per_quarter': {
+      return moment(value).format('YYYY-Q');
+    }
+    case 'per_year': {
+      return moment(value).format('YYYY');
+    }
+    case 'per_bucket': {
+      //   const buckets = [
+      //     "<30m",
+      //     "30-60m",
+      //     "1-2h",
+      //     "2-4h",
+      //     "4-8h",
+      //     "8-24h",
+      //     "1-2d",
+      //     "2-7d",
+      //     "7-14d",
+      //     ">14d"
+      //   ];
+      return ['<30m', '30-60m', '1-2h', '2-4h', '4-8h', '8-24h', '1-2d', '2-7d', '7-14d', '>14d'][parseInt(value)];
+    }
+    default:
+      return value;
   }
 }
 
@@ -99,16 +142,16 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
       //     "7-14d",
       //     ">14d"
       //   ];
-      labelMap['0'] = '<30m';
-      labelMap['1'] = '30-60m';
-      labelMap['2'] = '1-2h';
-      labelMap['3'] = '2-4h';
-      labelMap['4'] = '4-8h';
-      labelMap['5'] = '8-24h';
-      labelMap['6'] = '1-2d';
-      labelMap['7'] = '2-7d';
-      labelMap['8'] = '7-14d';
-      labelMap['9'] = '>14d';
+      labelMap["1"] = '<30m';
+      labelMap["2"] = '30-60m';
+      labelMap["3"] = '1-2h';
+      labelMap["4"] = '2-4h';
+      labelMap["5"] = '4-8h';
+      labelMap["6"] = '8-24h';
+      labelMap["7"] = '1-2d';
+      labelMap["8"] = '2-7d';
+      labelMap["9"] = '7-14d';
+      labelMap[""] = '>14d';
       return labelMap;
     }
     default:
@@ -137,6 +180,6 @@ export const getCategoriesForXAxis = (labels: XAxisLabelMap): string[] => {
   return Object.keys(labels);
 }
 
-export const getXAxisFormatter = (labels: XAxisLabelMap) => (): ((value: string) => string) => {
-  return (value: string) => labels[value] || value;
-}
+// export const getXAxisFormatter = (labels: XAxisLabelMap) => (): ((value: string) => string) => {
+//   return (value: string) => labels[value] || value;
+// }

@@ -1,4 +1,4 @@
-import { ReportParams } from "~/components/beheer/reports/ReportsFilter";
+import { type ReportParams } from "~/components/beheer/reports/ReportsFilter";
 import {
   getFunctionForPeriod,
   interpolateSQL
@@ -18,7 +18,7 @@ const filter_locations_sql = (params: {
   return `locationID IN (${bikeparkIDs_string})`;
 }
 
-export const getSQL = (params: ReportParams, useCache: boolean = true): string | false => {
+export const getSQL = (params: ReportParams, useCache = true): string | false => {
   const {
     reportType,
     reportGrouping,
@@ -54,7 +54,12 @@ export const getSQL = (params: ReportParams, useCache: boolean = true): string |
       statementItems.push(`  locationID AS CATEGORY,`);
       break;
     case "per_weekday":
-      statementItems.push(`  ${getFunctionForPeriod("per_weekday", timeIntervalInMinutes, 'checkoutdate', useCache)} AS CATEGORY,`);
+      const functionForPeriod = getFunctionForPeriod("per_weekday", timeIntervalInMinutes, 'checkoutdate', useCache);
+      if (functionForPeriod === undefined) {
+        console.error(">>> getSQL ERROR Function for period is undefined");
+        return false;
+      }
+      statementItems.push(`  ${functionForPeriod} AS CATEGORY,`);
       break;
     // case "per_section":
     //   statementItems.push(`  b.sectionID AS CATEGORY,`);
@@ -67,8 +72,14 @@ export const getSQL = (params: ReportParams, useCache: boolean = true): string |
       statementItems.push(`  "0" AS CATEGORY,`);
   }
 
+  const functionForPeriod = getFunctionForPeriod(reportGrouping, timeIntervalInMinutes, 'checkoutdate', useCache);
+  if (functionForPeriod === undefined) {
+    console.error(">>> getSQL ERROR Function for period is undefined");
+    return false;
+  }
+
   // statementItems.push(`  Title AS name,`);
-  statementItems.push(`  ${getFunctionForPeriod(reportGrouping, timeIntervalInMinutes, 'checkoutdate', useCache)} AS TIMEGROUP,`);
+  statementItems.push(`  ${functionForPeriod} AS TIMEGROUP,`);
   if (false === useCache) {
     if (reportType === "transacties_voltooid") {
       statementItems.push(`COUNT(*) AS value`);

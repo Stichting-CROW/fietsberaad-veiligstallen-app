@@ -9,7 +9,8 @@ function FormTextArea({
   value,
   label,
   style,
-  rows
+  rows,
+  disabled
 }: {
   required?: boolean,
   placeholder?: string,
@@ -18,7 +19,8 @@ function FormTextArea({
   value?: any
   label?: string,
   rows?: number,
-  style?: object
+  style?: object,
+  disabled?: boolean
 }) {
   return (
     <>
@@ -38,9 +40,11 @@ function FormTextArea({
             border
             rounded-full
             my-2
+            ${disabled ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}
             ${className}
           `}
           rows={rows}
+          disabled={disabled}
         />
       </label>
     </>

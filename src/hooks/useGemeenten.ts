@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import type { VSContactGemeenteInLijst, VSContactGemeente } from '~/types/contacts';
+import { incrementGemeentenVersion } from '~/store/appSlice';
+import type { RootState } from '~/store/rootReducer';
 
 type GemeentenResponse<T extends VSContactGemeenteInLijst | VSContactGemeente> = {
   data?: T[];
@@ -10,8 +13,10 @@ const useGemeentenBasis = <T extends VSContactGemeenteInLijst | VSContactGemeent
   const [gemeenten, setGemeenten] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
   const mounted = useRef(false);
+  
+  const dispatch = useDispatch();
+  const gemeentenVersion = useSelector((state: RootState) => state.app.gemeentenVersion);
 
   const fetchGemeenten = async () => {
     try {
@@ -35,15 +40,15 @@ const useGemeentenBasis = <T extends VSContactGemeenteInLijst | VSContactGemeent
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
-      fetchGemeenten();
     }
-  }, [version]);
+    fetchGemeenten();
+  }, [gemeentenVersion]);
 
   return {
     gemeenten,
     isLoading,
     error: error || undefined,
-    reloadGemeenten: () => setVersion(v => v + 1)
+    reloadGemeenten: () => dispatch(incrementGemeentenVersion())
   };
 }; 
 

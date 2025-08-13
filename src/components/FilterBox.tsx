@@ -10,7 +10,7 @@ import FilterBoxList, {
 // } from "~/components/FilterBoxPrice";
 import { useDispatch, useSelector } from "react-redux";
 
-import { AppState } from "~/store/store";
+import { type AppState } from "~/store/store";
 import { toggleType, toggleType2 } from "~/store/filterSlice";
 import { toggleType as toggleTypeArticles } from "~/store/filterArticlesSlice";
 

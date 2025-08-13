@@ -19,8 +19,9 @@ import {
   getUserFromLoginCode,
 } from "../../../utils/auth-tools";
 
-import { type VSUserWithRoles, securityUserSelect } from "~/types/users";
+import { VSUserRoleValuesNew } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
+import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 const providers: Provider[] = [];
 
@@ -121,57 +122,6 @@ providers.push(
   }),
 );
 
-// https://next-auth.js.org/configuration/providers/credentials
-// providers.push(
-//   CredentialsProvider({
-//     // The name to display on the sign in form (e.g. 'Sign in with...')
-//     name: "Email and password",
-//     // The credentials is used to generate a suitable form on the sign in page.
-//     // You can specify whatever fields you are expecting to be submitted.
-//     // e.g. domain, username, password, 2FA token, etc.
-//     // You can pass any HTML attribute to the <input> tag through the object.
-//     credentials: {
-//       email: {
-//         label: "Email",
-//         type: "email",
-//         placeholder: "user@example.com",
-//       },
-//       password: {
-//         label: "Password",
-//         type: "password",
-//       },
-//     },
-//     async authorize(
-//       credentials: Record<"email" | "password", string> | undefined,
-//       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-//       req: Pick<RequestInternal, "body" | "method" | "headers" | "query">
-//     ): Promise<User | null> {
-//       const user = await getUserFromCredentials(credentials);
-//       return user;
-//     },
-//   }),
-//   // EmailProvider({
-//   //   name: "Magic link",
-//   //   server: {
-//   //     host: process.env.EMAIL_SERVER_HOST,
-//   //     port: process.env.EMAIL_SERVER_PORT,
-//   //     auth: {
-//   //       user: process.env.EMAIL_SERVER_USER,
-//   //       pass: process.env.EMAIL_SERVER_PASSWORD
-//   //     }
-//   //   },
-//   //   from: process.env.EMAIL_FROM,
-//   //   maxAge: 60 * 60, // 1 hour
-//   //   // sendVerificationRequest({
-//   //   //   identifier: email,
-//   //   //   url,
-//   //   //   provider: { server, from }
-//   //   // }) {
-//   //   //   /* your function */
-//   //   // }
-//   // })
-// );
-
 export const authOptions: NextAuthOptions = {
   providers,
   // adapter: PrismaAdapter(prisma),
@@ -192,6 +142,7 @@ export const authOptions: NextAuthOptions = {
       try {
         if (user) {
           token.id = user.id;
+          token.mainContactId = user.mainContactId;
           token.activeContactId = user.activeContactId;
         }
 
@@ -217,21 +168,37 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }: { session: Session; token: JWT }) {
       try {
         if (session?.user && token?.id) {
-          const account = (await prisma.security_users.findFirst({
+          const orgaccount = (await prisma.security_users.findFirst({
             where: { UserID: token.id as string },
-            select: securityUserSelect,
-          })) as VSUserWithRoles;
+            select: {
+              UserID: true, 
+              DisplayName: true,
+              UserName: true,
+              user_contact_roles: {
+                select: {
+                  ContactID: true,
+                  NewRoleID: true,
+                  isOwnOrganization: true
+                },
+              },
+            },
+          }));
 
-          if (account) {
-            const securityProfile = await createSecurityProfile(
-              account,
-              token.activeContactId as string,
-            );
-
+          if (orgaccount) {
+            const mainContactId = orgaccount.user_contact_roles.find((role) => role.isOwnOrganization)?.ContactID || undefined;
+            const currentRoleID: VSUserRoleValuesNew = orgaccount.user_contact_roles.find((role) => role.ContactID === token.activeContactId)?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
             session.user.id = token.id as string;
-            session.user.name = account.DisplayName;
+            session.user.name = orgaccount.DisplayName;
+            session.user.mainContactId = mainContactId;
             session.user.activeContactId = token.activeContactId as string;
-            session.user.securityProfile = securityProfile;
+            const activeContactType = await getOrganisationTypeByID(session.user.activeContactId);
+
+            // If user is Fietsberaad rootman: All rights
+            if(orgaccount.user_contact_roles.find((role) => role.ContactID === '1')?.NewRoleID === 'rootadmin') {
+              session.user.securityProfile = createSecurityProfile('rootadmin' as VSUserRoleValuesNew, activeContactType);
+            } else {
+              session.user.securityProfile = createSecurityProfile(currentRoleID, activeContactType);
+            }
           } else {
             console.error(`No account found for user ID: ${token.id}`);
           }
@@ -247,6 +214,25 @@ export const authOptions: NextAuthOptions = {
           });
         }
         return session;
+      }
+    },
+  },
+
+  // https://next-auth.js.org/configuration/events
+  events: {
+    async signIn({ user }) {
+      try {
+        if (user?.id) {
+          if (process.env.NODE_ENV === "development") {
+            console.log("Updating LastLogin for user:", user.id);
+          }
+          await prisma.security_users.update({
+            where: { UserID: user.id as string },
+            data: { LastLogin: new Date() },
+          });
+        }
+      } catch (error) {
+        console.error("Error updating LastLogin on signIn:", error);
       }
     },
   },

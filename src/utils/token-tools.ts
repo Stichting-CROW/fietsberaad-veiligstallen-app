@@ -19,9 +19,9 @@ const TOKEN_VALIDITY_MILLISECONDS = 2000; // 2 seconds validity
  * @param contactId User's contact ID
  * @returns Object containing token and validity timestamp, or false if generation fails
  */
-export async function calculateAuthToken(
+export function calculateAuthToken(
     UserID: string
-): Promise<TokenResponse | false> {
+): TokenResponse | false {
     try {
         // Get private key from environment
         const signerKey = process.env.LOGINTOKEN_SIGNER_PRIVATE_KEY;

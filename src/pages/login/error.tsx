@@ -2,28 +2,12 @@ import React, { useRef } from "react";
 import { useRouter } from 'next/navigation'
 import useQueryParam from '../../hooks/useQueryParam';
 
-// import bcrypt from 'bcrypt'
-
-// Import utils
-// import { getParkingsFromDatabase } from "~/utils/prisma";
-
 // Import components
 import PageTitle from "~/components/PageTitle";
-import FormInput from "~/components/Form/FormInput";
-import FormCheckbox from "~/components/Form/FormCheckbox";
-import AppHeaderDesktop from "~/components/AppHeaderDesktop";
 import { Button } from "~/components/Button";
-import { signIn } from "next-auth/react";
-
-
-
-// import ImageSlider from "~/components/ImageSlider";
-// import HorizontalDivider from "~/components/HorizontalDivider";
-// import CloseButton from "~/components/CloseButton";
-// import Parking from "~/components/Parking";
 
 import Styles from "./error.module.css";
-import { NextPage } from "next/types";
+import { type NextPage } from "next/types";
 import Head from "next/head";
 import AppHeader from "~/components/AppHeader";
 

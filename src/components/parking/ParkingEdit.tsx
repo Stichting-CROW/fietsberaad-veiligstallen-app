@@ -5,12 +5,11 @@ import PageTitle from "~/components/PageTitle";
 import HorizontalDivider from "~/components/HorizontalDivider";
 import { Button } from "~/components/Button";
 import FormInput from "~/components/Form/FormInput";
+import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingSections } from "~/types/parking";
 import {
-  getAllServices,
-  generateRandomId,
   getDefaultLocation,
 } from "~/utils/parkings";
 import {
@@ -21,12 +20,9 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 
 /* Use nicely formatted items for items that can not be changed yet */
 import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
-import type { ServiceType } from "~/components/parking/ParkingViewServices";
 
 import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
-import ParkingEditCapaciteit, {
-  type CapaciteitType,
-} from "~/components/parking/ParkingEditCapaciteit";
+import ParkingEditCapaciteit from "~/components/parking/ParkingEditCapaciteit";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
@@ -39,14 +35,14 @@ import {
   type MunicipalityType,
   getMunicipalityBasedOnLatLng,
 } from "~/utils/map/active_municipality";
-import { geocodeAddress, reverseGeocode, ReverseGeocodeResult } from "~/utils/nomatim";
+import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/utils/nomatim";
 import toast from "react-hot-toast";
-
-type connectFietsenstallingType = {
-  connect: {
-    id: string;
-  };
-};
+import { type VSservice } from "~/types/services";
+import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
+import { useExploitanten } from "~/hooks/useExploitanten";
+import type { VSContactExploitant } from "~/types/contacts";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -61,10 +57,12 @@ export type ParkingEditUpdateStructure = {
   SiteID?: string;
   Beheerder?: string;
   BeheerderContact?: string;
+  ExploitantID?: string | null;
+  FMS?: boolean;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
-  fietsenstalling_type?: connectFietsenstallingType;
+  Type?: string;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -92,15 +90,19 @@ const NoClickOverlay = () => {
   );
 };
 
+interface ParkingEditProps {
+  parkingdata: ParkingDetailsType;
+  onClose: (closeModal: boolean) => void;
+  onChange: () => void;
+  showAbonnementen?: boolean;
+}
+
 const ParkingEdit = ({
   parkingdata,
   onClose,
   onChange,
-}: {
-  parkingdata: ParkingDetailsType;
-  onClose: (closeModal: boolean) => void;
-  onChange: Function;
-}) => {
+  showAbonnementen = false,
+}: ParkingEditProps) => {
   const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
   // const [waarschuwing, setWaarschuwing] = React.useState<string>('');
   // const [allowSave, setAllowSave] = React.useState<boolean>(true);
@@ -137,9 +139,19 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  // exploitant selection
+  const [newExploitantID, setNewExploitantID] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  // FMS flag
+  const [newFMS, setNewFMS] = React.useState<boolean | undefined>(
+    undefined,
+  );
+
   // type FietsenstallingSectiesType = { [key: string]: Array[] }
 
-  const [allServices, setAllServices] = React.useState<ServiceType[]>([]);
+  const [allServices, setAllServices] = React.useState<VSservice[]>([]);
   const [newServices, setNewServices] = React.useState<ChangedType[]>([]);
 
   const [newCapaciteit, setNewCapaciteit] = React.useState<ParkingSections>([]); // capaciteitschema
@@ -150,8 +162,6 @@ const ParkingEdit = ({
     string | undefined
   >(undefined); // textveld afwijkende openingstijden
 
-  type StallingType = { id: string; name: string; sequence: number };
-  const [allTypes, setAllTypes] = React.useState<StallingType[]>([]);
   const [newStallingType, setNewStallingType] = React.useState<
     string | undefined
   >(undefined);
@@ -162,26 +172,31 @@ const ParkingEdit = ({
 
   const { data: session } = useSession() as { data: Session | null };
 
+  // Check user rights for field-level access control
+  const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
+  const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const canEditAllFields = hasFietsenstallingenAdmin;
+  const canEditLimitedFields = hasFietsenstallingenBeperkt;
+
+  // Use the hook for fietsenstallingtypen
+  const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
+
+  // Use the hook for exploitanten
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
+
   // Set 'allServices' variable in local state
   React.useEffect(() => {
-    (async () => {
-      const result = await getAllServices();
-      setAllServices(result);
-    })();
-  }, []);
+    const updateServices = async () => {
+      const response = await fetch(`/api/protected/services`);
+      const json = await response.json() as VSservice[];
+      if (!json) return [];
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const response = await fetch(`/api/fietsenstallingtypen/`);
-        const json = await response.json();
-        if (!json) return;
+      setAllServices(json);
+    }
 
-        setAllTypes(json);
-      } catch (err) {
-        console.error("get all types error", err);
-      }
-    })();
+    updateServices().catch(err => {
+      console.error("get all services error", err);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -260,7 +275,7 @@ const ParkingEdit = ({
       }
     };
 
-    let checks: checkInfo[] = [
+    const checks: checkInfo[] = [
       {
         type: "string",
         text: "invoer van de titel",
@@ -294,14 +309,16 @@ const ParkingEdit = ({
     ];
     // parkingdata.Postcode is optional
 
-    // FMS & ExploitantID cannot be changed for now, so no need to check those for changes
-    if (parkingdata.FMS !== true && parkingdata.ExploitantID === null) {
-      checks.push({
-        type: "string",
-        text: "invoer van de contactgegevens van de beheerder",
-        value: parkingdata.Beheerder,
-        newvalue: newBeheerder,
-      });
+    // Only validate beheerder fields if user has admin rights
+    if (canEditAllFields) {
+      if (parkingdata.ExploitantID !== null) {
+        checks.push({
+          type: "string",
+          text: "invoer van de contactgegevens van de beheerder",
+          value: parkingdata.Beheerder,
+          newvalue: newBeheerder,
+        });
+      }
       checks.push({
         type: "string",
         text: "invoer van de contactgegevens van de beheerder",
@@ -336,7 +353,7 @@ const ParkingEdit = ({
   };
 
   const getUpdate = () => {
-    let update: ParkingEditUpdateStructure = {};
+    const update: ParkingEditUpdateStructure = {};
 
     update.ID = parkingdata.ID;
 
@@ -366,8 +383,16 @@ const ParkingEdit = ({
       update.BeheerderContact = newBeheerderContact;
     }
 
+    if (newExploitantID !== undefined) {
+      update.ExploitantID = newExploitantID === 'anders' ? null : newExploitantID;
+    }
+
+    if (newFMS !== undefined) {
+      update.FMS = newFMS;
+    }
+
     if (newStallingType !== undefined) {
-      update.fietsenstalling_type = { connect: { id: newStallingType } };
+      update.Type = newStallingType;
     }
 
     if (undefined !== newOpening) {
@@ -474,7 +499,7 @@ const ParkingEdit = ({
       if (null !== sectionToSave) {
         sectionId = sectionToSave.sectieId;
       } else {
-        let result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
+        const result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
         sectionId = (await result.json()).sectieId;
       }
 
@@ -514,7 +539,7 @@ const ParkingEdit = ({
   };
 
   const handleRemoveParking = async (
-    message: string = "",
+    message = "",
   ): Promise<boolean> => {
     try {
       if (parkingdata.Status !== "aanm" && parkingdata.Status !== "new") {
@@ -676,7 +701,7 @@ const ParkingEdit = ({
     }
   };
 
-  const renderTabAlgemeen = (visible: boolean = false) => {
+  const renderTabAlgemeen = (visible = false) => {
     const serviceIsActive = (ID: string): boolean => {
       const change = newServices.find(s => s.ID === ID);
       if (change !== undefined) {
@@ -717,10 +742,10 @@ const ParkingEdit = ({
     };
 
     const handleAddressLookup = async () => {
-      let latlng = await geocodeAddress(
-        newLocation !== undefined ? newLocation : parkingdata.Location,
-        newPostcode !== undefined ? newPostcode : parkingdata.Postcode,
-        newPlaats !== undefined ? newPlaats : parkingdata.Plaats,
+      const latlng = await geocodeAddress(
+        newLocation !== undefined ? newLocation : parkingdata.Location || "", 
+        newPostcode !== undefined ? newPostcode : parkingdata.Postcode || "",
+        newPlaats !== undefined ? newPlaats : parkingdata.Plaats || "",
       );
       if (false !== latlng) {
         setNewCoordinaten(latlng.lat + "," + latlng.lon);
@@ -734,12 +759,15 @@ const ParkingEdit = ({
 
     const handleCoordinatesLookup = async () => {
       let address: ReverseGeocodeResult | false = false;
-      if(parkingdata.Coordinaten!==null && newCoordinaten !== undefined) {
-         address = await reverseGeocode(newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten);
+      const theCoords = newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
+      if(theCoords !== undefined && theCoords !== null) {
+          console.log("** REVERSE GEOCODING", theCoords);
+         address = await reverseGeocode(theCoords);
+         console.log("** REVERSE GEOCODING RESULT", address);
       } 
 
       if (address && address.address) {
-        let location = (
+        const location = (
           (address.address.road || "---") +
           " " +
           (address.address.house_number || "")
@@ -757,7 +785,7 @@ const ParkingEdit = ({
           (parkingdata.Title === "" &&
             (newTitle === "" || newTitle === undefined)) ||
           (newTitle && newTitle.startsWith("Nieuwe stalling")) ||
-          (!newTitle && parkingdata.Title.startsWith("Nieuwe stalling"))
+          (!newTitle && (parkingdata.Title||"").startsWith("Nieuwe stalling"))
         ) {
           setNewTitle("Nieuwe stalling " + (location + " " + plaats).trim());
         }
@@ -792,6 +820,7 @@ const ParkingEdit = ({
                   setNewTitle(e.target.value);
                 }}
                 value={newTitle !== undefined ? newTitle : parkingdata.Title}
+                disabled={!canEditAllFields && !canEditLimitedFields}
               />
               <br />
               <FormInput
@@ -805,6 +834,7 @@ const ParkingEdit = ({
                 value={
                   newLocation !== undefined ? newLocation : parkingdata.Location
                 }
+                disabled={!canEditAllFields && !canEditLimitedFields}
               />
               <br />
               <>
@@ -821,6 +851,7 @@ const ParkingEdit = ({
                       ? newPostcode
                       : parkingdata.Postcode
                   }
+                  disabled={!canEditAllFields && !canEditLimitedFields}
                 />
                 <FormInput
                   key="i-plaats"
@@ -833,9 +864,13 @@ const ParkingEdit = ({
                   value={
                     newPlaats !== undefined ? newPlaats : parkingdata.Plaats
                   }
+                  disabled={!canEditAllFields && !canEditLimitedFields}
                 />
-                {addressValid() && (
-                  <Button className="mr-4 mt-4" onClick={handleAddressLookup}>
+                {addressValid() && (canEditAllFields || canEditLimitedFields) && (
+                  <Button 
+                    className="mr-4 mt-4" 
+                    onClick={handleAddressLookup}
+                  >
                     Toon op kaart
                   </Button>
                 )}
@@ -852,7 +887,7 @@ const ParkingEdit = ({
                 {allServices &&
                   allServices.map(service => (
                     <div key={service.ID}>
-                      <label className="block cursor-pointer py-1 hover:bg-gray-100">
+                      <label className={`block py-1 ${(canEditAllFields || canEditLimitedFields) ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-50'}`}>
                         <input
                           type="checkbox"
                           className="mr-2 inline-block"
@@ -860,6 +895,7 @@ const ParkingEdit = ({
                           onChange={e =>
                             handleSelectService(service.ID, e.target.checked)
                           }
+                          disabled={!canEditAllFields && !canEditLimitedFields}
                         />
                         {service.Name}
                       </label>
@@ -872,22 +908,50 @@ const ParkingEdit = ({
           <HorizontalDivider className="my-4" />
 
           <SectionBlock heading="Soort stalling">
-            <select
-              value={
-                newStallingType !== undefined
-                  ? newStallingType
-                  : parkingdata.fietsenstalling_type[0]?.id
-              }
-              onChange={event => {
-                setNewStallingType(event.target.value);
-              }}
-            >
-              {allTypes.map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            {fietsenstallingtypenLoading ? (
+              <div>Laden...</div>
+            ) : fietsenstallingtypenError ? (
+              <div className="text-red-500">Fout bij laden: {fietsenstallingtypenError}</div>
+            ) : (
+              <select
+                value={
+                  newStallingType !== undefined
+                    ? newStallingType
+                    : parkingdata.Type || "bewaakt"
+                }
+                onChange={event => {
+                  setNewStallingType(event.target.value);
+                }}
+                disabled={!canEditAllFields}
+                className={!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}
+              >
+                {allTypes.map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </SectionBlock>
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlock heading="FMS">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="fms-checkbox"
+                className={`mr-2 h-4 w-4 ${!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}`}
+                checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
+                onChange={e => {
+                  setNewFMS(e.target.checked);
+                }}
+                disabled={!canEditAllFields}
+              />
+              <label htmlFor="fms-checkbox" className={`text-sm font-medium ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
+                Stalling communiceert met FMS-webserver
+              </label>
+            </div>
           </SectionBlock>
 
           <HorizontalDivider className="my-4" />
@@ -939,6 +1003,7 @@ const ParkingEdit = ({
             placeholder="latitude"
             onChange={updateCoordinatesFromForm(true)}
             value={getCoordinate(true)}
+            disabled={!canEditAllFields && !canEditLimitedFields}
           />
           <FormInput
             key="i-lng"
@@ -948,8 +1013,9 @@ const ParkingEdit = ({
             placeholder="longitude"
             onChange={updateCoordinatesFromForm(false)}
             value={getCoordinate(false)}
+            disabled={!canEditAllFields && !canEditLimitedFields}
           />
-          {(newCoordinaten || !addressValid()) && (
+          {(newCoordinaten || !addressValid()) && (canEditAllFields || canEditLimitedFields) && (
             <Button className="mt-4" onClick={handleCoordinatesLookup}>
               Adres opzoeken
             </Button>
@@ -971,7 +1037,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabAfbeelding = (visible: boolean = false) => {
+  const renderTabAfbeelding = (visible = false) => {
     return (
       <div
         className="- mt-10 flex h-full w-full justify-between"
@@ -985,7 +1051,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabOpeningstijden = (visible: boolean = false) => {
+  const renderTabOpeningstijden = (visible = false) => {
     const handlerSetNewOpening = (
       tijden: OpeningChangedType,
       Openingstijden: string,
@@ -1003,12 +1069,14 @@ const ParkingEdit = ({
         <ParkingEditOpening
           parkingdata={parkingdata}
           openingChanged={handlerSetNewOpening}
+          canEditAllFields={canEditAllFields}
+          canEditLimitedFields={canEditLimitedFields}
         />
       </div>
     );
   };
 
-  const renderTabTarieven = (visible: boolean = false) => {
+  const renderTabTarieven = (visible = false) => {
     return (
       <div
         className="mt-10 flex w-full justify-between"
@@ -1038,7 +1106,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabCapaciteit = (visible: boolean = false) => {
+  const renderTabCapaciteit = (visible = false) => {
     const handlerSetNewCapaciteit = (capaciteit: ParkingSections): void => {
       setNewCapaciteit([...capaciteit]);
       return;
@@ -1060,7 +1128,7 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabAbonnementen = (visible: boolean = false) => {
+  const renderTabAbonnementen = (visible = false) => {
     return (
       <div
         className="mt-10 flex w-full justify-between"
@@ -1069,54 +1137,65 @@ const ParkingEdit = ({
         <ParkingViewAbonnementen parkingdata={parkingdata} />
       </div>
     );
-    return (
-      <div className="mt-10 flex w-full justify-between">
-        <SectionBlockEdit>
-          <div className="ml-2 grid grid-cols-3">
-            <div className="col-span-2">Jaarbonnement fiets</div>
-            <div className="text-right sm:text-center">&euro;80,90</div>
-            <div className="col-span-2">Jaarabonnement bromfiets</div>
-            <div className="text-right sm:text-center">&euro;262.97</div>
-          </div>
-        </SectionBlockEdit>
-
-        {/*<button>Koop abonnement</button>*/}
-      </div>
-    );
   };
 
-  const renderTabBeheerder = (visible: boolean = false) => {
-    // TODO: uitzoeken & implementeren FMS / ExploitantID logica
-    if (
-      parkingdata.FMS === true ||
-      !(
-        parkingdata.ExploitantID === undefined ||
-        parkingdata.ExploitantID == null
-      )
-    ) {
+  const renderTabBeheerder = (visible = false) => {
+    // Show loading state if exploitanten are still loading
+    if (isLoadingExploitanten) {
       return (
         <div
           className="flex justify-between"
           style={{ display: visible ? "flex" : "none" }}
         >
           <div data-name="content-left" className="sm:mr-12">
-            <br />
-            <ParkingViewBeheerder parkingdata={parkingdata} />
-            <br />
-            <h1>
-              Wijzigen van de beheerder is op dit moment alleen mogelijk via het{" "}
-              <a
-                href="https://fms.veiligstallen.nl/"
-                target="_blank"
-                className="underline"
-              >
-                FMS
-              </a>
-            </h1>
+            <SectionBlockEdit>
+              <div className="mt-4 w-full">
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Exploitanten laden...</p>
+                </div>
+              </div>
+            </SectionBlockEdit>
           </div>
         </div>
       );
     }
+
+    // Show error state if there's an error loading exploitanten
+    if (errorExploitanten) {
+      return (
+        <div
+          className="flex justify-between"
+          style={{ display: visible ? "flex" : "none" }}
+        >
+          <div data-name="content-left" className="sm:mr-12">
+            <SectionBlockEdit>
+              <div className="mt-4 w-full">
+                <div className="text-center py-8">
+                  <p className="text-red-600">Fout bij het laden van exploitanten: {errorExploitanten}</p>
+                </div>
+              </div>
+            </SectionBlockEdit>
+          </div>
+        </div>
+      );
+    }
+
+    // Get the currently selected exploitant
+    const selectedExploitantID = 
+      newExploitantID !== undefined ? newExploitantID : (parkingdata.ExploitantID === null ? 'anders' : parkingdata.ExploitantID);
+    const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
+    
+    // Create options for the dropdown
+    const exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
+    exploitanten.forEach(exp => {
+      exploitantOptions.push({
+        label: exp.CompanyName || 'Onbekende exploitant',
+        value: exp.ID
+      });
+    });
+
+    const showBeheerderInput = (selectedExploitantID !== 'anders')
 
     return (
       <div
@@ -1126,34 +1205,84 @@ const ParkingEdit = ({
         <div data-name="content-left" className="sm:mr-12">
           <SectionBlockEdit>
             <div className="mt-4 w-full">
-              <FormInput
-                key="i-beheerder"
-                label="Beheerder"
-                className="mb-1 w-full border-2 border-black"
-                placeholder="beheerder"
-                onChange={e => {
-                  setNewBeheerder(e.target.value);
-                }}
-                value={
-                  newBeheerder !== undefined
-                    ? newBeheerder
-                    : parkingdata.Beheerder
-                }
-              />
-              <FormInput
-                key="i-beheerdercontact"
-                label="Contactgegevens Beheerder"
-                className="mb-1 w-full border-2 border-black"
-                placeholder="contactgegevens"
-                onChange={e => {
-                  setNewBeheerderContact(e.target.value);
-                }}
-                value={
-                  newBeheerderContact !== undefined
-                    ? newBeheerderContact
-                    : parkingdata.BeheerderContact
-                }
-              />
+              {/* Row 1: Exploitant/beheerder label + select */}
+              <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    <label className="block text-sm font-bold text-gray-700">
+                      Exploitant/beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <FormSelect
+                      key="i-exploitant"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Selecteer exploitant"
+                      onChange={e => {
+                        setNewExploitantID(e.target.value);
+                      }}
+                      value={selectedExploitantID}
+                      options={exploitantOptions}
+                      disabled={!canEditAllFields}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: No label + (Namelijk + input) */}
+              { showBeheerderInput && <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    {/* Empty label space */}
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-600 whitespace-nowrap">
+                        Namelijk:
+                      </label>
+                      <input
+                        type="text"
+                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md ${!canEditAllFields ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
+                        value={newBeheerder !== undefined && newBeheerder !== null && newBeheerder !== "" ? newBeheerder : parkingdata.Beheerder || ""}
+                        onChange={e => {
+                          setNewBeheerder(e.target.value);
+                        }}
+                        placeholder="Website en contactgegevens"
+                        disabled={!canEditAllFields}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>}
+
+              {/* Row 3: Contact beheerder label + input */}
+              <div className="mb-4">
+                <div className="flex items-center">
+                  <div className="w-1/3 p-3">
+                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
+                      Contact beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 p-3">
+                    <FormInput
+                      key="i-beheerdercontact"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Email adres"
+                      onChange={e => {
+                        setNewBeheerderContact(e.target.value);
+                      }}
+                      value={
+                        newBeheerderContact !== undefined
+                          ? newBeheerderContact
+                          : parkingdata.BeheerderContact
+                      }
+                      disabled={!canEditAllFields}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionBlockEdit>
         </div>
@@ -1257,7 +1386,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
-        {hasID && isLoggedIn && (
+        {showAbonnementen && hasID && isLoggedIn && (
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
@@ -1270,7 +1399,7 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
-      {renderTabAbonnementen(
+      {showAbonnementen && renderTabAbonnementen(
         selectedTab === "tab-abonnementen" && hasID && isLoggedIn,
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}

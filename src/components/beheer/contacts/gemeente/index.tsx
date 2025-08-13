@@ -2,20 +2,20 @@ import React, { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/router';
 import GemeenteEdit from "~/components/contact/GemeenteEdit";
-import type { fietsenstallingtypen } from '@prisma/client';
+import type { VSFietsenstallingType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import GemeenteFilter from '~/components/beheer/common/GemeenteFilter';
 import { getParkingDetails } from "~/utils/parkings";
-import type { VSContactGemeente, VSContactGemeenteInLijst } from "~/types/contacts";
-import { type VSUserWithRolesNew } from "~/types/users";
+import type { VSContactGemeenteInLijst } from "~/types/contacts";
 import type { ParkingDetailsType } from "~/types/parking";
 import { UserEditComponent } from '~/components/beheer/users/UserEditComponent';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
-import { useUsersInLijst } from '~/hooks/useUsers';
+import { useUsers } from '~/hooks/useUsers';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
+import { Table } from '~/components/common/Table';
 
 type GemeenteComponentProps = { 
-  fietsenstallingtypen: fietsenstallingtypen[]  
+  fietsenstallingtypen: VSFietsenstallingType[]  
 };
 
 const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
@@ -28,8 +28,10 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [currentStalling, setCurrentStalling] = useState<ParkingDetailsType | undefined>(undefined);
+  const [sortColumn, setSortColumn] = useState<string>("Naam");
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsersInLijst();
+  const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsers();
   const { gemeenten, reloadGemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
 
   useEffect(() => {
@@ -80,29 +82,48 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     }
   };
 
-  // const getContactPerson = (contact: VSContactGemeenteInLijst): string => {
-  //   // const contactpersons = users.filter(user => user.security_users_sites?.some(site => site.SiteID === contact.ID && site.IsContact === true));
-  //   console.log("**** contact", contact, users);
-  //   const contactperson = users.find(user => user.sites.some(site => site.SiteID === contact.ID && site.IsContact === true));
-  //   return contactperson!==undefined ? 
-  //     contactperson.DisplayName + " (" + contactperson.UserName + ")" : "";
-  // }
+  const handleSort = (header: string) => {
+    if (sortColumn === header) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(header);
+      setSortDirection('asc');
+    }
+  };
 
-  // const getModules = (contact: VSContactGemeenteInLijst): string => {
-  //   const modules = contact.modules_contacts?.map(module => module.module.Name).join(", ") || "";
-  //   return modules;
-  // } 
+  const getSortedData = () => {
+    const sorted = [...filteredGemeenten].sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (sortColumn) {
+        case 'Naam':
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+          break;
+        default:
+          aValue = a.CompanyName || '';
+          bValue = b.CompanyName || '';
+      }
+
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+
+    return sorted;
+  };
 
   const renderOverview = () => {
     return (
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Gemeenten</h1>
+          <h1 className="text-2xl font-bold">Data-eigenaren</h1>
           <button 
             onClick={() => handleEditContact('new')}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
-            Nieuwe Gemeente
+            Nieuwe data-eigenaar
           </button>
         </div>
 
@@ -113,49 +134,46 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           showStallingenFilter={true}
           showUsersFilter={true}
           showExploitantenFilter={true}
+          showModulesFilter={true}
         />
 
-        <table className="min-w-full bg-white mt-4">
-          <thead>
-            <tr>
-              <th className="py-2 text-left px-4">Naam</th>
-              {/* <th className="py-2">Contactpersoon</th> */}
-              {/* <th className="py-2">Modules</th> */}
-              <th className="py-2 text-left px-4">Acties</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredGemeenten.sort((a, b) => (a.CompanyName || '').localeCompare(b.CompanyName || '')).map((contact) => { 
-              return (
-                <tr key={contact.ID}>
-                  <td className="border px-4 py-2">{contact.CompanyName}</td>
-                  {/* <td className="border px-4 py-2">{getContactPerson(contact)}</td> */}
-                  {/* <td className="border px-4 py-2">{getModules(contact)}</td> */}
-                  <td className="border px-4 py-2">
-                    <button onClick={() => handleEditContact(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
-                    <button onClick={() => handleDeleteContact(contact.ID)} className="text-red-500 mx-1 disabled:opacity-40">🗑️</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <Table 
+          columns={[
+            {
+              header: 'Naam',
+              accessor: 'CompanyName'
+            },
+            {
+              header: 'Acties',
+              accessor: (contact) => (
+                <>
+                  <button onClick={() => handleEditContact(contact.ID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
+                  <button onClick={() => handleDeleteContact(contact.ID)} className="text-red-500 mx-1 disabled:opacity-40">🗑️</button>
+                </>
+              )
+            }
+          ]}
+          data={getSortedData()}
+          className="mt-4"
+          sortableColumns={["Naam"]}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
       </div>
     );
   };
 
-  const renderEdit = (isSm: boolean = false) => {
+  const renderEdit = (isSm = false) => {
     const showStallingEdit = currentStalling !== undefined;
     const showUserEdit = currentUserId !== undefined;
     const showGemeenteEdit = showStallingEdit || showUserEdit || currentContactID !== undefined;
-
-    const filteredUsers = users.filter(user => user.sites.some(site => site.SiteID === currentContactID) === true);
 
     if(!showStallingEdit && !showGemeenteEdit && !showUserEdit) {
       return null;
     }
 
-    const handleOnClose = async (confirmClose: boolean = false) => {
+    const handleOnClose = async (confirmClose = false) => {
       if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?')===false)) { 
         return;
       }
@@ -175,6 +193,8 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
         return (
           <UserEditComponent 
             id={currentUserId} 
+            siteID={currentContactID}
+            onlyAllowRoleChange={false}
             onClose={() => handleOnClose(true)}
           />
         );
