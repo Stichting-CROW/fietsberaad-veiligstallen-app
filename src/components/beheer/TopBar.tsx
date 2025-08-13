@@ -103,8 +103,10 @@ const TopBar: React.FC<TopBarProps> = ({
 
   const renderLogo = () => {
     const activecontact = selectedOrganisationInfo;
+    console.log('renderLogo :: activecontact', activecontact);
     
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
+      console.log('renderLogo :: activecontact.CompanyLogo starts with http');
       return <img src={activecontact?.CompanyLogo} className="max-h-16 w-auto bg-white p-2" />
     }
 
@@ -117,6 +119,7 @@ const TopBar: React.FC<TopBarProps> = ({
             logofile = '/' + logofile;
           }
       }
+      console.log('renderLogo :: logofile from activecontact.CompanyLogo', logofile);
 
       return <ImageWithFallback
         src={logofile}
@@ -237,7 +240,20 @@ const TopBar: React.FC<TopBarProps> = ({
         {shouldShowBackButton && (
           <button
             onClick={() => onOrganisatieSelect(ownOrganisationID||"")}
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+            className="
+              flex
+              h-10
+              flex-col
+              justify-center
+              rounded-md
+              px-4
+              font-bold
+              text-white
+              shadow-lg
+            "
+            style={{
+              backgroundColor: themeColor1 || "#15aeef",
+            }}
           >
             Terug naar {ownOrganisationName}
           </button>
@@ -259,7 +275,7 @@ const TopBar: React.FC<TopBarProps> = ({
             shadow-lg
           "
           style={{
-            backgroundColor: "#15aeef",
+            backgroundColor: themeColor1 || "#15aeef",
           }}
           title="Ga naar het oude FMS beheersysteem"
         >
