@@ -174,7 +174,7 @@ export const createStallingsduurCacheTable = async (params: CacheParams) => {
     `CREATE INDEX idx_sectionID ON stallingsduur_cache(sectionID);`,
     `CREATE INDEX idx_clienttypeid ON stallingsduur_cache(clienttypeid);`,
     `CREATE INDEX idx_bucket ON stallingsduur_cache(bucket);`,
-    `CREATE INDEX idx_locationID_sectionID_clienttypeID_bucket_checkoutdate ON stallingsduur_cache(locationID, sectionID, clienttypeID, bucket, checkoutdate);`// Matches unique constraint for upsert performance
+    `CREATE INDEX idx_locationID_sectionID_clienttypeID_bucket_checkoutdate ON stallingsduur_cache(locationID, sectionID, clienttypeID, bucket, checkoutdate);` // Matches unique constraint for upsert performance
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {
