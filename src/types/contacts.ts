@@ -98,10 +98,7 @@ export interface VSContactExploitant {
       "CompanyLogo" | 
       "CompanyLogo2" |
       "ThemeColor1" |
-      "ThemeColor2" |
-      "CompanyLogo" |
-      "CompanyLogo2" |
-      "contactID"
+      "ThemeColor2"
   > & {
           isManagingContacts?: {
               ID: number;
@@ -270,6 +267,7 @@ export type VSContact = Pick<contacts,
   "DateConfirmed" |
   "DateRejected" |
   "ItemType" |
+  "CompanyName" |
   "CompanyLogo" |
   "CompanyLogo2"
 > & {

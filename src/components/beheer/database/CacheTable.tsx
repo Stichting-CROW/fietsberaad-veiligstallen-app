@@ -16,7 +16,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
   const [allDates, setAllDates] = useState<boolean>(true);
   const [allBikeparks, setAllBikeparks] = useState<boolean>(true);
   const [startDate, setStartDate] = useState<Date>(() => {
-    return moment().subtract(7, 'days').toDate();
+    return moment(firstDate).toDate(); 
    });
   const [selectedBikeparkIDs, setSelectedBikeparkIDs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +33,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action: 'status',
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };
@@ -80,7 +80,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action,
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };
@@ -128,7 +128,7 @@ const CacheTableComponent: React.FC<CacheTableComponentProps> = ({ title, cacheE
         action: indicesExist ? 'dropparentindices' : 'createparentindices',
         allDates,
         allBikeparks,
-        startDate: firstDate,
+        startDate: startDate,
         endDate: lastDate,
         selectedBikeparkIDs
       };

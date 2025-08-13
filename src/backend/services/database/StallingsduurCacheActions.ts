@@ -114,7 +114,9 @@ export const updateStallingsduurCache = async (params: CacheParams) => {
   statementItems.push(`  COUNT(*) AS count_transacties`);
   statementItems.push(`FROM transacties_archief`);
   statementItems.push(`  ${whereClause}`);
-  statementItems.push(`GROUP BY locationID, date, sectionID, clienttypeid, bucket;`);
+  statementItems.push(`GROUP BY locationID, date, sectionID, clienttypeid, bucket`);
+  statementItems.push(`ON DUPLICATE KEY UPDATE`);
+  statementItems.push(`  count_transacties = VALUES(count_transacties);`);
   const sql = statementItems.join('\n');
 
     /* const result = */ await prisma.$executeRawUnsafe(sql);
@@ -156,22 +158,23 @@ export const createStallingsduurCacheTable = async (params: CacheParams) => {
         clienttypeid INT NOT NULL,
         bucket INT NOT NULL,
         count_transacties INT NOT NULL,
-        PRIMARY KEY (ID)
+        PRIMARY KEY (ID),
+        UNIQUE KEY uk_location_section_clienttype_bucket_date (locationID, sectionID, clienttypeID, bucket, checkoutdate)
     );`;
-
-  // const sqlCreateIndex = `CREATE INDEX idx_location_date IF NOT EXISTS ON stallingsduur_cache (locationID, checkoutdate);`
 
   const result1 = await prisma.$queryRawUnsafe(sqlCreateTable);
   if (!result1) {
-    console.error("Unable to create transactions_cache table", result1);
+    console.error("Unable to create stallingsduur_cache table", result1);
     return false;
   }
 
   const sqlCreateIndexes = [
     `CREATE INDEX idx_locationId ON stallingsduur_cache(locationId);`,
     `CREATE INDEX idx_checkoutdate ON stallingsduur_cache(checkoutdate);`,
+    `CREATE INDEX idx_sectionID ON stallingsduur_cache(sectionID);`,
     `CREATE INDEX idx_clienttypeid ON stallingsduur_cache(clienttypeid);`,
-    `CREATE INDEX idx_bucket ON stallingsduur_cache(bucket);`
+    `CREATE INDEX idx_bucket ON stallingsduur_cache(bucket);`,
+    `CREATE INDEX idx_locationID_sectionID_clienttypeID_bucket_checkoutdate ON stallingsduur_cache(locationID, sectionID, clienttypeID, bucket, checkoutdate);` // Matches unique constraint for upsert performance
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {
@@ -182,12 +185,6 @@ export const createStallingsduurCacheTable = async (params: CacheParams) => {
     }
   }
 
-  // const result2 = await prisma.$queryRawUnsafe(sqlCreateIndex);
-  // if(!result2) {
-  //     console.error("Unable to create location/date index on transactions_cache table",result2);
-  //     return false;
-  // }
-
   return getStallingsduurCacheStatus(params);
 }
 
@@ -196,7 +193,7 @@ export const dropStallingsduurCacheTable = async (params: CacheParams) => {
 
   const result = await prisma.$queryRawUnsafe(sql);
   if (!result) {
-    console.error("Unable to drop transactions_cache table", result);
+    console.error("Unable to drop stallingsduur_cache table", result);
     return false;
   }
 
