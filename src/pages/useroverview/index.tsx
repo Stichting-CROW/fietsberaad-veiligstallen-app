@@ -79,7 +79,7 @@ const emailMatchesOrganization = (email: string, organizationName: string): bool
 	const sld = (labels.length >= 2 ? labels[labels.length - 2] : labels[0]) || "";
 	const domainCore = normalize(sld).replace(/\s+/g, "");
 
-	const stopwords = new Set(["gemeente","aan","den","de","der","van","het","en","voor","op","bij","ter","te","aanhet","aanhet","aanh","aan",
+	const stopwords = new Set(["gemeente","aan","den","de","der","van","het","en","voor","op","bij","ter","te","aanhet","aanh",
 		"s","’s","'s"]);
 	const tokens = normalize(organizationName).split(/\s+/).filter(t => t && !stopwords.has(t));
 	if (tokens.length === 0) return false;
