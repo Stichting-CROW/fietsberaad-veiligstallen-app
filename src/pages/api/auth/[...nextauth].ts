@@ -218,6 +218,25 @@ export const authOptions: NextAuthOptions = {
     },
   },
 
+  // https://next-auth.js.org/configuration/events
+  events: {
+    async signIn({ user }) {
+      try {
+        if (user?.id) {
+          if (process.env.NODE_ENV === "development") {
+            console.log("Updating LastLogin for user:", user.id);
+          }
+          await prisma.security_users.update({
+            where: { UserID: user.id as string },
+            data: { LastLogin: new Date() },
+          });
+        }
+      } catch (error) {
+        console.error("Error updating LastLogin on signIn:", error);
+      }
+    },
+  },
+
   // https://next-auth.js.org/configuration/pages
   pages: {
     signIn: "/login",
