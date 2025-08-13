@@ -58,7 +58,7 @@ export default function InfomodalComponent({ }) {
     if(mapZoom===undefined || mapZoom < 12) return null;
 
     if(session?.user) {
-      console.log("NO WELCOME");
+      // console.log("NO WELCOME");
       return null;
     }
   

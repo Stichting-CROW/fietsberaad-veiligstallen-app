@@ -143,7 +143,7 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
           </div>
         )}
         <div className="flex flex-col">
-          <label htmlFor="status" className="text-sm font-medium text-gray-700">Selecteer Pagina Status</label>
+          <label htmlFor="status" className="text-sm font-medium text-gray-700">Selecteer status</label>
           <select
             id="status"
             name="status"
