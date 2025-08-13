@@ -19,7 +19,7 @@ export interface CacheUpdateLogEntry {
 }
 
 const getBlankLogEntry = (): CacheUpdateLogEntry => { 
-    return{
+    return {
       date: new Date(),
       success: false,
       summaryText: "",
