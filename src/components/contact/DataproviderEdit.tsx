@@ -187,7 +187,7 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
 
     const contact = isNew ? DEFAULT_DATAPROVIDER : currentContact;
     const title: string =
-      "Instellingen " +
+      "" +
       (contact?.CompanyName || "") +
       (isNew ? " (Nieuw)" : "");
     const showUpdateButtons: boolean = isEditing;
