@@ -197,7 +197,9 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
     `CREATE INDEX idx_bikeparkID_source ON bezettingsdata_day_hour_cache(source, bikeparkID);`,
     `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,// Used for /api/database/availableDataPerBikepark
     'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',// Matches unique constraint for upsert performance
-    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);'// Used for /api/reports/bezetting
+    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`, // Used for /api/database/availableDataPerBikepark
+    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);', // Matches unique constraint for upsert performance
+    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);' // Used for /api/reports/bezetting
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {
