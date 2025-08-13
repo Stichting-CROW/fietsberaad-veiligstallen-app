@@ -17,15 +17,12 @@ import { type securityUserCreateSchema, type SecurityUserResponse, type security
 export interface UserEditComponentProps {
     id: string,
     siteID: string | null,
-    onlyAllowRoleChange: boolean,
     onClose: (userChanged: boolean, confirmClose: boolean) => void,
 }
 
 export const UserEditComponent = (props: UserEditComponentProps) => {
     const { id } = props;
     const { data: session } = useSession();
-
-    const [ isEditing, setIsEditing ] = useState<boolean>(true);
 
     type CurrentState = {
       displayName: string,
@@ -120,12 +117,15 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
 
     // Check if user has correct access rights
     useEffect(() => {
-      setHasFullAdminRight(
-        userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)
-      );
-      setHasLimitedAdminRight(
-        userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)
-      );
+      // dataeigenaar_admin has admin & limited admin rights
+      if(userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)) {
+        setHasFullAdminRight(true);
+        setHasLimitedAdminRight(true);
+      }
+      // dataeigenaar_beperkt has limited admin rights
+      else if(userHasRight(session?.user?.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt)) {
+        setHasLimitedAdminRight(true);
+      }
     }, [session?.user]);
 
     const isDataChanged = (): boolean => {
@@ -295,15 +295,6 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
               Herstel
             </Button>
           )}
-          {!isEditing && props.onClose && (
-            <Button
-              key="b-4"
-              className="ml-2 mt-3 sm:mt-0"
-              onClick={() => props.onClose(true, false)}
-            >
-              Terug
-            </Button>
-          )}
         </PageTitle>
       );
     };
@@ -329,7 +320,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             value={displayName} 
             onChange={(e) => setDisplayName(e.target.value)} 
             required 
-            disabled={!isEditing || props.onlyAllowRoleChange}
+            disabled={! hasLimitedAdminRight}
             autoComplete="off"
             innerRef={nameInputRef}
           />
@@ -340,7 +331,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             onChange={(e) => setNewRoleID(e.target.value as VSUserRoleValuesNew)}
             required
             options={roleOptions}
-            disabled={!isEditing || !hasFullAdminRight}
+            disabled={! hasFullAdminRight}
           />
           <br />
           <FormInput 
@@ -349,7 +340,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             onChange={(e) => setUserName(e.target.value)} 
             required 
             type="email"
-            disabled={!isEditing || props.onlyAllowRoleChange}
+            disabled={! hasLimitedAdminRight}
             autoComplete="new-email"
           />
           <br />
@@ -360,7 +351,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
                 value={password} 
                 onChange={handlePasswordChange}
                 type="password"
-                disabled={!isEditing || props.onlyAllowRoleChange}
+                disabled={! hasLimitedAdminRight}
                 autoComplete="new-password"
               />
               <br />
@@ -369,7 +360,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
                 value={confirmPassword} 
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 type="password"
-                disabled={!isEditing || props.onlyAllowRoleChange}
+                disabled={! hasLimitedAdminRight}
                 autoComplete="new-password"
               />
               <br />
@@ -380,32 +371,32 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
               value="********" 
               onChange={() => {}}
               type="password"
-              disabled={true}
+              disabled={! hasLimitedAdminRight}
               autoComplete="new-password"
             />
           )}
           <br />
           <div className="flex items-center space-x-4">
-            <label className={`flex items-center ${(!isEditing || props.onlyAllowRoleChange) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <label className={`flex items-center ${(! hasLimitedAdminRight) ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <input 
                 type="radio" 
                 name="status" 
                 value="1" 
                 checked={status} 
                 onChange={() => setStatus(true)} 
-                disabled={!isEditing || props.onlyAllowRoleChange}
+                disabled={! hasLimitedAdminRight}
                 className="mr-2"
               />
               Actief
             </label>
-            <label className={`flex items-center ${(!isEditing || props.onlyAllowRoleChange) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <label className={`flex items-center ${(! hasLimitedAdminRight) ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <input 
                 type="radio" 
                 name="status" 
                 value="0" 
                 checked={!status} 
                 onChange={() => setStatus(false)} 
-                disabled={!isEditing || props.onlyAllowRoleChange}
+                disabled={! hasLimitedAdminRight}
                 className="mr-2"
               />
               Niet Actief
