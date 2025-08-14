@@ -21,7 +21,9 @@ export const useAllFietsenstallingen = () => {
         throw new Error(result.error);
       }
 
-      setFietsenstallingen(result.data || []);
+      let filteredData: ParkingDetailsType[] | undefined = result.data?.filter(item => item.Status === "1");
+
+      setFietsenstallingen(filteredData || []);
     } catch (err) {
       console.error("Error in fetchAllFietsenstallingen:", err);
       setError(err instanceof Error ? err.message : 'An error occurred while fetching all fietsenstallingen');
