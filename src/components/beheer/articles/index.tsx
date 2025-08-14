@@ -54,6 +54,7 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
       const search = searchTerm.toLowerCase();
       result = result.filter(article =>
         article.Title?.toLowerCase().includes(search) ||
+        article.DisplayTitle?.toLowerCase().includes(search) ||
         article.Article?.toLowerCase().includes(search)
       );
     }
