@@ -157,7 +157,7 @@ const ParkingView = ({
           "
         >
           <PageTitle className="flex w-full sm:justify-start">
-            <div className="mr-4">{parkingdata?.Title}</div>
+            <div className="mr-4 font-bold sm:font-normal">{parkingdata?.Title}</div>
             {onEdit !== undefined ? (
               <Button
                 key="b-1"

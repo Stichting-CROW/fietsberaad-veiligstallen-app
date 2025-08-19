@@ -98,16 +98,25 @@ function ParkingFacilityBrowser({
 
   // On component load: Scroll to active parking
   useEffect(() => {
-    if (selectedParkingId) {
+    const container = document.getElementsByClassName('Overlay-content')[0];
+    // Scroll to top if search query is given
+    if(filterQuery && filterQuery.length > 0) {
+      container && container.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+    // Scroll to parking if parking is selected
+    else if (selectedParkingId) {
       const container = document.getElementsByClassName('Overlay-content')[0];
       const elToScrollTo = document.getElementById('parking-facility-block-' + selectedParkingId);
       if (!elToScrollTo) return;
       container && container.scrollTo({
-        top: elToScrollTo.offsetTop + 180,
+        top: elToScrollTo.offsetTop + 350,
         behavior: "smooth"
       });
     }
-  }, [selectedParkingId]);
+  }, [selectedParkingId, filterQuery]);
 
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {

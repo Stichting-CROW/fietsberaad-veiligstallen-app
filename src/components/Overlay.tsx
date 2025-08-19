@@ -68,10 +68,10 @@ const Overlay: React.FC<OverlayProps> = ({
     <div className={`
       Overlay-content
       z-20 fixed w-full overflow-auto
-      ${onClose ? 'top-0' : 'top-20'}
     `}
     style={{
-      height: onClose ? '100%' : 'calc(100% - 80px)' // topbar with logo and search = 80px
+      height: onClose ? '100%' : 'calc(100% - 80px)', // topbar with logo and search = 80px
+      top: onClose ? '0' : '132px'
     }}
     >
       <div className="bg-white min-h-full">
