@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import { usePathname } from 'next/navigation';
+import { useDispatch, useSelector } from "react-redux";
+import { usePathname, useRouter } from 'next/navigation';
 import { type AppState } from "~/store/store";
 import AppHeaderDesktop from "~/components/AppHeaderDesktop";
 import AppHeaderMobile from "~/components/AppHeaderMobile";
@@ -23,7 +23,7 @@ function AppHeader({
   showGemeenteMenu?: boolean
 }) {
   const pathName = usePathname();
-
+  const router = useRouter();
   const [articlesMunicipality, setArticlesMunicipality] = useState<VSArticle[]>([]);
   const [articlesFietsberaad, setArticlesFietsberaad] = useState<VSArticle[]>([]);
 
@@ -82,15 +82,17 @@ function AppHeader({
           secundaryMenuItems={secundaryMenuItems} />
       </div>
 
-      <div
-        data-comment="Show only on mobile OR if nav items don't fit"
+      {! isHomePage && <div
+        data-comment="Show on mobile, on non-home pages"
         className={`
           block
           sm:hidden
         `}
       >
-        <AppHeaderMobile hideLogo={isHomePage} />
-      </div>
+        <AppHeaderMobile hideLogo={false} handleCloseClick={() => {
+          router.push('/');
+        }} />
+      </div>}
     </>
   );
 }

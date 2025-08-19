@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import moment from "moment";
+import { useSelector } from "react-redux";
 
 import { getParkingColor } from "~/utils/theme";
 import { openRoute } from "~/utils/map/index";
 
 import { formatOpeningToday } from "~/utils/parkings-openclose";
 import type { ParkingDetailsType } from "~/types/parking";
+import type { AppState } from "~/store/store";
 
 import Styles from "./ParkingFacilityBlock.module.css";
 
@@ -24,6 +26,9 @@ function ParkingFacilityBlock({
   expandParkingHandler?: Function,
   showButtons?: false
 }) {
+  // Get the active municipality info from Redux store to access theme colors
+  const activeMunicipalityInfo = useSelector((state: AppState) => state.map.activeMunicipalityInfo);
+  
   if(!parking) {
     return null;
   }
@@ -128,7 +133,16 @@ function ParkingFacilityBlock({
       <div data-name="right" className="flex-1">
         <div className="">
           <div className="h-6 overflow-hidden sm:h-auto">
-            <b className="text-base">{parking.Title}</b>
+            <b 
+              className="text-base"
+              style={{
+                color: showButtons && activeMunicipalityInfo?.ThemeColor1 
+                  ? `#${activeMunicipalityInfo.ThemeColor1}` 
+                  : undefined
+              }}
+            >
+              {parking.Title}
+            </b>
           </div>
           <div className="text-sm text-gray-500 h-5 overflow-hidden" title={locationDescription}>
             {locationDescription}

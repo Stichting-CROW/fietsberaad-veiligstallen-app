@@ -50,7 +50,7 @@ function AppHeaderMobile({
 
     // If logo URL starts with http, return the image
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" />
+      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white" />
     }
 
     let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -71,7 +71,7 @@ function AppHeaderMobile({
         alt="Logo"
         width={64}
         height={64}
-        className="max-h-12 w-auto bg-white mr-2"
+        className="max-h-12 w-auto bg-white"
       />
     }
 
@@ -111,10 +111,23 @@ function AppHeaderMobile({
               {renderLogo()}
             </Link>
           </div>
-          <div className="mx-3 flex-1 flex flex-col justify-center">
-            <PageTitle className="mb-0">{title}</PageTitle>
+
+          <div className="
+            text-sm
+            text-center
+            flex-1
+            flex
+            flex-col
+            justify-center
+          " style={{
+            color: `#${activeMunicipalityInfo?.ThemeColor1}`,
+            visibility: (activeMunicipalityInfo && mapZoom >= 12) ? 'visible' : 'hidden'
+          }}>
+            Welkom in {activeMunicipalityInfo?.CompanyName}
           </div>
-          <a href="#" onClick={() => {
+
+          {/* Close button that shows on pages */}
+          {handleCloseClick && <a href="#" onClick={() => {
             // Custom set action
             if (handleCloseClick) handleCloseClick();
             // Or default action
@@ -131,7 +144,7 @@ function AppHeaderMobile({
               width={24}
               height={24}
               className="w-6" />
-          </a>
+          </a>}
         </div>
       </div>
 

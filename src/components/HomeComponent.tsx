@@ -169,22 +169,22 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     }, []);
 
     useEffect(() => {
-      console.debug("#### HomeComponent - activeArticle changed", activeArticleMunicipality, activeArticleTitle);
+      // console.debug("#### HomeComponent - activeArticle changed", activeArticleMunicipality, activeArticleTitle);
     }, [activeArticleMunicipality, activeArticleTitle]);
 
     useEffect(() => {
-      console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
+      // console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
       (async () => {
         const ddmunicipality = await getMunicipalityBasedOnLatLng(currentLatLng);
         if (!ddmunicipality) {
-          console.debug("#### HomeComponent - no municipality found", currentLatLng);
+          // console.debug("#### HomeComponent - no municipality found", currentLatLng);
           // updateUrl("root");
           return;
         }
 
         const cbsCode = cbsCodeFromMunicipality(ddmunicipality);
         if(cbsCode === false) {
-          console.warn("#### HomeComponent - no valid cbsCode for the current location");
+          // console.warn("#### HomeComponent - no valid cbsCode for the current location");
           // updateUrl("root");
           return;
         }
@@ -201,7 +201,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         }
 
         // Set the municipality info in redux
-        console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
+        // console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
     }, [currentLatLng]);
@@ -248,15 +248,22 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       return (
         <div
         className={`
-          l-0
-          _bottom-0
-          absolute
+          static
+          sm:absolute
           top-0
+
+          l-0
           z-10
           w-full
           p-4
           sm:top-16
           sm:w-auto
+
+          bg-white
+          sm:bg-transparent
+
+          shadow
+          sm:shadow-none
         `}
       >
         {/*
@@ -293,50 +300,59 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         <div
           data-comment="Mobile topbar - Show only on mobile"
           className="
-            fixed left-5
-            right-3
-            top-3
-            flex
             sm:hidden
           "
         >
-          <Link
-            href={`/${
-              activeMunicipalityInfo
-                ? activeMunicipalityInfo.UrlName !== "fietsberaad"
-                  ? activeMunicipalityInfo.UrlName
+          <div className="flex relative">
+            <Link
+              href={`/${
+                activeMunicipalityInfo
+                  ? activeMunicipalityInfo.UrlName !== "fietsberaad"
+                    ? activeMunicipalityInfo.UrlName
+                    : ""
                   : ""
-                : ""
-            }`}
-            onClick={() => {
-              dispatch(setIsParkingListVisible(false));
-            }}
-            className="mr-3 flex justify-center flex-col"
-          >
-            {renderLogo()}
-          </Link>
+              }`}
+              onClick={() => {
+                dispatch(setIsParkingListVisible(false));
+              }}
+              className="flex justify-center flex-col"
+            >
+              {renderLogo()}
+            </Link>
+
+            <div className="
+              text-sm
+              text-center
+              flex-1
+              flex
+              flex-col
+              justify-center
+            " style={{
+              color: `#${activeMunicipalityInfo?.ThemeColor1}`,
+              visibility: (activeMunicipalityInfo && mapZoom >= 12) ? 'visible' : 'hidden'
+            }}>
+              Welkom in {activeMunicipalityInfo?.CompanyName}
+            </div>
+
+            <ToggleMenuIcon
+              className="
+              bg-transparent
+              shadow-none
+            "
+              onClick={() => {
+                dispatch(setIsMobileNavigationVisible(true));
+              }}
+            />
+          </div>
+        </div>
+        <div data-comment="Search bar - Show only on mobile" className="sm:hidden flex flex-col mt-3">
           <SearchBar
             filterChanged={(e: { target: { value: any } }) => {
               dispatch(setQuery(e.target.value));
               dispatch(setIsParkingListVisible(true));
             }}
-            afterHtml={
-              <ToggleMenuIcon
-                className="
-                absolute
-                right-1
-                z-10
-                bg-transparent
-                shadow-none
-              "
-                onClick={() => {
-                  dispatch(setIsMobileNavigationVisible(true));
-                }}
-              />
-            }
-          />
-          {/*HAMB.*/}
-        </div>
+            />
+          </div>
       </div>)
     }
 
@@ -629,7 +645,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           </>
         )}
 
-        <InfomodalComponent />
+        {/* <InfomodalComponent /> */}
       </>
     );
   };
