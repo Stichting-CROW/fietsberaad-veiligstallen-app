@@ -121,7 +121,7 @@ export const UserAccessRight: React.FC<UserAccessRightProps> = ({
 
                   const topicInfo = SECURITY_TOPIC_INFO.find(t => t.topic === topic);
 
-                  console.log("topicInfo", topicInfo);
+                  // console.log("topicInfo", topicInfo);
 
                   return (
                     <tr key={topic} className="hover:bg-gray-50">

@@ -333,9 +333,9 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
           <UserEditComponent 
             id={id}      
             siteID={props.siteID}
-            onlyAllowRoleChange={theuser && theuser.isOwnOrganization || id==='new' ? false : true}
+            onlyAllowRoleChange={((theuser && theuser.isOwnOrganization) || id==='new') ? false : true}
             onClose={handleUserEditClose} 
-            />, false, "Gebruiker bewerken", () => setId(undefined))
+          />, false, "Gebruiker bewerken", () => setId(undefined))
       )}
       <div className={`${id!==undefined ? "hidden" : ""}`}>
         <div className="flex justify-between items-center mb-4">

@@ -270,11 +270,9 @@ const UserOverviewContent = () => {
 const UserOverviewPage = () => {
 	const { data: session, status } = useSession();
 	if (status === "loading") return <div className="p-6">Laden…</div>;
-	const allowed = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+	const allowed = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) || userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
 	if (!allowed) return <div className="p-6 text-red-600">Deze pagina is alleen beschikbaar voor de Fietsberaad beheerder</div>;
 	return <UserOverviewContent />;
 }
 
 export default UserOverviewPage;
-
-
