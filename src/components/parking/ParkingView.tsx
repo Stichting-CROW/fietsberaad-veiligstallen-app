@@ -156,8 +156,8 @@ const ParkingView = ({
             justify-between
           "
         >
-          <PageTitle className="flex w-full justify-center sm:justify-start">
-            <div className="mr-4 hidden sm:block">{parkingdata?.Title}</div>
+          <PageTitle className="flex w-full sm:justify-start">
+            <div className="mr-4">{parkingdata?.Title}</div>
             {onEdit !== undefined ? (
               <Button
                 key="b-1"
