@@ -184,7 +184,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
 
         const cbsCode = cbsCodeFromMunicipality(ddmunicipality);
         if(cbsCode === false) {
-          console.warn("#### HomeComponent - no valid cbsCode for the current location");
+          // console.warn("#### HomeComponent - no valid cbsCode for the current location");
           // updateUrl("root");
           return;
         }
@@ -201,7 +201,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         }
 
         // Set the municipality info in redux
-        console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
+        // console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
     }, [currentLatLng]);
@@ -645,7 +645,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           </>
         )}
 
-        <InfomodalComponent />
+        {/* <InfomodalComponent /> */}
       </>
     );
   };
