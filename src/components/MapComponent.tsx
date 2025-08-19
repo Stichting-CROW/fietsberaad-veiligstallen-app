@@ -186,6 +186,12 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
       style: nine3030,
       center: [5, 52],
       zoom: 7,
+      // Disable map rotation
+      dragRotate: false,
+      // Disable rotation through touch gestures
+      touchZoomRotate: false,
+      // Disable rotation through keyboard
+      keyboard: false,
     });
 
     mapboxMap.on('styleimagemissing', (e) => {
@@ -477,6 +483,10 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   const onMapLoaded = (mapboxMap) => {
     // Save map as local variabele
     setStateMap(mapboxMap);
+    // Disable rotation completely
+    mapboxMap.dragRotate.disable();
+    // Ensure bearing is always 0 (no rotation)
+    mapboxMap.setBearing(0);
     // Set event handlers
     // mapboxMap.on('movestart', function() {})
     mapboxMap.on("moveend", () => {

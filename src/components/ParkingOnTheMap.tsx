@@ -93,11 +93,24 @@ function ParkingOnTheMap({ parking }) {
       style: nine3030,
       center: coords ? [coords[1], coords[0]] : [52.508011, 5.47328],
       zoom: 16,
+      // Disable map rotation
+      dragRotate: false,
+      // Disable rotation through touch gestures
+      touchZoomRotate: false,
+      // Disable rotation through keyboard
+      keyboard: false,
     });
 
     mapboxMap.on("load", () => onMapLoaded(mapboxMap));
     mapboxMap.on('styleimagemissing', (e) => {
       mapboxMap.addImage(e.id, { width: 0, height: 0, data: new Uint8Array(0) });
+    });
+    
+    // Prevent rotation by resetting bearing to 0 on any movement
+    mapboxMap.on('move', () => {
+      if (mapboxMap.getBearing() !== 0) {
+        mapboxMap.setBearing(0);
+      }
     });
 
 
@@ -178,6 +191,10 @@ function ParkingOnTheMap({ parking }) {
     setStateMap(mapboxMap);
     // Disable drag and zoom handlers.
     mapboxMap.scrollZoom.disable();
+    // Disable rotation completely
+    mapboxMap.dragRotate.disable();
+    // Ensure bearing is always 0 (no rotation)
+    mapboxMap.setBearing(0);
   };
 
   const highlighMarker = (map: any, id: string) => {
