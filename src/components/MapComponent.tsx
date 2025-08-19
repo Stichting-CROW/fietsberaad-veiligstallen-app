@@ -2,6 +2,7 @@
 import * as React from "react";
 import maplibregl from "maplibre-gl";
 import * as turf from "@turf/turf";
+import { useRouter } from "next/router";
 import { useDispatch, useSelector } from "react-redux";
 import {
   setMapCurrentLatLong,
@@ -97,10 +98,12 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
 
   // this is where the map instance will be stored after initialization
   const [stateMap, setStateMap] = React.useState<maplibregl.Map>();
+  const router = useRouter();
+  const { query } = useRouter();
 
   const { width } = useWindowDimensions();
 
-  const isMobile = width <= 640; // keep the same as the sm threshold in tailwind
+  const isMobile = React.useMemo(() => width <= 640, [width]); // keep the same as the sm threshold in tailwind
 
   // Connect to redux store
   const dispatch = useDispatch();
@@ -141,7 +144,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     if (!stateMap) return;
     if (!selectedParkingId) return;
     // Highlight marker
-    highlighMarker(stateMap, selectedParkingId);
+    highlightMarker(stateMap, selectedParkingId);
     // Stop if parking list is full screen
     // If we would continue the parking list would be filtered on click
     // That would result in e.g. only 1 parking in the parking list
@@ -455,7 +458,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     return filter;
   }
 
-  const highlighMarker = (map: any, id: string) => {
+  const highlightMarker = (map: any, id: string) => {
     map.setPaintProperty("fietsenstallingen-markers", "circle-radius", [
       "case",
       ["==", ["get", "id"], id],
@@ -501,10 +504,16 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     // Show parking info on click
     mapboxMap.on("click", "fietsenstallingen-markers", (e) => {
       // Enlarge parking icon on click
-      highlighMarker(mapboxMap, e.features[0].properties.id);
+      highlightMarker(mapboxMap, e.features[0].properties.id);
       // Make clicked parking active
       dispatch(setSelectedParkingId(e.features[0].properties.id));
-      if (!isMobile) {
+      
+      // If mobile: Show parking details
+      if (isMobile) {
+        router.push({ query: { ...query, stallingid: e.features[0].properties.id } });
+      }
+      // If desktop: Make clicked parking active
+      else {
         dispatch(setActiveParkingId(e.features[0].properties.id));
       }
     });

@@ -169,15 +169,15 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     }, []);
 
     useEffect(() => {
-      console.debug("#### HomeComponent - activeArticle changed", activeArticleMunicipality, activeArticleTitle);
+      // console.debug("#### HomeComponent - activeArticle changed", activeArticleMunicipality, activeArticleTitle);
     }, [activeArticleMunicipality, activeArticleTitle]);
 
     useEffect(() => {
-      console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
+      // console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
       (async () => {
         const ddmunicipality = await getMunicipalityBasedOnLatLng(currentLatLng);
         if (!ddmunicipality) {
-          console.debug("#### HomeComponent - no municipality found", currentLatLng);
+          // console.debug("#### HomeComponent - no municipality found", currentLatLng);
           // updateUrl("root");
           return;
         }
