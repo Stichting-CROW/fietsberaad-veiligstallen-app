@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setSelectedParkingId, setInitialLatLng } from "~/store/mapSlice";
 import { setQuery } from "~/store/filterSlice";
@@ -68,6 +68,10 @@ function ParkingFacilityBrowser({
     (state: AppState) => state.map.activeMunicipalityInfo
   );
 
+  const isParkingListVisible = useSelector(
+    (state: AppState) => state.app.isParkingListVisible
+  );
+
   const mapVisibleFeatures = useSelector(
     (state: AppState) => state.map.visibleFeatures
   );
@@ -97,26 +101,46 @@ function ParkingFacilityBrowser({
   );
 
   // On component load: Scroll to active parking
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     const container = document.getElementsByClassName('Overlay-content')[0];
-    // Scroll to top if search query is given
-    if(filterQuery && filterQuery.length > 0) {
-      container && container.scrollTo({
-        top: 0,
-        behavior: "smooth"
-      });
+    
+    // Clear any existing timeout before setting a new one
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
     }
+
     // Scroll to parking if parking is selected
-    else if (selectedParkingId) {
+    if (selectedParkingId) {
       const container = document.getElementsByClassName('Overlay-content')[0];
       const elToScrollTo = document.getElementById('parking-facility-block-' + selectedParkingId);
       if (!elToScrollTo) return;
-      container && container.scrollTo({
-        top: elToScrollTo.offsetTop + 350,
-        behavior: "smooth"
-      });
+      scrollTimeoutRef.current = setTimeout(() => {
+        container && container.scrollTo({
+          top: elToScrollTo.offsetTop + 250,
+          behavior: "smooth"
+        });
+      }, 250);
     }
-  }, [selectedParkingId, filterQuery]);
+
+    // Cleanup function to clear timeout
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+    };
+  }, [selectedParkingId, isParkingListVisible]);
+
+  // On filterQuery change: Scroll to top
+  useEffect(() => {
+    const container = document.getElementsByClassName('Overlay-content')[0];
+    container && container.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  }, [filterQuery]);
 
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {
@@ -348,9 +372,7 @@ function ParkingFacilityBrowser({
       {showSearchBar && filterTypes2 && filterTypes2.includes("show_submissions") === false ? <SearchBar
         value={filterQuery}
         filterChanged={(e: React.ChangeEvent<HTMLInputElement>) => {
-          console.debug("ParkingFacilityBrowser filterChanged - e.target.value:", e.target.value, "current filterQuery:", filterQuery);
           dispatch(setQuery(e.target.value));
-          console.debug("ParkingFacilityBrowser filterChanged - dispatched setQuery, new value should be:", e.target.value);
         }}
       /> : ''}
 

@@ -45,7 +45,7 @@ function SearchBar({
           shadow-md
         "
         onChange={(e) => {
-          console.debug("SearchBar onChange - e.target.value:", e.target.value);
+          // console.debug("SearchBar onChange - e.target.value:", e.target.value);
           filterChanged(e);
         }}
         value={inputValue}
