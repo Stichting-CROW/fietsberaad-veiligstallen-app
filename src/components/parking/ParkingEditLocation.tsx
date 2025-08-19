@@ -71,7 +71,7 @@ function ParkingEditLocation({
       // Disable map rotation
       dragRotate: false,
       // Disable rotation through touch gestures
-      touchZoomRotate: false,
+      // touchZoomRotate: false,
       // Disable rotation through keyboard
       keyboard: false,
     });
