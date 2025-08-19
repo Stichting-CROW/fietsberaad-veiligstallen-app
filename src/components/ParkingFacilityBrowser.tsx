@@ -103,35 +103,35 @@ function ParkingFacilityBrowser({
   // On component load: Scroll to active parking
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const container = document.getElementsByClassName('Overlay-content')[0];
+  // useEffect(() => {
+  //   const container = document.getElementsByClassName('Overlay-content')[0];
     
-    // Clear any existing timeout before setting a new one
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
+  //   // Clear any existing timeout before setting a new one
+  //   if (scrollTimeoutRef.current) {
+  //     clearTimeout(scrollTimeoutRef.current);
+  //   }
 
-    // Scroll to parking if parking is selected
-    if (selectedParkingId) {
-      const container = document.getElementsByClassName('Overlay-content')[0];
-      const elToScrollTo = document.getElementById('parking-facility-block-' + selectedParkingId);
-      if (!elToScrollTo) return;
-      scrollTimeoutRef.current = setTimeout(() => {
-        container && container.scrollTo({
-          top: elToScrollTo.offsetTop + 250,
-          behavior: "smooth"
-        });
-      }, 250);
-    }
+  //   // Scroll to parking if parking is selected
+  //   if (selectedParkingId) {
+  //     const container = document.getElementsByClassName('Overlay-content')[0];
+  //     const elToScrollTo = document.getElementById('parking-facility-block-' + selectedParkingId);
+  //     if (!elToScrollTo) return;
+  //     scrollTimeoutRef.current = setTimeout(() => {
+  //       container && container.scrollTo({
+  //         top: elToScrollTo.offsetTop + 250,
+  //         behavior: "smooth"
+  //       });
+  //     }, 250);
+  //   }
 
-    // Cleanup function to clear timeout
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = null;
-      }
-    };
-  }, [selectedParkingId, isParkingListVisible]);
+  //   // Cleanup function to clear timeout
+  //   return () => {
+  //     if (scrollTimeoutRef.current) {
+  //       clearTimeout(scrollTimeoutRef.current);
+  //       scrollTimeoutRef.current = null;
+  //     }
+  //   };
+  // }, [selectedParkingId, isParkingListVisible]);
 
   // On filterQuery change: Scroll to top
   useEffect(() => {
