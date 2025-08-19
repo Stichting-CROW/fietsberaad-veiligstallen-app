@@ -26,7 +26,7 @@ const Card: React.FC<CardData> = ({
   clickParking?: () => void,
   showButtons: boolean
 }) => {
-  if(!parkingdata) { 
+  if(!parkingdata) {
     return null;
   }
 
@@ -42,7 +42,7 @@ const Card: React.FC<CardData> = ({
       `}
     >
       <ParkingFacilityBlock
-        parkingdata={parkingdata}
+        parking={parkingdata}
         key={parkingdata.ID}
         compact={compact}
         showButtons={showButtons}

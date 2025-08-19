@@ -1,6 +1,8 @@
 import * as React from "react";
 // import Input from "@mui/material/TextField";
 import { useDispatch, useSelector } from "react-redux";
+import { useEffect } from "react";
+import type { AppState } from "~/store/store";
 
 function SearchBar({
   value,
@@ -8,10 +10,25 @@ function SearchBar({
   afterHtml
 }: {
   value?: string,
-  filterChanged: Function,
+  filterChanged: (event: React.ChangeEvent<HTMLInputElement>) => void,
   afterHtml?: any,
 }) {
   const dispatch = useDispatch();
+  
+  // Directly access the Redux state to ensure we always have the current value
+  const filterQuery = useSelector((state: AppState) => state.filter.query);
+
+  // Use the Redux state value if available, otherwise fall back to the prop
+  const inputValue = filterQuery !== undefined ? filterQuery : (value || '');
+
+  // Monitor value changes
+  useEffect(() => {
+    // console.debug("SearchBar useEffect - value prop changed to:", value);
+  }, [value]);
+
+  useEffect(() => {
+    // console.debug("SearchBar useEffect - filterQuery from Redux changed to:", filterQuery);
+  }, [filterQuery]);
 
   return (
     <>
@@ -27,8 +44,11 @@ function SearchBar({
           px-4
           shadow-md
         "
-        onChange={filterChanged}
-        value={value}
+        onChange={(e) => {
+          console.debug("SearchBar onChange - e.target.value:", e.target.value);
+          filterChanged(e);
+        }}
+        value={inputValue}
       />
       {afterHtml ? afterHtml : ''}
     </>

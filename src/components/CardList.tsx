@@ -42,7 +42,6 @@ const sliderProps = {
   // }
 }
 
-
 const CardList: React.FC<Props> = ({
   allparkingdata,
   onShowStallingDetails

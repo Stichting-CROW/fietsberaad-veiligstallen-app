@@ -66,6 +66,7 @@ const Overlay: React.FC<OverlayProps> = ({
 
   const overlayContent = (
     <div className={`
+      Overlay-content
       z-20 fixed w-full overflow-auto
       ${onClose ? 'top-0' : 'top-20'}
     `}

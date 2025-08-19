@@ -17,6 +17,7 @@ import SearchBar from "~/components/SearchBar";
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 import type { AppState } from "~/store/store";
 import { ParkingDetailsType } from "~/types/parking";
+import { setIsParkingListVisible } from "~/store/appSlice";
 
 const MunicipalityBlock = ({
   title,
@@ -94,6 +95,19 @@ function ParkingFacilityBrowser({
   const municipalities = useSelector(
     (state: AppState) => state.geo.municipalities
   );
+
+  // On component load: Scroll to active parking
+  useEffect(() => {
+    if (selectedParkingId) {
+      const container = document.getElementsByClassName('Overlay-content')[0];
+      const elToScrollTo = document.getElementById('parking-facility-block-' + selectedParkingId);
+      if (!elToScrollTo) return;
+      container && container.scrollTo({
+        top: elToScrollTo.offsetTop + 180,
+        behavior: "smooth"
+      });
+    }
+  }, [selectedParkingId]);
 
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {
@@ -324,8 +338,10 @@ function ParkingFacilityBrowser({
     >
       {showSearchBar && filterTypes2 && filterTypes2.includes("show_submissions") === false ? <SearchBar
         value={filterQuery}
-        filterChanged={(e: { target: { value: any; }; }) => {
-          dispatch(setQuery(e.target.value))
+        filterChanged={(e: React.ChangeEvent<HTMLInputElement>) => {
+          console.debug("ParkingFacilityBrowser filterChanged - e.target.value:", e.target.value, "current filterQuery:", filterQuery);
+          dispatch(setQuery(e.target.value));
+          console.debug("ParkingFacilityBrowser filterChanged - dispatched setQuery, new value should be:", e.target.value);
         }}
       /> : ''}
 
@@ -341,6 +357,8 @@ function ParkingFacilityBrowser({
                 dispatch(setInitialLatLng(initialLatLng))
                 // Reset filterQuery
                 dispatch(setQuery(''));
+                // Hide parking list
+                dispatch(setIsParkingListVisible(false));
               }}
             />
           )
