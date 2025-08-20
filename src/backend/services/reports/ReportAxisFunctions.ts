@@ -21,7 +21,7 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
 export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
   switch (reportGrouping) {
     case 'per_hour': {
-      return value.toString() + ":00";
+      return moment(value).format("HH") + ":00";
     }
     case 'per_weekday': {
       return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
