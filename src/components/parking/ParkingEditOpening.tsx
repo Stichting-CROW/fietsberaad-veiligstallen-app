@@ -190,12 +190,14 @@ const ParkingEditOpening = ({
   parkingdata, 
   openingChanged, 
   canEditAllFields = true, 
-  canEditLimitedFields = true 
+  canEditLimitedFields = true,
+  isVoorstel = false
 }: { 
   parkingdata: ParkingDetailsType, 
   openingChanged: Function,
   canEditAllFields?: boolean,
-  canEditLimitedFields?: boolean
+  canEditLimitedFields?: boolean,
+  isVoorstel?: boolean
 }) => {
   const startValues = extractParkingFields(parkingdata);
   const isNS = parkingdata.EditorCreated === "NS-connector";
@@ -310,10 +312,10 @@ const ParkingEditOpening = ({
             </tbody>
           </table>
         </SectionBlock>
-        <HorizontalDivider className="my-4" />
-        <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} />
-        <HorizontalDivider className="my-4" />
-        <SectionBlock
+        {!isVoorstel && <HorizontalDivider className="my-4" /> }
+        {!isVoorstel && <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} isVoorstel={isVoorstel} /> } 
+        {!isVoorstel && <HorizontalDivider className="my-4" /> }
+        {!isVoorstel && <SectionBlock
           heading="Tekst Afwijkende Openingstijden"
           contentClasses="w-full">
           <FormTextArea
@@ -324,7 +326,7 @@ const ParkingEditOpening = ({
             rows={10}
             disabled={!canEditAllFields && !canEditLimitedFields}
           />
-        </SectionBlock>
+        </SectionBlock> }
       </div>
     </>
   );

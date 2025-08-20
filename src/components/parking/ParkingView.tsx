@@ -123,7 +123,11 @@ const ParkingView = ({
       break;
     case "1": status = "Zichtbaar";
       break;
+    case "x": status = "Systeemstalling";
+      break;
     case "new":
+      status = "Nieuwe stalling";
+      break;
     case "aanm":
       status = "Aanmelding";
       break

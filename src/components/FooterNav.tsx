@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react"
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { type AppState } from "~/store/store";
 import { setActiveArticle } from "~/store/appSlice";
 import { VSArticle } from "~/types/articles";
 
@@ -64,6 +65,8 @@ const FooterNav = ({ onStallingAanmelden, children }: {
 
   const [fietsberaadArticles, setFietsberaadArticles] = useState([]);
 
+  const mapZoom = useSelector((state: AppState) => (state.map).zoom);
+
   // Get menu items for siteId 1 (Fietsberaad)
   useEffect(() => {
     (async () => {
@@ -92,7 +95,7 @@ const FooterNav = ({ onStallingAanmelden, children }: {
       text-xs
       z-10
     ">
-      {!session ?
+      {!session && mapZoom >= 12 ?
         <FooterNavItemClick
           onClick={() => { onStallingAanmelden && onStallingAanmelden() }}
           className="cursor-pointer font-bold">

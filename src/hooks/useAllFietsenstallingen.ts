@@ -21,7 +21,7 @@ export const useAllFietsenstallingen = () => {
         throw new Error(result.error);
       }
 
-      let filteredData: ParkingDetailsType[] | undefined = result.data?.filter(item => item.Status === "1");
+      let filteredData: ParkingDetailsType[] | undefined = result.data?.filter(item => (item.Status === "1" || item.Status === "aanm" || item.Status === "new"));
 
       setFietsenstallingen(filteredData || []);
     } catch (err) {

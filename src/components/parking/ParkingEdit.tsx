@@ -8,7 +8,7 @@ import FormInput from "~/components/Form/FormInput";
 import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
-import type { ParkingDetailsType, ParkingSections } from "~/types/parking";
+import type { ParkingDetailsType, ParkingSections, ParkingStatus } from "~/types/parking";
 import {
   getDefaultLocation,
 } from "~/utils/parkings";
@@ -47,7 +47,7 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 export type ParkingEditUpdateStructure = {
   ID?: string;
   Title?: string;
-  Status?: "0" | "1" | "new" | "aanm";
+  Status?: ParkingStatus;
   Location?: string;
   Postcode?: string;
   Plaats?: string;
@@ -149,6 +149,10 @@ const ParkingEdit = ({
     undefined,
   );
 
+  const [newStatus, setNewStatus] = React.useState<ParkingStatus | undefined>(
+    undefined,
+  );
+
   // type FietsenstallingSectiesType = { [key: string]: Array[] }
 
   const [allServices, setAllServices] = React.useState<VSservice[]>([]);
@@ -176,7 +180,7 @@ const ParkingEdit = ({
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const canEditAllFields = hasFietsenstallingenAdmin;
-  const canEditLimitedFields = hasFietsenstallingenBeperkt;
+  const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
   // Use the hook for fietsenstallingtypen
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
@@ -310,22 +314,23 @@ const ParkingEdit = ({
     // parkingdata.Postcode is optional
 
     // Only validate beheerder fields if user has admin rights
-    if (canEditAllFields) {
-      if (parkingdata.ExploitantID !== null) {
-        checks.push({
-          type: "string",
-          text: "invoer van de contactgegevens van de beheerder",
-          value: parkingdata.Beheerder,
-          newvalue: newBeheerder,
-        });
-      }
-      checks.push({
-        type: "string",
-        text: "invoer van de contactgegevens van de beheerder",
-        value: parkingdata.BeheerderContact,
-        newvalue: newBeheerderContact,
-      });
-    }
+    // TODO: there are too many existing records with null exploitantID, so we don't validate this now, maybe in the future
+    // if (canEditAllFields) {
+    //   if (parkingdata.ExploitantID !== null) {
+    //     checks.push({
+    //       type: "string",
+    //       text: "invoer van de contactgegevens van de beheerder",
+    //       value: parkingdata.Beheerder,
+    //       newvalue: newBeheerder,
+    //     });
+    //   }
+    //   checks.push({
+    //     type: "string",
+    //     text: "invoer van de contactgegevens van de beheerder",
+    //     value: parkingdata.BeheerderContact,
+    //     newvalue: newBeheerderContact,
+    //   });
+    // }
 
     // Not checked / check not required
     // Type, Image, Openingstijden, Capacity, FMS, Beheerder, BeheerderContact, fietsenstalling_type, fietsenstalling_secties, abonnementsvorm_fietsenstalling, exploitant, fietsenstallingen_services
@@ -393,6 +398,10 @@ const ParkingEdit = ({
 
     if (newStallingType !== undefined) {
       update.Type = newStallingType;
+    }
+
+    if (newStatus !== undefined) {
+      update.Status = newStatus;
     }
 
     if (undefined !== newOpening) {
@@ -593,7 +602,12 @@ const ParkingEdit = ({
       const update = getUpdate();
 
       if (parkingdata.Status === "aanm") {
-        update.Status = "new";
+        const canChangeStatus = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+        if(canChangeStatus) {
+          update.Status = "1";  
+        } else {
+          // keep status as aanm
+        }
       } else if (parkingdata.Status === "new") {
         update.Status = "1";
       }
@@ -648,7 +662,7 @@ const ParkingEdit = ({
   };
 
   const update: ParkingEditUpdateStructure = getUpdate();
-  const isVoorstel = parkingdata?.Status === "new";
+  const isVoorstel = parkingdata?.Status === "aanm";
   const showUpdateButtons = isVoorstel || parkingChanged(update);
 
   const updateCoordinatesFromMap = (lat: number, lng: number) => {
@@ -761,9 +775,9 @@ const ParkingEdit = ({
       let address: ReverseGeocodeResult | false = false;
       const theCoords = newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
       if(theCoords !== undefined && theCoords !== null) {
-          console.log("** REVERSE GEOCODING", theCoords);
+          // console.log("** REVERSE GEOCODING", theCoords);
          address = await reverseGeocode(theCoords);
-         console.log("** REVERSE GEOCODING RESULT", address);
+         // console.log("** REVERSE GEOCODING RESULT", address);
       } 
 
       if (address && address.address) {
@@ -796,12 +810,61 @@ const ParkingEdit = ({
       }
     };
 
-    const statusTypes = [
-      { id: "0", name: "Verborgen" },
-      { id: "1", name: "Actief" },
-      { id: "new", name: "Voorstel" },
-      { id: "aanm", name: "Voorstel" },
-    ];
+    const toValidParkingStatus = (status: string): ParkingStatus | undefined => {
+      if(status === "new" || status === "aanm" || status === "1" || status === "0" || status === "x") {
+        // console.log("** TO VALID PARKING STATUS RETURN", status);
+        return status as ParkingStatus;
+      }
+
+      // console.log("** TO VALID PARKING STATUS RETURN 0", status);
+      console.warn(`Invalid parking status for parking ${parkingdata.ID}/${parkingdata.Title}: ${status}, setting to 0`);
+      return "0";
+    }
+
+    const renderStatusSection = () => {
+      if(parkingdata.Status==="aanm") {
+        return (
+          <SectionBlock heading="Status">
+            <label>Nieuw voorstel</label>
+          </SectionBlock>
+        )
+      } else if (parkingdata.Status==="1" || parkingdata.Status==="0") {
+        let statusTypes = [
+          { id: "0", name: "Verborgen" },
+          { id: "1", name: "Actief" },
+        ];
+    
+        return (
+          <SectionBlock heading="Status">
+          <select value={newStatus !== undefined ? newStatus : parkingdata.Status || "new"} onChange={(e) => { 
+            setNewStatus(toValidParkingStatus(e.target.value || "new")) 
+            }}>
+            {statusTypes.map(type => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+          </SectionBlock>
+          );
+      } else {
+        let statusTypes = [
+          { id: "new", name: "Nieuw voorstel" },
+          { id: "aanm", name: "Aanmeld voorstel" },
+          { id: "1", name: "Actief" },
+          { id: "0", name: "Verborgen" },
+          { id: "x", name: "Systeemstalling" },
+        ];
+
+        return (
+          <SectionBlock heading="Status">
+          <label>
+            {statusTypes.find(t => t.id === parkingdata.Status)?.name}
+          </label>
+        </SectionBlock>
+        );
+      }
+    }
 
     return (
       <div
@@ -871,7 +934,7 @@ const ParkingEdit = ({
                     className="mr-4 mt-4" 
                     onClick={handleAddressLookup}
                   >
-                    Toon op kaart
+                    Bepaal Coördinaten
                   </Button>
                 )}
               </>
@@ -922,8 +985,8 @@ const ParkingEdit = ({
                 onChange={event => {
                   setNewStallingType(event.target.value);
                 }}
-                disabled={!canEditAllFields}
-                className={!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}
+                disabled={!(canEditAllFields || isVoorstel)}
+                className={!(canEditAllFields || isVoorstel) ? 'opacity-50 cursor-not-allowed' : ''}
               >
                 {allTypes.map(type => (
                   <option key={type.id} value={type.id}>
@@ -936,7 +999,7 @@ const ParkingEdit = ({
 
           <HorizontalDivider className="my-4" />
 
-          <SectionBlock heading="FMS">
+          {!isVoorstel && <SectionBlock heading="FMS">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -952,22 +1015,11 @@ const ParkingEdit = ({
                 Stalling communiceert met FMS-webserver
               </label>
             </div>
-          </SectionBlock>
+          </SectionBlock> }
 
-          <HorizontalDivider className="my-4" />
+          {!isVoorstel && <HorizontalDivider className="my-4" /> }
 
-          <SectionBlock heading="Status">
-            {/* <select value={parkingdata.Status} onChange={() => { }} disabled>
-              {statusTypes.map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select> */}
-            <label>
-              {statusTypes.find(t => t.id === parkingdata.Status)?.name}
-            </label>
-          </SectionBlock>
+          { renderStatusSection() } 
 
           <p className="mb-10">{/*Some spacing*/}</p>
 
@@ -1071,6 +1123,7 @@ const ParkingEdit = ({
           openingChanged={handlerSetNewOpening}
           canEditAllFields={canEditAllFields}
           canEditLimitedFields={canEditLimitedFields}
+          isVoorstel={isVoorstel}
         />
       </div>
     );
@@ -1184,7 +1237,7 @@ const ParkingEdit = ({
     // Get the currently selected exploitant
     const selectedExploitantID = 
       newExploitantID !== undefined ? newExploitantID : (parkingdata.ExploitantID === null ? 'anders' : parkingdata.ExploitantID);
-    const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
+    // const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
     
     // Create options for the dropdown
     const exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
@@ -1298,6 +1351,13 @@ const ParkingEdit = ({
   const isLoggedIn = session !== null;
   const hasID = parkingdata.ID !== "";
 
+  let opslaanTekst = "";
+  if(isVoorstel) {
+    opslaanTekst = isLoggedIn? "Accepteer voorstel" : "Aanmelden";
+  } else {
+    opslaanTekst = "Opslaan"
+  } 
+
   return (
     <div className="" style={{ minHeight: "65vh" }}>
       <div
@@ -1319,10 +1379,10 @@ const ParkingEdit = ({
                 handleUpdateParking();
               }}
             >
-              {isVoorstel ? "Accepteer voorstel" : "Opslaan"}
+              { opslaanTekst }
             </Button>
           )}
-          {isVoorstel && (
+          {isVoorstel && isLoggedIn && (
             <Button
               key="b-2"
               className="ml-6 mt-3 sm:mt-0"
