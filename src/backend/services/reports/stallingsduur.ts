@@ -36,7 +36,7 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
     return false;
   }
 
-  const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate);
+  const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate, undefined);
 
   const statementItems = [];
   switch (reportCategories) {
