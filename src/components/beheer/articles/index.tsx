@@ -176,6 +176,10 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
         <Table 
           columns={[
             {
+              header: 'Paginanaam',
+              accessor: 'Title'
+            },
+            {
               header: 'Titel',
               accessor: 'DisplayTitle'
             },
