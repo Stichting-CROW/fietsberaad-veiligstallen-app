@@ -76,7 +76,6 @@ const BikeparkDataSourceSelect: React.FC<BikeparkDataSourceSelectProps> = ({
   const getButtonText = () => {
     const sources = selectedBikeparks.map(p => p.source);
     const uniqueSources = [...new Set(sources)];
-    console.log('uniqueSources', uniqueSources)
     if (uniqueSources.length === 1) return `Databron: ${uniqueSources[0]}`;
 
     return `Databronnen: ${uniqueSources.join(', ')}`;
