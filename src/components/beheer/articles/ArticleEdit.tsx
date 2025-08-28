@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import type { VSArticle } from '~/types/articles';
 import RichTextEditor from '~/components/common/RichTextEditor';
 import FormInput from '~/components/Form/FormInput';
+import PlainTextEditor from '~/components/common/PlainTextEditor';
 
 type ArticleEditProps = {
   id: string;
@@ -113,6 +114,11 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!article) return;
+    setArticle(prev => prev ? { ...prev, Title: e.target.value } : null);
+  };
+
+  const handleDisplayTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!article) return;
     setArticle(prev => prev ? { ...prev, DisplayTitle: e.target.value } : null);
   };
 
@@ -146,27 +152,16 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
         <div>
           <FormInput
             type="text"
-            value={article.DisplayTitle || ''}
+            value={article.Title || ''}
             onChange={handleTitleChange}
-            label="Titel"
-            required
+            label="Paginanaam"
+            disabled={article.System === '1'}
           />
-        </div>
-
-        <div>
-          <label htmlFor="Article" className="block text-sm font-medium text-gray-700">
-            Content
-          </label>
-          <RichTextEditor
-            value={article.Article || ''}
-            onChange={(value) => setArticle(prev => prev ? { ...prev, Article: value } : null)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Status checkbox */}
-        <div>
-          <label htmlFor="Status" className="block text-sm font-medium text-gray-700">
+        </div>        
+        
+         {/* Status checkbox */}
+         <div>
+          <label id="labelStatus" htmlFor="Status" className="block text-sm font-medium text-gray-700">
             <input 
               type="checkbox" 
               id="Status" 
@@ -177,6 +172,38 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
             />
             Toon deze pagina op de website
           </label>
+        </div>
+
+       <div>
+          <FormInput
+            type="text"
+            value={article.DisplayTitle || ''}
+            onChange={handleDisplayTitleChange}
+            label="Titel"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="Abstract" className="block text-sm font-bold text-gray-700">
+            Abstract
+          </label>
+          <PlainTextEditor
+            value={article.Abstract || ''}
+            onChange={(value) => setArticle(prev => prev ? { ...prev, Abstract: value } : null)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        
+        <div>
+          <label htmlFor="Article" className="block text-sm font-bold text-gray-700">
+            Pagina inhoud
+          </label>
+          <RichTextEditor
+            value={article.Article || ''}
+            onChange={(value) => setArticle(prev => prev ? { ...prev, Article: value } : null)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
         </div>
 
         <div className="flex justify-end space-x-4 pt-4">

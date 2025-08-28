@@ -143,7 +143,7 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
           </div>
         )}
         <div className="flex flex-col">
-          <label htmlFor="status" className="text-sm font-medium text-gray-700">Selecteer status</label>
+          <label htmlFor="status" className="text-sm font-medium text-gray-700">Tonen</label>
           <select
             id="status"
             name="status"
@@ -152,8 +152,8 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
             onChange={e => handleChange('status', e.target.value)}
           >
             <option value="All">Alle</option>
-            <option value="Yes">Actief</option>
-            <option value="No">Niet Actief</option>
+            <option value="Yes">Ja</option>
+            <option value="No">Nee</option>
           </select>
         </div>
         <div className="flex flex-col">

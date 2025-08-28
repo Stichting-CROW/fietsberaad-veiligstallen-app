@@ -11,7 +11,7 @@ import { useSession } from 'next-auth/react';
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 
-const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" | "buurtstallingen" | "abonnementen" }> = ({ type }) => {
+const ArticlesComponent: React.FC = () => {
   const { data: session } = useSession();
   const { gemeenten, isLoading: gemeentenLoading } = useGemeentenInLijst();
   
@@ -183,19 +183,34 @@ const ArticlesComponent: React.FC<{ type: "articles" | "pages" | "fietskluizen" 
               header: 'Titel',
               accessor: 'DisplayTitle'
             },
+            // {
+            //   header: 'Gemeente',
+            //   accessor: (article) => { 
+            //     if(article.SiteID==="1") {
+            //       return 'Algemeen';
+            //     } else {
+            //       return gemeenten.find(g => g.ID === article.SiteID)?.CompanyName || 'Onbekend';
+            //     }
+            //   }
+            // },
             {
-              header: 'Gemeente',
-              accessor: (article) => { 
-                if(article.SiteID==="1") {
-                  return 'Algemeen';
-                } else {
-                  return gemeenten.find(g => g.ID === article.SiteID)?.CompanyName || 'Onbekend';
-                }
-              }
+              header: 'Tonen',
+              accessor: (article) => article.Status === '1' ? "Ja": "Nee",
+              className: 'w-16 text-center'
             },
             {
-              header: 'Status',
-              accessor: (article) => article.Status === '1' ? 'Actief' : 'Inactief'
+              header: 'Inhoud',
+              accessor: (article) => hasContent(article) ? 
+              <span className="text-green-500">●</span> : 
+              <span className="text-red-500">●</span>,
+              className: 'w-16 text-center'
+            },
+            {
+              header: 'Standaard',
+              accessor: (article) => article.System === '1' ? 
+              <span className="text-green-500">●</span> : 
+              <span className="text-red-500">●</span>,
+              className: 'w-16 text-center'
             },
             {
               header: 'Laatst gewijzigd',

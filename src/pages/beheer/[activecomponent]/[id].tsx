@@ -281,9 +281,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           if (!hasInstellingenSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <ArticlesComponent
-              type="pages"
-            />
+            selectedComponent = <ArticlesComponent/>
           }
           break;
         case VSMenuTopic.Faq:
@@ -428,18 +426,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.ApisOverzicht:
           selectedComponent = <ApisComponent type="overzicht" />;
-          break;
-        case VSMenuTopic.ArticlesAbonnementen:
-          selectedComponent = <ArticlesComponent type="abonnementen" />;
-          break;
-        case VSMenuTopic.ArticlesArticles:
-          selectedComponent = <ArticlesComponent type="articles" />;
-          break;
-        case VSMenuTopic.ArticlesBuurtstallingen:
-          selectedComponent = <ArticlesComponent type="buurtstallingen" />;
-          break;
-        case VSMenuTopic.ArticlesFietskluizen:
-          selectedComponent = <ArticlesComponent type="fietskluizen" />;
           break;
         // case VSMenuTopic.StallingInfo:
         //   selectedComponent = <StallingInfoComponent />;
