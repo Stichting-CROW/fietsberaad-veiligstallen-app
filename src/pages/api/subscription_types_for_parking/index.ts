@@ -1,10 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 // import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
+import { AbonnementsvormenType } from "~/types/parking";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (!req.query || !req.query.parkingId || Array.isArray(req.query.parkingId)) {
-    res.json({});
+    res.json([]);
     return;
   }
 
@@ -21,7 +22,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   });
 
   // TODO Make query more efficient by using JOINs for example
-  const subscriptionTypesForParking = [];
+  const subscriptionTypesForParking: AbonnementsvormenType[] = [];
   for await (const x of subscriptionLinks) {
     const subscriptionType = await prisma.abonnementsvormen.findFirst({
       where: {
@@ -44,7 +45,9 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         conditionsID: true
       }
     });
-    subscriptionTypesForParking.push(subscriptionType);
+    if (subscriptionType) {
+      subscriptionTypesForParking.push(subscriptionType as AbonnementsvormenType);
+    }
   }
   res.json(subscriptionTypesForParking)
 }
