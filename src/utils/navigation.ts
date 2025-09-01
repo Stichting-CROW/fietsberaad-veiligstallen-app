@@ -69,7 +69,7 @@ export const getFooter = (itemsfietsberaad: VSArticle[]|undefined): VSArticle[] 
   const footerTitles = ['Disclaimer', 'Privacy', 'Algemene Voorwaarden', 'Copyright'];
 
   if (itemsfietsberaad) {
-    return itemsfietsberaad.filter((x) => x.SiteID === '1' && footerTitles.includes(x.Title));
+    return itemsfietsberaad.filter((x) => x.SiteID === '1' && footerTitles.includes(x.Title || ""));
   } else {
     return []
   }
