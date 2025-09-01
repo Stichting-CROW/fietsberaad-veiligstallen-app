@@ -265,8 +265,6 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       return <span className="text-red-500">●</span>;
     } else if (status === "aanm") {
       return "Aanmelding";
-    } else if (status === "new") {
-      return "Nieuw";
     }
     return status || '';
   };
@@ -372,7 +370,6 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                 <option value="1">Actief</option>
                 <option value="0">Inactief</option>
                 <option value="aanm">Aanmelding</option>
-                <option value="new">Nieuw</option>
               </select>
             </div>
 
