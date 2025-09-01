@@ -4,12 +4,14 @@ import ArticleEdit from './ArticleEdit';
 import { useArticles } from '~/hooks/useArticles';
 import type { VSArticle } from '~/types/articles';
 import { Table, Column } from '~/components/common/Table';
-import ArticleFilters, { ArticleFiltersState } from '~/components/common/ArticleFilters';
+import ArticleFilters from '~/components/common/ArticleFilters';
 import { hasContent } from '~/utils/articles';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useSession } from 'next-auth/react';
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { useSelector } from 'react-redux';
+import { selectArticleFilters } from '~/store/articleFiltersSlice';
 
 const ArticlesComponent: React.FC = () => {
   const { data: session } = useSession();
@@ -24,19 +26,13 @@ const ArticlesComponent: React.FC = () => {
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);
   const [sortColumn, setSortColumn] = useState<string>("Titel");
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filters, setFilters] = useState<ArticleFiltersState>({
-    gemeenteId: '',
-    status: 'All',
-    navigation: 'All',
-    content: 'All',
-  });
-  const [searchTerm, setSearchTerm] = useState('');
+  const filters = useSelector(selectArticleFilters);
 
   useEffect(() => {
     let result = articles;
-    if (filters.gemeenteId) {
-      result = result.filter(article => article.SiteID === filters.gemeenteId);
-    }
+    // if (filters.gemeenteId) {
+    //   result = result.filter(article => article.SiteID === filters.gemeenteId);
+    // }
     if (filters.status !== 'All') {
       result = result.filter(article => article.Status === (filters.status === 'Yes' ? '1' : '0'));
     }
@@ -50,8 +46,8 @@ const ArticlesComponent: React.FC = () => {
         (filters.content === 'Content' ? hasContent(article) : !hasContent(article))
       );
     }
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
+    if (filters.searchTerm) {
+      const search = filters.searchTerm.toLowerCase();
       result = result.filter(article =>
         article.Title?.toLowerCase().includes(search) ||
         article.DisplayTitle?.toLowerCase().includes(search) ||
@@ -59,7 +55,7 @@ const ArticlesComponent: React.FC = () => {
       );
     }
     setFilteredArticles(result);
-  }, [articles, filters, searchTerm]);
+  }, [articles, filters]);
 
   const handleEditArticle = (id: string) => {
     setCurrentArticleId(id);
@@ -164,14 +160,7 @@ const ArticlesComponent: React.FC = () => {
           )}
         </div>
 
-        <ArticleFilters
-          onChange={(newFilters, newSearchTerm) => {
-            setFilters(newFilters);
-            setSearchTerm(newSearchTerm);
-          }}
-          showGemeenteSelection={false}
-          activeMunicipalityID={session?.user?.activeContactId || ''}
-        />
+        <ArticleFilters activeMunicipalityID={session?.user?.activeContactId || ''} />
 
         <Table 
           columns={[

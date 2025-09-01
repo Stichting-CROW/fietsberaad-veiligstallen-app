@@ -340,9 +340,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.ExploreGemeenten:
           selectedComponent = <ExploreGemeenteComponent />;
           break;
-        case VSMenuTopic.ExplorePages:
-          selectedComponent = <ExploreArticlesComponent gemeenten={gemeenten || []} />;
-          break;
         case VSMenuTopic.Logboek:
           selectedComponent = <LogboekComponent />;
           break;

@@ -95,7 +95,6 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
               <LeftMenuItem component={VSMenuTopic.ExploreGemeenten} title={'Gemeenten'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
               <LeftMenuItem component={VSMenuTopic.ExploreUsers} title={'Gebruikers'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
               {/* <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
-              {/* <LeftMenuItem component={VSMenuTopic.ExplorePages} title={`Pagina's`} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
               {/* <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
             </ul>
           </LeftMenuItem>
