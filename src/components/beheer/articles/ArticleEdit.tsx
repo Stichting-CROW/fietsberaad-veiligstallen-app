@@ -134,6 +134,16 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     return <div>Pagina niet gevonden</div>;
   }
 
+  const isFietsberaad = session?.user?.activeContactId === '1';
+
+  // Only Stallingen and Tips are editable, rest is fixed
+  const canChangeDisplayTitle = article.Title && ['Stallingen', 'Tips'].includes(article.Title);
+
+  // Home is always fixed, Tips is always fixed for non fietsberaad
+  const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
+
+  console.log("*** GOT Abstract", article.Abstract);
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-6">
@@ -169,6 +179,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
               checked={article.Status === '1' || id === 'new'} 
               onChange={handleChange}
               className="mr-2"
+              disabled={freezeStatus}
             />
             Toon deze pagina op de website
           </label>
@@ -181,6 +192,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
             onChange={handleDisplayTitleChange}
             label="Titel"
             required
+            disabled={!canChangeDisplayTitle}
           />
         </div>
 
@@ -205,6 +217,28 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
+
+        <div>
+          <FormInput
+            type="text"
+            value={article.SortOrder || '9999999'}
+            onChange={(e) => setArticle(prev => prev ? { ...prev, SortOrder: e.target.value === '9999999' ? null : parseInt(e.target.value) } : null)}
+            label="Sorteervolgorde"
+            required
+            style={{width: '100px'}}
+          />
+        </div>
+        
+        {/* enable this when we are updating the info properly in the backend
+         { article.DateModified ? 
+            <div>
+              <label className="block text-sm font-bold text-gray-700">Laatst aangepast door {article.EditorModified || "Onbekend" } op {article.DateModified ? new Date(article.DateModified).toLocaleDateString() : ''}</label>
+            </div>
+            : article.DateCreated && 
+                <div>
+                  <label className="block text-sm font-bold text-gray-700">Aangemaakt door {article.EditorCreated || "Onbekend" } op {article.DateCreated ? new Date(article.DateCreated).toLocaleDateString() : ''}</label>
+                </div>
+        } */}
 
         <div className="flex justify-end space-x-4 pt-4">
           <button
