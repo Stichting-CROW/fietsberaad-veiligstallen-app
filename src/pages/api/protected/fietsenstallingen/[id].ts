@@ -222,7 +222,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
     });
   } catch (e) {
     console.error("Error creating new fietsenstalling:", e);
-    return;
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
