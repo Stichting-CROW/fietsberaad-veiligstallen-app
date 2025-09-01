@@ -142,7 +142,6 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   // Home is always fixed, Tips is always fixed for non fietsberaad
   const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
 
-  console.log("*** GOT Abstract", article.Abstract);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
