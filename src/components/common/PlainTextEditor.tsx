@@ -5,6 +5,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $generateHtmlFromNodes } from '@lexical/html';
+import { $getRoot, $createParagraphNode, $createTextNode } from 'lexical';
 import { useEffect } from 'react';
 import styles from './RichTextEditor.module.css'; // share styles with RichTextEditor
 import Toolbar from './Toolbar';
@@ -30,19 +31,19 @@ const PlainTextEditor: React.FC<PlainTextEditorProps> = ({
     onError: (error: Error) => {
       console.error(error);
     },
-    // editorState: (editor: LexicalEditor) => {
-    //   const root = $getRoot();
-    //   if (root.getTextContentSize() === 0) {
-    //     const parser = new DOMParser();
-    //     const dom = parser.parseFromString(value, 'text/html');
-    //     const nodes = $generateNodesFromDOM(editor, dom);
-    //     root.append(...nodes);
-    //   }
-    // },
+    editorState: (editor: any) => {
+      const root = $getRoot();
+      if (root.getTextContentSize() === 0 && value) {
+        const paragraph = $createParagraphNode();
+        const textNode = $createTextNode(value);
+        paragraph.append(textNode);
+        root.append(paragraph);
+      }
+    },
   };
 
   return (
-    <div className={`${styles.richTextEditor} ${className}`}>
+    <div className={`${styles.richTextEditor} ${styles.plainTextEditor} ${className}`}>
       <LexicalComposer initialConfig={initialConfig}>
         <div className={styles.editorContainer}>
           <PlainTextPlugin
@@ -53,6 +54,7 @@ const PlainTextEditor: React.FC<PlainTextEditorProps> = ({
           <HistoryPlugin />
           {/* <AutoFocusPlugin /> */}
           <OnChangePlugin onChange={onChange} />
+          <ValueUpdatePlugin value={value} />
         </div>
       </LexicalComposer>
     </div>
@@ -64,13 +66,43 @@ const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => 
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const htmlString = $generateHtmlFromNodes(editor);
-        onChange(htmlString);
-      });
+    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
+      // Only trigger onChange if there are actual changes
+      if (dirtyElements.size > 0 || dirtyLeaves.size > 0) {
+        editorState.read(() => {
+          const htmlString = $generateHtmlFromNodes(editor);
+          onChange(htmlString);
+        });
+      }
     });
   }, [editor, onChange]);
+
+  return null;
+};
+
+// Plugin to handle external value updates
+const ValueUpdatePlugin = ({ value }: { value: string }) => {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (value !== undefined) {
+      editor.update(() => {
+        const root = $getRoot();
+        const currentText = root.getTextContent();
+        
+        // Only update if the value is actually different to prevent infinite loops
+        if (currentText !== value) {
+          root.clear();
+          if (value) {
+            const paragraph = $createParagraphNode();
+            const textNode = $createTextNode(value);
+            paragraph.append(textNode);
+            root.append(paragraph);
+          }
+        }
+      });
+    }
+  }, [editor, value]);
 
   return null;
 };
