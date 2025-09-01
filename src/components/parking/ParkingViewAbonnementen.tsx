@@ -14,7 +14,6 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
   const { abonnementLink, isLoading: isLoadingAbonnementLink, error: errorAbonnementLink } = useAbonnementLink(parkingdata?.ID||"");
   
   const filteredSubscriptionTypes = subscriptionTypes.filter(x => x.bikeparkTypeID === (parkingdata?.Type || ""));
-  console.log("filteredSubscriptionTypes", parkingdata?.Type, JSON.stringify(filteredSubscriptionTypes, null, 2));
 
   console.log("abonnementLink", abonnementLink);
 
