@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 import CacheTableComponent from './CacheTable';
 import CacheUpdateComponent from './CacheUpdate';
+import PagesFaqUpdateComponent from './PagesFaqUpdate';
 import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
 
@@ -47,6 +48,7 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-4">Database</h1>
       <CacheUpdateComponent />
+      <PagesFaqUpdateComponent />
       <UserStatusTableComponent />
       <UserContactRoleTableComponent />
       <CacheTableComponent
