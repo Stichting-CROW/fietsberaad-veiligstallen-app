@@ -9,12 +9,15 @@ import {
   FORMAT_ELEMENT_COMMAND,
   SELECTION_CHANGE_COMMAND,
   CAN_UNDO_COMMAND,
-  CAN_REDO_COMMAND
+  CAN_REDO_COMMAND,
+  $getRoot
 } from 'lexical';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list';
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { mergeRegister } from '@lexical/utils';
+import { TOGGLE_LINK_COMMAND, LinkNode } from '@lexical/link';
+import { $generateHtmlFromNodes } from '@lexical/html';
 
 import styles from './RichTextEditor.module.css';
 import { useState, useCallback, useEffect } from 'react';
@@ -23,10 +26,9 @@ const Divider = () => {
   return <div className={styles.divider} />;
 };
 
-const LINK_COMMAND = createCommand('LINK');
 const LowPriority = 1;
 
-const Toolbar = () => {
+const Toolbar = ({ onToggleRawView, isRawView, showToggleRaw = false }: { onToggleRawView: () => void; isRawView: boolean, showToggleRaw?: boolean }) => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isBold, setIsBold] = useState(false);
@@ -125,19 +127,93 @@ const Toolbar = () => {
         <i className={`${styles['format']} ${styles['format-underline']}`} />
       </button>
       <Divider />
-      {/* <button
+      <button
         onClick={() => {
-          const url = prompt('Enter URL:');
-          if (url) {
-            editor.dispatchCommand(LINK_COMMAND, url);
+          console.log('Link button clicked');
+          
+          let hasSelection = false;
+          let selectedText = '';
+          let currentUrl = '';
+          let isLink = false;
+          
+          // Use editor.read() to safely check the selection and link status
+          editor.read(() => {
+            const selection = $getSelection();
+            if ($isRangeSelection(selection)) {
+              hasSelection = true;
+              selectedText = selection.getTextContent();
+              console.log('Selection found:', selectedText);
+              
+              // Check if the selection is already part of a link
+              const anchorNode = selection.anchor.getNode();
+              const focusNode = selection.focus.getNode();
+              
+              // Look for link nodes in the selection
+              let linkNode: LinkNode | null = null;
+              if (anchorNode.getParent()?.getType() === 'link') {
+                linkNode = anchorNode.getParent() as LinkNode;
+              } else if (focusNode.getParent()?.getType() === 'link') {
+                linkNode = focusNode.getParent() as LinkNode;
+              }
+              
+              if (linkNode) {
+                isLink = true;
+                currentUrl = linkNode.getURL();
+                console.log('Selection is already a link with URL:', currentUrl);
+              }
+            } else {
+              console.log('No valid selection found for link creation');
+            }
+          });
+          
+          // If we have a selection, proceed with link creation/editing
+          if (hasSelection) {
+            let promptText = 
+              'Voer een URL (https://www.ergens.nl) of email link (mailto:iemand@ergens.nl) in:'
+
+            if(isLink){
+              promptText = promptText + `\n\nMaak de invoer leeg om de huidige koppeling te verwijderen`;
+            }
+            
+            const url = prompt(promptText, isLink ? currentUrl : '');
+            if (url !== null) { // Check for null (user cancelled) vs empty string
+              console.log('URL entered:', url);
+              
+              if (url === '') {
+                // Empty URL means remove the link
+                console.log('Removing link');
+                // Try to remove the link by dispatching TOGGLE_LINK_COMMAND with null
+                // This should remove the link formatting while keeping the text
+                console.log('Dispatching TOGGLE_LINK_COMMAND with null to remove link');
+                editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+              } else {
+                // Ensure URL has protocol
+                const urlWithProtocol = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')
+                  ? url 
+                  : `https://${url}`;
+                
+                console.log('URL with protocol:', urlWithProtocol);
+                console.log('Dispatching TOGGLE_LINK_COMMAND with payload:', {
+                  url: urlWithProtocol,
+                  title: '',
+                  target: '_blank'
+                });
+                
+                editor.dispatchCommand(TOGGLE_LINK_COMMAND, {
+                  url: urlWithProtocol,
+                  title: '',
+                  target: '_blank'
+                });
+              }
+            }
           }
         }}
-        className={`${styles.toolbarItem} ${styles.spaced}`}
+        className={`${styles['toolbarItem']} ${styles['spaced']}`}
         type="button"
         aria-label="Insert Link"
       >
         <i className={`${styles['format']} ${styles['format-link']}`} />
-      </button> */}
+      </button>
       <button
         onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
         className={styles.toolbarItem}
@@ -146,6 +222,15 @@ const Toolbar = () => {
       >
         <i className={`${styles['format']} ${styles['format-list']}`} />
       </button>
+      <Divider />
+      { showToggleRaw && <button
+        onClick={onToggleRawView}
+        className={`${styles.toolbarItem} ${isRawView ? styles.active : ''}`}
+        type="button"
+        aria-label={isRawView ? 'Met opmaak tonen' : 'Broncode tonen'}
+      >
+        {isRawView ? 'Toon opgemaakte tekst' : 'Toon Broncode'}
+      </button>}
     </div>
   );
 };

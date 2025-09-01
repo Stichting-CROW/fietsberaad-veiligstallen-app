@@ -27,8 +27,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
 
-  console.log('==', 'securityProfile', securityProfile)
-
   return (
     <ul id="leftMenu" className="shadow w-64 min-h-screen p-4">
       <>

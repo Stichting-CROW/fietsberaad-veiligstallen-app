@@ -38,3 +38,16 @@ FLUSH PRIVILEGES;
 
 ALTER USER 'veiligstallen_readwrite'@'localhost' IDENTIFIED WITH 'caching_sha2_password' BY 'xxxxx';
 FLUSH PRIVILEGES;
+
+
+-- articles 
+select Title, Abstract, DisplayTitle, Article 
+From articles 
+where 
+	NOT (isnull(article) OR article="") AND 
+    NOT (isnull(abstract) OR abstract="") 
+ORDER BY Title ASC;
+
+select * from articles where abstract='main';
+
+select a.Title, a.System from articles a where a.navigation<>'main' group by a.Title, a.System;

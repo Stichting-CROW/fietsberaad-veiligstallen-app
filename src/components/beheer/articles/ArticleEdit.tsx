@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import type { VSArticle } from '~/types/articles';
 import RichTextEditor from '~/components/common/RichTextEditor';
 import FormInput from '~/components/Form/FormInput';
+import PlainTextEditor from '~/components/common/PlainTextEditor';
 
 type ArticleEditProps = {
   id: string;
@@ -113,6 +114,11 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!article) return;
+    setArticle(prev => prev ? { ...prev, Title: e.target.value } : null);
+  };
+
+  const handleDisplayTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!article) return;
     setArticle(prev => prev ? { ...prev, DisplayTitle: e.target.value } : null);
   };
 
@@ -127,6 +133,15 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   if (!article) {
     return <div>Pagina niet gevonden</div>;
   }
+
+  const isFietsberaad = session?.user?.activeContactId === '1';
+
+  // Only Stallingen and Tips are editable, rest is fixed
+  const canChangeDisplayTitle = article.Title && ['Stallingen', 'Tips'].includes(article.Title);
+
+  // Home is always fixed, Tips is always fixed for non fietsberaad
+  const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
+
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -146,16 +161,54 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
         <div>
           <FormInput
             type="text"
-            value={article.DisplayTitle || ''}
+            value={article.Title || ''}
             onChange={handleTitleChange}
+            label="Paginanaam"
+            disabled={article.System === '1'}
+          />
+        </div>        
+        
+         {/* Status checkbox */}
+         <div>
+          <label id="labelStatus" htmlFor="Status" className="block text-sm font-medium text-gray-700">
+            <input 
+              type="checkbox" 
+              id="Status" 
+              name="Status" 
+              checked={article.Status === '1' || id === 'new'} 
+              onChange={handleChange}
+              className="mr-2"
+              disabled={freezeStatus}
+            />
+            Toon deze pagina op de website
+          </label>
+        </div>
+
+       <div>
+          <FormInput
+            type="text"
+            value={article.DisplayTitle || ''}
+            onChange={handleDisplayTitleChange}
             label="Titel"
             required
+            disabled={!canChangeDisplayTitle}
           />
         </div>
 
         <div>
-          <label htmlFor="Article" className="block text-sm font-medium text-gray-700">
-            Content
+          <label htmlFor="Abstract" className="block text-sm font-bold text-gray-700">
+            Abstract
+          </label>
+          <PlainTextEditor
+            value={article.Abstract || ''}
+            onChange={(value) => setArticle(prev => prev ? { ...prev, Abstract: value } : null)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        
+        <div>
+          <label htmlFor="Article" className="block text-sm font-bold text-gray-700">
+            Pagina inhoud
           </label>
           <RichTextEditor
             value={article.Article || ''}
@@ -164,20 +217,26 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           />
         </div>
 
-        {/* Status checkbox */}
         <div>
-          <label htmlFor="Status" className="block text-sm font-medium text-gray-700">
-            <input 
-              type="checkbox" 
-              id="Status" 
-              name="Status" 
-              checked={article.Status === '1' || id === 'new'} 
-              onChange={handleChange}
-              className="mr-2"
-            />
-            Toon deze pagina op de website
-          </label>
+          <FormInput
+            type="text"
+            value={article.SortOrder || '9999999'}
+            onChange={(e) => setArticle(prev => prev ? { ...prev, SortOrder: e.target.value === '9999999' ? null : parseInt(e.target.value) } : null)}
+            label="Sorteervolgorde"
+            required
+            style={{width: '100px'}}
+          />
         </div>
+        
+       { article.DateModified ? 
+            <div>
+              <label className="block text-sm font-bold text-gray-700">Laatst aangepast door {article.EditorModified || "Onbekend" } op {article.DateModified ? new Date(article.DateModified).toLocaleDateString() : ''}</label>
+            </div>
+            : article.DateCreated && 
+                <div>
+                  <label className="block text-sm font-bold text-gray-700">Aangemaakt door {article.EditorCreated || "Onbekend" } op {article.DateCreated ? new Date(article.DateCreated).toLocaleDateString() : ''}</label>
+                </div>
+        }
 
         <div className="flex justify-end space-x-4 pt-4">
           <button

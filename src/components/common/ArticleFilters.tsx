@@ -1,94 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
-
-export type ArticleFiltersState = {
-  gemeenteId: string;
-  status: 'All' | 'Yes' | 'No';
-  navigation: 'All' | 'Main' | 'NotMain';
-  content: 'All' | 'Content' | 'NoContent';
-};
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+  setStatus,
+  setNavigation,
+  setContent,
+  setSearchTerm,
+  resetFilters,
+  setFilters,
+  selectArticleFilters,
+  type ArticleFiltersState,
+} from '~/store/articleFiltersSlice';
 
 interface ArticleFiltersProps {
-  onChange: (filters: ArticleFiltersState, searchTerm: string) => void;
-  showGemeenteSelection?: boolean;
   showReset?: boolean;
   activeMunicipalityID?: string;
   initialFilters?: Partial<ArticleFiltersState>;
   initialSearchTerm?: string;
 }
 
-const defaultFilters: ArticleFiltersState = {
-  gemeenteId: '',
-  status: 'All',
-  navigation: 'All',
-  content: 'All',
-};
+// defaultFilters is no longer needed as we use Redux state
 
 const ArticleFilters: React.FC<ArticleFiltersProps> = ({
-  onChange,
-  showGemeenteSelection = true,
   showReset = true,
   activeMunicipalityID,
   initialFilters = {},
   initialSearchTerm = '',
 }) => {
+  const dispatch = useDispatch();
+  const filters = useSelector(selectArticleFilters);
   const { gemeenten, isLoading: gemeentenLoading } = useGemeentenInLijst();
-  const [gemeenteReadOnly, setGemeenteReadOnly] = useState(false);
-  const [filters, setFilters] = useState<ArticleFiltersState>({ ...defaultFilters, ...initialFilters });
-  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
 
-  // Internal filter logic: auto-select, readonly, etc.
+  // Initialize filters with initial values if provided
   useEffect(() => {
-    if (!gemeenten || !Array.isArray(gemeenten) || gemeenten.length === undefined) return;
-    if (!showGemeenteSelection) {
-      // Always set gemeenteId to activeMunicipalityID (if not '1'), or ''
-      if (activeMunicipalityID && activeMunicipalityID !== '1') {
-        setFilters(f => ({ ...f, gemeenteId: activeMunicipalityID }));
-      } else {
-        setFilters(f => ({ ...f, gemeenteId: '' }));
-      }
-      setGemeenteReadOnly(true);
-      return;
+    if (initialFilters && Object.keys(initialFilters).length > 0) {
+      dispatch(setFilters({ ...initialFilters }));
     }
-    // If only one gemeente, lock to it
-    if (gemeenten.length === 1) {
-      setFilters(f => ({ ...f, gemeenteId: gemeenten[0]?.ID || '' }));
-      setGemeenteReadOnly(true);
-      return;
+    if (initialSearchTerm) {
+      dispatch(setSearchTerm(initialSearchTerm));
     }
-    // If active municipality is set and not '1', lock to it
-    if (activeMunicipalityID && activeMunicipalityID !== '1') {
-      setFilters(f => ({ ...f, gemeenteId: activeMunicipalityID }));
-      setGemeenteReadOnly(true);
-      return;
-    }
-    // Otherwise, allow selection
-    setGemeenteReadOnly(false);
-    // If the current gemeenteId is not in the list, reset it
-    setFilters(f => {
-      const safeGemeenteId = f.gemeenteId || '';
-      if (safeGemeenteId && Array.isArray(gemeenten) && !gemeenten.find(g => g.ID === safeGemeenteId)) {
-        return { ...defaultFilters, ...f, gemeenteId: '' };
-      }
-      return { ...defaultFilters, ...f, gemeenteId: safeGemeenteId };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gemeenten, activeMunicipalityID, showGemeenteSelection]);
-
-  // Call onChange whenever filters or searchTerm change
-  useEffect(() => {
-    onChange(filters, searchTerm);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, searchTerm]);
+  }, [dispatch, initialFilters, initialSearchTerm]);
 
   const handleChange = (key: keyof ArticleFiltersState, value: string) => {
-    if (key === 'gemeenteId' && gemeenteReadOnly) return;
-    setFilters(f => ({ ...f, [key]: value }));
+    switch (key) {
+      case 'status':
+        dispatch(setStatus(value as 'All' | 'Yes' | 'No'));
+        break;
+      case 'navigation':
+        dispatch(setNavigation(value as 'All' | 'Main' | 'NotMain'));
+        break;
+      case 'content':
+        dispatch(setContent(value as 'All' | 'Content' | 'NoContent'));
+        break;
+    }
   };
 
-  const resetFilters = () => {
-    setFilters(defaultFilters);
-    setSearchTerm('');
+  const handleResetFilters = () => {
+    dispatch(resetFilters());
   };
 
   return (
@@ -98,7 +66,7 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
         {showReset && (
           <button
             className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
-            onClick={resetFilters}
+            onClick={handleResetFilters}
             type="button"
           >
             Reset Filters
@@ -113,37 +81,13 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
           name="articleSearch"
           placeholder="Typ om te zoeken..."
           className="mt-1 p-2 border border-gray-300 rounded-md w-full"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          value={filters.searchTerm}
+          onChange={e => dispatch(setSearchTerm(e.target.value))}
         />
       </div>
       <form className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {showGemeenteSelection && (
-          <div className="flex flex-col">
-            <label htmlFor="gemeente" className="text-sm font-medium text-gray-700">Selecteer Gemeente:</label>
-            <div className="relative">
-              <select
-                id="gemeente"
-                name="gemeente"
-                className={`mt-1 p-2 border border-gray-300 rounded-md w-full ${gemeenteReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                value={filters.gemeenteId}
-                onChange={e => handleChange('gemeenteId', e.target.value)}
-                disabled={gemeenteReadOnly}
-                title={gemeenteReadOnly ? 'Gemeente is vastgezet door actieve selectie' : undefined}
-              >
-                <option value="">Alles</option>
-                {gemeenten.map(gemeente => (
-                  <option value={gemeente.ID} key={gemeente.ID}>{gemeente.CompanyName}</option>
-                ))}
-              </select>
-              {gemeenteReadOnly && (
-                <span className="absolute right-2 top-2 text-gray-400" title="Gemeente is vastgezet">🔒</span>
-              )}
-            </div>
-          </div>
-        )}
         <div className="flex flex-col">
-          <label htmlFor="status" className="text-sm font-medium text-gray-700">Selecteer status</label>
+          <label htmlFor="status" className="text-sm font-medium text-gray-700">Tonen</label>
           <select
             id="status"
             name="status"
@@ -152,8 +96,8 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
             onChange={e => handleChange('status', e.target.value)}
           >
             <option value="All">Alle</option>
-            <option value="Yes">Actief</option>
-            <option value="No">Niet Actief</option>
+            <option value="Yes">Ja</option>
+            <option value="No">Nee</option>
           </select>
         </div>
         <div className="flex flex-col">

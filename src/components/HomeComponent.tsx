@@ -55,6 +55,7 @@ import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
 import InfomodalComponent from "./InfomodalComponent";
 import { useAllFietsenstallingen } from "~/hooks/useAllFietsenstallingen";
+import { type VSContactGemeente } from "~/types/contacts";
 
 export interface HomeComponentProps {
     online: boolean,
@@ -449,7 +450,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
               shadow-lg
             "
               >
-                <FilterBox filterArticles={showArticlesBox === true} showFilterAanmeldingen={(session && session.user) ? true : false} />
+                <FilterBox filterArticles={showArticlesBox === true} showFilterAanmeldingen={false} />
               </div>
             </div>
           )}
@@ -550,9 +551,41 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       }
       dispatch(setActiveParkingId(undefined));
     };
-  
+
     const handleStallingAanmelden = async () => {
-      const newID = await createNewStalling(session as Session, currentLatLong);
+      let currentMunicipality: VSContactGemeente | undefined;
+      
+      // Always try to determine municipality from coordinates for new stalling
+      if (currentLatLong && currentLatLong.length === 2) {
+        try {
+          const municipalityType = await getMunicipalityBasedOnLatLng(currentLatLong);
+          if (municipalityType) {
+            const cbsCode = cbsCodeFromMunicipality(municipalityType);
+            if (cbsCode) {
+              currentMunicipality = await getMunicipalityBasedOnCbsCode(cbsCode);
+            }
+          }
+        } catch (error) {
+          console.warn('Could not determine municipality for new stalling:', error);
+          alert("Het is niet mogelijk om een nieuwe stalling aan te melden op deze locatie.");
+          return;
+        }
+      }
+      
+      // Fallback to activeMunicipalityInfo if coordinate detection fails
+      if (!currentMunicipality) {
+        console.warn("HomeComponent - handleStallingAanmelden - no municipality found, using activeMunicipalityInfo", activeMunicipalityInfo);
+        alert("Het is niet mogelijk om een nieuwe stalling aan te melden op deze locatie.");
+        return;
+    }
+      
+      const newID = await createNewStalling(session as Session, currentLatLong, currentMunicipality);
+
+      if(!newID) {
+        alert("Het is niet mogelijk om een nieuwe stalling aan te melden op deze locatie.");
+        return;
+      }
+
       dispatch(setActiveParkingId(newID));
     };
 
@@ -562,7 +595,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     let filteredFietsenstallingen: ParkingDetailsType[] = [];
     if (allparkingdata) {
       const showNew = activeTypes2 && activeTypes2.includes("show_submissions");
-      const aFilter = (x: any) => (showNew ? (x.Status === "new") : (x.Status !== "new"));
+      const aFilter = (x: any) => (showNew ? (x.Status === "aanm") : (x.Status !== "aanm"));
       filteredFietsenstallingen = allparkingdata.filter(aFilter);
     }
 
@@ -622,7 +655,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
                 className="absolute right-0 z-10 p-4"
                 style={{top: "64px"}}
               >
-                <FilterBox filterArticles={false} showFilterAanmeldingen={session && session.user ? true : false}/>
+                <FilterBox filterArticles={false} showFilterAanmeldingen={false}/>
               </div>
               <FooterNav onStallingAanmelden={handleStallingAanmelden} />
             </div>

@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
@@ -10,11 +9,222 @@ import { fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
 import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+// TODO: convert these types to the types in the types/parking.tsx file
+import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
 
 export type FietsenstallingResponse = {
   data?: ParkingDetailsType;
   error?: string;
 };
+
+const getNewStallingsID = async (siteID: string): Promise<string | false> => {
+  try {
+
+  const theSite = await prisma.contacts.findFirst({
+    select: {
+      ZipID: true
+    },
+    where: {
+      ID: siteID
+    }
+  });
+  if(!theSite || !theSite.ZipID) {
+    console.error( "getNewStallingsID - Unable to determine ZipID");
+    return false;
+  }
+
+  // this function needs to find the highest xxxx from all <ZipID>_xxxx values in the fietsenstallingen table
+  // that does not exist yet
+
+  // get all unique stallingsIDs that start with the ZipID
+  const uniqueStallingsIDs = await prisma.fietsenstallingen.findMany({
+    where: {
+      StallingsID: {
+        startsWith: theSite.ZipID
+      }
+    },
+    select: {
+      StallingsID: true
+    },
+    distinct: ['StallingsID']
+  });
+
+  // determine the highest number from the uniqueStallingsIDs
+  const highestNumber = uniqueStallingsIDs.reduce((max, id) => {
+    const numberPart = id.StallingsID?.replace(theSite.ZipID + "_", '');
+    if(!numberPart) {
+      return max;
+    }
+    if(isNaN(parseInt(numberPart))) {
+      return max;
+    }
+    return Math.max(max, parseInt(numberPart));
+  }, 0);
+
+  // return the next number
+  return theSite.ZipID + '_' + (highestNumber + 1).toString().padStart(3, '0');
+  } catch (e) {
+    console.error("getNewStallingsID - Error:", e);
+    return false;
+  }
+}
+
+export const createNewStalling = async (req: NextApiRequest, res: NextApiResponse, isAanmelding: boolean) => {
+  try {
+    const newID = generateID();
+    const data = { ...req.body, ID: newID };
+
+    if(data.StallingsID === null || data.StallingsID === undefined) {
+      const newStallingID = await getNewStallingsID(data.SiteID);
+      if(!newStallingID) {
+       console.error("Error creating new fietsenstalling - unable to create StallingID");
+       res.status(500).json({error: "Error creating new fietsenstalling - unable to create StallingID"});
+       return;
+      }
+      data.StallingsID = newStallingID;
+   }
+
+    const parseResult = fietsenstallingCreateSchema.safeParse(data);
+    if (!parseResult.success) {
+      console.error("Unexpected/missing data error:", JSON.stringify(parseResult.error.errors,null,2));
+      res.status(400).json({ error: parseResult.error.errors });
+      return;
+    }
+
+    const parsed = parseResult.data;
+
+    if (!parsed.SiteID) {
+      console.error("No SiteID provided");
+      res.status(400).json({ error: "SiteID is required" });
+      return;
+    }
+
+    const newData = {
+      ID: newID,
+      // Required fields
+      StallingsID: parsed.StallingsID,
+      Title: parsed.Title,
+      Status: isAanmelding ? "aanm" : parsed.Status ?? "1", 
+        
+      // Optional fields with defaults
+      SiteID: parsed.SiteID ?? undefined,
+      StallingsIDExtern: parsed.StallingsIDExtern ?? undefined,
+      Description: parsed.Description ?? undefined,
+      Image: parsed.Image ?? undefined,
+      Location: parsed.Location ?? undefined,
+      Postcode: parsed.Postcode ?? undefined,
+      Plaats: parsed.Plaats ?? undefined,
+      Capacity: parsed.Capacity ?? undefined,
+      Openingstijden: parsed.Openingstijden ?? undefined,
+      EditorCreated: parsed.EditorCreated ?? undefined,
+      DateCreated: parsed.DateCreated ?? new Date(),
+      EditorModified: parsed.EditorModified ?? undefined,
+      DateModified: parsed.DateModified ?? new Date(),
+      Ip: parsed.Ip ?? undefined,
+      Coordinaten: parsed.Coordinaten ?? undefined,
+      Type: parsed.Type ?? undefined,
+      Verwijssysteem: parsed.Verwijssysteem ?? false,
+      VerwijssysteemOverzichten: parsed.VerwijssysteemOverzichten ?? false,
+      FMS: parsed.FMS ?? false,
+      Open_ma: parsed.Open_ma ?? undefined,
+      Dicht_ma: parsed.Dicht_ma ?? undefined,
+      Open_di: parsed.Open_di ?? undefined,
+      Dicht_di: parsed.Dicht_di ?? undefined,
+      Open_wo: parsed.Open_wo ?? undefined,
+      Dicht_wo: parsed.Dicht_wo ?? undefined,
+      Open_do: parsed.Open_do ?? undefined,
+      Dicht_do: parsed.Dicht_do ?? undefined,
+      Open_vr: parsed.Open_vr ?? undefined,
+      Dicht_vr: parsed.Dicht_vr ?? undefined,
+      Open_za: parsed.Open_za ?? undefined,
+      Dicht_za: parsed.Dicht_za ?? undefined,
+      Open_zo: parsed.Open_zo ?? undefined,
+      Dicht_zo: parsed.Dicht_zo ?? undefined,
+      OmschrijvingTarieven: parsed.OmschrijvingTarieven ?? undefined,
+      IsStationsstalling: parsed.IsStationsstalling ?? false,
+      IsPopup: parsed.IsPopup ?? false,
+      NotaVerwijssysteem: parsed.NotaVerwijssysteem ?? undefined,
+      Tariefcode: parsed.Tariefcode ?? undefined,
+      Toegangscontrole: parsed.Toegangscontrole ?? undefined,
+      Beheerder: parsed.Beheerder ?? undefined,
+      BeheerderContact: parsed.BeheerderContact ?? undefined,
+      Url: parsed.Url ?? undefined,
+      ExtraServices: parsed.ExtraServices ?? undefined,
+      dia: parsed.dia ?? undefined,
+      BerekentStallingskosten: parsed.BerekentStallingskosten ?? false,
+      AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? 0,
+      MaxStallingsduur: parsed.MaxStallingsduur ?? 0,
+      HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? false,
+      ExploitantID: parsed.ExploitantID ?? undefined,
+      hasUniSectionPrices: parsed.hasUniSectionPrices ?? true,
+      hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? false,
+      shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
+      BronBezettingsdata: parsed.BronBezettingsdata ?? "FMS",
+      reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
+      wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
+      thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
+    }
+
+    const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
+    if(!newFietsenstalling) {
+      console.error("Error creating new fietsenstalling:", newData);
+      res.status(500).json({error: "Error creating new fietsenstalling"});
+      return;
+    }
+
+    const newSectieIdResult = await prisma.fietsenstalling_sectie.aggregate({
+      _max: {
+        sectieId: true
+      }
+    });
+    const sectieId = newSectieIdResult._max.sectieId !== null ? newSectieIdResult._max.sectieId + 1 : 1;
+    const sectiedata: fietsenstalling_sectie = {
+      fietsenstallingsId: newFietsenstalling.ID,
+      sectieId,
+      titel: 'sectie 1',
+      isactief: true,
+      externalId: null,
+      omschrijving: null,
+      capaciteit: null,
+      CapaciteitBromfiets: null,
+      kleur: "",
+      isKluis: false,
+      reserveringskostenPerDag: null,
+      urlwebservice: null,
+      Reservable: false,
+      NotaVerwijssysteem: null,
+      Bezetting: 0,
+      qualificatie: null
+    }
+
+    await prisma.fietsenstalling_sectie.create({ data: sectiedata });
+    const allTypes = await prisma.fietstypen.findMany();
+    for (const typedata of allTypes) {
+      const newSubSectieIdResult = await prisma.sectie_fietstype.aggregate({
+        _max: {
+          SectionBiketypeID: true
+        }
+      });
+      const subSectieId = newSubSectieIdResult._max.SectionBiketypeID !== null ? newSubSectieIdResult._max.SectionBiketypeID + 1 : 1;
+      const subsectiedata: sectie_fietstype = {
+        SectionBiketypeID: subSectieId,
+        Capaciteit: 0,
+        Toegestaan: true,
+        sectieID: sectieId,
+        StallingsID: newFietsenstalling.ID,
+        BikeTypeID: typedata.ID
+      }
+      await prisma.sectie_fietstype.create({ data: subsectiedata });
+    }
+
+    res.status(201).json({ 
+      data: [newFietsenstalling]
+    });
+  } catch (e) {
+    console.error("Error creating new fietsenstalling:", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
 
 export default async function handle(
   req: NextApiRequest,
@@ -63,7 +273,7 @@ export default async function handle(
     return;
   }
 
-  const { sites, userId } = validateUserSessionResult;
+  const { sites, activeContactId } = validateUserSessionResult;
 
   // user has access to this stalling if the SiteID for this site is 
   // in the sites array 
@@ -84,8 +294,31 @@ export default async function handle(
   switch (req.method) {
     case "GET": {
       if (id === "new") {
+        if(!activeContactId || activeContactId === "1") {
+          console.error("Unauthorized - no active contact ID");
+          res.status(403).json({ error: "No active contact ID" });
+          return;
+        }
+
+        const currentContactInfo = await prisma.contacts.findFirst({
+          where: {
+            ID: activeContactId
+          },
+          select: {
+            Coordinaten: true
+          }
+        });
+
+        if(!currentContactInfo || !currentContactInfo.Coordinaten) {
+          console.error("Unauthorized - no coordinaten for active contact ID", activeContactId);
+          res.status(403).json({ error: "No coordinaten for active contact ID" });
+          return;
+        }
+
         // add timestamp to the name
         const defaultRecord = getDefaultNewFietsenstalling('Test Fietsenstalling ' + new Date().toISOString());
+        defaultRecord.Coordinaten = currentContactInfo.Coordinaten;
+
         res.status(200).json({data: defaultRecord});
         return;
       }
@@ -100,97 +333,12 @@ export default async function handle(
     }
     case "POST": {
       try {
-        const newID = generateID();
-        const data = { ...req.body, ID: newID };
-
-        const parseResult = fietsenstallingCreateSchema.safeParse(data);
-        if (!parseResult.success) {
-          console.error("Unexpected/missing data error:", JSON.stringify(parseResult.error.errors,null,2));
-          res.status(400).json({ error: parseResult.error.errors });
-          return;
-        }
-        const parsed = parseResult.data;
-
-        const newData = {
-          ID: newID,
-          // Required fields
-          StallingsID: parsed.StallingsID,
-          Title: parsed.Title,
-          Status: "1", // Default status
-            
-          // Optional fields with defaults
-          SiteID: parsed.SiteID ?? undefined,
-          StallingsIDExtern: parsed.StallingsIDExtern ?? undefined,
-          Description: parsed.Description ?? undefined,
-          Image: parsed.Image ?? undefined,
-          Location: parsed.Location ?? undefined,
-          Postcode: parsed.Postcode ?? undefined,
-          Plaats: parsed.Plaats ?? undefined,
-          Capacity: parsed.Capacity ?? undefined,
-          Openingstijden: parsed.Openingstijden ?? undefined,
-          EditorCreated: parsed.EditorCreated ?? undefined,
-          DateCreated: parsed.DateCreated ?? new Date(),
-          EditorModified: parsed.EditorModified ?? undefined,
-          DateModified: parsed.DateModified ?? new Date(),
-          Ip: parsed.Ip ?? undefined,
-          Coordinaten: parsed.Coordinaten ?? undefined,
-          Type: parsed.Type ?? undefined,
-          Verwijssysteem: parsed.Verwijssysteem ?? false,
-          VerwijssysteemOverzichten: parsed.VerwijssysteemOverzichten ?? false,
-          FMS: parsed.FMS ?? false,
-          Open_ma: parsed.Open_ma ?? undefined,
-          Dicht_ma: parsed.Dicht_ma ?? undefined,
-          Open_di: parsed.Open_di ?? undefined,
-          Dicht_di: parsed.Dicht_di ?? undefined,
-          Open_wo: parsed.Open_wo ?? undefined,
-          Dicht_wo: parsed.Dicht_wo ?? undefined,
-          Open_do: parsed.Open_do ?? undefined,
-          Dicht_do: parsed.Dicht_do ?? undefined,
-          Open_vr: parsed.Open_vr ?? undefined,
-          Dicht_vr: parsed.Dicht_vr ?? undefined,
-          Open_za: parsed.Open_za ?? undefined,
-          Dicht_za: parsed.Dicht_za ?? undefined,
-          Open_zo: parsed.Open_zo ?? undefined,
-          Dicht_zo: parsed.Dicht_zo ?? undefined,
-          OmschrijvingTarieven: parsed.OmschrijvingTarieven ?? undefined,
-          IsStationsstalling: parsed.IsStationsstalling ?? false,
-          IsPopup: parsed.IsPopup ?? false,
-          NotaVerwijssysteem: parsed.NotaVerwijssysteem ?? undefined,
-          Tariefcode: parsed.Tariefcode ?? undefined,
-          Toegangscontrole: parsed.Toegangscontrole ?? undefined,
-          Beheerder: parsed.Beheerder ?? undefined,
-          BeheerderContact: parsed.BeheerderContact ?? undefined,
-          Url: parsed.Url ?? undefined,
-          ExtraServices: parsed.ExtraServices ?? undefined,
-          dia: parsed.dia ?? undefined,
-          BerekentStallingskosten: parsed.BerekentStallingskosten ?? false,
-          AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? 0,
-          MaxStallingsduur: parsed.MaxStallingsduur ?? 0,
-          HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? false,
-          ExploitantID: parsed.ExploitantID ?? undefined,
-          hasUniSectionPrices: parsed.hasUniSectionPrices ?? true,
-          hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? false,
-          shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
-          BronBezettingsdata: parsed.BronBezettingsdata ?? "FMS",
-          reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
-          wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
-          thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
-        }
-
-        const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
-        if(!newFietsenstalling) {
-          console.error("Error creating new fietsenstalling:", newData);
-          res.status(500).json({error: "Error creating new fietsenstalling"});
-          return;
-        }
-
-        res.status(201).json({ 
-          data: [newFietsenstalling]
-        });
+        return createNewStalling(req, res, false);
       } catch (e) {
         console.error("Error creating fietsenstalling:", e);
         res.status(500).json({error: "Error creating fietsenstalling"});
       }
+    
       break;
     }
     case "PUT": {

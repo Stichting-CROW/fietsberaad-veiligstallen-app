@@ -3,6 +3,7 @@ import { reverseGeocode } from "~/utils/nomatim";
 import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
 import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
+import type { VSContactGemeente } from "~/types/contacts";
 
 export const findParkingIndex = (parkings: fietsenstallingen[], parkingId: string) => {
   let index = 0,
@@ -77,10 +78,19 @@ const determineNewStatus = (session: Session | null): "1" | "aanm" => {
   }
 }
 
-export const createNewStalling = async (session: Session | null, currentLatLong: string[]): Promise<string | undefined> => {
-  const data = await getNewStallingDefaultRecord(determineNewStatus(session), currentLatLong)
-  const result = await fetch(
-    `/api/fietsenstallingen`,
+export const createNewStalling = async (
+  session: Session | null, 
+  currentLatLong: string[], 
+  currentMunicipality?: VSContactGemeente
+): Promise<string | undefined> => {
+  const data = await getNewStallingDefaultRecord(
+    determineNewStatus(session), 
+    currentLatLong, 
+    currentMunicipality
+  )
+  // post call assigns a new ID to the stalling
+  const response_new_parking = await fetch(
+    `/api/protected/fietsenstallingen/aanmelden`,
     {
       method: "POST",
       body: JSON.stringify(data),
@@ -89,17 +99,22 @@ export const createNewStalling = async (session: Session | null, currentLatLong:
       },
     });
 
-  if (result.status === 201) {
-    const newstalling = await result.json();
-    return newstalling.ID;
+  if (response_new_parking.status === 201) {
+    const result = await response_new_parking.json();
+    const newParkingId = result.data[0].ID;
+    console.log("createNewStalling - newstalling", newParkingId);
+    return newParkingId;
   } else {
-    console.error("unable to create new stalling - code ", result.status);
+    console.error("unable to create new stalling - code ", response_new_parking.status);
     return undefined;
   }
 };
 
-
-export const getNewStallingDefaultRecord = async (Status: string, latlong?: string[] | undefined): Promise<Partial<fietsenstallingen>> => {
+export const getNewStallingDefaultRecord = async (
+  Status: string, 
+  latlong?: string[] | undefined, 
+  currentMunicipality?: VSContactGemeente
+): Promise<Partial<fietsenstallingen>> => {
   let Location = "";
   let Postcode = "";
   let Plaats = "";
@@ -145,7 +160,7 @@ export const getNewStallingDefaultRecord = async (Status: string, latlong?: stri
     FMS: false,
     Beheerder: "",
     BeheerderContact: "",
-    SiteID: "1",
+    SiteID: currentMunicipality?.ID || "1",
     DateCreated: new Date(),
     DateModified: new Date(),
     ExploitantID: "1",

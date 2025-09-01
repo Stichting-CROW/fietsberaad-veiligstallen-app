@@ -5,8 +5,8 @@ import type { ParkingDetailsType } from "~/types/parking";
 import SectionBlock from "~/components/SectionBlock";
 import HorizontalDivider from "~/components/HorizontalDivider";
 import FormInput from "~/components/Form/FormInput";
-import FormTextArea from "~/components/Form/FormTextArea";
 import FormCheckbox from "~/components/Form/FormCheckbox";
+import RichTextEditor from "~/components/common/RichTextEditor";
 import ParkingOpeningUitzonderingen from "~/components/parking/ParkingOpeningUitzonderingen";
 
 import moment from "moment";
@@ -190,12 +190,14 @@ const ParkingEditOpening = ({
   parkingdata, 
   openingChanged, 
   canEditAllFields = true, 
-  canEditLimitedFields = true 
+  canEditLimitedFields = true,
+  isVoorstel = false
 }: { 
   parkingdata: ParkingDetailsType, 
   openingChanged: Function,
   canEditAllFields?: boolean,
-  canEditLimitedFields?: boolean
+  canEditLimitedFields?: boolean,
+  isVoorstel?: boolean
 }) => {
   const startValues = extractParkingFields(parkingdata);
   const isNS = parkingdata.EditorCreated === "NS-connector";
@@ -276,11 +278,11 @@ const ParkingEditOpening = ({
   }
 
   // Function that runs if extra description field changes
-  const handleChangeOpeningstijden = () => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (e.target.value === parkingdata.Openingstijden) {
+  const handleChangeOpeningstijden = (value: string) => {
+    if (value === parkingdata.Openingstijden) {
       setOpeningstijden(undefined);
     } else {
-      setOpeningstijden(e.target.value);
+      setOpeningstijden(value);
     }
   }
 
@@ -310,21 +312,18 @@ const ParkingEditOpening = ({
             </tbody>
           </table>
         </SectionBlock>
-        <HorizontalDivider className="my-4" />
-        <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} />
-        <HorizontalDivider className="my-4" />
-        <SectionBlock
+        {!isVoorstel && <HorizontalDivider className="my-4" /> }
+        {!isVoorstel && <ParkingOpeningUitzonderingen fietsenstallingID={parkingdata.ID} editMode={true} isVoorstel={isVoorstel} /> } 
+        {!isVoorstel && <HorizontalDivider className="my-4" /> }
+        {!isVoorstel && <SectionBlock
           heading="Tekst Afwijkende Openingstijden"
           contentClasses="w-full">
-          <FormTextArea
-            value={undefined === openingstijden ? (parkingdata.Openingstijden !== null ? parkingdata.Openingstijden.replaceAll("<br />", "\n") : '') : openingstijden}
-            style={{ width: '100%', borderRadius: '0 10px 10px 0' }}
+          <RichTextEditor
+            value={undefined === openingstijden ? (parkingdata.Openingstijden || '') : openingstijden}
+            onChange={handleChangeOpeningstijden}
             className="w-full"
-            onChange={handleChangeOpeningstijden()}
-            rows={10}
-            disabled={!canEditAllFields && !canEditLimitedFields}
           />
-        </SectionBlock>
+        </SectionBlock> }
       </div>
     </>
   );

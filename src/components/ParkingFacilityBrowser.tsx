@@ -50,12 +50,10 @@ function ParkingFacilityBrowser({
   allparkingdata,
   onShowStallingDetails,
   showSearchBar,
-  customFilter,
 }: {
   allparkingdata: ParkingDetailsType[];
   onShowStallingDetails?: (id: string | undefined) => void;
   showSearchBar?: boolean;
-  customFilter?: (parkingdata: ParkingDetailsType) => boolean;
 }) {
   const dispatch = useDispatch();
 
@@ -173,12 +171,6 @@ function ParkingFacilityBrowser({
       return;
     }
 
-    // If custom filter is given: Only apply custom filter
-    if (customFilter) {
-      filtered = filtered.filter((x) => {
-        return customFilter(x)
-      });
-    }
     // Default filter:
     // - If no active municipality: Search through everything
     // - If active municipality: First show parkings of this municipality, then the rest
@@ -294,7 +286,6 @@ function ParkingFacilityBrowser({
     allparkingdata,
     activeMunicipalityInfo,
     filterQuery,
-    customFilter,
     filterTypes,
     filterTypes2,
     mapVisibleFeaturesHash,

@@ -7,6 +7,8 @@ export type VSParking = Pick<fietsenstallingen,
 "Type" 
 >
 
+export type ParkingStatus = "0" | "1" | "new" | "aanm" | "x";
+
 export type ParkingSectionPerBikeType = {
     Toegestaan: boolean | null,
     Capaciteit: number | null,

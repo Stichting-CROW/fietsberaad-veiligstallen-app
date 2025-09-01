@@ -82,6 +82,8 @@ export default async function handle(
         }
         const parsed = parseResult.data;
 
+        const userName = session?.user?.name || session?.user?.email || 'unknown';
+
         const newData = {
           ID: newID,
           // Required fields
@@ -107,9 +109,9 @@ export default async function handle(
           Navigation: parsed.Navigation ?? undefined,
           ShowInNav: parsed.ShowInNav ?? undefined,
           System: parsed.System ?? "0",
-          EditorCreated: parsed.EditorCreated ?? undefined,
-          EditorModified: parsed.EditorModified ?? undefined,
-          DateModified: parsed.DateModified ?? undefined,
+          EditorCreated: userName,
+          EditorModified: null,
+          DateModified: null,
         }
 
         const newArticle = await prisma.articles.create({data: newData, select: articleSelect}) as unknown as VSArticle;
@@ -137,6 +139,9 @@ export default async function handle(
           return;
         }
 
+        const userName = session?.user?.name || session?.user?.email || 'unknown';
+        const dateModified = new Date();
+
         const parsed = parseResult.data;
         const updatedArticle = await prisma.articles.update({
           select: articleSelect,
@@ -157,8 +162,8 @@ export default async function handle(
             Navigation: parsed.Navigation ?? undefined,
             ShowInNav: parsed.ShowInNav ?? undefined,
             System: parsed.System ?? undefined,
-            EditorModified: parsed.EditorModified ?? undefined,
-            DateModified: parsed.DateModified === null ? null : parsed.DateModified ? new Date(parsed.DateModified) : undefined,
+            EditorModified: userName,
+            DateModified: dateModified,
           }
         });
         res.status(200).json({data: updatedArticle});
