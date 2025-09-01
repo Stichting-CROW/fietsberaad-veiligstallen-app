@@ -67,7 +67,6 @@ export const articleFiltersSlice = createSlice({
       }
     },
     resetFilters: (state) => {
-      // state.gemeenteId = '';
       state.status = 'All';
       state.navigation = 'All';
       state.content = 'All';
