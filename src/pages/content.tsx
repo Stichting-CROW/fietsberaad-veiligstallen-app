@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { type NextPage } from "next/types";
-import { type GetServerSidePropsContext } from 'next';
 import { useSelector, useDispatch } from "react-redux";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import Head from "next/head";
 import { usePathname } from 'next/navigation';
 import { type AppState } from "~/store/store";
@@ -12,7 +8,6 @@ import { type AppState } from "~/store/store";
 // Import components
 import PageTitle from "~/components/PageTitle";
 import AppHeader from "~/components/AppHeader";
-import ParkingFacilityBrowser from "~/components/ParkingFacilityBrowser";
 import Modal from "src/components/Modal";
 import Overlay from "src/components/Overlay";
 import Parking from "~/components/Parking";
@@ -30,21 +25,28 @@ import {
   setActiveMunicipalityInfo,
 } from "~/store/mapSlice";
 
-import { useAllFietsenstallingen } from "~/hooks/useAllFietsenstallingen";
+import { ParkingDetailsType } from "~/types/parking";
+import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
+
+import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
+import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
+
 
 const Content: NextPage = () => {
   
   const dispatch = useDispatch();
   const pathName = usePathname();
 
-  const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
-  const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
-
-  const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
-
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
   );
+
+  const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
+  const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
+
+  // const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
+  const { fietsenstallingen: allparkingdata } = useFietsenstallingen(activeMunicipalityInfo?.ID||"");
+  const [ filteredstallingen, setFilteredstallingen] = useState<ParkingDetailsType[]>([]);
 
   // Do things is municipality if municipality is given by URL
   useEffect(() => {
@@ -77,21 +79,84 @@ const Content: NextPage = () => {
         const json = await response.json();
         if (!json.data) {
           setPageContent(false);
+          setFilteredstallingen([]);
           return;
         }
 
         // If result is an array with 1 node: Get node only
         const pageContentToSet = json.data;
         setPageContent(pageContentToSet);
+
+        // Decide on what parkings to show on this page, if any
+        const title = pageContentToSet.Title;
+        let parkingTypesToFilterOn: string[] = [];
+        if (title === 'Stallingen') {
+          parkingTypesToFilterOn = ['bewaakt', 'geautomatiseerd', 'onbewaakt', 'toezicht'];
+        }
+        else if (title === 'Buurtstallingen') {
+          parkingTypesToFilterOn = ['buurtstalling'];
+        }
+        else if (title === 'Fietstrommels' || title === 'fietstrommels') {
+          parkingTypesToFilterOn = ['fietstrommel'];
+        }
+        else if (title === 'Fietskluizen') {
+          parkingTypesToFilterOn = ['fietskluizen'];
+        } else {
+          parkingTypesToFilterOn = [];
+        }
+
+        const filtered = allparkingdata.filter(parking => parkingTypesToFilterOn.indexOf(parking.Type||"") > -1);
+        setFilteredstallingen(filtered);      
       } catch (err) {
         setPageContent(false);
+        setFilteredstallingen([]);
         console.error(err);
       }
     })();
   }, [
     pathName,
-    activeMunicipalityInfo
+    activeMunicipalityInfo,
+    allparkingdata
   ]);
+
+  const renderParkings = () => {
+    if (filteredstallingen.length === 0) {
+      return null;
+    }
+    return (
+      <div
+      className={`
+        ${ParkingFacilityBrowserStyles.ParkingFacilityBrowser}
+        ParkingFacilityBrowser
+        rounded-3xl
+        bg-white
+        py-0
+        text-left
+        shadow-lg
+      `}
+      style={{
+        maxWidth: "100%",
+        // height: "100%",
+        overflow: "auto",
+      }}
+    >
+        {(filteredstallingen || []).map((x) => {
+          return (
+            <div className="mb-0 ml-0 mr-0" key={x.ID}>
+              <ParkingFacilityBlock
+                id={'parking-facility-block-' + x.ID}
+                parking={x}
+                compact={x.ID !== currentStallingId}
+                expandParkingHandler={() => {setCurrentStallingId(x.ID)}}
+                openParkingHandler={() => {}}
+              />
+            </div>
+          );
+        })}
+
+      </div>
+    );
+  }
 
   const isSm = typeof window !== "undefined" && window.innerWidth < 640;
   const isLg = typeof window !== "undefined" && window.innerWidth < 768;
@@ -110,20 +175,6 @@ const Content: NextPage = () => {
 
   const isFaq = pageContent.Title === 'FAQ';
 
-  // Decide on what parkings to show on this page, if any
-  let parkingTypesToFilterOn: string[] | undefined;
-  if (pageContent && pageContent.Title === 'Stallingen') {
-    parkingTypesToFilterOn = ['bewaakt', 'geautomatiseerd', 'onbewaakt', 'toezicht'];
-  }
-  else if (pageContent && pageContent.Title === 'Buurtstallingen') {
-    parkingTypesToFilterOn = ['buurtstalling'];
-  }
-  else if (pageContent && (pageContent.Title === 'Fietstrommels' || pageContent.Title === 'fietstrommels')) {
-    parkingTypesToFilterOn = ['fietstrommel'];
-  }
-  else if (pageContent && pageContent.Title === 'Fietskluizen') {
-    parkingTypesToFilterOn = ['fietskluizen'];
-  }
 
   return (
     <>
@@ -182,22 +233,7 @@ const Content: NextPage = () => {
             width: '414px'
           }}
         >
-          {parkingTypesToFilterOn && <ParkingFacilityBrowser
-            customFilter={(parkingdata) => {
-              return parkingTypesToFilterOn.indexOf(parkingdata.Type||"") > -1
-                && (
-                  // Check if parking municipality == active municipality
-                  (activeMunicipalityInfo?.CompanyName && activeMunicipalityInfo.CompanyName.toLowerCase().indexOf(parkingdata.Plaats?.toLowerCase()) > -1)
-                  // Hide parkings without municipality, if municipality is set
-                  // This makes sure not all Dutch NS stallingen are shown on a municipality page
-                  && (parkingdata.Plaats && parkingdata.Plaats.length > 0)
-                );
-            }}
-            onShowStallingDetails={(id: any) => {
-              setCurrentStallingId(id);
-            }}
-            allparkingdata={allparkingdata}
-          />}
+          {renderParkings()}
         </div>
       </div>
 
