@@ -194,7 +194,6 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           <UserEditComponent 
             id={currentUserId} 
             siteID={currentContactID}
-            onlyAllowRoleChange={false}
             onClose={() => handleOnClose(true)}
           />
         );
