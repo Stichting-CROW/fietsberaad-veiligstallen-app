@@ -229,8 +229,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           />
         </div>
         
-        {/* enable this when we are updating the info properly in the backend
-         { article.DateModified ? 
+       { article.DateModified ? 
             <div>
               <label className="block text-sm font-bold text-gray-700">Laatst aangepast door {article.EditorModified || "Onbekend" } op {article.DateModified ? new Date(article.DateModified).toLocaleDateString() : ''}</label>
             </div>
@@ -238,7 +237,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
                 <div>
                   <label className="block text-sm font-bold text-gray-700">Aangemaakt door {article.EditorCreated || "Onbekend" } op {article.DateCreated ? new Date(article.DateCreated).toLocaleDateString() : ''}</label>
                 </div>
-        } */}
+        }
 
         <div className="flex justify-end space-x-4 pt-4">
           <button
