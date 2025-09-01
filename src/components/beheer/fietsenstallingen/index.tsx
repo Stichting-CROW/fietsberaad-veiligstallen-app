@@ -323,10 +323,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
           <div className="flex gap-4">
             {/* Visibility filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="visibilityFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Toegang
               </label>
               <select
+                id="visibilityFilter"
                 value={selectedVisibilityFilter}
                 onChange={(e) => setSelectedVisibilityFilter(e.target.value)}
                 className="w-full p-2 border rounded"
@@ -338,10 +339,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             </div>
             {/* Type filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="typeFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Type
               </label>
               <select
+                id="typeFilter"
                 value={selectedTypeFilter}
                 onChange={(e) => setSelectedTypeFilter(e.target.value)}
                 className="w-full p-2 border rounded"
@@ -357,10 +359,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
             {/* Status filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
               <select
+                id="statusFilter"
                 value={selectedStatusFilter}
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
                 className="w-full p-2 border rounded"
