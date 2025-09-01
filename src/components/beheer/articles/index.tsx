@@ -203,7 +203,7 @@ const ArticlesComponent: React.FC = () => {
             },
             {
               header: 'Laatst gewijzigd',
-              accessor: (article) => new Date(article.DateModified || '').toLocaleDateString()
+              accessor: (article) => (article.DateModified ? new Date(article.DateModified || '').toLocaleDateString() : 'Nooit')
             },
             {
               header: 'Acties',
