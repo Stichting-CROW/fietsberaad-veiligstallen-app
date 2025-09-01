@@ -15,8 +15,6 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
   
   const filteredSubscriptionTypes = subscriptionTypes.filter(x => x.bikeparkTypeID === (parkingdata?.Type || ""));
 
-  console.log("abonnementLink", abonnementLink);
-
   if(isLoadingSubscriptionTypes || isLoadingAbonnementLink) {
     return <SectionBlock heading="Abonnementen">
       <div className="ml-2 grid grid-cols-3">
