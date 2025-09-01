@@ -33,9 +33,7 @@ import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
-import ExploreUsersComponentColdfusion from '~/ExploreUsersComponentColdfusion';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
-import ExploreArticlesComponent from '~/components/ExploreArticlesComponent';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
