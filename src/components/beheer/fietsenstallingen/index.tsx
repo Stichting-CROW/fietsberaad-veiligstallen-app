@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useSelector } from 'react-redux';
-import { type AppState } from '~/store/store';
 import type { ParkingDetailsType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import { getParkingDetails } from "~/utils/parkings";
