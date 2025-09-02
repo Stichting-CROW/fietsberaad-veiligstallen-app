@@ -33,9 +33,7 @@ import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
-import ExploreUsersComponentColdfusion from '~/ExploreUsersComponentColdfusion';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
-import ExploreArticlesComponent from '~/components/ExploreArticlesComponent';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -281,9 +279,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           if (!hasInstellingenSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <ArticlesComponent
-              type="pages"
-            />
+            selectedComponent = <ArticlesComponent/>
           }
           break;
         case VSMenuTopic.Faq:
@@ -341,9 +337,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         //   break;
         case VSMenuTopic.ExploreGemeenten:
           selectedComponent = <ExploreGemeenteComponent />;
-          break;
-        case VSMenuTopic.ExplorePages:
-          selectedComponent = <ExploreArticlesComponent gemeenten={gemeenten || []} />;
           break;
         case VSMenuTopic.Logboek:
           selectedComponent = <LogboekComponent />;
@@ -428,18 +421,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.ApisOverzicht:
           selectedComponent = <ApisComponent type="overzicht" />;
-          break;
-        case VSMenuTopic.ArticlesAbonnementen:
-          selectedComponent = <ArticlesComponent type="abonnementen" />;
-          break;
-        case VSMenuTopic.ArticlesArticles:
-          selectedComponent = <ArticlesComponent type="articles" />;
-          break;
-        case VSMenuTopic.ArticlesBuurtstallingen:
-          selectedComponent = <ArticlesComponent type="buurtstallingen" />;
-          break;
-        case VSMenuTopic.ArticlesFietskluizen:
-          selectedComponent = <ArticlesComponent type="fietskluizen" />;
           break;
         // case VSMenuTopic.StallingInfo:
         //   selectedComponent = <StallingInfoComponent />;

@@ -775,9 +775,8 @@ const ParkingEdit = ({
       let address: ReverseGeocodeResult | false = false;
       const theCoords = newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
       if(theCoords !== undefined && theCoords !== null) {
-          // console.log("** REVERSE GEOCODING", theCoords);
+          console.log("** REVERSE GEOCODING", theCoords);
          address = await reverseGeocode(theCoords);
-         // console.log("** REVERSE GEOCODING RESULT", address);
       } 
 
       if (address && address.address) {

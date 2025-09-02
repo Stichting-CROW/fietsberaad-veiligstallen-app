@@ -15,7 +15,7 @@ import { TRANSFORMERS } from '@lexical/markdown';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, type LexicalEditor, $getSelection, $isRangeSelection, createCommand } from 'lexical';
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './RichTextEditor.module.css';
 import Toolbar from './Toolbar';
 
@@ -24,49 +24,26 @@ interface RichTextEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  showToggleRaw?: boolean;
 }
 
 const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
   return <div className={styles.editorErrorBoundary}>{children}</div>;
 };
 
-const LINK_COMMAND = createCommand<string>('LINK');
 
-// Plugin to handle link creation
-const LinkCommandPlugin = () => {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    return editor.registerCommand(
-      LINK_COMMAND,
-      (payload) => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection)) {
-          const url = payload;
-          if (url) {
-            // Ensure URL has protocol
-            const urlWithProtocol = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')
-              ? url 
-              : `https://${url}`;
-            
-            editor.dispatchCommand(TOGGLE_LINK_COMMAND, urlWithProtocol);
-          }
-        }
-        return true;
-      },
-      0
-    );
-  }, [editor]);
-
-  return null;
-};
 
 const RichTextEditor: React.FC<RichTextEditorProps> = ({
   value,
   onChange,
   placeholder,
   className = '',
+  showToggleRaw = false,
 }) => {
+  const [isRawView, setIsRawView] = useState(false);
+  const [rawHtml, setRawHtml] = useState(value);
+  const [editorKey, setEditorKey] = useState(0); // Force re-render of LexicalComposer
+
   const initialConfig = {
     namespace: 'RichTextEditor',
     onError: (error: Error) => {
@@ -89,7 +66,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       const root = $getRoot();
       if (root.getTextContentSize() === 0) {
         const parser = new DOMParser();
-        const dom = parser.parseFromString(value, 'text/html');
+        // Use rawHtml if we're switching back from raw mode, otherwise use the original value
+        const htmlToParse = rawHtml;
+        const dom = parser.parseFromString(htmlToParse, 'text/html');
         const nodes = $generateNodesFromDOM(editor, dom);
         root.append(...nodes);
       }
@@ -98,28 +77,53 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   return (
     <div className={`${styles.richTextEditor} ${className}`}>
-      <LexicalComposer initialConfig={initialConfig}>
+      <LexicalComposer key={editorKey} initialConfig={initialConfig}>
         <div className={styles.editorContainer}>
-          <Toolbar />
-          <RichTextPlugin
-            contentEditable={<ContentEditable className={styles.editorInput} />}
-            placeholder={<div className={styles.editorPlaceholder}>{placeholder}</div>}
-            ErrorBoundary={ErrorBoundary}
+          <Toolbar 
+            onToggleRawView={() => {
+              if (isRawView) {
+                // Switching from raw to formatted mode - update editor with new content
+                setEditorKey(prev => prev + 1);
+              }
+              setIsRawView(!isRawView);
+            }}
+            isRawView={isRawView}
+            showToggleRaw={showToggleRaw}
           />
-          <HistoryPlugin />
-          <AutoFocusPlugin />
-          <ListPlugin />
-          <LinkPlugin validateUrl={(url) => {
-            try {
-              new URL(url);
-              return true;
-            } catch {
-              return false;
-            }
-          }} />
-          <LinkCommandPlugin />
-          <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-          <OnChangePlugin onChange={onChange} />
+          {isRawView ? (
+            <div className={styles.rawViewContainer}>
+              <textarea
+                className={styles.rawHtmlInput}
+                value={rawHtml}
+                onChange={(e) => {
+                  setRawHtml(e.target.value);
+                  onChange(e.target.value);
+                }}
+                placeholder="Enter HTML code here..."
+              />
+            </div>
+          ) : (
+            <>
+              <RichTextPlugin
+                contentEditable={<ContentEditable className={styles.editorInput} />}
+                placeholder={<div className={styles.editorPlaceholder}>{placeholder}</div>}
+                ErrorBoundary={ErrorBoundary}
+              />
+              <HistoryPlugin />
+              {/* <AutoFocusPlugin /> */}
+              <ListPlugin />
+              <LinkPlugin validateUrl={(url) => {
+                try {
+                  new URL(url);
+                  return true;
+                } catch {
+                  return false;
+                }
+              }} />
+              <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+              <OnChangePlugin onChange={onChange} onRawHtmlUpdate={setRawHtml} />
+            </>
+          )}
         </div>
       </LexicalComposer>
     </div>
@@ -127,7 +131,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 };
 
 // Plugin to handle changes and convert to HTML
-const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => {
+const OnChangePlugin = ({ onChange, onRawHtmlUpdate }: { onChange: (value: string) => void; onRawHtmlUpdate: (value: string) => void }) => {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
@@ -135,9 +139,10 @@ const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => 
       editorState.read(() => {
         const htmlString = $generateHtmlFromNodes(editor);
         onChange(htmlString);
+        onRawHtmlUpdate(htmlString);
       });
     });
-  }, [editor, onChange]);
+  }, [editor, onChange, onRawHtmlUpdate]);
 
   return null;
 };

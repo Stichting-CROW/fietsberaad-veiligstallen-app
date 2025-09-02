@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useSelector } from 'react-redux';
-import { type AppState } from '~/store/store';
 import type { ParkingDetailsType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import { getParkingDetails } from "~/utils/parkings";
@@ -265,8 +263,6 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       return <span className="text-red-500">●</span>;
     } else if (status === "aanm") {
       return "Aanmelding";
-    } else if (status === "new") {
-      return "Nieuw";
     }
     return status || '';
   };
@@ -323,10 +319,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
           <div className="flex gap-4">
             {/* Visibility filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="visibilityFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Toegang
               </label>
               <select
+                id="visibilityFilter"
                 value={selectedVisibilityFilter}
                 onChange={(e) => setSelectedVisibilityFilter(e.target.value)}
                 className="w-full p-2 border rounded"
@@ -338,10 +335,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             </div>
             {/* Type filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="typeFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Type
               </label>
               <select
+                id="typeFilter"
                 value={selectedTypeFilter}
                 onChange={(e) => setSelectedTypeFilter(e.target.value)}
                 className="w-full p-2 border rounded"
@@ -357,10 +355,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
             {/* Status filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
               <select
+                id="statusFilter"
                 value={selectedStatusFilter}
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
                 className="w-full p-2 border rounded"
@@ -369,7 +368,6 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                 <option value="1">Actief</option>
                 <option value="0">Inactief</option>
                 <option value="aanm">Aanmelding</option>
-                <option value="new">Nieuw</option>
               </select>
             </div>
 

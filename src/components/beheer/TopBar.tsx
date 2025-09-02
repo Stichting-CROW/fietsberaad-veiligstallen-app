@@ -103,10 +103,10 @@ const TopBar: React.FC<TopBarProps> = ({
 
   const renderLogo = () => {
     const activecontact = selectedOrganisationInfo;
-    console.log('renderLogo :: activecontact', activecontact);
+    // console.log('renderLogo :: activecontact', activecontact);
     
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-      console.log('renderLogo :: activecontact.CompanyLogo starts with http');
+      //console.log('renderLogo :: activecontact.CompanyLogo starts with http');
       return <img src={activecontact?.CompanyLogo} className="max-h-16 w-auto bg-white p-2" />
     }
 
@@ -119,7 +119,7 @@ const TopBar: React.FC<TopBarProps> = ({
             logofile = '/' + logofile;
           }
       }
-      console.log('renderLogo :: logofile from activecontact.CompanyLogo', logofile);
+      //console.log('renderLogo :: logofile from activecontact.CompanyLogo', logofile);
 
       return <ImageWithFallback
         src={logofile}
