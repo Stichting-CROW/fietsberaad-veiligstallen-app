@@ -1,3 +1,5 @@
+"use client";
+
 import { type NextPage } from "next";
 import type { Metadata } from "next";
 
@@ -7,7 +9,7 @@ import { type Session } from "next-auth";
 import { type HomeComponentProps } from "~/components/HomeComponent";
 
 // import HomeComponent from "~/components/HomeComponent";
-import Content from "../../content";
+import Content from "~/components/Content";
 
 export const getServerSideProps = async (context: any) => {
     try {
@@ -42,6 +44,9 @@ export const getServerSideProps = async (context: any) => {
   }
 
   const MunicipalitySlug: NextPage<HomeComponentProps> = ( props : any) => {
+    console.log("===> MunicipalitySlug - props", props);
+    console.log("===> MunicipalitySlug - url_municipality", props.url_municipality);
+    console.log("===> MunicipalitySlug - url_municipalitypage", props.url_municipalitypage);
     return <Content {...props} />;
   }
 

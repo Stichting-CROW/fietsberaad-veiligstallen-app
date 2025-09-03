@@ -14,7 +14,7 @@ import Parking from "~/components/Parking";
 import Faq from "~/components/Faq";
 import FooterNav from "~/components/FooterNav";
 
-import Styles from "./content.module.css";
+import Styles from "./Content.module.css";
 import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 
 import {
@@ -31,15 +31,22 @@ import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 
+interface ContentProps {
+  url_municipality?: string;
+  url_municipalitypage?: string;
+}
 
-const Content: NextPage = () => {
-  
+const Content: NextPage = (props: ContentProps) => {
+  console.log("===> Content - START - props", props);
+  console.log("===> Content - START - props.url_municipality", props.url_municipality);
+  console.log("===> Content - START - props.url_municipalitypage", props.url_municipalitypage);
   const dispatch = useDispatch();
-  const pathName = usePathname();
+  // const pathName = usePathname();
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
   );
+  console.log("===> Content - activeMunicipalityInfo", activeMunicipalityInfo);
 
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
   const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
@@ -50,32 +57,43 @@ const Content: NextPage = () => {
 
   // Do things is municipality if municipality is given by URL
   useEffect(() => {
-    const municipalitySlug = pathName.split('/')[pathName.split('/').length - 2];
-    if (!municipalitySlug) return;
+    // const municipalitySlug = pathName.split('/')[pathName.split('/').length - 2];
+    // console.log("===> Content - municipalitySlug", municipalitySlug);
+    // if (!municipalitySlug) return;
 
     // Get municipality based on urlName
     (async () => {
+      if(!props.url_municipality) return;
+      console.log("===> Content - props.url_municipality", props.url_municipality);
       // Get municipality
-      const municipality = await getMunicipalityBasedOnUrlName(municipalitySlug);
+      const municipality = await getMunicipalityBasedOnUrlName(props.url_municipality);
       // Set municipality info in redux
+      console.log("===> Content - municipality", municipality);
       dispatch(setActiveMunicipalityInfo(municipality));
     })();
   }, [
-    pathName
+    props.url_municipality
   ]);
 
   // Get article content based on slug
   useEffect(() => {
-    if (!pathName) return;
-    if (!activeMunicipalityInfo || !activeMunicipalityInfo.ID) return;
-    const pageSlug = pathName.split('/')[pathName.split('/').length - 1];
-    if (!pageSlug) return;
+    if (!props.url_municipalitypage) {
+      console.log("===> Content - no props.url_municipalitypage");
+      return;
+    }
+    // if (!pathName) return;
+    if (!activeMunicipalityInfo || !activeMunicipalityInfo.ID) {
+      console.log("===> Content - no activeMunicipalityInfo or activeMunicipalityInfo.ID");
+      return;
+    }
+    // const pageSlug = pathName.split('/')[pathName.split('/').length - 1];
+    // if (!pageSlug) return;
 
     (async () => {
       try {
-        const response = await fetch(
-          `/api/protected/articles/?compact=false&Title=${pageSlug}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`
-        );
+        const url = `/api/protected/articles/?compact=false&Title=${props.url_municipalitypage}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`;
+        console.log("#### Content - Fetch pagecontent via url", url);
+        const response = await fetch(url);
         const json = await response.json();
         if (!json.data) {
           setPageContent(false);
@@ -114,7 +132,8 @@ const Content: NextPage = () => {
       }
     })();
   }, [
-    pathName,
+    props.url_municipality,
+    props.url_municipalitypage,
     activeMunicipalityInfo,
     allparkingdata
   ]);
@@ -165,6 +184,8 @@ const Content: NextPage = () => {
     console.debug("===> Content - pageContent is undefined");
     return <LoadingSpinner />;
   }
+
+  console.debug("===> Content - pageContent is ", pageContent);
 
   if (pageContent === false) {
     console.debug("===> Content - pageContent is false");

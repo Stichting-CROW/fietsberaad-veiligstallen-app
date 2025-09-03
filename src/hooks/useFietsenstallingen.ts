@@ -18,7 +18,7 @@ export const useFietsenstallingen = (GemeenteID: string) => {
       setError(null);
 
       if(GemeenteID==="") {
-        console.log("fetchFietsenstallingen", GemeenteID, "=> no GemeenteID");
+        // console.log("fetchFietsenstallingen", GemeenteID, "=> no GemeenteID");
         setFietsenstallingen([]);
         return;
       }
