@@ -44,9 +44,6 @@ export const getServerSideProps = async (context: any) => {
   }
 
   const MunicipalitySlug: NextPage<HomeComponentProps> = ( props : any) => {
-    console.log("===> MunicipalitySlug - props", props);
-    console.log("===> MunicipalitySlug - url_municipality", props.url_municipality);
-    console.log("===> MunicipalitySlug - url_municipalitypage", props.url_municipalitypage);
     return <Content {...props} />;
   }
 
