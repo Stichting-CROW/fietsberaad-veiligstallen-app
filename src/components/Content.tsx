@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { type NextPage } from "next/types";
 import { useSelector, useDispatch } from "react-redux";
 import Head from "next/head";
-import { usePathname } from 'next/navigation';
 import { type AppState } from "~/store/store";
 
 // Import components
@@ -14,7 +13,7 @@ import Parking from "~/components/Parking";
 import Faq from "~/components/Faq";
 import FooterNav from "~/components/FooterNav";
 
-import Styles from "./content.module.css";
+import Styles from "./Content.module.css";
 import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 
 import {
@@ -31,11 +30,13 @@ import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 
+interface ContentProps {
+  url_municipality?: string;
+  url_municipalitypage?: string;
+}
 
-const Content: NextPage = () => {
-  
+const Content: NextPage = (props: ContentProps) => {
   const dispatch = useDispatch();
-  const pathName = usePathname();
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -44,38 +45,40 @@ const Content: NextPage = () => {
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
   const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
 
-  // const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
   const { fietsenstallingen: allparkingdata } = useFietsenstallingen(activeMunicipalityInfo?.ID||"");
   const [ filteredstallingen, setFilteredstallingen] = useState<ParkingDetailsType[]>([]);
 
   // Do things is municipality if municipality is given by URL
   useEffect(() => {
-    const municipalitySlug = pathName.split('/')[pathName.split('/').length - 2];
-    if (!municipalitySlug) return;
-
     // Get municipality based on urlName
     (async () => {
+      if(!props.url_municipality) return;
       // Get municipality
-      const municipality = await getMunicipalityBasedOnUrlName(municipalitySlug);
+      const municipality = await getMunicipalityBasedOnUrlName(props.url_municipality);
       // Set municipality info in redux
       dispatch(setActiveMunicipalityInfo(municipality));
     })();
   }, [
-    pathName
+    props.url_municipality
   ]);
 
   // Get article content based on slug
   useEffect(() => {
-    if (!pathName) return;
-    if (!activeMunicipalityInfo || !activeMunicipalityInfo.ID) return;
-    const pageSlug = pathName.split('/')[pathName.split('/').length - 1];
-    if (!pageSlug) return;
+    if (!props.url_municipalitypage) {
+      console.warn("===> Content - no municipality given");
+      return;
+    }
+    // if (!pathName) return;
+    if (!activeMunicipalityInfo || !activeMunicipalityInfo.ID) {
+      console.debug("===> Content - no active municipality ID available");
+      return;
+    }
 
     (async () => {
       try {
-        const response = await fetch(
-          `/api/protected/articles/?compact=false&Title=${pageSlug}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`
-        );
+        const url = `/api/protected/articles/?compact=false&Title=${props.url_municipalitypage}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`;
+        console.log("#### Content - Fetch pagecontent via url", url);
+        const response = await fetch(url);
         const json = await response.json();
         if (!json.data) {
           setPageContent(false);
@@ -114,7 +117,8 @@ const Content: NextPage = () => {
       }
     })();
   }, [
-    pathName,
+    props.url_municipality,
+    props.url_municipalitypage,
     activeMunicipalityInfo,
     allparkingdata
   ]);
@@ -165,6 +169,8 @@ const Content: NextPage = () => {
     console.debug("===> Content - pageContent is undefined");
     return <LoadingSpinner />;
   }
+
+  console.debug("===> Content - pageContent is ", pageContent);
 
   if (pageContent === false) {
     console.debug("===> Content - pageContent is false");
@@ -245,7 +251,6 @@ const Content: NextPage = () => {
           <Parking id={'parking-' + currentStallingId}
             stallingId={currentStallingId}
             onStallingIdChanged={newId => {
-              console.log("content - onStallingIdChanged overlay", newId);
               setCurrentStallingId(newId);
             }}
             onClose={() => setCurrentStallingId(undefined)}
@@ -262,7 +267,6 @@ const Content: NextPage = () => {
             id={'parking-' + currentStallingId}
             stallingId={currentStallingId}
             onStallingIdChanged={newId => {
-              console.log("content - onStallingIdChanged modal", newId);
               setCurrentStallingId(newId);
             }}
             onClose={() => setCurrentStallingId(undefined)}
