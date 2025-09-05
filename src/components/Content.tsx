@@ -30,13 +30,11 @@ import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 
-interface ContentProps {
-  url_municipality?: string;
-  url_municipalitypage?: string;
-}
 
-const Content: NextPage = (props: ContentProps) => {
+const Content: NextPage = () => {
+  
   const dispatch = useDispatch();
+  const pathName = usePathname();
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -45,6 +43,7 @@ const Content: NextPage = (props: ContentProps) => {
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
   const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
 
+  // const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
   const { fietsenstallingen: allparkingdata } = useFietsenstallingen(activeMunicipalityInfo?.ID||"");
   const [ filteredstallingen, setFilteredstallingen] = useState<ParkingDetailsType[]>([]);
 
@@ -117,8 +116,7 @@ const Content: NextPage = (props: ContentProps) => {
       }
     })();
   }, [
-    props.url_municipality,
-    props.url_municipalitypage,
+    pathName,
     activeMunicipalityInfo,
     allparkingdata
   ]);
