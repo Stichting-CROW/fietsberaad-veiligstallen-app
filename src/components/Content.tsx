@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { type NextPage } from "next/types";
 import { useSelector, useDispatch } from "react-redux";
 import Head from "next/head";
 import { type AppState } from "~/store/store";
@@ -30,11 +29,9 @@ import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 
-
-const Content: NextPage = () => {
+const Content: React.FC<{ url_municipality: string, url_municipalitypage: string }> = (props: { url_municipality: string, url_municipalitypage: string }) => {
   
   const dispatch = useDispatch();
-  const pathName = usePathname();
 
   const activeMunicipalityInfo = useSelector(
     (state: AppState) => state.map.activeMunicipalityInfo
@@ -116,9 +113,10 @@ const Content: NextPage = () => {
       }
     })();
   }, [
-    pathName,
     activeMunicipalityInfo,
-    allparkingdata
+    allparkingdata,
+    props.url_municipalitypage,
+    props.url_municipality
   ]);
 
   const renderParkings = () => {
