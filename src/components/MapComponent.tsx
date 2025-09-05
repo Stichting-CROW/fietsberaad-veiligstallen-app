@@ -33,6 +33,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
 import type { ParkingDetailsType } from "~/types/parking";
+import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -275,28 +276,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           source: "fietsenstallingen",
           type: "circle",
           filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#fff",
-            "circle-radius": 5,
-            "circle-stroke-width": 4,
-            "circle-stroke-color": [
-              "match",
-              ["get", "type"],
-              "bewaakt",
-              "#00BDD5",
-              "geautomatiseerd",
-              "#028090",
-              "fietskluizen",
-              "#9E1616",
-              "fietstrommel",
-              "#DF4AAD",
-              "buurtstalling",
-              "#FFB300",
-              "publiek",
-              "#00CE83",
-              "#00CE83",
-            ],
-          },
+          paint: COLORMATCHFORPARKINGTYPE,
           "icon-allow-overlap": true,
           minzoom: 12,
         });
