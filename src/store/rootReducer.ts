@@ -1,4 +1,5 @@
 import { combineReducers } from "redux";
+import { HYDRATE } from "next-redux-wrapper";
 import { authSlice } from "./authSlice";
 import { adminSlice } from "./adminSlice";
 import { filterSlice } from "./filterSlice";
@@ -10,7 +11,7 @@ import gemeenteFiltersReducer from './gemeenteFiltersSlice';
 import reportsFiltersReducer from './reportsFiltersSlice';
 import articleFiltersReducer from './articleFiltersSlice';
 
-const rootReducer = combineReducers({
+const combinedReducer = combineReducers({
   [authSlice.name]: authSlice.reducer,
   [adminSlice.name]: adminSlice.reducer,
   [filterSlice.name]: filterSlice.reducer,
@@ -22,6 +23,18 @@ const rootReducer = combineReducers({
   reportsFilters: reportsFiltersReducer,
   articleFilters: articleFiltersReducer,
 });
+
+const rootReducer = (state: any, action: any) => {
+  if (action.type === HYDRATE) {
+    const nextState = {
+      ...state, // use previous state
+      ...action.payload, // apply delta from hydration
+    };
+    return nextState;
+  } else {
+    return combinedReducer(state, action);
+  }
+};
 
 export type RootState = ReturnType<typeof rootReducer>;
 
