@@ -62,6 +62,11 @@ const CardList: React.FC<Props> = ({
 
   const [sliderRef, slider] = useKeenSlider<HTMLDivElement>(sliderProps);
 
+  // Helper function to find parking index by ID
+  const findParkingIndex = (parkings: ParkingDetailsType[], parkingId: string): number => {
+    return parkings.findIndex(parking => parking.ID === parkingId);
+  };
+
   // If mapVisibleFeatures change: Filter parkings
   useEffect(() => {
     if (!allparkingdata) return;
@@ -107,19 +112,21 @@ const CardList: React.FC<Props> = ({
   ])
 
   // Scroll to selected parking if selected parking changes
-  // useEffect(() => {
-  //   // Stop if no parking was selected
-  //   if(! selectedParkingId) return;
-  //   if(! slider) return;
+  useEffect(() => {
+    // Stop if no parking was selected
+    if(! selectedParkingId) return;
+    if(! slider) return;
 
-  //   // Find index of selected parking
-  //   // Move to current slide, but wait on the flyTo animation first.
-  //   // curve: 1 & speed: 0.2 => 1*0.2 = 0.2s
-  //   if(selectedParkingId) {
-  //     const idx = findParkingIndex(visibleParkings, selectedParkingId);
-  //     slider.current.moveToIdx(idx);
-  //   }
-  // }, [selectedParkingId]);
+    // Find index of selected parking
+    // Move to current slide, but wait on the flyTo animation first.
+    // curve: 1 & speed: 0.2 => 1*0.2 = 0.2s
+    if(selectedParkingId) {
+      const idx = findParkingIndex(visibleParkings, selectedParkingId);
+      if (idx !== -1) {
+        slider.current.moveToIdx(idx);
+      }
+    }
+  }, [selectedParkingId, visibleParkings, slider]);
 
   const expandParking = (id: string) => {
     // Set active parking ID

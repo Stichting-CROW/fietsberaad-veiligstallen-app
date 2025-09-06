@@ -58,6 +58,7 @@ interface GeoJsonFeature {
     coordinates: number[];
   };
   properties: {
+    id: string;
     title: string;
     location: string;
     plaats: string;
@@ -493,6 +494,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     // });
     // Show parking info on click
     mapboxMap.on("click", "fietsenstallingen-markers", (e) => {
+      // Prevent event from bubbling up to the container
+      e.originalEvent.stopPropagation();
+      
       // Enlarge parking icon on click
       highlightMarker(mapboxMap, e.features[0].properties.id);
       // Make clicked parking active
@@ -510,6 +514,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
 
     // Zoom in on cluster click
     mapboxMap.on("click", "fietsenstallingen-clusters", (e) => {
+      // Prevent event from bubbling up to the container
+      e.originalEvent.stopPropagation();
+      
       // Zoom in
       mapboxMap.flyTo({
         center: e.lngLat,
