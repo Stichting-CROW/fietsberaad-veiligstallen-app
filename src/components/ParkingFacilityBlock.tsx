@@ -102,7 +102,7 @@ function ParkingFacilityBlock({
         }
       `}
       style={{
-        backgroundColor: !compact ? 'rgba(31, 153, 210, 0.1)' : undefined
+        backgroundColor: !compact ? 'rgba(31, 153, 210, 0.2)' : undefined
       }}
       onClick={() => {
         // Expand parking if expandParkingHandler was given

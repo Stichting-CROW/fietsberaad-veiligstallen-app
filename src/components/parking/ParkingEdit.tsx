@@ -933,7 +933,7 @@ const ParkingEdit = ({
                     className="mr-4 mt-4" 
                     onClick={handleAddressLookup}
                   >
-                    Bepaal Coördinaten
+                    Toon op kaart
                   </Button>
                 )}
               </>

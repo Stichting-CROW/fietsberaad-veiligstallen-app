@@ -285,11 +285,25 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     }
 
     const showTypeColumn = selectedTypeFilter === 'all';
+    const nAanmeldingen = fietsenstallingen.filter(x => x.Status === "aanm"); 
 
     return (
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
+            {nAanmeldingen.length > 0 && (
+              <button
+                onClick={() => setSelectedStatusFilter('aanm')}
+                className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
+                title="Klik om aanmeldingen te filteren"
+              >
+                <span className="text-yellow-600 text-2xl">⚠️</span>
+                { nAanmeldingen.length > 1 && (<span>Er zijn nieuwe stallingen aangemeld in uw gemeente, Klik hier om ze te bekijken.</span>)}
+                { nAanmeldingen.length === 1 && (<span>Er is een nieuwe stalling aangemeld, Klik hier om deze te bekijken.</span>)}
+              </button>
+            )}
+          </div>
           {canCreateNew && (
             <button 
               onClick={() => handleEdit('new')}

@@ -35,7 +35,7 @@ export const FILTERBOX_OPTIONS = [
   },
   {
     id: "onbewaakt",
-    name: "publiek",
+    name: "onbewaakt",
     title: "Onbewaakte stalling",
     active: false,
   },

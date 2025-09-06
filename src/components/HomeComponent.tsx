@@ -592,13 +592,6 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const showArticlesBox = activeArticleMunicipality !== undefined && activeArticleTitle !== undefined;
     // console.debug("@@@@ HomeComponent - showArticlesBox", showArticlesBox, activeArticleMunicipality, activeArticleTitle);
 
-    let filteredFietsenstallingen: ParkingDetailsType[] = [];
-    if (allparkingdata) {
-      const showNew = activeTypes2 && activeTypes2.includes("show_submissions");
-      const aFilter = (x: any) => (showNew ? (x.Status === "aanm") : (x.Status !== "aanm"));
-      filteredFietsenstallingen = allparkingdata.filter(aFilter);
-    }
-
     return (
       <>
         <main className="flex-grow">
@@ -647,7 +640,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           {/* <ParkingFacilities fietsenstallingen={fietsenstallingen} onStallingAamelden={handleStallingAanmelden}/> */}
           <div data-name="parking-facilities">
             <div className="flex flex-col items-center justify-center">
-                <MapboxMap fietsenstallingen={filteredFietsenstallingen} />
+                <MapboxMap fietsenstallingen={allparkingdata} />
             </div>
 
             <div data-comment="Show only on desktop" className="hidden sm:flex">

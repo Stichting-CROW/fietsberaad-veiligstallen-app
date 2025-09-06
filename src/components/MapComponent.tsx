@@ -33,6 +33,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
 import type { ParkingDetailsType } from "~/types/parking";
+import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -57,6 +58,7 @@ interface GeoJsonFeature {
     coordinates: number[];
   };
   properties: {
+    id: string;
     title: string;
     location: string;
     plaats: string;
@@ -275,28 +277,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           source: "fietsenstallingen",
           type: "circle",
           filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#fff",
-            "circle-radius": 5,
-            "circle-stroke-width": 4,
-            "circle-stroke-color": [
-              "match",
-              ["get", "type"],
-              "bewaakt",
-              "#00BDD5",
-              "geautomatiseerd",
-              "#028090",
-              "fietskluizen",
-              "#9E1616",
-              "fietstrommel",
-              "#DF4AAD",
-              "buurtstalling",
-              "#FFB300",
-              "publiek",
-              "#00CE83",
-              "#00CE83",
-            ],
-          },
+          paint: COLORMATCHFORPARKINGTYPE,
           "icon-allow-overlap": true,
           minzoom: 12,
         });
@@ -513,6 +494,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     // });
     // Show parking info on click
     mapboxMap.on("click", "fietsenstallingen-markers", (e) => {
+      // Prevent event from bubbling up to the container
+      e.originalEvent.stopPropagation();
+      
       // Enlarge parking icon on click
       highlightMarker(mapboxMap, e.features[0].properties.id);
       // Make clicked parking active
@@ -530,6 +514,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
 
     // Zoom in on cluster click
     mapboxMap.on("click", "fietsenstallingen-clusters", (e) => {
+      // Prevent event from bubbling up to the container
+      e.originalEvent.stopPropagation();
+      
       // Zoom in
       mapboxMap.flyTo({
         center: e.lngLat,
