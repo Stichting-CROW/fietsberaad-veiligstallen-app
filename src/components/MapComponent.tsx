@@ -446,18 +446,22 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   }
 
   const highlightMarker = (map: any, id: string) => {
-    map.setPaintProperty("fietsenstallingen-markers", "circle-radius", [
-      "case",
-      ["==", ["get", "id"], id],
-      10,
-      5,
-    ]);
-    map.setPaintProperty("fietsenstallingen-markers", "circle-stroke-width", [
-      "case",
-      ["==", ["get", "id"], id],
-      3,
-      4,
-    ]);
+    try {
+      map.setPaintProperty("fietsenstallingen-markers", "circle-radius", [
+        "case",
+        ["==", ["get", "id"], id],
+        10,
+        5,
+      ]);
+      map.setPaintProperty("fietsenstallingen-markers", "circle-stroke-width", [
+        "case",
+        ["==", ["get", "id"], id],
+        3,
+        4,
+      ]);
+    } catch (ex) {
+      console.warn("error in MapComponent highlightMarker call", ex);
+    }
   };
 
   // Function that's called if map is loaded
@@ -494,9 +498,6 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     // });
     // Show parking info on click
     mapboxMap.on("click", "fietsenstallingen-markers", (e) => {
-      // Prevent event from bubbling up to the container
-      e.originalEvent.stopPropagation();
-      
       // Enlarge parking icon on click
       highlightMarker(mapboxMap, e.features[0].properties.id);
       // Make clicked parking active
@@ -514,9 +515,6 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
 
     // Zoom in on cluster click
     mapboxMap.on("click", "fietsenstallingen-clusters", (e) => {
-      // Prevent event from bubbling up to the container
-      e.originalEvent.stopPropagation();
-      
       // Zoom in
       mapboxMap.flyTo({
         center: e.lngLat,
