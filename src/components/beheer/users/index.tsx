@@ -375,8 +375,8 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       },
     ];
 
-    const theuser = id && users.find((user) => user.UserID === id);
-
+    // const theuser = id && users.find((user) => user.UserID === id);
+    const currentGemeente = props.contacts.find(contact => contact.ID === props.siteID);
     return (
       <>
       { id && (
@@ -384,6 +384,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
           <UserEditComponent 
             id={id}      
             siteID={props.siteID}
+            siteCompanyName={currentGemeente?.CompanyName || "onbekend"}
             onClose={handleUserEditClose} 
           />, false, "Gebruiker bewerken", () => setId(undefined))
       )}

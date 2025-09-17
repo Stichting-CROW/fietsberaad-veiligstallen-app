@@ -17,6 +17,7 @@ import { type securityUserCreateSchema, type SecurityUserResponse, type security
 export interface UserEditComponentProps {
     id: string,
     siteID: string | null,
+    siteCompanyName: string,
     onClose: (userChanged: boolean, confirmClose: boolean) => void,
 }
 
@@ -301,31 +302,50 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
 
-    const sendEmail = () => {
+    const sendEmail = (isNew: boolean) => {
       const to = userName;
-      const subject = 'Welkom bij het Dashboard Deelmobiliteit!';
+      const subject = isNew ? 'Welkom bij het Dashboard Deelmobiliteit!' : 'Dashboard Deelmobiliteit: Wachtwoord gewijzigd';
       const currentPassword = isChangingPassword ? newPassword : password;
-      const body = `Beste ${displayName},
+      
+      const bodyNew = ` Beste ${displayName},
 
-Welkom bij het Dashboard Deelmobiliteit! Mocht je vragen of feedback hebben, neem dan vooral contact op met info@dashboarddeelmobiliteit.nl
+Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl. 
+ 
+Je inloggegevens zijn: 
+Gebruikersnaam: ${userName}
+Wachtwoord: ${currentPassword}
+Rol:  ${getNewRoleLabel(newRoleID)}
 
-Hierbij stuur ik je inloggegevens voor https://dashboarddeelmobiliteit.nl/login
+De rol die je gekregen hebt bepaalt welke rechten je hebt om informatie in te zien of aan te passen. Bijvoorbeeld informatie over stallingen aanpassen, teksten op de website bewerken of statistieken opvragen.
 
+Als je nog vragen hebt, hoor ik het graag.
+
+${session?.user?.name}
+${session?.user?.email}`;
+
+const bodyPassword = ` Beste ${displayName},
+
+Het wachtwoord van jouw account voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl is gewijzigd.
+ 
+Je nieuwe inloggegevens zijn: 
 Gebruikersnaam: ${userName}
 Wachtwoord: ${currentPassword}
 
-`;
+Als je nog vragen hebt, hoor ik het graag.
+
+${session?.user?.name}
+${session?.user?.email}`;
 
       // Create mailto URL with encoded parameters
-      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(isNew ? bodyNew : bodyPassword)}`;
       
       // Open the default email client
       window.open(mailtoUrl, '_blank');
     };
 
-    const handleEmailDialog = (shouldEmail: boolean) => {
+    const handleEmailDialog = (shouldEmail: boolean, isNew: boolean) => {
       if (shouldEmail) {
-        sendEmail();
+        sendEmail(isNew);
       }
       setShowEmailDialog(false);
       if (props.onClose) {
@@ -544,7 +564,7 @@ Wachtwoord: ${currentPassword}
                   Nee
                 </button>
                 <button
-                  onClick={() => handleEmailDialog(true)}
+                  onClick={() => handleEmailDialog(true, isNew)}
                   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                 >
                   Ja
