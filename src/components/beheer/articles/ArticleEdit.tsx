@@ -197,7 +197,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
         <div>
           <label htmlFor="Abstract" className="block text-sm font-bold text-gray-700">
-            Abstract
+            Inleiding
           </label>
           <PlainTextEditor
             value={article.Abstract || ''}
