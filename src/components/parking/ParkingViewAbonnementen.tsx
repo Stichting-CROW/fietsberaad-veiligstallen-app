@@ -8,6 +8,19 @@ import { useSubscriptionTypesForParking } from "~/hooks/useSubscriptionTypesForP
 import { LoadingSpinner } from "../beheer/common/LoadingSpinner";
 import { useAbonnementLink } from "~/hooks/useAbonnementLink";
 
+const renderGeenInfoBeschikbaar = () => {
+  return (
+    <>  
+      <SectionBlock heading="Abonnementen">
+        <div className="ml-2 grid grid-cols-1">
+          <div>Geen informatie over abonnementen beschikbaar</div>
+        </div>
+      </SectionBlock>
+      <HorizontalDivider className="my-4" />
+    </>
+  );
+};
+
 const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
 
   const { subscriptionTypes, isLoading: isLoadingSubscriptionTypes, error: errorSubscriptionTypes } = useSubscriptionTypesForParking(parkingdata?.ID||"");
@@ -24,11 +37,11 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
   }
 
   if(!abonnementLink || !abonnementLink.status || !filteredSubscriptionTypes ) {
-    return null;
+    return renderGeenInfoBeschikbaar();
   }
 
   if(filteredSubscriptionTypes.length === 0) {
-    return null;
+    return renderGeenInfoBeschikbaar();
   }
 
   return (

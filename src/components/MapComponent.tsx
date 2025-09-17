@@ -289,7 +289,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           id: "fietsenstallingen-clusters",
           source: "fietsenstallingen-clusters",
           type: "circle",
-          filter: ["has", "point_count"],
+          //filter: [">=", ["get", "point_count"], 1],
           paint: {
             // Use step expressions (https://maplibre.org/maplibre-gl-js-docs/style-spec/#expressions-step)
             // with three steps to implement three types of circles:
@@ -298,13 +298,18 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
             //   * Pink, 40px circles when point count is greater than or equal to 750
             "circle-color": "#fff",
             "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              20,
-              100,
-              30,
-              750,
-              40,
+              "case",
+              ["has", "point_count"],
+              [
+                "step",
+                ["get", "point_count"],
+                20,
+                100,
+                30,
+                750,
+                40,
+              ],
+              20
             ],
             "circle-stroke-width": 3,
             "circle-stroke-color": "#15AEEF",
@@ -319,11 +324,25 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           id: "fietsenstallingen-clusters-count",
           source: "fietsenstallingen-clusters",
           type: "symbol",
-          filter: ["has", "point_count"],
+          // filter: [">=", ["get", "point_count"], 1],
           layout: {
-            "text-field": "{point_count_abbreviated}",
+            "text-field": [
+              "case",
+              ["has", "point_count"],
+              ["get", "point_count_abbreviated"],
+              "1"
+            ],
             "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-            "text-size": ["step", ["get", "point_count"], 16, 100, 20, 750, 30],
+            "text-size": [
+              "case",
+              ["has", "point_count"],
+              ["step", 
+               ["get", "point_count"], 
+               16, 
+               100, 20, 
+               750, 30],
+              16
+            ],
           },
           paint: {
             "text-color": "#333333",

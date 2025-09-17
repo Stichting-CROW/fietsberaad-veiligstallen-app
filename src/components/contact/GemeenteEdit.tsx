@@ -27,9 +27,6 @@ type GemeenteEditProps = {
     id: string;
     fietsenstallingtypen: VSFietsenstallingType[]; 
     onClose?: (confirmClose: boolean) => void;
-    onEditStalling: (stallingID: string | undefined) => void;
-    onEditUser: (userID: string | undefined) => void;
-    onSendPassword: (userID: string | undefined) => void;
 }
 
 const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Data-eigenaar " + new Date().toISOString().slice(0, 16).replace('T', ' '));

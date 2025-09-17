@@ -47,12 +47,12 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
               component={VSMenuTopic.UsersGebruikersbeheerGemeente} 
               title={'Gebruikers'} activecomponent={activecomponent} 
               onSelect={onSelect} /> }
-        { (hasExploitantenToegangsrecht) && 
+        {/* { (hasExploitantenToegangsrecht) && 
             <LeftMenuItem 
               component={VSMenuTopic.ContactsExploitanten} 
               title={'Exploitanten'} 
               activecomponent={activecomponent} 
-              onSelect={onSelect} /> }
+              onSelect={onSelect} /> } */}
             {/* <LeftMenuItem 
               component={VSMenuTopic.ContactsDataproviders} 
               title={'Dataleveranciers'} 

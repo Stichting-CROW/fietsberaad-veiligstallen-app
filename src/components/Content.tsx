@@ -73,7 +73,6 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
     (async () => {
       try {
         const url = `/api/protected/articles/?compact=false&Title=${props.url_municipalitypage}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`;
-        console.log("#### Content - Fetch pagecontent via url", url);
         const response = await fetch(url);
         const json = await response.json();
         if (!json.data) {
@@ -104,7 +103,8 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
           parkingTypesToFilterOn = [];
         }
 
-        const filtered = allparkingdata.filter(parking => parkingTypesToFilterOn.indexOf(parking.Type||"") > -1);
+        const filtered = allparkingdata.filter(parking => (
+          parkingTypesToFilterOn.indexOf(parking.Type||"") > -1) && (parking.SiteID === activeMunicipalityInfo?.ID) && parking.ID!=="aanm");
         setFilteredstallingen(filtered);      
       } catch (err) {
         setPageContent(false);

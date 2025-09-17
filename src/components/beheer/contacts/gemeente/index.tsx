@@ -8,7 +8,6 @@ import GemeenteFilter from '~/components/beheer/common/GemeenteFilter';
 import { getParkingDetails } from "~/utils/parkings";
 import type { VSContactGemeenteInLijst } from "~/types/contacts";
 import type { ParkingDetailsType } from "~/types/parking";
-import { UserEditComponent } from '~/components/beheer/users/UserEditComponent';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useUsers } from '~/hooks/useUsers';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
@@ -24,34 +23,11 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
 
   const [filteredGemeenten, setFilteredGemeenten] = useState<VSContactGemeenteInLijst[]>([]);
   const [currentContactID, setCurrentContactID] = useState<string | undefined>(undefined);
-  const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
-  const [currentRevision, setCurrentRevision] = useState<number>(0);
-  const [currentStalling, setCurrentStalling] = useState<ParkingDetailsType | undefined>(undefined);
   const [sortColumn, setSortColumn] = useState<string>("Naam");
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsers();
   const { gemeenten, reloadGemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
-
-  useEffect(() => {
-    if (currentStallingId !== undefined) {
-      if(currentStalling === undefined || currentStalling?.ID !== currentStallingId) {
-        getParkingDetails(currentStallingId).then((stalling) => {
-          if (null !== stalling) {
-            setCurrentStalling(stalling);
-          } else {
-            console.error("Failed to load stalling with ID: " + currentStallingId);
-            setCurrentStalling(undefined);
-          }
-        });
-      }
-    } else {
-      if(currentStalling !== undefined) {
-        setCurrentStalling(undefined);
-      } 
-    }
-  }, [currentStallingId, currentRevision]);
 
   useEffect(() => {
     if("id" in router.query) {
@@ -165,11 +141,9 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   };
 
   const renderEdit = (isSm = false) => {
-    const showStallingEdit = currentStalling !== undefined;
-    const showUserEdit = currentUserId !== undefined;
-    const showGemeenteEdit = showStallingEdit || showUserEdit || currentContactID !== undefined;
+    const showGemeenteEdit = currentContactID !== undefined;
 
-    if(!showStallingEdit && !showGemeenteEdit && !showUserEdit) {
+    if(!showGemeenteEdit) {
       return null;
     }
 
@@ -178,46 +152,19 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
         return;
       }
         
-      if(showUserEdit) {
-        setCurrentUserId(undefined);
-      } else if(showStallingEdit) {
-        setCurrentStallingId(undefined);
-      } else if(showGemeenteEdit) {
+      if(showGemeenteEdit) {
         reloadGemeenten();
         setCurrentContactID(undefined);
       } 
     }
 
-    if(currentContactID !== undefined) {
-      if(showUserEdit) {
-        return (
-          <UserEditComponent 
-            id={currentUserId} 
-            siteID={currentContactID}
-            onClose={() => handleOnClose(true)}
-          />
-        );
-      } else if(showStallingEdit) {
-        return (
-          <ParkingEdit 
-            parkingdata={currentStalling} 
-            onClose={() => handleOnClose(true)} 
-            onChange={() => setCurrentRevision(prev => prev + 1)}
-          />
-        );
-      } else if(showGemeenteEdit) {
-        return (
-          <GemeenteEdit 
-            id={currentContactID} 
-            fietsenstallingtypen={fietsenstallingtypen} 
-            onClose={handleOnClose} 
-            onEditStalling={(stallingID) => setCurrentStallingId(stallingID)}
-            onEditUser={(userID) => setCurrentUserId(userID)}
-            onSendPassword={(userID) => alert("send password to user " + userID)}
-          />
-        );
-      }
-    }
+    return (
+      <GemeenteEdit 
+        id={currentContactID} 
+        fietsenstallingtypen={fietsenstallingtypen} 
+        onClose={handleOnClose} 
+      />
+    );
   };
 
   if(isLoadingUsers || isLoadingGemeenten) {
@@ -234,7 +181,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
 
   return (
     <div>
-      {currentContactID === undefined && currentStalling === undefined && currentUserId === undefined ? renderOverview() : renderEdit()}
+      {currentContactID === undefined ? renderOverview() : renderEdit()}
     </div>
   );
 };
