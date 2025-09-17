@@ -558,7 +558,7 @@ ${session?.user?.email}`;
               </p>
               <div className="flex gap-2 justify-end">
                 <button
-                  onClick={() => handleEmailDialog(false)}
+                  onClick={() => handleEmailDialog(false, isNew)}
                   className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
                 >
                   Nee
