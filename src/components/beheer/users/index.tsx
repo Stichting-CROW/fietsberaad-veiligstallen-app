@@ -280,7 +280,10 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       return (
         <ExploitantManagementComponent
           onCancel={() => setAddRemoveExploitant(false)}
-          onSave={() => setAddRemoveExploitant(false)}
+          onSave={() => {
+            setAddRemoveExploitant(false)
+            reloadUsers();
+          }}
         />
       );
     }
