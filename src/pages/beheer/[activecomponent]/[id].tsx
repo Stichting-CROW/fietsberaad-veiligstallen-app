@@ -390,14 +390,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <SettingsComponent />;
           break;
         case VSMenuTopic.SettingsGemeente:
+          const hasDatabaseRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
           selectedComponent =           
             <GemeenteEdit 
               fietsenstallingtypen={fietsenstallingtypen || []}
               id={selectedContactID} 
               onClose={undefined} 
-              onEditStalling={(stallingID: string | undefined) => {}}
-              onEditUser={(userID: string | undefined) => {}}
-              onSendPassword={(userID: string | undefined) => {}}
             />
           break;
         case VSMenuTopic.SettingsExploitant:
