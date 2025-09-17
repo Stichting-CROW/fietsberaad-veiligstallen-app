@@ -390,7 +390,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <SettingsComponent />;
           break;
         case VSMenuTopic.SettingsGemeente:
-          const hasDatabaseRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
           selectedComponent =           
             <GemeenteEdit 
               fietsenstallingtypen={fietsenstallingtypen || []}
