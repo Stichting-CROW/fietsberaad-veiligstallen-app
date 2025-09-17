@@ -9,7 +9,17 @@ const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: ParkingDetailsType
   if (parkingdata?.exploitant) {
     return (
       <SectionBlock heading="Beheerder">
-        <a href={'mailto:' + parkingdata.exploitant.Helpdesk}>{parkingdata.exploitant.CompanyName}</a>
+        <a 
+          href={'mailto:' + parkingdata.exploitant.Helpdesk}
+          style={{
+            textDecoration: 'underline',
+            color: '#2563eb',
+            cursor: 'pointer'
+          }}
+          className="hover:text-blue-700 hover:underline"
+        >
+          {parkingdata.exploitant.CompanyName}
+        </a>
       </SectionBlock>
     )
   } else if (parkingdata.BeheerderContact !== null) {
@@ -24,7 +34,17 @@ const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: ParkingDetailsType
 
     return (
       <SectionBlock heading="Beheerder">
-        <a href={contactlink}>{parkingdata.Beheerder === null ? parkingdata.BeheerderContact : parkingdata.Beheerder}</a>
+        <a 
+          href={contactlink} 
+          style={{
+            textDecoration: 'underline',
+            color: '#2563eb',
+            cursor: 'pointer'
+          }}
+          className="hover:text-blue-700 hover:underline"
+        >
+          {parkingdata.Beheerder === null ? parkingdata.BeheerderContact : parkingdata.Beheerder}
+        </a>
       </SectionBlock>
     );
   } else {
