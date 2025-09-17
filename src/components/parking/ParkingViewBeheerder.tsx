@@ -32,6 +32,10 @@ const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: ParkingDetailsType
       contactlink = 'https://' + parkingdata.BeheerderContact;
     }
 
+    if(contactlink === "https://www.nsfiets.nl") {
+      contactlink = "https://www.ns.nl/fietsenstallingen/";
+    }
+
     return (
       <SectionBlock heading="Beheerder">
         <a 
@@ -42,6 +46,8 @@ const ParkingViewBeheerder = ({ parkingdata }: { parkingdata: ParkingDetailsType
             cursor: 'pointer'
           }}
           className="hover:text-blue-700 hover:underline"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           {parkingdata.Beheerder === null ? parkingdata.BeheerderContact : parkingdata.Beheerder}
         </a>
