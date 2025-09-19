@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import type { VSArticle } from '~/types/articles';
+import { articleCreateSchema, type VSArticle } from '~/types/articles';
 import RichTextEditor from '~/components/common/RichTextEditor';
 import FormInput from '~/components/Form/FormInput';
 import PlainTextEditor from '~/components/common/PlainTextEditor';
@@ -22,8 +22,10 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   useEffect(() => {
     const fetchArticle = async () => {
       if (id === 'new') {
+        const activeContactID = session?.user?.activeContactId || '';
         setArticle({
           ID: '',
+          SiteID: activeContactID,
           Title: '',
           Article: '',
           Navigation: 'article',
@@ -56,26 +58,18 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     fetchArticle();
   }, [id]);
 
-  const addArticleFields = (article: VSArticle) => {
-    const activeContactID = session?.user?.activeContactId || '';
-
-    return {
-      ...article,
-      SiteID: activeContactID,
-      Title: (article.DisplayTitle || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .replace(/_+/g, '_') // Replace multiple underscores with single underscore
-        .trim(), // Remove leading/trailing spaces
-    }
+  const articleIsValid = (article: VSArticle): boolean => {
+    return (
+      article.Title && article.Title !== '' && article.Title !== null && article.Title !== undefined &&
+      article.DisplayTitle && article.DisplayTitle !== '' && article.DisplayTitle !== null && article.DisplayTitle !== undefined &&
+      article.Abstract && article.Abstract !== '' && article.Abstract !== null && article.Abstract !== undefined &&
+      article.Article && article.Article !== '' && article.Article !== null && article.Article !== undefined &&
+      article.SortOrder && article.SortOrder !== null && article.SortOrder !== undefined);
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!article) return;
-
-    const articleObject = addArticleFields(article)
+    if (!article || !articleIsValid(article)) return;
 
     try {
       setIsSaving(true);
@@ -84,7 +78,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(articleObject),
+        body: JSON.stringify(article),
       });
 
       if (!response.ok) {
@@ -141,6 +135,8 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
   // Home is always fixed, Tips is always fixed for non fietsberaad
   const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
+
+  const canSave = articleIsValid(article)
 
 
   return (
