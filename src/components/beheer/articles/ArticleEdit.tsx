@@ -70,7 +70,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     }
 
     const contentOk =     
-      (fieldValueValid(article.Abstract) && article.Abstract !== '' || fieldValueValid(article.Article) && article.Article !== '') &&
+      ((fieldValueValid(article.Abstract) && article.Abstract !== '') || (fieldValueValid(article.Article) && article.Article !== '')) &&
       fieldValueValid(article.SortOrder) && typeof article.SortOrder === 'number';
 
     return contentOk;
