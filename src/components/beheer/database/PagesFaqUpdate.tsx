@@ -8,18 +8,38 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const downloadCSV = (data: string, type: string) => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${timestamp}-${type}.csv`;
+    
+    const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const handleCheck = async () => {
     setIsLoading(true);
     setResultMessage(null);
     setErrorMessage(null);
-    setStatusMessage(null);
 
     try {
-      const response = await fetch('/api/protected/articles/check', {
+      const response = await fetch(`/api/protected/articles/check?t=${Date.now()}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
       });
 
       const json = await response.json();
@@ -32,7 +52,7 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
 
       setResultMessage('✅ Check voltooid.');
       if (json?.data) {
-        setStatusMessage(JSON.stringify(json.data, null, 2));
+        downloadCSV(JSON.stringify(json.data, null, 2), 'check');
       }
     } catch (error) {
       setErrorMessage(`❌ Netwerkfout: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
@@ -41,67 +61,77 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
     }
   };
 
-  // const handlePaginaReport = async () => {
-  //   setIsLoading(true);
-  //   setResultMessage(null);
-  //   setErrorMessage(null);
-  //   setStatusMessage(null);
+  const handlePaginaReport = async () => {
+    setIsLoading(true);
+    setResultMessage(null);
+    setErrorMessage(null);
 
-  //   try {
-  //     const response = await fetch('/api/protected/articles/report?type=paginas', {
-  //       method: 'GET',
-  //       headers: { 'Content-Type': 'application/json' },
-  //     });
+    try {
+      const response = await fetch(`/api/protected/articles/report?type=paginas&t=${Date.now()}`, {
+        method: 'GET',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+      });
 
-  //     const json = await response.json();
+      const json = await response.json();
 
-  //     if (!response.ok || !json?.success) {
-  //       const msg = json?.error || response.statusText || 'Onbekende fout';
-  //       setErrorMessage(`❌ Fout: ${msg}`);
-  //       return;
-  //     }
+      if (!response.ok || !json?.success) {
+        const msg = json?.error || response.statusText || 'Onbekende fout';
+        setErrorMessage(`❌ Fout: ${msg}`);
+        return;
+      }
 
-  //     setResultMessage('✅ Pagina rapport gegenereerd.');
-  //     if (json?.data) {
-  //       setStatusMessage(JSON.stringify(json.data, null, 2));
-  //     }
-  //   } catch (error) {
-  //     setErrorMessage(`❌ Netwerkfout: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+      setResultMessage('✅ Pagina overzicht gegenereerd en gedownload.');
+      if (json?.data) {
+        downloadCSV(json.data, 'paginas');
+      } else {
+        setErrorMessage('❌ Geen data ontvangen');
+      }
+    } catch (error) {
+      setErrorMessage(`❌ Netwerkfout: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // const handleFaqReport = async () => {
-  //   setIsLoading(true);
-  //   setResultMessage(null);
-  //   setErrorMessage(null);
-  //   setStatusMessage(null);
+  const handleFaqReport = async () => {
+    setIsLoading(true);
+    setResultMessage(null);
+    setErrorMessage(null);
 
-  //   try {
-  //     const response = await fetch('/api/protected/articles/report?type=faq', {
-  //       method: 'GET',
-  //       headers: { 'Content-Type': 'application/json' },
-  //     });
+    try {
+      const response = await fetch(`/api/protected/articles/report?type=faq&t=${Date.now()}`, {
+        method: 'GET',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+      });
 
-  //     const json = await response.json();
+      const json = await response.json();
 
-  //     if (!response.ok || !json?.success) {
-  //       const msg = json?.error || response.statusText || 'Onbekende fout';
-  //       setErrorMessage(`❌ Fout: ${msg}`);
-  //       return;
-  //     }
+      if (!response.ok || !json?.success) {
+        const msg = json?.error || response.statusText || 'Onbekende fout';
+        setErrorMessage(`❌ Fout: ${msg}`);
+        return;
+      }
 
-  //     setResultMessage('✅ FAQ rapport gegenereerd.');
-  //     if (json?.data) {
-  //       setStatusMessage(JSON.stringify(json.data, null, 2));
-  //     }
-  //   } catch (error) {
-  //     setErrorMessage(`❌ Netwerkfout: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+      console.log('json', json);
+
+      setResultMessage('✅ FAQ overzicht gegenereerd en gedownload.');
+      if (json?.data) {
+        downloadCSV(json.data, 'faq');
+      }
+    } catch (error) {
+      setErrorMessage(`❌ Netwerkfout: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="bg-gray-200 border-2 border-gray-400 p-4 rounded mb-4">
@@ -119,7 +149,7 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
         >
           Check & Fix
         </button>
-        {/* <button
+        <button
           onClick={handlePaginaReport}
           disabled={isLoading}
           className={`px-4 py-2 rounded-md text-white ${
@@ -128,19 +158,19 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
               : 'bg-green-500 hover:bg-green-700'
           }`}
         >
-          Pagina rapport
+          Pagina overzicht
         </button>
         <button
           onClick={handleFaqReport}
-          disabled={isLoading || true}
+          disabled={isLoading}
           className={`px-4 py-2 rounded-md text-white ${
-            isLoading || true
+            isLoading
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-purple-500 hover:bg-purple-700'
           }`}
         >
-          FAQ rapport
-        </button> */}
+          FAQ overzicht
+        </button>
       </div>
 
       <div className="mt-4 min-h-[1.25rem]">
@@ -154,9 +184,6 @@ const PagesFaqUpdateComponent: React.FC<PagesFaqUpdateComponentProps> = ({ title
         )}
         {!isLoading && errorMessage && (
           <div className="text-red-700 font-semibold">{errorMessage}</div>
-        )}
-        {!isLoading && statusMessage && (
-          <pre className="mt-2 whitespace-pre-wrap text-sm bg-white border border-gray-300 rounded p-2 max-h-96 overflow-y-auto">{statusMessage}</pre>
         )}
       </div>
     </div>

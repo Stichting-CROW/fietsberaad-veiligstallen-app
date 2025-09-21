@@ -87,7 +87,7 @@ const ArticleFilters: React.FC<ArticleFiltersProps> = ({
       </div>
       <form className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="flex flex-col">
-          <label htmlFor="status" className="text-sm font-medium text-gray-700">Tonen</label>
+          <label htmlFor="status" className="text-sm font-medium text-gray-700">Zichtbaar op de website (Is ingeschakeld en heeft inhoud)</label>
           <select
             id="status"
             name="status"

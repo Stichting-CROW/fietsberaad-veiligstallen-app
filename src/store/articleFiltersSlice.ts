@@ -23,7 +23,7 @@ const loadInitialState = (): ArticleFiltersState => {
   return {
     status: 'All',
     navigation: 'Main',
-    content: 'Content',
+    content: 'All',
     searchTerm: '',
   };
 };
@@ -68,7 +68,7 @@ export const articleFiltersSlice = createSlice({
     },
     resetFilters: (state) => {
       state.status = 'All';
-      state.navigation = 'All';
+      state.navigation = 'Main';
       state.content = 'All';
       state.searchTerm = '';
       try {

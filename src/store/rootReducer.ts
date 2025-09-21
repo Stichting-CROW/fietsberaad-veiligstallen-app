@@ -7,9 +7,9 @@ import { filterArticlesSlice } from "./filterArticlesSlice";
 import { mapSlice } from "./mapSlice";
 import { geoSlice } from "./geoSlice";
 import { appSlice } from "./appSlice";
-import gemeenteFiltersReducer from './gemeenteFiltersSlice';
-import reportsFiltersReducer from './reportsFiltersSlice';
-import articleFiltersReducer from './articleFiltersSlice';
+import { gemeenteFiltersSlice } from './gemeenteFiltersSlice';
+import { reportsFiltersSlice } from './reportsFiltersSlice';
+import { articleFiltersSlice } from './articleFiltersSlice';
 
 const combinedReducer = combineReducers({
   [authSlice.name]: authSlice.reducer,
@@ -19,9 +19,9 @@ const combinedReducer = combineReducers({
   [mapSlice.name]: mapSlice.reducer,
   [appSlice.name]: appSlice.reducer,
   [geoSlice.name]: geoSlice.reducer,
-  gemeenteFilters: gemeenteFiltersReducer,
-  reportsFilters: reportsFiltersReducer,
-  articleFilters: articleFiltersReducer,
+  gemeenteFilters: gemeenteFiltersSlice.reducer,
+  reportsFilters: reportsFiltersSlice.reducer,
+  articleFilters: articleFiltersSlice.reducer,
 });
 
 const rootReducer = (state: any, action: any) => {

@@ -3,10 +3,9 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import ArticleEdit from './ArticleEdit';
 import { useArticles } from '~/hooks/useArticles';
 import type { VSArticle } from '~/types/articles';
-import { Table, Column } from '~/components/common/Table';
+import { Table } from '~/components/common/Table';
 import ArticleFilters from '~/components/common/ArticleFilters';
 import { hasContent } from '~/utils/articles';
-import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useSession } from 'next-auth/react';
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -15,7 +14,6 @@ import { selectArticleFilters } from '~/store/articleFiltersSlice';
 
 const ArticlesComponent: React.FC = () => {
   const { data: session } = useSession();
-  const { gemeenten, isLoading: gemeentenLoading } = useGemeentenInLijst();
   
   // Check user rights for access control
   const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
@@ -28,13 +26,17 @@ const ArticlesComponent: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const filters = useSelector(selectArticleFilters);
 
+  const articleIsVisibleOnSite = (article: VSArticle) => {
+    return article.Status === '1' && ((article.Abstract || '').length > 0 || (article.Article || '').length > 0);
+  }
+
   useEffect(() => {
     let result = articles;
     // if (filters.gemeenteId) {
     //   result = result.filter(article => article.SiteID === filters.gemeenteId);
     // }
     if (filters.status !== 'All') {
-      result = result.filter(article => article.Status === (filters.status === 'Yes' ? '1' : '0'));
+      result = result.filter(article => articleIsVisibleOnSite(article) === (filters.status === 'Yes'));
     }
     if (filters.navigation !== 'All') {
       result = result.filter(article =>
@@ -104,23 +106,33 @@ const ArticlesComponent: React.FC = () => {
       let bValue: string | number = '';
 
       switch (sortColumn) {
+        case 'Paginanaam':
+          aValue = a.Title || '';
+          bValue = b.Title || '';
+          break;
         case 'Titel':
           aValue = a.DisplayTitle || a.Title || '';
           bValue = b.DisplayTitle || b.Title || '';
           break;
-        case 'Gemeente':
-          const aSite = a.SiteID === "1" ? "Algemeen" : gemeenten.find(g => g.ID === a.SiteID)?.CompanyName || 'Onbekend';
-          const bSite = b.SiteID === "1" ? "Algemeen" : gemeenten.find(g => g.ID === b.SiteID)?.CompanyName || 'Onbekend';
-          aValue = aSite;
-          bValue = bSite;
+        case 'Tonen':
+          aValue = articleIsVisibleOnSite(a) ? 'Yes' : 'No';
+          bValue = articleIsVisibleOnSite(b) ? 'Yes' : 'No';
           break;
-        case 'Status':
-          aValue = a.Status === '1' ? 'Actief' : 'Inactief';
-          bValue = b.Status === '1' ? 'Actief' : 'Inactief';
+        case 'Inhoud':
+          aValue = hasContent(a) ? 'Yes' : 'No';
+          bValue = hasContent(b) ? 'Yes' : 'No';
+          break;
+        case 'Standaard':
+          aValue = a.System === '1' ? 'Yes' : 'No';
+          bValue = b.System === '1' ? 'Yes' : 'No';
           break;
         case 'Laatst gewijzigd':
           aValue = new Date(a.DateModified || '').getTime();
           bValue = new Date(b.DateModified || '').getTime();
+          break;
+        case 'Volgorde':
+          aValue = a.SortOrder || '';
+          bValue = b.SortOrder || '';
           break;
         default:
           aValue = a.DisplayTitle || a.Title || '';
@@ -140,10 +152,6 @@ const ArticlesComponent: React.FC = () => {
 
     return sorted;
   };
-
-  if(gemeentenLoading) {
-    return <LoadingSpinner message="Loading gemeenten..." />;
-  }
 
   const renderOverview = () => {
     return (
@@ -165,26 +173,16 @@ const ArticlesComponent: React.FC = () => {
         <Table 
           columns={[
             {
+              header: 'Titel',
+              accessor: (article) => article.DisplayTitle || article.Title || ''
+            },
+            {
               header: 'Paginanaam',
               accessor: 'Title'
             },
             {
-              header: 'Titel',
-              accessor: 'DisplayTitle'
-            },
-            // {
-            //   header: 'Gemeente',
-            //   accessor: (article) => { 
-            //     if(article.SiteID==="1") {
-            //       return 'Algemeen';
-            //     } else {
-            //       return gemeenten.find(g => g.ID === article.SiteID)?.CompanyName || 'Onbekend';
-            //     }
-            //   }
-            // },
-            {
-              header: 'Tonen',
-              accessor: (article) => article.Status === '1' ? "Ja": "Nee",
+              header: 'Zichtbaar',
+              accessor: (article) => articleIsVisibleOnSite(article) ? "Ja": "Nee",
               className: 'w-16 text-center'
             },
             {
@@ -193,6 +191,11 @@ const ArticlesComponent: React.FC = () => {
               <span className="text-green-500">●</span> : 
               <span className="text-red-500">●</span>,
               className: 'w-16 text-center'
+            },
+            {
+              header: 'Volgorde',
+              accessor: (article) => article.SortOrder || '-',
+              className: 'w-20 text-center'
             },
             {
               header: 'Standaard',
@@ -215,7 +218,7 @@ const ArticlesComponent: React.FC = () => {
                   >
                     ✏️
                   </button>
-                  {canDelete && (
+                  {canDelete && article.System !== '1' && (
                     <button 
                       onClick={() => handleDeleteArticle(article.ID)} 
                       className="text-red-500 mx-1 disabled:opacity-40"
@@ -229,7 +232,7 @@ const ArticlesComponent: React.FC = () => {
           ]}
           data={getSortedData()}
           className="mt-4 min-w-full bg-white"
-          sortableColumns={["Titel", "Gemeente", "Status", "Laatst gewijzigd"]}
+          sortableColumns={["Paginanaam", "Titel", "Tonen", "Volgorde", "Laatst gewijzigd"]}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSort={handleSort}
