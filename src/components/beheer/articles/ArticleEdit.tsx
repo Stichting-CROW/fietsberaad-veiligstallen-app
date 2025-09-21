@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import type { VSArticle } from '~/types/articles';
+import { type VSArticle } from '~/types/articles';
 import RichTextEditor from '~/components/common/RichTextEditor';
 import FormInput from '~/components/Form/FormInput';
 import PlainTextEditor from '~/components/common/PlainTextEditor';
@@ -12,7 +11,6 @@ type ArticleEditProps = {
 };
 
 const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
-  const router = useRouter();
   const { data: session } = useSession();
   const [article, setArticle] = useState<VSArticle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,15 +20,18 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   useEffect(() => {
     const fetchArticle = async () => {
       if (id === 'new') {
+        const activeContactID = session?.user?.activeContactId || '';
         setArticle({
           ID: '',
+          SiteID: activeContactID,
           Title: '',
           Article: '',
           Navigation: 'article',
           Status: '1',
+          System: '0',
           DateModified: new Date().toISOString(),
           DateCreated: new Date().toISOString(),
-          ModuleID: 'veiligstallenprisma'
+          ModuleID: 'veiligstallen'
         });
         setIsLoading(false);
         return;
@@ -56,26 +57,28 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     fetchArticle();
   }, [id]);
 
-  const addArticleFields = (article: VSArticle) => {
-    const activeContactID = session?.user?.activeContactId || '';
-
-    return {
-      ...article,
-      SiteID: activeContactID,
-      Title: (article.DisplayTitle || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .replace(/_+/g, '_') // Replace multiple underscores with single underscore
-        .trim(), // Remove leading/trailing spaces
+  const articleIsValid = (article: VSArticle): boolean => {
+    const fieldValueValid = (value: string | number | null | undefined): boolean => {
+      return value !== null && value !== undefined
     }
+
+    const titleOk = fieldValueValid(article.Title) && article.Title !== '';
+
+    // not visible -> only check for valid title
+    if(article.Status !== '1') {
+      return titleOk;
+    }
+
+    const contentOk =     
+      ((fieldValueValid(article.Abstract) && article.Abstract !== '') || (fieldValueValid(article.Article) && article.Article !== '')) &&
+      fieldValueValid(article.SortOrder) && typeof article.SortOrder === 'number';
+
+    return contentOk;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!article) return;
-
-    const articleObject = addArticleFields(article)
+    if (!article || !articleIsValid(article)) return;
 
     try {
       setIsSaving(true);
@@ -84,7 +87,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(articleObject),
+        body: JSON.stringify(article),
       });
 
       if (!response.ok) {
@@ -137,10 +140,12 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   const isFietsberaad = session?.user?.activeContactId === '1';
 
   // Only Stallingen and Tips are editable, rest is fixed
-  const canChangeDisplayTitle = article.Title && ['Stallingen', 'Tips'].includes(article.Title);
+  const canChangeDisplayTitle = article.System !== '1' || (['Stallingen', 'Tips'].includes(article.Title||""));
 
   // Home is always fixed, Tips is always fixed for non fietsberaad
   const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
+
+  const canSave = articleIsValid(article)
 
 
   return (
@@ -190,14 +195,13 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
             value={article.DisplayTitle || ''}
             onChange={handleDisplayTitleChange}
             label="Titel"
-            required
             disabled={!canChangeDisplayTitle}
           />
         </div>
 
         <div>
           <label htmlFor="Abstract" className="block text-sm font-bold text-gray-700">
-            Abstract
+            Inleiding
           </label>
           <PlainTextEditor
             value={article.Abstract || ''}
@@ -248,7 +252,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           </button>
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || !canSave}
             className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
           >
             {isSaving ? 'Pagina opslaan...' : 'Pagina opslaan'}

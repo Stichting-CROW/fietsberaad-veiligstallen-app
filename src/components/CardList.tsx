@@ -106,21 +106,6 @@ const CardList: React.FC<Props> = ({
     visibleParkings,
   ])
 
-  // Scroll to selected parking if selected parking changes
-  // useEffect(() => {
-  //   // Stop if no parking was selected
-  //   if(! selectedParkingId) return;
-  //   if(! slider) return;
-
-  //   // Find index of selected parking
-  //   // Move to current slide, but wait on the flyTo animation first.
-  //   // curve: 1 & speed: 0.2 => 1*0.2 = 0.2s
-  //   if(selectedParkingId) {
-  //     const idx = findParkingIndex(visibleParkings, selectedParkingId);
-  //     slider.current.moveToIdx(idx);
-  //   }
-  // }, [selectedParkingId]);
-
   const expandParking = (id: string) => {
     // Set active parking ID
     dispatch(setSelectedParkingId(id));

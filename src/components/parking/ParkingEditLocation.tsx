@@ -20,6 +20,7 @@ import { createEditGeoJson } from "~/utils/map/geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../../mapStyles/nine3030";
+import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 
 function ParkingEditLocation({
   parkingCoords,
@@ -144,28 +145,7 @@ function ParkingEditLocation({
         source: "fietsenstallingen",
         type: "circle",
         filter: ["all"],
-        paint: {
-          "circle-color": "#fff",
-          "circle-radius": 5,
-          "circle-stroke-width": 4,
-          "circle-stroke-color": [
-            "match",
-            ["get", "type"],
-            "bewaakt",
-            "#00BDD5",
-            "geautomatiseerd",
-            "#028090",
-            "fietskluizen",
-            "#9E1616",
-            "fietstrommel",
-            "#DF4AAD",
-            "buurtstalling",
-            "#FFB300",
-            "publiek",
-            "#00CE83",
-            "#00CE83",
-          ],
-        },
+        paint: COLORMATCHFORPARKINGTYPE,
       });
 
       // Highlight one and only active marker

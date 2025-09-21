@@ -1,25 +1,26 @@
 import { z } from "zod";
 import { idSchema } from "./database";
 
+// Legacy fields are commented out and not used in the new schema
 export type VSArticle = {
   ID: string;
   SiteID?: string | null;
-  Language?: string | null;
-  ParentID?: string | null;
+  // Language?: string | null;
+  //ParentID?: string | null;
   Title: string | null;
   DisplayTitle?: string | null;
   Abstract?: string | null;
   Article?: string | null;
-  CustomField1_Title?: string | null;
-  CustomField1?: string | null;
-  Banner?: string | null;
-  Keywords?: string | null;
+  // CustomField1_Title?: string | null;
+  // CustomField1?: string | null;
+  // Banner?: string | null;
+  //Keywords?: string | null;
   SortOrder?: number | null;
-  PublishStartDate?: Date | string | null;
-  PublishEndDate?: Date | string | null;
+  // PublishStartDate?: Date | string | null;
+  // PublishEndDate?: Date | string | null;
   Status: string;
   Navigation?: string | null;
-  ShowInNav?: string | null;
+  // ShowInNav?: string | null;
   System?: string | null;
   EditorCreated?: string | null;
   DateCreated: Date | string | null;
@@ -33,13 +34,13 @@ export type VSArticleInLijst = {
   Title: string | null;
   DisplayTitle?: string | null;
   Abstract?: string | null;
-  Banner?: string | null;
+  // Banner?: string | null;
   Keywords?: string | null;
-  PublishStartDate?: Date | string | null;
-  PublishEndDate?: Date | string | null;
+  // PublishStartDate?: Date | string | null;
+  // PublishEndDate?: Date | string | null;
   Status: string;
   Navigation?: string | null;
-  ShowInNav?: string | null;
+  // ShowInNav?: string | null;
   DateCreated: Date | string | null;
   DateModified?: Date | string | null;
 }
@@ -47,22 +48,22 @@ export type VSArticleInLijst = {
 export const articleSelect = {
   ID: true,
   SiteID: true,
-  Language: true,
-  ParentID: true,
+  // Language: true,
+  // ParentID: true,
   Title: true,
   DisplayTitle: true,
   Abstract: true,
   Article: true,
-  CustomField1_Title: true,
-  CustomField1: true,
-  Banner: true,
+  // CustomField1_Title: true,
+  // CustomField1: true,
+  // Banner: true,
   Keywords: true,
   SortOrder: true,
-  PublishStartDate: true,
-  PublishEndDate: true,
+  // PublishStartDate: true,
+  // PublishEndDate: true,
   Status: true,
   Navigation: true,
-  ShowInNav: true,
+  // ShowInNav: true,
   System: true,
   EditorCreated: true,
   DateCreated: true,
@@ -76,22 +77,24 @@ export const articleLijstSelect = {
   Title: true,
   DisplayTitle: true,
   Abstract: true,
-  Banner: true,
+  // Banner: true,
   Keywords: true,
-  PublishStartDate: true,
-  PublishEndDate: true,
+  // PublishStartDate: true,
+  // PublishEndDate: true,
   Status: true,
   Navigation: true,
-  ShowInNav: true,
+  // ShowInNav: true,
   DateCreated: true,
   DateModified: true
 }
 
+// Legacy fields are commented out and not used in the new schema
 export const articleSchema = z.object({
   ID: idSchema,
   SiteID: z.string().nullable().optional(),
-  Language: z.string().nullable().optional(),
-  ParentID: z.string().nullable().optional(),
+  // Legacy fields are commented out
+  // Language: z.string().nullable().optional(),
+  // ParentID: z.string().nullable().optional(),
   Title: z.string()
     .min(1, { message: "Title is required" })
     .max(100, { message: "Title must be at most 100 characters" })
@@ -106,40 +109,41 @@ export const articleSchema = z.object({
   Article: z.string()
     .nullable()
     .optional(),
-  CustomField1_Title: z.string()
-    .max(255, { message: "Custom field 1 title must be at most 255 characters" })
-    .nullable()
-    .optional(),
-  CustomField1: z.string()
-    .nullable()
-    .optional(),
-  Banner: z.string()
-    .max(255, { message: "Banner must be at most 255 characters" })
-    .nullable()
-    .optional(),
-  Keywords: z.string()
-    .nullable()
-    .optional(),
+  // CustomField1_Title: z.string()
+  //   .max(255, { message: "Custom field 1 title must be at most 255 characters" })
+  //   .nullable()
+  //   .optional(),
+  // CustomField1: z.string()
+  //   .nullable()
+  //   .optional(),
+  // // Legacy fields are commented out
+  // Banner: z.string()
+  //   .max(255, { message: "Banner must be at most 255 characters" })
+  //   .nullable()
+  //   .optional(),
+  // Keywords: z.string()
+  //   .nullable()
+  //   .optional(),
   SortOrder: z.number()
     .int()
     .nullable()
     .optional(),
-  PublishStartDate: z.string()
-    .nullable()
-    .optional(),
-  PublishEndDate: z.string()
-    .nullable()
-    .optional(),
+  // PublishStartDate: z.string()
+  //   .nullable()
+  //   .optional(),
+  // PublishEndDate: z.string()
+  //   .nullable()
+  //   .optional(),
   Status: z.string()
     .default("1"),
   Navigation: z.string()
     .max(50, { message: "Navigation must be at most 50 characters" })
     .nullable()
     .optional(),
-  ShowInNav: z.string()
-    .max(4, { message: "Show in nav must be at most 4 characters" })
-    .nullable()
-    .optional(),
+  // ShowInNav: z.string()
+  //   .max(4, { message: "Show in nav must be at most 4 characters" })
+  //   .nullable()
+  //   .optional(),
   System: z.string()
     .max(4, { message: "System must be at most 4 characters" })
     .default("0")
@@ -170,16 +174,16 @@ export const getDefaultNewArticle = (title = "New Article") => {
     DisplayTitle: title,
     Abstract: null,
     Article: null,
-    CustomField1_Title: null,
-    CustomField1: null,
-    Banner: null,
-    Keywords: null,
+    // CustomField1_Title: null,
+    // CustomField1: null,
+    // Banner: null,
+    // Keywords: null,
     SortOrder: null,
-    PublishStartDate: null,
-    PublishEndDate: null,
+    // PublishStartDate: null,
+    // PublishEndDate: null,
     Status: "1",
     Navigation: null,
-    ShowInNav: null,
+    // ShowInNav: null,
     System: "0",
     EditorCreated: null,
     DateCreated: new Date(),

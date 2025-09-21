@@ -6,7 +6,7 @@ import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $generateHtmlFromNodes } from '@lexical/html';
 import { $getRoot, $createParagraphNode, $createTextNode } from 'lexical';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './RichTextEditor.module.css'; // share styles with RichTextEditor
 import Toolbar from './Toolbar';
 interface PlainTextEditorProps {
@@ -61,7 +61,7 @@ const PlainTextEditor: React.FC<PlainTextEditorProps> = ({
   );
 };
 
-// Plugin to handle changes and convert to HTML
+// Plugin to handle changes and convert to plain text
 const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => {
   const [editor] = useLexicalComposerContext();
 
@@ -70,8 +70,9 @@ const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => 
       // Only trigger onChange if there are actual changes
       if (dirtyElements.size > 0 || dirtyLeaves.size > 0) {
         editorState.read(() => {
-          const htmlString = $generateHtmlFromNodes(editor);
-          onChange(htmlString);
+          const root = $getRoot();
+          const plainText = root.getTextContent();
+          onChange(plainText);
         });
       }
     });
@@ -83,9 +84,10 @@ const OnChangePlugin = ({ onChange }: { onChange: (value: string) => void }) => 
 // Plugin to handle external value updates
 const ValueUpdatePlugin = ({ value }: { value: string }) => {
   const [editor] = useLexicalComposerContext();
+  const [lastValue, setLastValue] = useState<string | null>(null);
 
   useEffect(() => {
-    if (value !== undefined) {
+    if (value !== undefined && value !== lastValue) {
       editor.update(() => {
         const root = $getRoot();
         const currentText = root.getTextContent();
@@ -99,10 +101,11 @@ const ValueUpdatePlugin = ({ value }: { value: string }) => {
             paragraph.append(textNode);
             root.append(paragraph);
           }
+          setLastValue(value);
         }
       });
     }
-  }, [editor, value]);
+  }, [editor, value, lastValue]);
 
   return null;
 };

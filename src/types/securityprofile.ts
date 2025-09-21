@@ -27,6 +27,7 @@ export enum VSSecurityTopic {
   "instellingen_fietsenstallingen_admin" = "instellingen_fietsenstallingen_admin",
   "instellingen_fietsenstallingen_beperkt" = "instellingen_fietsenstallingen_beperkt",
   "rapportages" = "rapportages",
+  "fmsservices" = "fmsservices",
 }
 
 export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, description: string }[] = [
@@ -114,7 +115,6 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
       "Locatie stallingen - Nieuwe fietsenstalling",
       "Locatie stallingen - Item bewerken",
       "Algemeen - Toon dit item op website",
-      "Algemeen - Stalling communiceert met FMS",
       "Algemeen - Type stalling",
       "Algemeen - Exploitant/beheerder",
       "Algemeen - Contact beheerder",
@@ -162,4 +162,12 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
       "CSV's downloaden"
     ].join(",")
   },
+  {
+    topic: VSSecurityTopic.fmsservices,
+    name: "FMS Services",
+    description: [
+      "Algemeen - Stalling communiceert met FMS",
+    ].join(",")
+  },
+
 ]

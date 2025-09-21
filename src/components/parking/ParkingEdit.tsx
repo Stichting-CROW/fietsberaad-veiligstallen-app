@@ -179,6 +179,7 @@ const ParkingEdit = ({
   // Check user rights for field-level access control
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
   const canEditAllFields = hasFietsenstallingenAdmin;
   const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
@@ -933,7 +934,7 @@ const ParkingEdit = ({
                     className="mr-4 mt-4" 
                     onClick={handleAddressLookup}
                   >
-                    Bepaal Coördinaten
+                    Toon op kaart
                   </Button>
                 )}
               </>
@@ -1008,7 +1009,7 @@ const ParkingEdit = ({
                 onChange={e => {
                   setNewFMS(e.target.checked);
                 }}
-                disabled={!canEditAllFields}
+                disabled={!hasFmsservices}
               />
               <label htmlFor="fms-checkbox" className={`text-sm font-medium ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
                 Stalling communiceert met FMS-webserver

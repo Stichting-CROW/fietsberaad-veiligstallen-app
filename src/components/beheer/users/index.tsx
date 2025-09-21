@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { VSUserRoleValuesNew } from '~/types/users';
 import { UserEditComponent } from './UserEditComponent';
+import ExploitantManagementComponent from './ExploitantManagementComponent';
 import { displayInOverlay } from '~/components/Overlay';
 import { ConfirmPopover } from '~/components/ConfirmPopover';
 import { LoadingSpinner } from '~/components/beheer/common/LoadingSpinner';
@@ -25,14 +26,37 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [deleteAnchorEl, setDeleteAnchorEl] = useState<HTMLElement | null>(null);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
+  const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
+  const [organizationFilter, setOrganizationFilter] = useState<string | undefined>(undefined);
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
   const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
   const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
   const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
+  const [hasManageExploitantsRights, setHasManageExploitantsRights] = useState<boolean>(false);
+  const [addRemoveExploitant, setAddRemoveExploitant] = useState<boolean>(false);
 
   const { users, isLoading: isLoadingUsers, error: errorUsers, reloadUsers } = useUsers(props.siteID ?? undefined);
   const { data: session } = useSession();
+
+  // Get organizations that have at least one user
+  const organizationsWithUsers = React.useMemo(() => {
+    const organizationIds = new Set(users.map(user => user.ownOrganizationID));
+    return props.contacts.filter(contact => organizationIds.has(contact.ID));
+  }, [users, props.contacts]);
+
+  useEffect(() => {
+    setHasManageExploitantsRights(
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_toegangsrecht)
+    );
+  }, [session?.user]);
+
+  // Clear organization filter if selected organization no longer has users
+  React.useEffect(() => {
+    if (organizationFilter && !organizationsWithUsers.some(org => org.ID === organizationFilter)) {
+      setOrganizationFilter(undefined);
+    }
+  }, [organizationFilter, organizationsWithUsers]);
 
   // Fetch archived users on component mount
   useEffect(() => {
@@ -157,12 +181,28 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     setSortColumn((prev) => (prev === header ? undefined : header));
   };
 
+  const handleResetFilters = () => {
+    setUserFilter(undefined);
+    setRoleFilter(undefined);
+    setOrganizationFilter(undefined);
+    setArchivedFilter("No");
+  };
+
+
   const filteredusers = users
     .filter((user) => 
       (!userFilter || userFilter === "") || 
       user.DisplayName?.toLowerCase().includes((userFilter || "").toLowerCase()) ||
       user.UserName?.toLowerCase().includes((userFilter || "").toLowerCase())
     )
+    .filter((user) => {
+      if (!roleFilter) return true;
+      return user.securityProfile?.roleId === roleFilter;
+    })
+    .filter((user) => {
+      if (!organizationFilter) return true;
+      return user.ownOrganizationID === organizationFilter;
+    })
     .filter((user) => {
       const isArchived = archivedUserIds.includes(user.UserID);
       if (archivedFilter === "Yes") {
@@ -235,6 +275,19 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       return <div>Error: {errorUsers}</div>;
     }
 
+    // Show exploitant management component when in management mode
+    if (addRemoveExploitant) {
+      return (
+        <ExploitantManagementComponent
+          onCancel={() => setAddRemoveExploitant(false)}
+          onSave={() => {
+            setAddRemoveExploitant(false)
+            reloadUsers();
+          }}
+        />
+      );
+    }
+
     const columns: Column<any>[] = [
       // {
       //   header: 'ID',
@@ -248,9 +301,10 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
         header: 'E-mail',
         accessor: 'UserName',
       },
+      // Only show organization column when no organization filter is set
       {
         header: 'Organisatie',
-        accessor: (user) => {
+        accessor: (user: any) => {
           const organizationName = props.contacts.find(contact => contact.ID === user.ownOrganizationID)?.CompanyName || "Onbekende organisatie";
           return organizationName;
         },
@@ -324,8 +378,8 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
       },
     ];
 
-    const theuser = id && users.find((user) => user.UserID === id);
-
+    // const theuser = id && users.find((user) => user.UserID === id);
+    const currentGemeente = props.contacts.find(contact => contact.ID === props.siteID);
     return (
       <>
       { id && (
@@ -333,19 +387,40 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
           <UserEditComponent 
             id={id}      
             siteID={props.siteID}
-            onlyAllowRoleChange={((theuser && theuser.isOwnOrganization) || id==='new') ? false : true}
+            siteCompanyName={currentGemeente?.CompanyName || "onbekend"}
             onClose={handleUserEditClose} 
           />, false, "Gebruiker bewerken", () => setId(undefined))
       )}
       <div className={`${id!==undefined ? "hidden" : ""}`}>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">{title}</h1>
-          {hasFullAdminRight && <button 
-            onClick={() => setId('new')}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Nieuwe gebruiker
-          </button>}
+          <div className="flex gap-2">
+            {hasFullAdminRight && <button 
+              onClick={() => setId('new')}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Nieuwe Gebruiker
+            </button>}
+            {props.siteID!=="1" && hasManageExploitantsRights && (
+              <button 
+                onClick={() => setAddRemoveExploitant(true)}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Externe Organisaties Beheren
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 mb-4">
+          { props.siteID!=="1" && (
+          <p className="text-lg font-medium text-gray-700">
+            Op deze pagina kun u de toegangsrechten van interne en externe gebruikers {hasManageExploitantsRights ? "instellen" : "bekijken"}.
+            <br />
+            <br />
+            Met de knop "Externe Organisaties Beheren" kunt u {hasManageExploitantsRights ? "selecteren" : "bekijken"} welke externe organisaties toegang tot uw organisatie hebben.
+          </p>
+          )}
         </div>
 
         <div className="mt-4 mb-4 flex items-end gap-4">
@@ -356,6 +431,44 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
               value={userFilter || ""}
               onChange={(value) => setUserFilter(value)}
             />
+          </div>
+          <div className="flex-1 max-w-xs">
+            <label htmlFor="organizationFilter" className="block text-sm font-medium text-gray-700 mb-2">
+              Organisatie:
+            </label>
+            <select 
+              id="organizationFilter" 
+              name="organizationFilter" 
+              className="mt-1 p-2 border border-gray-300 rounded-md w-full" 
+              value={organizationFilter || ""}
+              onChange={(e) => setOrganizationFilter(e.target.value || undefined)}
+            >
+              <option value="">Alle organisaties</option>
+              {organizationsWithUsers.map((contact) => (
+                <option key={contact.ID} value={contact.ID}>
+                  {contact.CompanyName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 max-w-xs">
+            <label htmlFor="roleFilter" className="block text-sm font-medium text-gray-700 mb-2">
+              Rol:
+            </label>
+            <select 
+              id="roleFilter" 
+              name="roleFilter" 
+              className="mt-1 p-2 border border-gray-300 rounded-md w-full" 
+              value={roleFilter || ""}
+              onChange={(e) => setRoleFilter(e.target.value || undefined)}
+            >
+              <option value="">Alle rollen</option>
+              {roles.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
           </div>
           {session?.user?.mainContactId === "1" && (
             <div className="flex-1 max-w-xs">
@@ -369,19 +482,28 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
                 value={archivedFilter}
                 onChange={(e) => setArchivedFilter(e.target.value as "Yes" | "No" | "Only")}
               >
-                <option value="No">Nee (standaard)</option>
+                <option value="No">Nee</option>
                 <option value="Yes">Ja</option>
                 <option value="Only">Alleen gearchiveerde</option>
               </select>
             </div>
           )}
+          <div className="flex-shrink-0">
+            <button
+              onClick={handleResetFilters}
+              className="mt-6 px-4 py-2 bg-gray-500 hover:bg-gray-700 text-white font-medium rounded-md transition-colors duration-200"
+              title="Reset alle filters"
+            >
+              Standaard Filter
+            </button>
+          </div>
         </div>
 
         <Table 
           columns={columns}
           data={sortedUsers}
           className="mt-4"
-          sortableColumns={['Naam', 'E-mail', 'Organisatie', 'Rol']}
+          sortableColumns={organizationFilter ? ['Naam', 'E-mail', 'Rol'] : ['Naam', 'E-mail', 'Organisatie', 'Rol']}
           sortColumn={sortColumn}
           onSort={handleSort}
         />

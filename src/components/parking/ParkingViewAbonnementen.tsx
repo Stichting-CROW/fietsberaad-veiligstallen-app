@@ -8,6 +8,19 @@ import { useSubscriptionTypesForParking } from "~/hooks/useSubscriptionTypesForP
 import { LoadingSpinner } from "../beheer/common/LoadingSpinner";
 import { useAbonnementLink } from "~/hooks/useAbonnementLink";
 
+const renderGeenInfoBeschikbaar = () => {
+  return (
+    <>  
+      <SectionBlock heading="Abonnementen">
+        <div className="ml-2 grid grid-cols-1">
+          <div>Geen informatie over abonnementen beschikbaar</div>
+        </div>
+      </SectionBlock>
+      <HorizontalDivider className="my-4" />
+    </>
+  );
+};
+
 const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
 
   const { subscriptionTypes, isLoading: isLoadingSubscriptionTypes, error: errorSubscriptionTypes } = useSubscriptionTypesForParking(parkingdata?.ID||"");
@@ -24,37 +37,34 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
   }
 
   if(!abonnementLink || !abonnementLink.status || !filteredSubscriptionTypes ) {
-    return null;
+    return renderGeenInfoBeschikbaar();
+  }
+
+  if(filteredSubscriptionTypes.length === 0) {
+    return renderGeenInfoBeschikbaar();
   }
 
   return (
     <>
       <SectionBlock heading="Abonnementen">
-        { filteredSubscriptionTypes.length > 0 ? 
-            <> 
-              <div className="ml-2 grid grid-cols-3">
-                {filteredSubscriptionTypes.map((x) => {
-                  // console.log('abonnement', JSON.stringify(x, null, 2));
-                  return <Fragment key={x.naam}>
-                    <div className="col-span-2">{x.naam}</div>
-                    <div className="text-right sm:text-center">&euro;{x.prijs?.toLocaleString('nl-NL') || "---"}</div>
-                  </Fragment>
-                })}
-              </div>
-              <div className="text-right sm:text-center">
-                <Button className="mt-4" onClick={() => {
-                  window.open(abonnementLink.url, '_blank');
-                }}>
-                  Koop abonnement
-                </Button>
-              </div >
-            </> 
-          :
-            <div className="text-start col-span-3">
-              Geen abonnementen beschikbaar
-            </div> }
-        </SectionBlock >
-
+        <div className="ml-2 grid grid-cols-3">
+          {filteredSubscriptionTypes.map((x) => {
+            // console.log('abonnement', JSON.stringify(x, null, 2));
+            return <Fragment key={x.naam}>
+              <div className="col-span-2">{x.naam}</div>
+              <div className="text-right sm:text-center">&euro;{x.prijs?.toLocaleString('nl-NL') || "---"}</div>
+            </Fragment>
+          })}
+        </div>
+        <div className="text-right sm:text-center">
+          <Button className="mt-4" onClick={() => {
+            window.open(abonnementLink.url, '_blank');
+          }}>
+            Koop abonnement
+          </Button>
+        </div >
+    
+      </SectionBlock > 
       <HorizontalDivider className="my-4" />
     </>
   );

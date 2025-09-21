@@ -17,6 +17,7 @@ import { type securityUserCreateSchema, type SecurityUserResponse, type security
 export interface UserEditComponentProps {
     id: string,
     siteID: string | null,
+    siteCompanyName: string,
     onClose: (userChanged: boolean, confirmClose: boolean) => void,
 }
 
@@ -39,7 +40,6 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const [newRoleID, setNewRoleID] = useState<VSUserRoleValuesNew>(VSUserRoleValuesNew.None);
     const [userName, setUserName] = useState<string>('');
     const [password, setPassword] = useState<string>(''); 
-    const [confirmPassword, setConfirmPassword] = useState<string>('');
 
     const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
     const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
@@ -48,6 +48,11 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const [error, setError] = useState<string | null>(null);
     
     const [showPasswordFields, setShowPasswordFields] = useState(isNew);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [showEmailDialog, setShowEmailDialog] = useState(false);
     const nameInputRef = useRef<HTMLInputElement>(null);
 
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
@@ -70,13 +75,14 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
 
     useEffect(() => {
       if (isNew) {
+        const randomPassword = generateRandomPassword();
         const initial: CurrentState = {
           displayName: '',
           newRoleID: VSUserRoleValuesNew.None,
           userName: '',
           status: true,
-          password: '',
-          confirmPassword: '',
+          password: randomPassword,
+          confirmPassword: randomPassword,
         };
 
         setDisplayName(initial.displayName);
@@ -84,7 +90,6 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
         setUserName(initial.userName);
         setStatus(initial.status);
         setPassword(initial.password);
-        setConfirmPassword(initial.confirmPassword);
 
         setInitialData(initial);
       } else {
@@ -137,7 +142,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
         newRoleID !== initialData.newRoleID ||
         userName !== initialData.userName ||
         status !== initialData.status ||
-        password !== undefined
+        (isChangingPassword && password !== "")
       );
     };
 
@@ -232,8 +237,14 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             // }
         }
         
-        if (props.onClose) {
-          props.onClose(true, false);
+        // Check if password was changed and show email dialog
+        // For new users or when password was actually changed
+        if (isNew || (isChangingPassword && password)) {
+          setShowEmailDialog(true);
+        } else {
+          if (props.onClose) {
+            props.onClose(true, false);
+          }
         }
       } catch (error) {
         setError('Error: ' + error);
@@ -246,7 +257,6 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
         setNewRoleID(VSUserRoleValuesNew.None);
         setUserName('');
         setPassword('');
-        setConfirmPassword('');
         setStatus(true);
         setShowPasswordFields(true);
       } else {
@@ -254,19 +264,95 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
         setNewRoleID(initialData.newRoleID);
         setUserName(initialData.userName);
         setPassword('');
-        setConfirmPassword('');
         setStatus(initialData.status);
         setShowPasswordFields(false);
       }
       setError(null);
     };
 
-    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setPassword(e.target.value);
-      if (!isNew) {
-        setShowPasswordFields(true);
+    const generateRandomPassword = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+      let password = '';
+      for (let i = 0; i < 12; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return password;
+    };
+
+    const handleChangePassword = () => {
+      const randomPassword = generateRandomPassword();
+      setNewPassword(randomPassword);
+      setPassword(randomPassword); // Update main password state
+      setIsChangingPassword(true);
+      setShowPassword(true);
+    };
+
+    const handleCancelPasswordChange = () => {
+      setIsChangingPassword(false);
+      setNewPassword('');
+      setPassword(''); // Reset main password state
+      setShowPassword(false);
+    };
+
+    // Auto-save password changes when user types
+    const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setNewPassword(value);
+      setPassword(value);
+    };
+
+
+    const sendEmail = (isNew: boolean) => {
+      const to = userName;
+      const subject = isNew ? 'Welkom bij het Dashboard Deelmobiliteit!' : 'Dashboard Deelmobiliteit: Wachtwoord gewijzigd';
+      const currentPassword = isChangingPassword ? newPassword : password;
+      
+      const bodyNew = ` Beste ${displayName},
+
+Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl. 
+ 
+Je inloggegevens zijn: 
+Gebruikersnaam: ${userName}
+Wachtwoord: ${currentPassword}
+Rol:  ${getNewRoleLabel(newRoleID)}
+
+De rol die je gekregen hebt bepaalt welke rechten je hebt om informatie in te zien of aan te passen. Bijvoorbeeld informatie over stallingen aanpassen, teksten op de website bewerken of statistieken opvragen.
+
+Als je nog vragen hebt, hoor ik het graag.
+
+${session?.user?.name}
+${session?.user?.email}`;
+
+const bodyPassword = ` Beste ${displayName},
+
+Het wachtwoord van jouw account voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl is gewijzigd.
+ 
+Je nieuwe inloggegevens zijn: 
+Gebruikersnaam: ${userName}
+Wachtwoord: ${currentPassword}
+
+Als je nog vragen hebt, hoor ik het graag.
+
+${session?.user?.name}
+${session?.user?.email}`;
+
+      // Create mailto URL with encoded parameters
+      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(isNew ? bodyNew : bodyPassword)}`;
+      
+      // Open the default email client
+      window.open(mailtoUrl, '_blank');
+    };
+
+    const handleEmailDialog = (shouldEmail: boolean, isNew: boolean) => {
+      if (shouldEmail) {
+        sendEmail(isNew);
+      }
+      setShowEmailDialog(false);
+      if (props.onClose) {
+        props.onClose(true, false);
       }
     };
+
 
     const renderTopBar = () => {
       const title = isNew ? "Nieuwe gebruiker" : "Bewerk gebruiker";
@@ -344,36 +430,84 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             autoComplete="new-email"
           />
           <br />
-          {showPasswordFields ? (
+        {isNew ? (
+          // New user - show simplified password field
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Wachtwoord
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={!hasLimitedAdminRight}
+                autoComplete="new-password"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const randomPwd = generateRandomPassword();
+                  setPassword(randomPwd);
+                }}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
+                disabled={!hasLimitedAdminRight}
+              >
+                Random
+              </button>
+            </div>
+          </div>
+        ) : isChangingPassword ? (
+            // Changing password - show new password fields
             <>
-              <FormInput 
-                label="Wachtwoord"
-                value={password} 
-                onChange={handlePasswordChange}
-                type="password"
-                disabled={! hasLimitedAdminRight}
-                autoComplete="new-password"
-              />
-              <br />
-              <FormInput 
-                label="Bevestig wachtwoord"
-                value={confirmPassword} 
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                type="password"
-                disabled={! hasLimitedAdminRight}
-                autoComplete="new-password"
-              />
-              <br />
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nieuw wachtwoord
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPassword}
+                    onChange={handleNewPasswordChange}
+                    disabled={!hasLimitedAdminRight}
+                    autoComplete="new-password"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCancelPasswordChange}
+                    className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomPwd = generateRandomPassword();
+                      setNewPassword(randomPwd);
+                      setPassword(randomPwd);
+                    }}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded whitespace-nowrap"
+                    disabled={!hasLimitedAdminRight}
+                  >
+                    Random
+                  </button>
+                </div>
+              </div>
             </>
           ) : (
-            <FormInput 
-              label="Wachtwoord"
-              value="********" 
-              onChange={() => {}}
-              type="password"
-              disabled={! hasLimitedAdminRight}
-              autoComplete="new-password"
-            />
+            // Existing user - show change password button
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                disabled={!hasLimitedAdminRight}
+              >
+                Wachtwoord wijzigen
+              </button>
+            </div>
           )}
           <br />
           <div className="flex items-center space-x-4">
@@ -409,6 +543,37 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
             <UserAccessRight newRoleID={newRoleID} showRoleInfo={true} />
           </div>
         )}
+        
+        {showEmailDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">
+                {isNew ? "Nieuwe gebruiker aangemaakt" : "Wachtwoord gewijzigd"}
+              </h3>
+              <p className="mb-4">
+                {isNew 
+                  ? "U heeft een nieuwe gebruiker aangemaakt. Wilt u een email met inloggegevens versturen?"
+                  : "U heeft het wachtwoord van deze gebruiker gewijzigd. Wilt u een email met inloggegevens versturen?"
+                }
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => handleEmailDialog(false, isNew)}
+                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                >
+                  Nee
+                </button>
+                <button
+                  onClick={() => handleEmailDialog(true, isNew)}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                >
+                  Ja
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
       </div>
     );
   };

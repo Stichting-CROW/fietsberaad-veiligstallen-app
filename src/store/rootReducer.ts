@@ -1,4 +1,5 @@
 import { combineReducers } from "redux";
+import { HYDRATE } from "next-redux-wrapper";
 import { authSlice } from "./authSlice";
 import { adminSlice } from "./adminSlice";
 import { filterSlice } from "./filterSlice";
@@ -6,11 +7,11 @@ import { filterArticlesSlice } from "./filterArticlesSlice";
 import { mapSlice } from "./mapSlice";
 import { geoSlice } from "./geoSlice";
 import { appSlice } from "./appSlice";
-import gemeenteFiltersReducer from './gemeenteFiltersSlice';
-import reportsFiltersReducer from './reportsFiltersSlice';
-import articleFiltersReducer from './articleFiltersSlice';
+import { gemeenteFiltersSlice } from './gemeenteFiltersSlice';
+import { reportsFiltersSlice } from './reportsFiltersSlice';
+import { articleFiltersSlice } from './articleFiltersSlice';
 
-const rootReducer = combineReducers({
+const combinedReducer = combineReducers({
   [authSlice.name]: authSlice.reducer,
   [adminSlice.name]: adminSlice.reducer,
   [filterSlice.name]: filterSlice.reducer,
@@ -18,10 +19,22 @@ const rootReducer = combineReducers({
   [mapSlice.name]: mapSlice.reducer,
   [appSlice.name]: appSlice.reducer,
   [geoSlice.name]: geoSlice.reducer,
-  gemeenteFilters: gemeenteFiltersReducer,
-  reportsFilters: reportsFiltersReducer,
-  articleFilters: articleFiltersReducer,
+  gemeenteFilters: gemeenteFiltersSlice.reducer,
+  reportsFilters: reportsFiltersSlice.reducer,
+  articleFilters: articleFiltersSlice.reducer,
 });
+
+const rootReducer = (state: any, action: any) => {
+  if (action.type === HYDRATE) {
+    const nextState = {
+      ...state, // use previous state
+      ...action.payload, // apply delta from hydration
+    };
+    return nextState;
+  } else {
+    return combinedReducer(state, action);
+  }
+};
 
 export type RootState = ReturnType<typeof rootReducer>;
 

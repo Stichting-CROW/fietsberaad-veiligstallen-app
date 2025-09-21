@@ -33,6 +33,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
 import type { ParkingDetailsType } from "~/types/parking";
+import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -57,6 +58,7 @@ interface GeoJsonFeature {
     coordinates: number[];
   };
   properties: {
+    id: string;
     title: string;
     location: string;
     plaats: string;
@@ -275,28 +277,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           source: "fietsenstallingen",
           type: "circle",
           filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#fff",
-            "circle-radius": 5,
-            "circle-stroke-width": 4,
-            "circle-stroke-color": [
-              "match",
-              ["get", "type"],
-              "bewaakt",
-              "#00BDD5",
-              "geautomatiseerd",
-              "#028090",
-              "fietskluizen",
-              "#9E1616",
-              "fietstrommel",
-              "#DF4AAD",
-              "buurtstalling",
-              "#FFB300",
-              "publiek",
-              "#00CE83",
-              "#00CE83",
-            ],
-          },
+          paint: COLORMATCHFORPARKINGTYPE,
           "icon-allow-overlap": true,
           minzoom: 12,
         });
@@ -308,7 +289,7 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           id: "fietsenstallingen-clusters",
           source: "fietsenstallingen-clusters",
           type: "circle",
-          filter: ["has", "point_count"],
+          //filter: [">=", ["get", "point_count"], 1],
           paint: {
             // Use step expressions (https://maplibre.org/maplibre-gl-js-docs/style-spec/#expressions-step)
             // with three steps to implement three types of circles:
@@ -317,13 +298,18 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
             //   * Pink, 40px circles when point count is greater than or equal to 750
             "circle-color": "#fff",
             "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              20,
-              100,
-              30,
-              750,
-              40,
+              "case",
+              ["has", "point_count"],
+              [
+                "step",
+                ["get", "point_count"],
+                20,
+                100,
+                30,
+                750,
+                40,
+              ],
+              20
             ],
             "circle-stroke-width": 3,
             "circle-stroke-color": "#15AEEF",
@@ -338,11 +324,25 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
           id: "fietsenstallingen-clusters-count",
           source: "fietsenstallingen-clusters",
           type: "symbol",
-          filter: ["has", "point_count"],
+          // filter: [">=", ["get", "point_count"], 1],
           layout: {
-            "text-field": "{point_count_abbreviated}",
+            "text-field": [
+              "case",
+              ["has", "point_count"],
+              ["get", "point_count_abbreviated"],
+              "1"
+            ],
             "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-            "text-size": ["step", ["get", "point_count"], 16, 100, 20, 750, 30],
+            "text-size": [
+              "case",
+              ["has", "point_count"],
+              ["step", 
+               ["get", "point_count"], 
+               16, 
+               100, 20, 
+               750, 30],
+              16
+            ],
           },
           paint: {
             "text-color": "#333333",
@@ -465,18 +465,22 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   }
 
   const highlightMarker = (map: any, id: string) => {
-    map.setPaintProperty("fietsenstallingen-markers", "circle-radius", [
-      "case",
-      ["==", ["get", "id"], id],
-      10,
-      5,
-    ]);
-    map.setPaintProperty("fietsenstallingen-markers", "circle-stroke-width", [
-      "case",
-      ["==", ["get", "id"], id],
-      3,
-      4,
-    ]);
+    try {
+      map.setPaintProperty("fietsenstallingen-markers", "circle-radius", [
+        "case",
+        ["==", ["get", "id"], id],
+        10,
+        5,
+      ]);
+      map.setPaintProperty("fietsenstallingen-markers", "circle-stroke-width", [
+        "case",
+        ["==", ["get", "id"], id],
+        3,
+        4,
+      ]);
+    } catch (ex) {
+      console.warn("error in MapComponent highlightMarker call", ex);
+    }
   };
 
   // Function that's called if map is loaded

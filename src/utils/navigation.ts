@@ -66,7 +66,7 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
 }
 
 export const getFooter = (itemsfietsberaad: VSArticle[]|undefined): VSArticle[] => {
-  const footerTitles = ['Disclaimer', 'Privacy', 'Algemene Voorwaarden', 'Copyright'];
+  const footerTitles = ['Disclaimer', 'Privacy', 'Algemene_voorwaarden', 'Copyright'];
 
   if (itemsfietsberaad) {
     return itemsfietsberaad.filter((x) => x.SiteID === '1' && footerTitles.includes(x.Title || ""));

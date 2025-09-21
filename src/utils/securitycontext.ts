@@ -122,6 +122,7 @@ export const getRoleRights = (
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_site_content] = isEditor? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.fmsservices] = isRootAdmin ? allowCRUD : allowNone
 
     return currentTopics;        
 };
