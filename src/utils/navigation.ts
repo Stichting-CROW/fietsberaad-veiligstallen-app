@@ -26,7 +26,7 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
       const excludeTitles = ['Tips', 'Contact', 'FAQ'];
       const noContent = (x.Article||'') === '' && (x.Abstract||'') === '';
 
-      return !excludeTitles.includes(x.Title as string) && !noContent;
+      return !excludeTitles.includes((x.Title || "")) && !noContent;
     })
     .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
   }
@@ -45,7 +45,12 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
   // Tips always comes from fietsberaad site
   const tips = itemsfietsberaad && itemsfietsberaad?.find(x => x.Title === 'Tips');
   if (tips) {
-    secundaryItems.push(tips);
+    const showTip = tips.Status === '1' &&
+     ((tips.Abstract||"")!=='' || (tips.Article||"")!==''); 
+
+    if (showTip) {  
+      secundaryItems.push(tips);
+    }
   }
 
   let contact = undefined;
@@ -59,9 +64,15 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
   }
 
   if (contact) {
-    secundaryItems.push(contact);
+    const showContact = contact.Status === '1' &&
+     ((contact.Abstract||"")!=='' || (contact.Article||"")!==''); 
+
+    if (showContact) {  
+      secundaryItems.push(contact);
+    }
   }
 
+  // console.debug("#### secundary items", secundaryItems);
   return secundaryItems;
 }
 
