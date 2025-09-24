@@ -1,4 +1,5 @@
 import { type VSArticle } from "~/types/articles";
+import { hasContent } from "~/utils/articles";
 
 export const getArticlesForMunicipality = async (siteId: string | null): Promise<VSArticle[]> => {
   try {
@@ -14,8 +15,7 @@ export const getArticlesForMunicipality = async (siteId: string | null): Promise
 
 export const filterNavItems = (items: VSArticle[]|undefined) => {
   if (!items) return [];
-
-  const hasContent = (x: VSArticle) => (x.Abstract!=='' && x.Abstract!==null) || (x.Article!=='' && x.Article!==null)
+  
   return items.filter(x => x.ModuleID === 'veiligstallen' && x.Status === '1' && hasContent(x)) // && x.ShowInNav === '1' 
 }
 
@@ -24,18 +24,17 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
     return items.filter(x => x.Navigation === 'main')
     .filter((x) => {
       const excludeTitles = ['Tips', 'Contact', 'FAQ'];
-      const noContent = (x.Article||'') === '' && (x.Abstract||'') === '';
-
-      return !excludeTitles.includes(x.Title as string) && !noContent;
+      return !excludeTitles.includes((x.Title || "")) && hasContent(x);
     })
     .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
   }
 
+  // console.debug("#### items municipality", itemsMunicipality);
   let items = showGemeenteMenu && itemsMunicipality ? filterPrimaryItems(itemsMunicipality) : [];
   if(items.length === 0 && itemsFietsberaad) {
     items = filterPrimaryItems(itemsFietsberaad);
   }
-  // console.debug("#### primary items", items);
+  //console.debug("#### primary items", items);
   return items;
 }
 
@@ -45,7 +44,12 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
   // Tips always comes from fietsberaad site
   const tips = itemsfietsberaad && itemsfietsberaad?.find(x => x.Title === 'Tips');
   if (tips) {
-    secundaryItems.push(tips);
+    const showTip = tips.Status === '1' &&
+     ((tips.Abstract||"")!=='' || (tips.Article||"")!==''); 
+
+    if (showTip) {  
+      secundaryItems.push(tips);
+    }
   }
 
   let contact = undefined;
@@ -59,9 +63,15 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
   }
 
   if (contact) {
-    secundaryItems.push(contact);
+    const showContact = contact.Status === '1' &&
+     ((contact.Abstract||"")!=='' || (contact.Article||"")!==''); 
+
+    if (showContact) {  
+      secundaryItems.push(contact);
+    }
   }
 
+  // console.debug("#### secundary items", secundaryItems);
   return secundaryItems;
 }
 

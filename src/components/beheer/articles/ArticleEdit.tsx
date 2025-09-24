@@ -140,13 +140,12 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
   const isFietsberaad = session?.user?.activeContactId === '1';
 
   // Only Stallingen and Tips are editable, rest is fixed
-  const canChangeDisplayTitle = article.System !== '1' || (['Stallingen', 'Tips'].includes(article.Title||""));
+  const canChangeDisplayTitle = article.System !== '1'; //  || (['Stallingen', 'Tips'].includes(article.Title||""))
 
   // Home is always fixed, Tips is always fixed for non fietsberaad
-  const freezeStatus = (article.Title==='Home' || (article.Title==='Tips' && (isFietsberaad===false)));
+  const freezeStatus = (article.Title==='Home');
 
   const canSave = articleIsValid(article)
-
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -174,9 +173,9 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
         </div>        
         
          {/* Status checkbox */}
-         <div>
+         { article.Title !== 'Home' ?<div>
           <label id="labelStatus" htmlFor="Status" className="block text-sm font-medium text-gray-700">
-            <input 
+             <input 
               type="checkbox" 
               id="Status" 
               name="Status" 
@@ -187,8 +186,9 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
             />
             Toon deze pagina op de website
           </label>
-        </div>
-
+        </div>: <div>
+            <span>Deze pagina wordt altijd getoond op de website</span>
+        </div> }
        <div>
           <FormInput
             type="text"

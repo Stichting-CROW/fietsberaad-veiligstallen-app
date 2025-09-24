@@ -211,12 +211,17 @@ function AppHeaderDesktop({
         </div>
         <div className="flex flex-end">
           {secundaryMenuItems && secundaryMenuItems.map((x: VSArticle, idx: number) => {
+            let url = `/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`
+            if(x.Title === 'Tips') {
+              url = `/fietsberaad/${x.Title ? x.Title : ''}`
+            }
+
             return <SecundaryMenuItem
               key={`pmi-h2-${idx}`}
               targetmunicipality={x.SiteID}
               targetpage={x.Title}
               title={x.DisplayTitle}
-              url={`/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`}
+              url={url}
               onClick={() => {
                 dispatch(setActiveArticle({
                   articleTitle: x.Title || "",

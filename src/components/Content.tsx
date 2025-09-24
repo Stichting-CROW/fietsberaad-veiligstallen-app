@@ -104,7 +104,10 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
         }
 
         const filtered = allparkingdata.filter(parking => (
-          parkingTypesToFilterOn.indexOf(parking.Type||"") > -1) && (parking.SiteID === activeMunicipalityInfo?.ID) && parking.ID!=="aanm");
+          parkingTypesToFilterOn.indexOf(parking.Type||"") > -1) && 
+          (parking.SiteID === activeMunicipalityInfo?.ID) && 
+          parking.ID!=="aanm" &&
+          parking.Status === '1');
         setFilteredstallingen(filtered);      
       } catch (err) {
         setPageContent(false);
