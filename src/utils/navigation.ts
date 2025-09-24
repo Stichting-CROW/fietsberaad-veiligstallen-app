@@ -29,12 +29,12 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
     .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
   }
 
-  console.debug("#### items municipality", itemsMunicipality);
+  // console.debug("#### items municipality", itemsMunicipality);
   let items = showGemeenteMenu && itemsMunicipality ? filterPrimaryItems(itemsMunicipality) : [];
   if(items.length === 0 && itemsFietsberaad) {
     items = filterPrimaryItems(itemsFietsberaad);
   }
-  console.debug("#### primary items", items);
+  //console.debug("#### primary items", items);
   return items;
 }
 
