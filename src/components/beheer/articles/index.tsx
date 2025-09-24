@@ -27,7 +27,7 @@ const ArticlesComponent: React.FC = () => {
   const filters = useSelector(selectArticleFilters);
 
   const articleIsVisibleOnSite = (article: VSArticle) => {
-    return article.Status === '1' && ((article.Abstract || '').length > 0 || (article.Article || '').length > 0);
+    return article.Status === '1' && hasContent(article);
   }
 
   useEffect(() => {

@@ -1,4 +1,4 @@
 import { type VSArticle } from "~/types/articles";
 
-export const hasContent = (x: VSArticle) => ((x.Article||"") !== "") || ((x.Abstract||"") !== "");
+export const hasContent = (x: VSArticle) => ((x.Article||"") !== "") || ((x.Abstract||"") !== "") || (x.Title === "Home"); 
 

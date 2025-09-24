@@ -1,4 +1,5 @@
 import { type VSArticle } from "~/types/articles";
+import { hasContent } from "~/utils/articles";
 
 export const getArticlesForMunicipality = async (siteId: string | null): Promise<VSArticle[]> => {
   try {
@@ -14,8 +15,7 @@ export const getArticlesForMunicipality = async (siteId: string | null): Promise
 
 export const filterNavItems = (items: VSArticle[]|undefined) => {
   if (!items) return [];
-
-  const hasContent = (x: VSArticle) => (x.Abstract!=='' && x.Abstract!==null) || (x.Article!=='' && x.Article!==null)
+  
   return items.filter(x => x.ModuleID === 'veiligstallen' && x.Status === '1' && hasContent(x)) // && x.ShowInNav === '1' 
 }
 
@@ -24,9 +24,7 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
     return items.filter(x => x.Navigation === 'main')
     .filter((x) => {
       const excludeTitles = ['Tips', 'Contact', 'FAQ'];
-      const noContent = (x.Article||'') === '' && (x.Abstract||'') === '';
-
-      return !excludeTitles.includes((x.Title || "")) && !noContent;
+      return !excludeTitles.includes((x.Title || "")) && hasContent(x);
     })
     .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
   }
