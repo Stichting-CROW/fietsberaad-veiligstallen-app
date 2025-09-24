@@ -147,9 +147,6 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
 
   const canSave = articleIsValid(article)
 
-  const canSave = articleIsValid(article)
-
-
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-6">
