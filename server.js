@@ -16,7 +16,7 @@ app.prepare().then(() => {
   createServer(async (req, res) => {
     try {
       // Handle uploads from persistent storage in production
-      if (process.env.NODE_ENV === 'production' && req.url?.startsWith('/uploads/')) {
+      if (fasle || process.env.NODE_ENV === 'production' && req.url?.startsWith('/uploads/')) {
         const filePath = path.join('/home/uploads', req.url.replace('/uploads/', ''))
         
         // Check if file exists
