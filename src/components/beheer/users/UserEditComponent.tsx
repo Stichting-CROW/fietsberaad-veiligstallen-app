@@ -304,17 +304,18 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
 
     const sendEmail = (isNew: boolean) => {
       const to = userName;
-      const subject = isNew ? 'Welkom bij het Dashboard Deelmobiliteit!' : 'Dashboard Deelmobiliteit: Wachtwoord gewijzigd';
+      const subject = isNew ? 'Welkom bij de beheeromgeving van VeiligStallen!' : 'VeiligStallen: Wachtwoord gewijzigd';
       const currentPassword = isChangingPassword ? newPassword : password;
       
       const bodyNew = ` Beste ${displayName},
 
-Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl. 
- 
+Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl: https://veiligstallen.nl
+
 Je inloggegevens zijn: 
-Gebruikersnaam: ${userName}
-Wachtwoord: ${currentPassword}
-Rol:  ${getNewRoleLabel(newRoleID)}
+
+- Gebruikersnaam: ${userName}
+- Wachtwoord: ${currentPassword}
+- Rol:  ${getNewRoleLabel(newRoleID)}
 
 De rol die je gekregen hebt bepaalt welke rechten je hebt om informatie in te zien of aan te passen. Bijvoorbeeld informatie over stallingen aanpassen, teksten op de website bewerken of statistieken opvragen.
 
