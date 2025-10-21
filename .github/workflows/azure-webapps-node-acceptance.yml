@@ -72,8 +72,6 @@ jobs:
           ls -la ./build/standalone
           ls -la ./build/standalone/build
           mv ./public ./build/standalone
-          # Copy custom server.js for handling uploads
-          cp ./server.js ./build/standalone/
 
       - name: "Deploy to Azure Web App"
         id: deploy-to-webapp
