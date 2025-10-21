@@ -46,10 +46,10 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     }
   }, [status, router]);
 
+  // Get parking object if parkingId changes
   useEffect(() => {
     if (currentParkingId !== undefined) {
       if(currentParking === undefined || currentParking?.ID !== currentParkingId) {
-        console.log('currentParkingId', currentParkingId)
         getParkingDetails(currentParkingId).then((parking) => {
           if (parking !== null) {
             setCurrentParking(parking);
@@ -64,7 +64,25 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         setCurrentParking(undefined);
       }
     }
-  }, [currentParkingId, currentRevision]);
+  }, [currentParkingId]);
+
+  // Get parking object if revision changes
+  useEffect(() => {
+    if (currentParkingId !== undefined) {
+      getParkingDetails(currentParkingId).then((parking) => {
+        if (parking !== null) {
+          setCurrentParking(parking);
+        } else {
+          console.error("Failed to load parking with ID: " + currentParkingId);
+          setCurrentParking(undefined);
+        }
+      });
+    } else {
+      if(currentParking !== undefined) {
+        setCurrentParking(undefined);
+      }
+    }
+  }, [currentRevision]);
 
   useEffect(() => {
     if("id" in router.query) {
