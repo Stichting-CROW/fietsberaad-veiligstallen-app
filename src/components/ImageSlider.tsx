@@ -28,9 +28,9 @@ const ImageSlider = ({
     if(imgUrl.includes('http')) {
       newurl = imgUrl;
     } else if (imgUrl.includes('[local]')) {
-      // For local uploads, serve directly from the public directory
-      // Remove the [local] prefix and use the relative path
-      newurl = imgUrl.substring(7);
+      // For local uploads, serve via API route
+      // Replace [local] with /api to use the API route
+      newurl = imgUrl.replace('[local]', '/api');
     } else {
       newurl = `${baseUrl}${imgUrl}`
     }

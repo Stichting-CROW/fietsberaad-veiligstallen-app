@@ -128,7 +128,7 @@ function AppHeaderDesktop({
     if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
       logofile = activecontact.CompanyLogo;
       if(!logofile.startsWith('http')) {
-        logofile =logofile.replace('[local]', '')
+        logofile =logofile.replace('[local]', '/api')
         if(!logofile.startsWith('/')) {
           logofile = '/' + logofile;
         }

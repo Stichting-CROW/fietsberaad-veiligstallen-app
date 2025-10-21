@@ -13,10 +13,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     // Extract the file path from the URL
     const { filepath } = req.query;
     
-    if (!filepath || typeof filepath !== 'string') {
+    if (!filepath || !Array.isArray(filepath) || filepath.length === 0) {
       res.status(400).json({ error: 'File path is required' });
       return;
     }
+
+    // Join the filepath array into a single path string
+    const filePathString = filepath.join('/');
 
     // In production, files are stored in /home/uploads
     // In development, they're in public/uploads
@@ -24,7 +27,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       ? '/home/uploads' 
       : path.join(process.cwd(), 'public/uploads');
     
-    const fullPath = path.join(baseDir, filepath);
+    const fullPath = path.join(baseDir, filePathString);
 
     // Security check: ensure the path is within the uploads directory
     const resolvedPath = path.resolve(fullPath);

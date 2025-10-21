@@ -4,6 +4,13 @@ import type { Metadata } from "next";
 export const getServerSideProps = async (context: any) => {
     try {
         const { slug } = context.params as { slug: string[] };
+        
+        // Don't intercept requests to uploads - let the API route handle them
+        if (slug && slug[0] === 'uploads') {
+          return {
+            notFound: true,
+          };
+        }
     
         return {
           props: {
