@@ -20,10 +20,12 @@ export const parseForm = async (
   req: NextApiRequest
 ): Promise<{ fields: formidable.Fields; files: formidable.Files }> => {
   return await new Promise(async (resolve, reject) => {
-    const uploadDir = join(
-      process.env.ROOT_DIR || process.cwd(),
-      `/public/uploads/${formatDateToDDMMY()}`
-    );
+    // Use Azure's persistent storage directory for production uploads
+    const baseDir = process.env.NODE_ENV === 'production' 
+      ? '/home/uploads'  // Azure persistent storage path
+      : join(process.env.ROOT_DIR || process.cwd(), '/public/uploads');
+    
+    const uploadDir = join(baseDir, formatDateToDDMMY());
 
     try {
       await stat(uploadDir);

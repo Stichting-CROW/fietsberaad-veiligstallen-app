@@ -34,7 +34,15 @@ const handler = async (
 
     // for now, to distinguish between files that were uploaded in "new "veiligstallen and "old" veiligstallen
     // we add [local] to the path -> any file that has [local] in the path is a file that was uploaded in public/uploads etc.
-    const makepathrelative = (filename: string) => (filename.replace(process.cwd()+'/public','[local]'));
+    const makepathrelative = (filename: string) => {
+      if (process.env.NODE_ENV === 'production') {
+        // In production, files are stored in /home/uploads, serve them from /uploads
+        return filename.replace('/home/uploads', '[local]/uploads');
+      } else {
+        // In development, files are stored in public/uploads
+        return filename.replace(process.cwd()+'/public','[local]');
+      }
+    };
     // let url = Array.isArray(file) ? file.map((f) => makepathrelative(f.filepath)) : makepathrelative(file.filepath);
     const url = file.map((f) => makepathrelative(f.filepath));
 
