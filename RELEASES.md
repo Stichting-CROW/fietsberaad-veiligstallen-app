@@ -1,10 +1,22 @@
 # App updates VeiligStallen
 
-## VeiligStallen 2024-XX-XX
+## VeiligStallen 2025-10-23
+
+- 🐛 Admin kan stallingsafbeelding uploaden
+- 🐛 Diverse verbeteringen in gebruikerservaring
+
+## VeiligStallen 2025-02-01
 
 **Stalling-details**
 
 - ✨ Toon 'Statistieken' voor ingelogde gebruikers
+
+**Beheer**
+
+- ✨ Totale herziening van de rechtenstructuur
+- ✨ Vele FMS-schermen zijn herontwikkeld en vereenvoudigd
+- ✨ Nieuwe rapportage-grafieken
+
 ## VeiligStallen 2025-01-03
 
 Deze hotfix deployment is gepubliceerd om een bug op te lossen. Als een beheerder aangepaste openingstijden had toegevoegd, werden deze niet zichtbaar in de app. Nu wel.
