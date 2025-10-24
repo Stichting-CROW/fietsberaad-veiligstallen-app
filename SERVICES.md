@@ -1,5 +1,51 @@
 # Documentation of Coldfusion API services #
 
+## API Overview ##
+
+The following table shows which methods are available in each API version. Methods with the same functionality but different names (e.g., `getBikeUpdates` vs `getJsonBikeUpdates`) are grouped together on a single row.
+
+| Method | V1 | V2 | V3 | Access | Description | Tables |
+|--------|----|----|----|-------| ----------- |--------|
+| **Bike Management** |
+| getBikeUpdates / getJsonBikeUpdates | X | X | X | r | Get bike updates since given date | `transacties`, `accounts_pasids`, `gemeenteaccounts`, `accounts` |
+| getBikes / getJsonBikes | - | X | X | r | Get all registered bikes | `barcoderegister` |
+| saveBike / saveJsonBike | X | X | X | w | Link bike to key fob | `wachtrij_pasids` |
+| saveBikes / saveJsonBikes | X | X | X | w | Bulk save bike-pass associations | `wachtrij_pasids` |
+| getBikeType / getJsonBikeType | X | X | X | r | Get bike type by ID | `fietstypen` |
+| getBikeTypes / getJsonBikeTypes | X | X | X | r | Get all bike types | `fietstypen` |
+| **Section/Sector Methods** |
+| getSections / getJsonSectors / getSectors | X | X | X | r | Get bikepark sectors | `fietsenstallingen`, `fietsenstalling_sectie` |
+| **Financial/Saldo Methods** |
+| addSaldo / addJsonSaldo | X | X | X | w | Add balance to account | `wachtrij_betalingen` |
+| addSaldos / addJsonSaldos | X | X | X | w | Bulk add balance | `wachtrij_betalingen` |
+| getPaymentTypes / getJsonPaymentTypes | X | X | X | r | Get payment types | None (hardcoded) |
+| **Transaction Methods** |
+| uploadTransaction / uploadJsonTransaction | X | X | X | w | Upload single transaction | `wachtrij_transacties` |
+| uploadTransactions / uploadJsonTransactions | X | X | X | w | Bulk upload transactions | `wachtrij_transacties` |
+| **Subscription Methods** |
+| addSubscription | X | X | X | w | Add new subscription | `abonnementen`, `financialtransactions`, `accounts` |
+| subscribe | X | X | X | rw | Link key fob to subscription | `abonnementen`, `accounts_pasids`, `accounts` |
+| getSubscriptionTypes / getJsonSubscriptionTypes | X | X | X | r | Get subscription types | `abonnementsvormen`, `abonnementsvorm_fietsenstalling` |
+| getSubscriptors / getJsonSubscriptors | - | X | X | r | Get key fobs with subscriptions | `accounts_pasids`, `abonnementen`, `abonnementsvormen`, `abonnementsvorm_fietsenstalling` |
+| **Client/User Type Methods** |
+| getClientTypes / getJsonClientTypes | X | X | X | r | Get client types | `klanttypen` |
+| **Occupation Reporting** |
+| reportOccupationData / reportJsonOccupationData | X | X | - | w | Report occupation data | `bezettingsdata`, `fietsenstalling_sectie` |
+| **Synchronization** |
+| syncSector | X | X | X | w | Synchronize sector with central server | `wachtrij_sync` |
+| **Locker Management** |
+| getLockerInfo | X | X | X | r | Get locker information | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `accounts_pasids` |
+| setUrlWebserviceForLocker | X | X | X | w | Set locker callback URL | `fietsenstalling_plek` |
+| updateLocker | - | X | X | rw | Update locker status | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `wachtrij_transacties`, `wachtrij_betalingen` |
+| isAllowedToUse | - | X | X | r | Check RFID authorization | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `accounts_pasids` |
+| **Utility Methods** |
+| getServerTime | X | X | X | r | Get server timestamp | None |
+
+**Legend:**
+- **X**: Method available in this API version
+- **-**: Method not available in this API version
+- **Bold**: Method name variations grouped together
+
 ## API V1 services ##
 
 ### authentication ###
@@ -712,52 +758,6 @@ V3 services provide a type-safe, cleaner API that acts as a thin wrapper around 
 - Ideal for strongly-typed client applications
 - Preferred for ColdFusion-to-ColdFusion communication
 - Recommended for new integrations requiring type safety
-
-## API Comparison ##
-
-The following table shows which methods are available in each API version. Methods with the same functionality but different names (e.g., `getBikeUpdates` vs `getJsonBikeUpdates`) are grouped together on a single row.
-
-| Method | V1 | V2 | V3 | Access | Description | Tables |
-|--------|----|----|----|-------| ----------- |--------|
-| **Bike Management** |
-| getBikeUpdates / getJsonBikeUpdates | X | X | X | r | Get bike updates since given date | `transacties`, `accounts_pasids`, `gemeenteaccounts`, `accounts` |
-| getBikes / getJsonBikes | - | X | X | r | Get all registered bikes | `barcoderegister` |
-| saveBike / saveJsonBike | X | X | X | w | Link bike to key fob | `wachtrij_pasids` |
-| saveBikes / saveJsonBikes | X | X | X | w | Bulk save bike-pass associations | `wachtrij_pasids` |
-| getBikeType / getJsonBikeType | X | X | X | r | Get bike type by ID | `fietstypen` |
-| getBikeTypes / getJsonBikeTypes | X | X | X | r | Get all bike types | `fietstypen` |
-| **Section/Sector Methods** |
-| getSections / getJsonSectors / getSectors | X | X | X | r | Get bikepark sectors | `fietsenstallingen`, `fietsenstalling_sectie` |
-| **Financial/Saldo Methods** |
-| addSaldo / addJsonSaldo | X | X | X | w | Add balance to account | `wachtrij_betalingen` |
-| addSaldos / addJsonSaldos | X | X | X | w | Bulk add balance | `wachtrij_betalingen` |
-| getPaymentTypes / getJsonPaymentTypes | X | X | X | r | Get payment types | None (hardcoded) |
-| **Transaction Methods** |
-| uploadTransaction / uploadJsonTransaction | X | X | X | w | Upload single transaction | `wachtrij_transacties` |
-| uploadTransactions / uploadJsonTransactions | X | X | X | w | Bulk upload transactions | `wachtrij_transacties` |
-| **Subscription Methods** |
-| addSubscription | X | X | X | w | Add new subscription | `abonnementen`, `financialtransactions`, `accounts` |
-| subscribe | X | X | X | rw | Link key fob to subscription | `abonnementen`, `accounts_pasids`, `accounts` |
-| getSubscriptionTypes / getJsonSubscriptionTypes | X | X | X | r | Get subscription types | `abonnementsvormen`, `abonnementsvorm_fietsenstalling` |
-| getSubscriptors / getJsonSubscriptors | - | X | X | r | Get key fobs with subscriptions | `accounts_pasids`, `abonnementen`, `abonnementsvormen`, `abonnementsvorm_fietsenstalling` |
-| **Client/User Type Methods** |
-| getClientTypes / getJsonClientTypes | X | X | X | r | Get client types | `klanttypen` |
-| **Occupation Reporting** |
-| reportOccupationData / reportJsonOccupationData | X | X | - | w | Report occupation data | `bezettingsdata`, `fietsenstalling_sectie` |
-| **Synchronization** |
-| syncSector | X | X | X | w | Synchronize sector with central server | `wachtrij_sync` |
-| **Locker Management** |
-| getLockerInfo | X | X | X | r | Get locker information | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `accounts_pasids` |
-| setUrlWebserviceForLocker | X | X | X | w | Set locker callback URL | `fietsenstalling_plek` |
-| updateLocker | - | X | X | rw | Update locker status | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `wachtrij_transacties`, `wachtrij_betalingen` |
-| isAllowedToUse | - | X | X | r | Check RFID authorization | `fietsenstalling_plek`, `fietsenstalling_plek_bezetting`, `accounts_pasids` |
-| **Utility Methods** |
-| getServerTime | X | X | X | r | Get server timestamp | None |
-
-**Legend:**
-- **X**: Method available in this API version
-- **-**: Method not available in this API version
-- **Bold**: Method name variations grouped together
 
 ## Queue Processing ## 
 
