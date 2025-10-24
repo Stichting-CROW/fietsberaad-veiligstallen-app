@@ -117,6 +117,12 @@ const FooterNav = ({ onStallingAanmelden, children }: {
         {x.DisplayTitle ? x.DisplayTitle : (x.Title ? x.Title : '')}
       </FooterNavItem>) : ''}
 
+      <FooterNavItem
+        url="https://github.com/Stichting-CROW/fietsberaad-veiligstallen-app/blob/main/RELEASES.md#app-updates-veiligstallen"
+      >
+        <small className="text-xs text-gray-400">v2025-10-23</small>
+      </FooterNavItem>
+
     </div>
   );
 }
