@@ -28,6 +28,7 @@ export enum VSSecurityTopic {
   "instellingen_fietsenstallingen_beperkt" = "instellingen_fietsenstallingen_beperkt",
   "rapportages" = "rapportages",
   "fmsservices" = "fmsservices",
+  "wachtrij" = "wachtrij",
 }
 
 export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, description: string }[] = [
@@ -167,6 +168,13 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     name: "FMS Services",
     description: [
       "Algemeen - Stalling communiceert met FMS",
+    ].join(",")
+  },
+  {
+    topic: VSSecurityTopic.wachtrij,
+    name: "Queue Monitor",
+    description: [
+      "Wachtrij voor betalingen, pasids, transacties en sync bekijken",
     ].join(",")
   },
 

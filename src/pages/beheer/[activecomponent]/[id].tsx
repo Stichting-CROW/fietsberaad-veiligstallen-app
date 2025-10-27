@@ -34,6 +34,7 @@ import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
+import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -337,6 +338,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         //   break;
         case VSMenuTopic.ExploreGemeenten:
           selectedComponent = <ExploreGemeenteComponent />;
+          break;
+        case VSMenuTopic.Wachtrij:
+          selectedComponent = <WachtrijMonitorComponent />;
           break;
         case VSMenuTopic.Logboek:
           selectedComponent = <LogboekComponent />;
