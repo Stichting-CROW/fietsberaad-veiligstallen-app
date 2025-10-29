@@ -205,7 +205,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
       BronBezettingsdata: parsed.BronBezettingsdata ?? "FMS",
       reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
-      wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
+      // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
       thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
     }
 
@@ -466,7 +466,7 @@ export default async function handle(
             shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
             BronBezettingsdata: parsed.BronBezettingsdata ?? undefined,
             reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
-            wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
+            // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
             thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
           };
         } else {

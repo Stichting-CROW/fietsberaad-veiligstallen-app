@@ -115,7 +115,7 @@ export type ParkingDetailsType = {
     shadowBikeparkID: string | null;
     BronBezettingsdata: string | null; // Not used in the app
     reservationCostPerDay: number | null; // Removed from record in prisma.ts
-    wachtlijst_Id: bigint | null; // Removed from record in prisma.ts
+    // wachtlijst_Id: bigint | null; // Removed from record in prisma.ts
     thirdPartyReservationsUrl: string | null; // Not used in the app
 
     fietsenstalling_type?: {
@@ -220,7 +220,7 @@ export const selectParkingDetailsType = {
   shadowBikeparkID: true,
   BronBezettingsdata: true, // Not used in the app
   reservationCostPerDay: true, // Removed from record in prisma.ts
-  wachtlijst_Id: true, // Removed from record in prisma.ts
+  // wachtlijst_Id: true, // Removed from record in prisma.ts
   thirdPartyReservationsUrl: true, // Not used in the app
 
     fietsenstalling_type: {
