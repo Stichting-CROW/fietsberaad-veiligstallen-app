@@ -64,7 +64,7 @@ const Parking = ({ id, stallingId, onStallingIdChanged, onClose }: ParkingProps)
     if (!currentStalling) { return }
 
     const result = await fetch(
-      "/api/fietsenstallingen?id=" + currentStalling.ID,
+      `/api/protected/fietsenstallingen/${currentStalling.ID}`,
       {
         method: "PUT",
         body: JSON.stringify({ Status: currentStalling.Status === "0" ? "1" : "0" }),

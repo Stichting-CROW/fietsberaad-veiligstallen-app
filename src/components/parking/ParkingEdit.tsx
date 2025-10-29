@@ -22,8 +22,8 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
 
 import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
-import ParkingEditCapaciteit from "~/components/parking/ParkingEditCapaciteit";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
+import SectiesManagementNew from "~/components/parking/SectiesManagementNew";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
   type OpeningChangedType,
@@ -59,6 +59,7 @@ export type ParkingEditUpdateStructure = {
   BeheerderContact?: string;
   ExploitantID?: string | null;
   FMS?: boolean;
+  StallingsID?: string;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -158,7 +159,6 @@ const ParkingEdit = ({
   const [allServices, setAllServices] = React.useState<VSservice[]>([]);
   const [newServices, setNewServices] = React.useState<ChangedType[]>([]);
 
-  const [newCapaciteit, setNewCapaciteit] = React.useState<ParkingSections>([]); // capaciteitschema
   const [newOpening, setNewOpening] = React.useState<
     OpeningChangedType | undefined
   >(undefined); // openingstijdenschema
@@ -170,6 +170,10 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  const [newStallingsID, setNewStallingsID] = React.useState<string | undefined>(
+    undefined,
+  );
+
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
   >(undefined);
@@ -180,6 +184,7 @@ const ParkingEdit = ({
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
+  const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const canEditAllFields = hasFietsenstallingenAdmin;
   const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
@@ -397,6 +402,10 @@ const ParkingEdit = ({
       update.FMS = newFMS;
     }
 
+    if (newStallingsID !== undefined) {
+      update.StallingsID = newStallingsID;
+    }
+
     if (newStallingType !== undefined) {
       update.Type = newStallingType;
     }
@@ -418,10 +427,6 @@ const ParkingEdit = ({
       }
     }
 
-    // COULDDO: Save data in update object only, to update parkingdata as 1 full object
-    // if(undefined!==newCapaciteit) {
-    //   update.fietsenstalling_sectie = newCapaciteit as FietsenstallingSectiesType
-    // }
 
     if (undefined !== newOpeningstijden) {
       if (newOpeningstijden !== parkingdata.Openingstijden) {
@@ -492,50 +497,13 @@ const ParkingEdit = ({
     }
   };
 
-  const updateCapaciteit = async (
-    parkingdata: ParkingDetailsType,
-    newCapaciteit: ParkingSections,
-  ): Promise<void> => {
-    if (!newCapaciteit || newCapaciteit.length <= 0) return;
-
-    try {
-      // Get section to save
-      const sectionToSaveResponse = await fetch(
-        "/api/fietsenstalling_sectie/findFirstByFietsenstallingsId?ID=" +
-          parkingdata.ID,
-      );
-      let sectionId = undefined;
-      const sectionToSave = await sectionToSaveResponse.json();
-      if (null !== sectionToSave) {
-        sectionId = sectionToSave.sectieId;
-      } else {
-        const result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
-        sectionId = (await result.json()).sectieId;
-      }
-
-      // Save capaciteit
-      await fetch("/api/fietsenstalling_sectie/saveManyFromFullObject", {
-        method: "POST",
-        body: JSON.stringify({
-          parkingId: parkingdata.ID,
-          sectionId: sectionId,
-          parkingSections: newCapaciteit,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const parkingChanged = (update: ParkingEditUpdateStructure) => {
     try {
       const isChanged =
         Object.keys(update).length !== 0 ||
         newServices.length > 0 ||
-        (newCapaciteit && newCapaciteit.length > 0) ||
+        newCapaciteit !== undefined ||
         newOpening !== undefined ||
         newOpeningstijden !== undefined;
 
@@ -570,7 +538,7 @@ const ParkingEdit = ({
       );
 
       const result2 = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         { method: "DELETE" },
       );
 
@@ -620,7 +588,7 @@ const ParkingEdit = ({
       }
 
       const result = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         {
           method: "PUT",
           body: JSON.stringify(update),
@@ -638,11 +606,6 @@ const ParkingEdit = ({
       // If services are updated: Update services
       if (newServices.length > 0) {
         await updateServices(parkingdata, newServices);
-      }
-
-      // If capaciteit is updated: Update capaciteit
-      if (newCapaciteit && newCapaciteit.length > 0) {
-        await updateCapaciteit(parkingdata, newCapaciteit);
       }
 
       if (session === null) {
@@ -884,6 +847,18 @@ const ParkingEdit = ({
                 }}
                 value={newTitle !== undefined ? newTitle : parkingdata.Title}
                 disabled={!canEditAllFields && !canEditLimitedFields}
+              />
+              <br />
+              <FormInput
+                key="i-stallingsid"
+                label="StallingsID"
+                className="mb-1 w-full border-2 border-black"
+                placeholder="StallingsID"
+                onChange={e => {
+                  setNewStallingsID(e.target.value);
+                }}
+                value={newStallingsID !== undefined ? newStallingsID : parkingdata.StallingsID || ""}
+                disabled={!hasFietsberaadSuperadmin}
               />
               <br />
               <FormInput
@@ -1160,23 +1135,15 @@ const ParkingEdit = ({
   };
 
   const renderTabCapaciteit = (visible = false) => {
-    const handlerSetNewCapaciteit = (capaciteit: ParkingSections): void => {
-      setNewCapaciteit([...capaciteit]);
-      return;
-    };
-
     return (
       <div
         className="mt-10 flex w-full justify-between"
         style={{ display: visible ? "flex" : "none" }}
       >
-        <SectionBlockEdit>
-          <ParkingEditCapaciteit
-            parkingdata={parkingdata}
-            update={newCapaciteit}
-            capaciteitChanged={handlerSetNewCapaciteit}
-          />
-        </SectionBlockEdit>
+        <SectiesManagementNew
+          fietsenstallingId={parkingdata.ID}
+          fietsenstallingType={parkingdata.Type}
+        />
       </div>
     );
   };
