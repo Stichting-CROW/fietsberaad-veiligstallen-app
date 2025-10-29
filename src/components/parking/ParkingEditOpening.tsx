@@ -400,7 +400,6 @@ const ParkingEditOpening = ({
     { ...changes }
   );
 
-  const allUnknown = ["ma","di","wo","do","vr","za","zo"].every((d) => radioSelection[d as DayPrefix] === "onbekend");
 
   return (
     <>
