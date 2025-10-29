@@ -33,7 +33,7 @@ export const useSectiesByFietsenstalling = (fietsenstallingId: string | null) =>
     } finally {
       setIsLoading(false);
     }
-  }, [fietsenstallingId, version]);
+  }, [fietsenstallingId]);
 
   useEffect(() => {
     fetchSecties();
