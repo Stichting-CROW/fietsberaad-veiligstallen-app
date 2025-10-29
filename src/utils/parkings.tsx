@@ -25,7 +25,7 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
     }
 
     const response = await fetch(
-      `/api/fietsenstallingen?id=${stallingId}`,
+      `/api/protected/fietsenstallingen/${stallingId}`,
       {
         method: "GET",
         headers: {
@@ -42,7 +42,8 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
     }
     
     const json = await response.json();
-    return json;
+    // Protected API returns {data: ...}, extract the data
+    return json.data || json;
   } catch (error: any) {
     console.error(`getParkingDetails - error for ID "${stallingId}":`, error.message);
     return null;

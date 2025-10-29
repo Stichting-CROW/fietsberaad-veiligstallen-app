@@ -537,7 +537,7 @@ const ParkingEdit = ({
       );
 
       const result2 = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         { method: "DELETE" },
       );
 
@@ -587,7 +587,7 @@ const ParkingEdit = ({
       }
 
       const result = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         {
           method: "PUT",
           body: JSON.stringify(update),
