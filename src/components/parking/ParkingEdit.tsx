@@ -503,6 +503,7 @@ const ParkingEdit = ({
       const isChanged =
         Object.keys(update).length !== 0 ||
         newServices.length > 0 ||
+        newCapaciteit !== undefined ||
         newOpening !== undefined ||
         newOpeningstijden !== undefined;
 
