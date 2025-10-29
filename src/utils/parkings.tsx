@@ -19,6 +19,11 @@ export const findParkingIndex = (parkings: fietsenstallingen[], parkingId: strin
 
 export const getParkingDetails = async (stallingId: string): Promise<ParkingDetailsType | null> => {
   try {
+    if (!stallingId || stallingId === "new") {
+      console.warn("getParkingDetails - invalid stallingId:", stallingId);
+      return null;
+    }
+
     const response = await fetch(
       `/api/fietsenstallingen?id=${stallingId}`,
       {
@@ -28,14 +33,18 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
         },
       }
     );
+    
     if (response.status !== 200) {
-      console.error("getParkingDetails - request failed with status", response.status);
+      const errorText = await response.text();
+      console.error(`getParkingDetails - request failed with status ${response.status} for ID "${stallingId}"`);
+      console.error("Response:", errorText);
       return null;
     }
+    
     const json = await response.json();
     return json;
   } catch (error: any) {
-    console.error("getParkingDetails - error: ", error.message);
+    console.error(`getParkingDetails - error for ID "${stallingId}":`, error.message);
     return null;
   }
 };

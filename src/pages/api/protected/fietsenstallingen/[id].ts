@@ -19,50 +19,86 @@ export type FietsenstallingResponse = {
 
 const getNewStallingsID = async (siteID: string): Promise<string | false> => {
   try {
-
-  const theSite = await prisma.contacts.findFirst({
-    select: {
-      ZipID: true
-    },
-    where: {
-      ID: siteID
+    if (!siteID) {
+      console.error("getNewStallingsID - No SiteID provided");
+      return false;
     }
-  });
-  if(!theSite || !theSite.ZipID) {
-    console.error( "getNewStallingsID - Unable to determine ZipID");
-    return false;
-  }
 
-  // this function needs to find the highest xxxx from all <ZipID>_xxxx values in the fietsenstallingen table
-  // that does not exist yet
-
-  // get all unique stallingsIDs that start with the ZipID
-  const uniqueStallingsIDs = await prisma.fietsenstallingen.findMany({
-    where: {
-      StallingsID: {
-        startsWith: theSite.ZipID
+    const theSite = await prisma.contacts.findFirst({
+      select: {
+        ZipID: true,
+        ID: true
+      },
+      where: {
+        ID: siteID
       }
-    },
-    select: {
-      StallingsID: true
-    },
-    distinct: ['StallingsID']
-  });
+    });
 
-  // determine the highest number from the uniqueStallingsIDs
-  const highestNumber = uniqueStallingsIDs.reduce((max, id) => {
-    const numberPart = id.StallingsID?.replace(theSite.ZipID + "_", '');
-    if(!numberPart) {
-      return max;
+    if (!theSite) {
+      console.error(`getNewStallingsID - Site not found for SiteID: ${siteID}`);
+      return false;
     }
-    if(isNaN(parseInt(numberPart))) {
-      return max;
-    }
-    return Math.max(max, parseInt(numberPart));
-  }, 0);
 
-  // return the next number
-  return theSite.ZipID + '_' + (highestNumber + 1).toString().padStart(3, '0');
+    if (!theSite.ZipID) {
+      console.error(`getNewStallingsID - ZipID not found for SiteID: ${siteID}`);
+      return false;
+    }
+
+    // Get all stallingsIDs that match the pattern ZipID_index
+    // Format: stallingsid = ZipID + "_" + index
+    const zipID = theSite.ZipID;
+    const prefix = zipID + "_";
+    
+    console.log(`getNewStallingsID - Looking for existing StallingsIDs with prefix: ${prefix}`);
+    
+    // Get all StallingsIDs - we'll filter in code to handle case sensitivity
+    const allStallingsRecords = await prisma.fietsenstallingen.findMany({
+      where: {
+        StallingsID: {
+          not: null
+        }
+      },
+      select: {
+        StallingsID: true
+      }
+    });
+
+    // Extract index numbers from StallingsID values matching the exact pattern ZipID_index
+    // Handle case sensitivity by doing exact prefix matching
+    let highestIndex = 0;
+    const matchingStallingsIDs: string[] = [];
+
+    for (const record of allStallingsRecords) {
+      if (!record.StallingsID) continue;
+      
+      // Case-sensitive exact prefix match: must start with ZipID_ (exact case)
+      if (!record.StallingsID.startsWith(prefix)) {
+        continue;
+      }
+      
+      matchingStallingsIDs.push(record.StallingsID);
+      
+      // Extract the index part after ZipID_
+      const indexPart = record.StallingsID.substring(prefix.length);
+      
+      // Parse as integer (will be NaN if not a valid number)
+      const index = parseInt(indexPart, 10);
+      
+      // Only consider valid positive numbers
+      if (!isNaN(index) && index > 0 && index > highestIndex) {
+        highestIndex = index;
+      }
+    }
+
+    console.log(`getNewStallingsID - Found ${matchingStallingsIDs.length} matching StallingsIDs for ZipID ${zipID}, highest index: ${highestIndex}`);
+
+    // Return ZipID + "_" + (highestIndex + 1) with 3-digit zero padding
+    const newIndex = highestIndex + 1;
+    const newStallingsID = zipID + '_' + newIndex.toString().padStart(3, '0');
+    
+    console.log(`getNewStallingsID - Generated new StallingsID: ${newStallingsID}`);
+    
+    return newStallingsID;
   } catch (e) {
     console.error("getNewStallingsID - Error:", e);
     return false;
@@ -74,14 +110,22 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
     const newID = generateID();
     const data = { ...req.body, ID: newID };
 
-    if(data.StallingsID === null || data.StallingsID === undefined) {
+    // Always generate new StallingsID based on SiteID when SiteID is provided
+    // This ensures the pattern ZipID_index is always used, even if a template value was provided
+    if(data.SiteID) {
       const newStallingID = await getNewStallingsID(data.SiteID);
       if(!newStallingID) {
-       console.error("Error creating new fietsenstalling - unable to create StallingID");
+       console.error("Error creating new fietsenstalling - unable to create StallingID for SiteID:", data.SiteID);
        res.status(500).json({error: "Error creating new fietsenstalling - unable to create StallingID"});
        return;
       }
       data.StallingsID = newStallingID;
+      console.log(`createNewStalling - Generated StallingsID: ${newStallingID} for SiteID: ${data.SiteID}`);
+    } else if(data.StallingsID === null || data.StallingsID === undefined) {
+      // If no SiteID provided, we still need a StallingsID, but can't generate it properly
+      console.error("Error creating new fietsenstalling - SiteID is required to generate StallingsID");
+      res.status(400).json({error: "SiteID is required to generate StallingsID"});
+      return;
    }
 
     const parseResult = fietsenstallingCreateSchema.safeParse(data);
@@ -178,17 +222,25 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       }
     });
     const sectieId = newSectieIdResult._max.sectieId !== null ? newSectieIdResult._max.sectieId + 1 : 1;
+    
+    // Generate externalId: StallingsID_001 for first section
+    const externalId = newFietsenstalling.StallingsID ? `${newFietsenstalling.StallingsID}_001` : null;
+    
+    // Set isKluis based on fietsenstalling type
+    // isKluis = 1 for fietskluizen type, 0 for other types
+    const isKluis = (newFietsenstalling.Type === "fietskluizen");
+    
     const sectiedata: fietsenstalling_sectie = {
       fietsenstallingsId: newFietsenstalling.ID,
       sectieId,
       titel: 'sectie 1',
       isactief: true,
-      externalId: null,
+      externalId: externalId,
       omschrijving: null,
       capaciteit: null,
       CapaciteitBromfiets: null,
       kleur: "",
-      isKluis: false,
+      isKluis: isKluis,
       reserveringskostenPerDag: null,
       urlwebservice: null,
       Reservable: false,
@@ -342,6 +394,7 @@ export default async function handle(
       break;
     }
     case "PUT": {
+      console.log("PUT request received for fietsenstalling:", id);
       try {
         const parseResult = fietsenstallingSchema.partial().safeParse(req.body);
         if (!parseResult.success) {
@@ -446,6 +499,54 @@ export default async function handle(
             EditorModified: parsed.EditorModified ?? undefined,
             DateModified: parsed.DateModified ? new Date(parsed.DateModified) : undefined,
           };
+        }
+
+        // Check if Type is being changed - if so, update all sections' isKluis flag
+        if (parsed.Type !== undefined) {
+          // Get current type to compare
+          const currentFietsenstalling = await prisma.fietsenstallingen.findFirst({
+            where: { ID: id },
+            select: { Type: true }
+          });
+          
+          // Normalize type values for comparison (case-insensitive)
+          const currentType = currentFietsenstalling?.Type?.toLowerCase() || null;
+          const newType = parsed.Type?.toLowerCase() || null;
+          
+          // Check if type is actually changing
+          if (currentType !== newType) {
+            // Set isKluis based on new type: true for fietskluizen, false for others
+            const newIsKluis = newType === "fietskluizen";
+            
+            console.log(`Type change detected: "${currentFietsenstalling?.Type}" -> "${parsed.Type}". Setting isKluis to ${newIsKluis} for all sections`);
+            
+            // Get section count before update
+            const sectionCount = await prisma.fietsenstalling_sectie.count({
+              where: { fietsenstallingsId: id }
+            });
+            
+            if (sectionCount > 0) {
+              // Update all sections for this fietsenstalling
+              const updateResult = await prisma.fietsenstalling_sectie.updateMany({
+                where: { fietsenstallingsId: id },
+                data: { isKluis: newIsKluis }
+              });
+              
+              console.log(`Updated ${updateResult.count} section(s) out of ${sectionCount} total. isKluis set to ${newIsKluis}`);
+              
+              // Verify the update worked
+              const verifySections = await prisma.fietsenstalling_sectie.findMany({
+                where: { fietsenstallingsId: id },
+                select: { sectieId: true, isKluis: true }
+              });
+              
+              console.log(`Verification - Sections isKluis values:`, verifySections.map(s => ({ sectieId: s.sectieId, isKluis: s.isKluis })));
+            } else {
+              console.log(`No sections found to update for fietsenstalling ${id}`);
+            }
+          } else {
+            console.log(`Type not changed: "${currentFietsenstalling?.Type}" (no update needed)`);
+          }
         }
 
         const updatedFietsenstalling = await prisma.fietsenstallingen.update({
