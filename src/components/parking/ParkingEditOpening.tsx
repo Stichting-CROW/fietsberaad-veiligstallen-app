@@ -400,7 +400,6 @@ const ParkingEditOpening = ({
     { ...changes }
   );
 
-  const allOpen24 = ["ma","di","wo","do","vr","za","zo"].every((d) => radioSelection[d as DayPrefix] === "open24");
   const allUnknown = ["ma","di","wo","do","vr","za","zo"].every((d) => radioSelection[d as DayPrefix] === "onbekend");
 
   return (
