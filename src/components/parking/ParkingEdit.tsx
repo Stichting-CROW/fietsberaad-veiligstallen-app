@@ -193,7 +193,7 @@ const ParkingEdit = ({
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
 
   // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
