@@ -23,7 +23,8 @@ export enum VSSecurityTopic {
   "gebruikers_dataeigenaar_admin" = "gebruikers_dataeigenaar_admin",
   "gebruikers_dataeigenaar_beperkt" = "gebruikers_dataeigenaar_beperkt",
   "instellingen_dataeigenaar" = "instellingen_dataeigenaar",
-  "instellingen_site_content" = "instellingen_site_content",
+  "instellingen_site_content_pages" = "instellingen_site_content_pages",
+  "instellingen_site_content_faq" = "instellingen_site_content_faq",
   "instellingen_fietsenstallingen_admin" = "instellingen_fietsenstallingen_admin",
   "instellingen_fietsenstallingen_beperkt" = "instellingen_fietsenstallingen_beperkt",
   "rapportages" = "rapportages",
@@ -144,10 +145,19 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     ].join(",")
   },
   {
-    topic: VSSecurityTopic.instellingen_site_content,
+    topic: VSSecurityTopic.instellingen_site_content_pages,
     name: "Beheer website",
     description: [
+      "Beheer pagina's door fietsberaad",
       "Beheer pagina's voor huidige organisatie",
+      "Beheer FAQ artikelen voor huidige organisatie"
+    ].join(",")
+  },
+  {
+    topic: VSSecurityTopic.instellingen_site_content_faq,
+    name: "Beheer website",
+    description: [
+      "Beheer FAQ artikelen door fietsberaad",
       "Beheer FAQ artikelen voor huidige organisatie"
     ].join(",")
   },

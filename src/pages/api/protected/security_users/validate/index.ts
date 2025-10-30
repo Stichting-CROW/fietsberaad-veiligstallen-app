@@ -76,7 +76,7 @@ export default async function handle(
       }
 
       const uniqueFields = [
-        {field: "UserName" as const, message: "Er bestaat al een gebruiker met deze email"},
+        {field: "UserName" as const, message: "Er bestaat al een gebruiker met dit email adres"},
       ];
 
       const oldValues = !isNew ? await getSecurityUserNew(data.UserID, validateUserSessionResult.activeContactId) : undefined;

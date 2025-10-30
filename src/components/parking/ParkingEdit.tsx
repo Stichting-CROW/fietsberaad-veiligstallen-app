@@ -43,6 +43,7 @@ import { useExploitanten } from "~/hooks/useExploitanten";
 import type { VSContactExploitant } from "~/types/contacts";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import ParkingEditBeheerder from "./ParkingEditBeheerder";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -192,7 +193,7 @@ const ParkingEdit = ({
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
 
   // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -503,7 +504,6 @@ const ParkingEdit = ({
       const isChanged =
         Object.keys(update).length !== 0 ||
         newServices.length > 0 ||
-        newCapaciteit !== undefined ||
         newOpening !== undefined ||
         newOpeningstijden !== undefined;
 
@@ -982,6 +982,13 @@ const ParkingEdit = ({
                 className={`mr-2 h-4 w-4 ${!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}`}
                 checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
                 onChange={e => {
+                  if(e.target.checked === false) {
+                    if(confirm("Weet u zeker dat u deze instelling wilt uitzetten? Dit heeft invloed op de weergave in sommige rapportages.")!==true) {
+                      return
+                    }
+                  }
+                  
+                  console.debug("#### setting FMS to", e.target.checked);
                   setNewFMS(e.target.checked);
                 }}
                 disabled={!hasFmsservices}
@@ -1160,153 +1167,21 @@ const ParkingEdit = ({
   };
 
   const renderTabBeheerder = (visible = false) => {
-    // Show loading state if exploitanten are still loading
-    if (isLoadingExploitanten) {
-      return (
-        <div
-          className="flex justify-between"
-          style={{ display: visible ? "flex" : "none" }}
-        >
-          <div data-name="content-left" className="sm:mr-12">
-            <SectionBlockEdit>
-              <div className="mt-4 w-full">
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Exploitanten laden...</p>
-                </div>
-              </div>
-            </SectionBlockEdit>
-          </div>
-        </div>
-      );
-    }
-
-    // Show error state if there's an error loading exploitanten
-    if (errorExploitanten) {
-      return (
-        <div
-          className="flex justify-between"
-          style={{ display: visible ? "flex" : "none" }}
-        >
-          <div data-name="content-left" className="sm:mr-12">
-            <SectionBlockEdit>
-              <div className="mt-4 w-full">
-                <div className="text-center py-8">
-                  <p className="text-red-600">Fout bij het laden van exploitanten: {errorExploitanten}</p>
-                </div>
-              </div>
-            </SectionBlockEdit>
-          </div>
-        </div>
-      );
-    }
-
-    // Get the currently selected exploitant
-    const selectedExploitantID = 
-      newExploitantID !== undefined ? newExploitantID : (parkingdata.ExploitantID === null ? 'anders' : parkingdata.ExploitantID);
-    // const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
-    
-    // Create options for the dropdown
-    const exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
-    exploitanten.forEach(exp => {
-      exploitantOptions.push({
-        label: exp.CompanyName || 'Onbekende exploitant',
-        value: exp.ID
-      });
-    });
-
-    const showBeheerderInput = (selectedExploitantID !== 'anders')
-
     return (
-      <div
-        className="flex justify-between"
-        style={{ display: visible ? "flex" : "none" }}
-      >
-        <div data-name="content-left" className="sm:mr-12">
-          <SectionBlockEdit>
-            <div className="mt-4 w-full">
-              {/* Row 1: Exploitant/beheerder label + select */}
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    <label className="block text-sm font-bold text-gray-700">
-                      Exploitant/beheerder:
-                    </label>
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <FormSelect
-                      key="i-exploitant"
-                      label=""
-                      className="w-full border border-gray-300"
-                      placeholder="Selecteer exploitant"
-                      onChange={e => {
-                        setNewExploitantID(e.target.value);
-                      }}
-                      value={selectedExploitantID}
-                      options={exploitantOptions}
-                      disabled={!canEditAllFields}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 2: No label + (Namelijk + input) */}
-              { showBeheerderInput && <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    {/* Empty label space */}
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                        Namelijk:
-                      </label>
-                      <input
-                        type="text"
-                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md ${!canEditAllFields ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
-                        value={newBeheerder !== undefined && newBeheerder !== null && newBeheerder !== "" ? newBeheerder : parkingdata.Beheerder || ""}
-                        onChange={e => {
-                          setNewBeheerder(e.target.value);
-                        }}
-                        placeholder="Website en contactgegevens"
-                        disabled={!canEditAllFields}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>}
-
-              {/* Row 3: Contact beheerder label + input */}
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
-                      Contact beheerder:
-                    </label>
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <FormInput
-                      key="i-beheerdercontact"
-                      label=""
-                      className="w-full border border-gray-300"
-                      placeholder="Email adres"
-                      onChange={e => {
-                        setNewBeheerderContact(e.target.value);
-                      }}
-                      value={
-                        newBeheerderContact !== undefined
-                          ? newBeheerderContact
-                          : parkingdata.BeheerderContact
-                      }
-                      disabled={!canEditAllFields}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </SectionBlockEdit>
-        </div>
-      </div>
+      <ParkingEditBeheerder
+        visible={visible}
+        isLoadingExploitanten={isLoadingExploitanten}
+        exploitanten={exploitanten}
+        errorExploitanten={errorExploitanten}
+        newExploitantID={newExploitantID}
+        setNewExploitantID={setNewExploitantID}
+        parkingdata={parkingdata}
+        canEditAllFields={canEditAllFields}
+        newBeheerder={newBeheerder}
+        setNewBeheerder={setNewBeheerder}
+        newBeheerderContact={newBeheerderContact}
+        setNewBeheerderContact={setNewBeheerderContact}
+      />
     );
   };
 

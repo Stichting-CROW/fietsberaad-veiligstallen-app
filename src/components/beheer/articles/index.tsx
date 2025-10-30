@@ -16,9 +16,8 @@ const ArticlesComponent: React.FC = () => {
   const { data: session } = useSession();
   
   // Check user rights for access control
-  const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
-  const canCreateNew = hasInstellingenSiteContent;
-  const canDelete = hasInstellingenSiteContent;
+  const canCreateNew = session?.user?.securityProfile?.rights[VSSecurityTopic.instellingen_site_content_pages]?.create || false;
+  const canDelete = session?.user?.securityProfile?.rights[VSSecurityTopic.instellingen_site_content_pages]?.delete || false;
   const { articles, isLoading, error, reloadArticles } = useArticles();
   const [filteredArticles, setFilteredArticles] = useState<VSArticle[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);

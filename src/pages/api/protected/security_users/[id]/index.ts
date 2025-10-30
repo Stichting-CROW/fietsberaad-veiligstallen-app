@@ -106,6 +106,15 @@ export default async function handle(
           return;
         }
 
+        // Ensure no duplicate email exists
+        const existingUser = await prisma.security_users.findFirst({
+          where: { UserName: parsed.UserName },
+        });
+        if (existingUser) {
+          res.status(400).json({ error: "A user with this email address already exists." });
+          return;
+        }
+
         const newUserID = generateID();
 
         // Hash the password
