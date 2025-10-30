@@ -43,26 +43,24 @@ export default async function handler(
         ? { method: method }
         : {};
 
-      // Get unique methods for filter dropdown
-      const methods = await prisma.webservice_log.findMany({
-        select: { method: true },
-        distinct: ['method'],
-        where: { method: { not: null } },
-        orderBy: { method: 'asc' }
-      });
+      // Perform available methods, total, and page fetch in parallel
+      const [methods, total, records] = await Promise.all([
+        prisma.webservice_log.findMany({
+          select: { method: true },
+          distinct: ['method'],
+          where: { method: { not: null } },
+          orderBy: { method: 'asc' }
+        }),
+        prisma.webservice_log.count({ where }),
+        prisma.webservice_log.findMany({
+          where,
+          orderBy: { tijdstip: 'desc' },
+          skip: (page - 1) * finalPageSize,
+          take: finalPageSize
+        })
+      ]);
 
       const availableMethods = methods.map(m => m.method).filter(Boolean) as string[];
-
-      // Get total count for pagination
-      const total = await prisma.webservice_log.count({ where });
-
-      // Get paginated records
-      const records = await prisma.webservice_log.findMany({
-        where,
-        orderBy: { tijdstip: 'desc' },
-        skip: (page - 1) * finalPageSize,
-        take: finalPageSize
-      });
 
       const totalPages = Math.ceil(total / finalPageSize);
 

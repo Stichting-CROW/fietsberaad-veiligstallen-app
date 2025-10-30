@@ -12,6 +12,7 @@
 **Technisch**
 
 - ✨ Integratie van wachtrij types, API’s en UI in beheerdersschermen
+- ✨ Optimalisatie van de paginas
 
 ## VeiligStallen 2025-10-30
 

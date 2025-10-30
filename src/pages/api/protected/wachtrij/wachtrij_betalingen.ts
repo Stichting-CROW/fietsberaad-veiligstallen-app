@@ -37,50 +37,37 @@ export default async function handler(
       const validPageSizes = [20, 50, 100, 200, 500];
       const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 20;
 
-      // Get total count for pagination
-      const total = await prisma.wachtrij_betalingen.count();
-
-      // Get paginated records
-      const records = await prisma.wachtrij_betalingen.findMany({
-        select: {
-          ID: true,
-          bikeparkID: true,
-          passID: true,
-          transactionDate: true,
-          amount: true,
-          processed: true,
-          processDate: true,
-          error: true,
-          dateCreated: true
-        },
-        orderBy: { dateCreated: 'desc' },
-        skip: (page - 1) * finalPageSize,
-        take: finalPageSize
-      });
-
-      // Get summary counts
-      const summaryData = await prisma.wachtrij_betalingen.groupBy({
-        by: ['processed'],
-        _count: { ID: true }
-      });
-
-      // Calculate summary (boolean processed field)
-      const pendingCount = summaryData.find(s => s.processed === false)?._count.ID || 0;
-      const processedCount = summaryData.find(s => s.processed === true)?._count.ID || 0;
-      
-      const summary: WachtrijSummary = {
-        total: total,
-        pending: pendingCount,
-        processing: 0, // Boolean fields don't have processing state
-        success: processedCount,
-        error: 0 // Boolean fields don't distinguish errors
-      };
+      // Perform count and page fetch in parallel (summary removed)
+      const [total, records] = await Promise.all([
+        prisma.wachtrij_betalingen.count(),
+        prisma.wachtrij_betalingen.findMany({
+          select: {
+            ID: true,
+            bikeparkID: true,
+            passID: true,
+            transactionDate: true,
+            amount: true,
+            processed: true,
+            processDate: true,
+            error: true,
+            dateCreated: true
+          },
+          orderBy: { dateCreated: 'desc' },
+          skip: (page - 1) * finalPageSize,
+          take: finalPageSize
+        })
+      ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 
+      // Normalize Decimal amount to number for response type compatibility
+      const normalized: WachtrijBetalingen[] = records.map(r => ({
+        ...r,
+        amount: Number(r.amount as unknown as number)
+      }));
+
       const response: WachtrijResponse<WachtrijBetalingen> = {
-        data: records,
-        summary,
+        data: normalized,
         pagination: {
           page,
           pageSize: finalPageSize,
