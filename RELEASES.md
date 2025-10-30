@@ -1,5 +1,18 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-10-30 (wachtrij-feature branch)
+
+**Beheer / Monitoring**
+
+- ✨ Nieuw: Pagina voor monitoring van verschillende wachtrijen toegevoegd aan het beheerdersmenu
+- ✨ Nieuwe componenten voor tonen van wachtrijstatus, samenvattingen en webservice logs
+- ✨ Backend API-endpoints voor uitlezen van wachtrijstatus (wachtrij_betalingen, pasids, sync, transacties, webservice_log)
+- ✨ Nieuwe TypeScript types en utilities voor wachtrij-monitoring
+
+**Technisch**
+
+- ✨ Integratie van wachtrij types, API’s en UI in beheerdersschermen
+
 ## VeiligStallen 2025-10-30
 
 **Beheer**

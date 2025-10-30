@@ -25,6 +25,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
   const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
   const hasAcceptatieOntwikkeling = userHasRight(securityProfile, VSSecurityTopic.acceptatie_ontwikkeling);
+  const hasWachtrijAccess = userHasRight(securityProfile, VSSecurityTopic.wachtrij);
 
   return (
     <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4">
@@ -94,6 +95,9 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
             <ul className="ml-4 mt-1">
               <LeftMenuItem component={VSMenuTopic.ExploreGemeenten} title={'Gemeenten'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
               <LeftMenuItem component={VSMenuTopic.ExploreUsers} title={'Gebruikers'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+              {hasWachtrijAccess && (
+                <LeftMenuItem component={VSMenuTopic.Wachtrij} title={'Wachtrij'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+              )}
               {/* <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
               {/* <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
             </ul>

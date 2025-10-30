@@ -130,6 +130,7 @@ export const getRoleRights = (
     }
     currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.fmsservices] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.wachtrij] = isRootAdminFietsberaad ? allowCRUD : (isAdminFietsberaad ? allowRead : allowNone)
 
     return currentTopics;        
 };
