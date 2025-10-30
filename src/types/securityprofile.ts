@@ -24,7 +24,7 @@ export enum VSSecurityTopic {
   "gebruikers_dataeigenaar_beperkt" = "gebruikers_dataeigenaar_beperkt",
   "instellingen_dataeigenaar" = "instellingen_dataeigenaar",
   "instellingen_site_content_pages" = "instellingen_site_content_pages",
-  "instellingen_site_content_faq" = "instellingen_site_content_pages_faq",
+  "instellingen_site_content_faq" = "instellingen_site_content_faq",
   "instellingen_fietsenstallingen_admin" = "instellingen_fietsenstallingen_admin",
   "instellingen_fietsenstallingen_beperkt" = "instellingen_fietsenstallingen_beperkt",
   "rapportages" = "rapportages",
