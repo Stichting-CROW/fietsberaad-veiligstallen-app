@@ -80,7 +80,7 @@ export type WachtrijRecord = WachtrijBetalingen | WachtrijPasids | WachtrijTrans
 
 export interface WachtrijResponse<T = WachtrijRecord> {
   data: T[];
-  summary: WachtrijSummary;
+  summary?: WachtrijSummary;
   pagination: {
     page: number;
     pageSize: number;

@@ -8,7 +8,6 @@ import type {
   WachtrijResponse,
   WebserviceLogResponse
 } from '~/types/wachtrij';
-import WachtrijSummaryComponent from './WachtrijSummary';
 import WachtrijTable from './WachtrijTable';
 import WebserviceLogTable from './WebserviceLogTable';
 import Pagination from './Pagination';
@@ -24,7 +23,7 @@ interface QueueData {
 
 const WachtrijMonitorComponent: React.FC = () => {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<QueueType>('betalingen');
+  const [activeTab, setActiveTab] = useState<QueueType>('transacties');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -220,9 +219,9 @@ const WachtrijMonitorComponent: React.FC = () => {
   }, [pagination[activeTab]?.page, pagination[activeTab]?.pageSize, activeTab]);
 
   const tabs = [
+    { key: 'transacties' as QueueType, label: 'Transacties', description: 'Check-in/check-out transactions queue' },
     { key: 'betalingen' as QueueType, label: 'Betalingen', description: 'Balance additions queue' },
     { key: 'pasids' as QueueType, label: 'PasIDs', description: 'Bike-pass associations queue' },
-    { key: 'transacties' as QueueType, label: 'Transacties', description: 'Check-in/check-out transactions queue' },
     { key: 'sync' as QueueType, label: 'Sync', description: 'Sector synchronization queue' },
     { key: 'webservice_log' as QueueType, label: 'Webservice Log', description: 'API call logging with detailed request/response data' }
   ];
@@ -450,16 +449,6 @@ const WachtrijMonitorComponent: React.FC = () => {
               <div className="mt-2 text-sm text-red-700">{currentError}</div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Summary - only for queue tabs, not webservice_log */}
-      {currentData && activeTab !== 'webservice_log' && (
-        <div className="mb-6">
-          <WachtrijSummaryComponent 
-            summary={currentData.summary} 
-            title=""
-          />
         </div>
       )}
 

@@ -37,51 +37,32 @@ export default async function handler(
       const validPageSizes = [20, 50, 100, 200, 500];
       const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 20;
 
-      // Get total count for pagination
-      const total = await prisma.wachtrij_pasids.count();
-
-      // Get paginated records
-      const records = await prisma.wachtrij_pasids.findMany({
-        select: {
-          ID: true,
-          bikeparkID: true,
-          passID: true,
-          barcode: true,
-          RFID: true,
-          transactionDate: true,
-          processed: true,
-          processDate: true,
-          error: true,
-          DateCreated: true
-        },
-        orderBy: { DateCreated: 'desc' },
-        skip: (page - 1) * finalPageSize,
-        take: finalPageSize
-      });
-
-      // Get summary counts
-      const summaryData = await prisma.wachtrij_pasids.groupBy({
-        by: ['processed'],
-        _count: { ID: true }
-      });
-
-      // Calculate summary (boolean processed field)
-      const pendingCount = summaryData.find(s => s.processed === false)?._count.ID || 0;
-      const processedCount = summaryData.find(s => s.processed === true)?._count.ID || 0;
-      
-      const summary: WachtrijSummary = {
-        total: total,
-        pending: pendingCount,
-        processing: 0, // Boolean fields don't have processing state
-        success: processedCount,
-        error: 0 // Boolean fields don't distinguish errors
-      };
+      // Perform count and page fetch in parallel (summary removed)
+      const [total, records] = await Promise.all([
+        prisma.wachtrij_pasids.count(),
+        prisma.wachtrij_pasids.findMany({
+          select: {
+            ID: true,
+            bikeparkID: true,
+            passID: true,
+            barcode: true,
+            RFID: true,
+            transactionDate: true,
+            processed: true,
+            processDate: true,
+            error: true,
+            DateCreated: true
+          },
+          orderBy: { DateCreated: 'desc' },
+          skip: (page - 1) * finalPageSize,
+          take: finalPageSize
+        })
+      ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 
       const response: WachtrijResponse<WachtrijPasids> = {
         data: records,
-        summary,
         pagination: {
           page,
           pageSize: finalPageSize,
