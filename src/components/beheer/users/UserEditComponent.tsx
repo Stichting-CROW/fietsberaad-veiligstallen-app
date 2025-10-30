@@ -190,8 +190,12 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
           }
     
           if (response.result?.error) {
-            console.error("API Error Response:", response.result?.error || 'Onbekende fout bij het opslaan van de gebruiker');
-            setErrorMessage('Fout bij het opslaan van de gebruiker');
+            if (response.result.error.indexOf('already exists') !== -1) {
+              setErrorMessage('Er bestaat al een gebruiker met dit e-mailadres.');
+            } else {
+              setErrorMessage('Fout bij het opslaan van de gebruiker');
+            }
+            return;
           }
         } else {
             const data: z.infer<typeof securityUserUpdateSchema> = {
