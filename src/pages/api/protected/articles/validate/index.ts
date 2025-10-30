@@ -28,7 +28,7 @@ export default async function handle(
     }
 
     const hasInstellingenSiteContentPages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
-  if (!hasInstellingenSiteContentPages) {
+    if (!hasInstellingenSiteContentPages) {
       res.status(403).json({valid: false, error: "Access denied - insufficient permissions"});
       return;
     }
