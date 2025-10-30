@@ -148,7 +148,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     topic: VSSecurityTopic.instellingen_site_content_pages,
     name: "Beheer website",
     description: [
-      "Beheer pagina's voor door fietsberaad",
+      "Beheer pagina's door fietsberaad",
       "Beheer pagina's voor huidige organisatie",
       "Beheer FAQ artikelen voor huidige organisatie"
     ].join(",")
