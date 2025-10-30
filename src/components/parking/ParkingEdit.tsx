@@ -22,8 +22,8 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
 
 import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
-import ParkingEditCapaciteit from "~/components/parking/ParkingEditCapaciteit";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
+import SectiesManagementNew from "~/components/parking/SectiesManagementNew";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
   type OpeningChangedType,
@@ -43,6 +43,7 @@ import { useExploitanten } from "~/hooks/useExploitanten";
 import type { VSContactExploitant } from "~/types/contacts";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import ParkingEditBeheerder from "./ParkingEditBeheerder";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -59,6 +60,7 @@ export type ParkingEditUpdateStructure = {
   BeheerderContact?: string;
   ExploitantID?: string | null;
   FMS?: boolean;
+  StallingsID?: string;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -158,7 +160,6 @@ const ParkingEdit = ({
   const [allServices, setAllServices] = React.useState<VSservice[]>([]);
   const [newServices, setNewServices] = React.useState<ChangedType[]>([]);
 
-  const [newCapaciteit, setNewCapaciteit] = React.useState<ParkingSections>([]); // capaciteitschema
   const [newOpening, setNewOpening] = React.useState<
     OpeningChangedType | undefined
   >(undefined); // openingstijdenschema
@@ -170,6 +171,10 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  const [newStallingsID, setNewStallingsID] = React.useState<string | undefined>(
+    undefined,
+  );
+
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
   >(undefined);
@@ -180,6 +185,7 @@ const ParkingEdit = ({
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
+  const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const canEditAllFields = hasFietsenstallingenAdmin;
   const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
@@ -187,7 +193,7 @@ const ParkingEdit = ({
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
 
   // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -397,6 +403,10 @@ const ParkingEdit = ({
       update.FMS = newFMS;
     }
 
+    if (newStallingsID !== undefined) {
+      update.StallingsID = newStallingsID;
+    }
+
     if (newStallingType !== undefined) {
       update.Type = newStallingType;
     }
@@ -418,10 +428,6 @@ const ParkingEdit = ({
       }
     }
 
-    // COULDDO: Save data in update object only, to update parkingdata as 1 full object
-    // if(undefined!==newCapaciteit) {
-    //   update.fietsenstalling_sectie = newCapaciteit as FietsenstallingSectiesType
-    // }
 
     if (undefined !== newOpeningstijden) {
       if (newOpeningstijden !== parkingdata.Openingstijden) {
@@ -492,50 +498,12 @@ const ParkingEdit = ({
     }
   };
 
-  const updateCapaciteit = async (
-    parkingdata: ParkingDetailsType,
-    newCapaciteit: ParkingSections,
-  ): Promise<void> => {
-    if (!newCapaciteit || newCapaciteit.length <= 0) return;
-
-    try {
-      // Get section to save
-      const sectionToSaveResponse = await fetch(
-        "/api/fietsenstalling_sectie/findFirstByFietsenstallingsId?ID=" +
-          parkingdata.ID,
-      );
-      let sectionId = undefined;
-      const sectionToSave = await sectionToSaveResponse.json();
-      if (null !== sectionToSave) {
-        sectionId = sectionToSave.sectieId;
-      } else {
-        const result = await fetch("/api/fietsenstalling_sectie/getNewSectieId");
-        sectionId = (await result.json()).sectieId;
-      }
-
-      // Save capaciteit
-      await fetch("/api/fietsenstalling_sectie/saveManyFromFullObject", {
-        method: "POST",
-        body: JSON.stringify({
-          parkingId: parkingdata.ID,
-          sectionId: sectionId,
-          parkingSections: newCapaciteit,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const parkingChanged = (update: ParkingEditUpdateStructure) => {
     try {
       const isChanged =
         Object.keys(update).length !== 0 ||
         newServices.length > 0 ||
-        (newCapaciteit && newCapaciteit.length > 0) ||
         newOpening !== undefined ||
         newOpeningstijden !== undefined;
 
@@ -570,7 +538,7 @@ const ParkingEdit = ({
       );
 
       const result2 = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         { method: "DELETE" },
       );
 
@@ -620,7 +588,7 @@ const ParkingEdit = ({
       }
 
       const result = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         {
           method: "PUT",
           body: JSON.stringify(update),
@@ -638,11 +606,6 @@ const ParkingEdit = ({
       // If services are updated: Update services
       if (newServices.length > 0) {
         await updateServices(parkingdata, newServices);
-      }
-
-      // If capaciteit is updated: Update capaciteit
-      if (newCapaciteit && newCapaciteit.length > 0) {
-        await updateCapaciteit(parkingdata, newCapaciteit);
       }
 
       if (session === null) {
@@ -887,6 +850,18 @@ const ParkingEdit = ({
               />
               <br />
               <FormInput
+                key="i-stallingsid"
+                label="StallingsID"
+                className="mb-1 w-full border-2 border-black"
+                placeholder="StallingsID"
+                onChange={e => {
+                  setNewStallingsID(e.target.value);
+                }}
+                value={newStallingsID !== undefined ? newStallingsID : parkingdata.StallingsID || ""}
+                disabled={!hasFietsberaadSuperadmin}
+              />
+              <br />
+              <FormInput
                 key="i-location"
                 label="Straat en huisnummer"
                 className="mb-1 w-full border-2 border-black"
@@ -1007,6 +982,13 @@ const ParkingEdit = ({
                 className={`mr-2 h-4 w-4 ${!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}`}
                 checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
                 onChange={e => {
+                  if(e.target.checked === false) {
+                    if(confirm("Weet u zeker dat u deze instelling wilt uitzetten? Dit heeft invloed op de weergave in sommige rapportages.")!==true) {
+                      return
+                    }
+                  }
+                  
+                  console.debug("#### setting FMS to", e.target.checked);
                   setNewFMS(e.target.checked);
                 }}
                 disabled={!hasFmsservices}
@@ -1160,23 +1142,15 @@ const ParkingEdit = ({
   };
 
   const renderTabCapaciteit = (visible = false) => {
-    const handlerSetNewCapaciteit = (capaciteit: ParkingSections): void => {
-      setNewCapaciteit([...capaciteit]);
-      return;
-    };
-
     return (
       <div
         className="mt-10 flex w-full justify-between"
         style={{ display: visible ? "flex" : "none" }}
       >
-        <SectionBlockEdit>
-          <ParkingEditCapaciteit
-            parkingdata={parkingdata}
-            update={newCapaciteit}
-            capaciteitChanged={handlerSetNewCapaciteit}
-          />
-        </SectionBlockEdit>
+        <SectiesManagementNew
+          fietsenstallingId={parkingdata.ID}
+          fietsenstallingType={parkingdata.Type}
+        />
       </div>
     );
   };
@@ -1193,153 +1167,21 @@ const ParkingEdit = ({
   };
 
   const renderTabBeheerder = (visible = false) => {
-    // Show loading state if exploitanten are still loading
-    if (isLoadingExploitanten) {
-      return (
-        <div
-          className="flex justify-between"
-          style={{ display: visible ? "flex" : "none" }}
-        >
-          <div data-name="content-left" className="sm:mr-12">
-            <SectionBlockEdit>
-              <div className="mt-4 w-full">
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Exploitanten laden...</p>
-                </div>
-              </div>
-            </SectionBlockEdit>
-          </div>
-        </div>
-      );
-    }
-
-    // Show error state if there's an error loading exploitanten
-    if (errorExploitanten) {
-      return (
-        <div
-          className="flex justify-between"
-          style={{ display: visible ? "flex" : "none" }}
-        >
-          <div data-name="content-left" className="sm:mr-12">
-            <SectionBlockEdit>
-              <div className="mt-4 w-full">
-                <div className="text-center py-8">
-                  <p className="text-red-600">Fout bij het laden van exploitanten: {errorExploitanten}</p>
-                </div>
-              </div>
-            </SectionBlockEdit>
-          </div>
-        </div>
-      );
-    }
-
-    // Get the currently selected exploitant
-    const selectedExploitantID = 
-      newExploitantID !== undefined ? newExploitantID : (parkingdata.ExploitantID === null ? 'anders' : parkingdata.ExploitantID);
-    // const selectedExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
-    
-    // Create options for the dropdown
-    const exploitantOptions: {label: string, value: string | undefined}[] = [{'label': 'Anders', 'value': 'anders'}];
-    exploitanten.forEach(exp => {
-      exploitantOptions.push({
-        label: exp.CompanyName || 'Onbekende exploitant',
-        value: exp.ID
-      });
-    });
-
-    const showBeheerderInput = (selectedExploitantID !== 'anders')
-
     return (
-      <div
-        className="flex justify-between"
-        style={{ display: visible ? "flex" : "none" }}
-      >
-        <div data-name="content-left" className="sm:mr-12">
-          <SectionBlockEdit>
-            <div className="mt-4 w-full">
-              {/* Row 1: Exploitant/beheerder label + select */}
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    <label className="block text-sm font-bold text-gray-700">
-                      Exploitant/beheerder:
-                    </label>
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <FormSelect
-                      key="i-exploitant"
-                      label=""
-                      className="w-full border border-gray-300"
-                      placeholder="Selecteer exploitant"
-                      onChange={e => {
-                        setNewExploitantID(e.target.value);
-                      }}
-                      value={selectedExploitantID}
-                      options={exploitantOptions}
-                      disabled={!canEditAllFields}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 2: No label + (Namelijk + input) */}
-              { showBeheerderInput && <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    {/* Empty label space */}
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                        Namelijk:
-                      </label>
-                      <input
-                        type="text"
-                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md ${!canEditAllFields ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
-                        value={newBeheerder !== undefined && newBeheerder !== null && newBeheerder !== "" ? newBeheerder : parkingdata.Beheerder || ""}
-                        onChange={e => {
-                          setNewBeheerder(e.target.value);
-                        }}
-                        placeholder="Website en contactgegevens"
-                        disabled={!canEditAllFields}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>}
-
-              {/* Row 3: Contact beheerder label + input */}
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <div className="w-1/3 p-3">
-                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
-                      Contact beheerder:
-                    </label>
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <FormInput
-                      key="i-beheerdercontact"
-                      label=""
-                      className="w-full border border-gray-300"
-                      placeholder="Email adres"
-                      onChange={e => {
-                        setNewBeheerderContact(e.target.value);
-                      }}
-                      value={
-                        newBeheerderContact !== undefined
-                          ? newBeheerderContact
-                          : parkingdata.BeheerderContact
-                      }
-                      disabled={!canEditAllFields}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </SectionBlockEdit>
-        </div>
-      </div>
+      <ParkingEditBeheerder
+        visible={visible}
+        isLoadingExploitanten={isLoadingExploitanten}
+        exploitanten={exploitanten}
+        errorExploitanten={errorExploitanten}
+        newExploitantID={newExploitantID}
+        setNewExploitantID={setNewExploitantID}
+        parkingdata={parkingdata}
+        canEditAllFields={canEditAllFields}
+        newBeheerder={newBeheerder}
+        setNewBeheerder={setNewBeheerder}
+        newBeheerderContact={newBeheerderContact}
+        setNewBeheerderContact={setNewBeheerderContact}
+      />
     );
   };
 

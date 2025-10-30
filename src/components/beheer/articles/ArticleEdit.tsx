@@ -137,10 +137,8 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
     return <div>Pagina niet gevonden</div>;
   }
 
-  const isFietsberaad = session?.user?.activeContactId === '1';
-
   // Only Stallingen and Tips are editable, rest is fixed
-  const canChangeDisplayTitle = article.System !== '1'; //  || (['Stallingen', 'Tips'].includes(article.Title||""))
+  const canChangeDisplayTitle = article.System !== '1'; //  || (['Stallingen'].includes(article.Title||""))
 
   // Home is always fixed, Tips is always fixed for non fietsberaad
   const freezeStatus = (article.Title==='Home');

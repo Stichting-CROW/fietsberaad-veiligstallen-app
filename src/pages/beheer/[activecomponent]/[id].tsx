@@ -276,7 +276,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.ArticlesPages:
           // Check if user has access to site content
-          const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
           if (!hasInstellingenSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {
@@ -285,7 +285,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.Faq:
           // Check if user has access to site content
-          const hasFaqSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          const hasFaqSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_faq);
           if (!hasFaqSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {

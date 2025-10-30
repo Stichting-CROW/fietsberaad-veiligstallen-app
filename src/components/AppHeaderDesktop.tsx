@@ -212,9 +212,6 @@ function AppHeaderDesktop({
         <div className="flex flex-end">
           {secundaryMenuItems && secundaryMenuItems.map((x: VSArticle, idx: number) => {
             let url = `/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`
-            if(x.Title === 'Tips') {
-              url = `/fietsberaad/${x.Title ? x.Title : ''}`
-            }
 
             return <SecundaryMenuItem
               key={`pmi-h2-${idx}`}

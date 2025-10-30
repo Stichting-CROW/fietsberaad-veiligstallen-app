@@ -77,7 +77,7 @@ export const getDefaultNewFietsenstalling = (name: string): ParkingDetailsType =
   shadowBikeparkID: null,
   BronBezettingsdata: "FMS",
   reservationCostPerDay: null,
-  wachtlijst_Id: null,
+  // wachtlijst_Id: null,
   thirdPartyReservationsUrl: null,
   fietsenstalling_secties: [],
   uitzonderingenopeningstijden: [],
@@ -162,7 +162,7 @@ export const fietsenstallingSchema = z.object({
   shadowBikeparkID: z.string().max(35).nullable(),
   BronBezettingsdata: z.string().max(20).nullable(),
   reservationCostPerDay: z.number().nullable(),
-  wachtlijst_Id: z.bigint().nullable(),
+  // wachtlijst_Id: z.bigint().nullable(),
   thirdPartyReservationsUrl: z.string().max(255).nullable(),
 });
 
