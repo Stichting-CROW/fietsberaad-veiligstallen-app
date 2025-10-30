@@ -503,7 +503,6 @@ const ParkingEdit = ({
       const isChanged =
         Object.keys(update).length !== 0 ||
         newServices.length > 0 ||
-        newCapaciteit !== undefined ||
         newOpening !== undefined ||
         newOpeningstijden !== undefined;
 
@@ -982,6 +981,13 @@ const ParkingEdit = ({
                 className={`mr-2 h-4 w-4 ${!canEditAllFields ? 'opacity-50 cursor-not-allowed' : ''}`}
                 checked={newFMS !== undefined ? newFMS : parkingdata.FMS || false}
                 onChange={e => {
+                  if(e.target.checked === false) {
+                    if(confirm("Weet u zeker dat u deze instelling wilt uitzetten? Dit heeft invloed op de weergave in sommige rapportages.")!==true) {
+                      return
+                    }
+                  }
+                  
+                  console.debug("#### setting FMS to", e.target.checked);
                   setNewFMS(e.target.checked);
                 }}
                 disabled={!hasFmsservices}
