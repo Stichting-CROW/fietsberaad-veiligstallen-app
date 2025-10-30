@@ -29,8 +29,7 @@ export const requiredPages =
  'Stallingen',
  'Fietsen_in',
  'Contact',
- 'Fietskluizen',
- 'Tips' 
+ 'Fietskluizen'
 ]
 
 const ignorePages = [ 'Prijzenpot' ];

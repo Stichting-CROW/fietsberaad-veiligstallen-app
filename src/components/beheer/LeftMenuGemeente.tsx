@@ -22,7 +22,8 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
   const hasGebruikersDataeigenaarBeperkt = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt);
   const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
-  const hasInstellingenSiteContent = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content);
+  const hasInstellingenSiteContentPages = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_pages);
+  const hasInstellingenSiteContentFaq = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_faq);
   const hasInstellingenFietsenstallingenAdmin = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
@@ -67,20 +68,20 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
               onSelect={onSelect} />
         }
 
-        {hasInstellingenSiteContent && 
-          <>
-            <LeftMenuItem 
-              component={VSMenuTopic.ArticlesPages} 
-              title={'Pagina\'s'} compact={true} 
-              activecomponent={activecomponent} 
-              onSelect={onSelect} /> 
-            <LeftMenuItem 
-              component={VSMenuTopic.Faq} 
-              title={'FAQ'} 
-              compact={true} 
-              activecomponent={activecomponent} 
-              onSelect={onSelect} /> 
-          </>
+        {hasInstellingenSiteContentPages && 
+          <LeftMenuItem 
+            component={VSMenuTopic.ArticlesPages} 
+            title={'Pagina\'s'} compact={true} 
+            activecomponent={activecomponent} 
+            onSelect={onSelect} /> }
+            
+        {hasInstellingenSiteContentFaq && 
+          <LeftMenuItem 
+            component={VSMenuTopic.Faq} 
+            title={'FAQ'} 
+            compact={true} 
+            activecomponent={activecomponent} 
+            onSelect={onSelect} /> 
         }
 
         {hasRapportages && 

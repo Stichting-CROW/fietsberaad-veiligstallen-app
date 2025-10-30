@@ -51,8 +51,8 @@ export default async function handle(
       return;
     }
 
-    const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
-    if (!hasInstellingenSiteContent) {
+    const hasInstellingenSiteContentFaq = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_faq);
+    if (!hasInstellingenSiteContentFaq) {
       console.error("Access denied - insufficient permissions");
       res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
       return;
