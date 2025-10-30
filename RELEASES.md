@@ -7,7 +7,7 @@
 - ✨ Nieuw: Pagina voor monitoring van verschillende wachtrijen toegevoegd aan het beheerdersmenu
 - ✨ Nieuwe componenten voor tonen van wachtrijstatus, samenvattingen en webservice logs
 - ✨ Backend API-endpoints voor uitlezen van wachtrijstatus (wachtrij_betalingen, pasids, sync, transacties, webservice_log)
-- ✨ Nieuwe TypeScript types en utilities voor wachtrij-monitoring
+- ✨ Nieuwe TypeScript types en utilities voor wachtrij-monitoring (uitgezet op acceptance ivm timeouts)
 
 **Technisch**
 
