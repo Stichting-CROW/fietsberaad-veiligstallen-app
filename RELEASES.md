@@ -1,5 +1,25 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-10-30
+
+**Beheer**
+
+- 🐛 E-mailadres moet uniek zijn bij gebruikersbeheer; verbeterde foutmeldingen bij validatie
+- 🖌️ Alleen aan een stalling gekoppelde exploitanten worden nu getoond in 'Beheerder' instellingen
+- 🗑️ Voor data-owners: FAQ verwijderd uit linkermenu; aanmaken nieuwe pagina uitgeschakeld; 'Tips' verwijderd
+
+**Stalling-beheer**
+
+- 🖌️ Inhoud van de tab 'Beheerder' verplaatst naar een eigen component voor betere onderhoudbaarheid
+- ✨ Verbeterde afhandeling van de instelling "Parking.FMS"
+
+**Technisch**
+
+- 🗂️ Documentatie uitgebreid:
+  - Toegevoegd: `SERVICES_DATASTANDARD.md`
+  - Toegevoegd: `SERVICES_REPORTING.md`
+  - Hernoemd: `SERVICES.md` ➜ `SERVICES_FMS.md`
+
 ## VeiligStallen 2025-10-29
 
 **Stalling-beheer**
