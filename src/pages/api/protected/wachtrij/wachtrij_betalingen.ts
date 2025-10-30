@@ -2,7 +2,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { prisma } from "~/server/db";
-import { VSUserRoleValuesNew } from "~/types/users";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { userHasRight } from "~/types/utils";
 import type { WachtrijBetalingen, WachtrijResponse, WachtrijSummary } from "~/types/wachtrij";
