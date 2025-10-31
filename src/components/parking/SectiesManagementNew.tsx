@@ -6,6 +6,7 @@ import FormInput from "~/components/Form/FormInput";
 import FormCheckbox from "~/components/Form/FormCheckbox";
 import { Button } from "~/components/Button";
 import { Table } from "~/components/common/Table";
+import Modal from "~/components/Modal";
 
 type SectiesManagementNewProps = {
   fietsenstallingId: string | null;
@@ -47,7 +48,7 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
 
   const calculateSectionCapacity = (sectie: SectieDetailsType): number => {
     return sectie.secties_fietstype
-      .filter((bt) => bt.Toegestaan !== false)
+      .filter((bt) => bt.Toegestaan === true)
       .reduce((sum, bt) => sum + (bt.Capaciteit || 0), 0);
   };
 
@@ -93,12 +94,41 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
     value: number | boolean
   ) => {
     if (!editedSection) return;
-    setEditedSection({
-      ...editedSection,
-      secties_fietstype: editedSection.secties_fietstype.map((bt) =>
-        bt.BikeTypeID === bikeTypeID ? { ...bt, [field]: value } : bt
-      ),
-    });
+    
+    const existingEntry = editedSection.secties_fietstype.find(
+      (bt) => bt.BikeTypeID === bikeTypeID
+    );
+    
+    if (existingEntry) {
+      // Update existing entry
+      setEditedSection({
+        ...editedSection,
+        secties_fietstype: editedSection.secties_fietstype.map((bt) =>
+          bt.BikeTypeID === bikeTypeID ? { ...bt, [field]: value } : bt
+        ),
+      });
+    } else {
+      // Create new entry if it doesn't exist
+      const bikeType = VSFietsTypenWaarden.find((bt) => bt.ID === bikeTypeID);
+      const newEntry: SectieFietstypeType = {
+        SectionBiketypeID: 0, // Temporary ID for new entries, backend will assign real ID
+        BikeTypeID: bikeTypeID,
+        Capaciteit: field === "Capaciteit" ? (value as number) : null,
+        Toegestaan: field === "Toegestaan" ? (value as boolean) : true,
+        sectieID: editedSection.sectieId,
+        fietstype: bikeType
+          ? {
+              ID: bikeType.ID,
+              Name: bikeType.Name,
+              naamenkelvoud: bikeType.naamenkelvoud || "",
+            }
+          : null,
+      };
+      setEditedSection({
+        ...editedSection,
+        secties_fietstype: [...editedSection.secties_fietstype, newEntry],
+      });
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -204,165 +234,22 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
     return <div>Laden...</div>;
   }
 
-  // Show edit form when editing a section
-  if (editingSectionId !== null && editedSection) {
-    return (
-      <div className="space-y-4">
-        <SectionBlockEdit>
-          <div className="space-y-4">
-            {/* Row 1: Naam and Sectie ID */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Naam:</label>
-                <FormInput
-                  type="text"
-                  value={editedSection.titel}
-                  onChange={(e) => updateEditedSection("titel", e.target.value)}
-                  className="border-gray-700 rounded-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Sectie ID:</label>
-                <FormInput
-                  type="text"
-                  value={editedSection.externalId || editedSection.sectieId.toString()}
-                  disabled={true}
-                  className="border-gray-700 rounded-full"
-                />
-              </div>
-            </div>
-
-            {/* Row 2: Kenmerk and Kleur */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Kenmerk:</label>
-                <select
-                  value={editedSection.qualificatie || "NONE"}
-                  onChange={(e) => updateEditedSection("qualificatie", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-700 rounded-full"
-                >
-                  {getQualificationOptions().map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Kleur:</label>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-8 h-8 border rounded"
-                    style={{ backgroundColor: `#${editedSection.kleur}` }}
-                  />
-                  <FormInput
-                    type="text"
-                    value={editedSection.kleur}
-                    onChange={(e) => updateEditedSection("kleur", e.target.value)}
-                    className="w-24 border-gray-700 rounded-full"
-                    placeholder="00FF00"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Capaciteit */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Capaciteit:</label>
-              <div className="space-y-0">
-                {VSFietsTypenWaarden.map((bikeType) => {
-                  const bikeTypeData = editedSection.secties_fietstype.find(
-                    (bt) => bt.BikeTypeID === bikeType.ID
-                  );
-                  return { bikeType, bikeTypeData };
-                })
-                  .sort((a, b) => {
-                    const aAllowed = a.bikeTypeData?.Toegestaan !== false;
-                    const bAllowed = b.bikeTypeData?.Toegestaan !== false;
-                    
-                    // First sort by toegestaan (toegestaan first, niet toegestaan last)
-                    if (aAllowed !== bAllowed) {
-                      return aAllowed ? -1 : 1;
-                    }
-                    
-                    // Then sort by BikeTypeID
-                    return a.bikeType.ID - b.bikeType.ID;
-                  })
-                  .map(({ bikeType, bikeTypeData }) => {
-                    const isAllowed = bikeTypeData?.Toegestaan !== false;
-                    const capacity = bikeTypeData?.Capaciteit ?? 0;
-
-                    return (
-                      <div key={bikeType.ID} className="flex items-center">
-                        <div className="w-56 text-sm">{bikeType.Name?.toLowerCase()}</div>
-                        <FormInput
-                          type="number"
-                          value={capacity}
-                          onChange={(e) => {
-                            const inputValue = e.target.value;
-                            // Allow empty string for deletion
-                            if (inputValue === "") {
-                              updateEditedBikeTypeCapacity(
-                                bikeType.ID,
-                                "Capaciteit",
-                                0
-                              );
-                              return;
-                            }
-                            const value = parseInt(inputValue) || 0;
-                            // Ensure value is never negative
-                            const validValue = Math.max(0, value);
-                            updateEditedBikeTypeCapacity(
-                              bikeType.ID,
-                              "Capaciteit",
-                              validValue
-                            );
-                          }}
-                          disabled={!isAllowed}
-                          className="max-w-24 text-sm border-gray-700 rounded-full"
-                        />
-                        <FormCheckbox
-                          checked={!isAllowed}
-                          onChange={(e) =>
-                            updateEditedBikeTypeCapacity(
-                              bikeType.ID,
-                              "Toegestaan",
-                              !e.target.checked
-                            )
-                          }
-                        >
-                          Niet toegestaan
-                        </FormCheckbox>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Descriptive text */}
-            <div className="text-sm text-gray-600">
-              Als er voor de capaciteit geen onderscheid wordt gemaakt in bijvoorbeeld
-              e-fietsen en normale fietsen, dan vult u geen waarde in bij e-fietsen. U kunt dan
-              nog wel onderscheid maken in de tarieven.
-            </div>
-          </div>
-        </SectionBlockEdit>
-
-        <div className="flex gap-2">
-          <Button onClick={handleSaveEdit}>Opslaan</Button>
-          <Button onClick={handleCancelEdit}>Afbreken</Button>
-        </div>
-      </div>
-    );
-  }
-
   // Show table view
+  const totalCapacity = secties.reduce((sum, sectie) => sum + calculateSectionCapacity(sectie), 0);
+
   return (
     <div className="space-y-4">
-      <div>
-        <Table
+      {secties.length === 0 ? (
+        <div className="text-base text-gray-700">
+          Elke stalling heeft minimaal één sectie. Voeg svp een sectie toe.
+        </div>
+      ) : (
+        <>
+          <div className="text-lg font-medium">
+            Totale capaciteit: {totalCapacity}
+          </div>
+          <div>
+            <Table
           columns={[
             {
               header: "Naam",
@@ -424,7 +311,9 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
           data={secties}
           className="min-w-full bg-white"
         />
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Add new section */}
       <div className="mt-4">
@@ -432,6 +321,162 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
           Sectie toevoegen
         </Button>
       </div>
+
+      {/* Edit section dialog */}
+      {editingSectionId !== null && editedSection && (
+        <Modal onClose={handleCancelEdit} clickOutsideClosesDialog={false}>
+          <div className="space-y-4">
+            <SectionBlockEdit>
+              <div className="space-y-4">
+                {/* Row 1: Naam and Sectie ID */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Naam:</label>
+                    <FormInput
+                      type="text"
+                      value={editedSection.titel}
+                      onChange={(e) => updateEditedSection("titel", e.target.value)}
+                      className="border-gray-700 rounded-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Sectie ID:</label>
+                    <FormInput
+                      type="text"
+                      value={editedSection.externalId || editedSection.sectieId.toString()}
+                      disabled={true}
+                      className="border-gray-700 rounded-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Kenmerk and Kleur */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Kenmerk:</label>
+                    <select
+                      value={editedSection.qualificatie || "NONE"}
+                      onChange={(e) => updateEditedSection("qualificatie", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-700 rounded-full"
+                    >
+                      {getQualificationOptions().map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Kleur:</label>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 border rounded"
+                        style={{ backgroundColor: `#${editedSection.kleur}` }}
+                      />
+                      <FormInput
+                        type="text"
+                        value={editedSection.kleur}
+                        onChange={(e) => updateEditedSection("kleur", e.target.value)}
+                        className="w-24 border-gray-700 rounded-full"
+                        placeholder="00FF00"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Capaciteit */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Capaciteit ({editedSection ? calculateSectionCapacity(editedSection) : 0}):
+                  </label>
+                  <div className="space-y-0">
+                    {VSFietsTypenWaarden.map((bikeType) => {
+                      const bikeTypeData = editedSection.secties_fietstype.find(
+                        (bt) => bt.BikeTypeID === bikeType.ID
+                      );
+                      return { bikeType, bikeTypeData };
+                    })
+                      .sort((a, b) => {
+                        const aAllowed = a.bikeTypeData?.Toegestaan !== false;
+                        const bAllowed = b.bikeTypeData?.Toegestaan !== false;
+                        
+                        // First sort by toegestaan (toegestaan first, niet toegestaan last)
+                        if (aAllowed !== bAllowed) {
+                          return aAllowed ? -1 : 1;
+                        }
+                        
+                        // Then sort by BikeTypeID
+                        return a.bikeType.ID - b.bikeType.ID;
+                      })
+                      .map(({ bikeType, bikeTypeData }) => {
+                        const isAllowed = bikeTypeData?.Toegestaan !== false;
+                        const capacity = bikeTypeData?.Capaciteit ?? 0;
+
+                        return (
+                          <div key={bikeType.ID} className="flex items-center">
+                            <div className="w-56 text-sm">{bikeType.Name?.toLowerCase()}</div>
+                            <FormInput
+                              type="number"
+                              value={capacity}
+                              onChange={(e) => {
+                                const inputValue = e.target.value;
+                                // Allow empty string for deletion
+                                if (inputValue === "") {
+                                  updateEditedBikeTypeCapacity(
+                                    bikeType.ID,
+                                    "Capaciteit",
+                                    0
+                                  );
+                                  return;
+                                }
+                                const value = parseInt(inputValue) || 0;
+                                // Ensure value is never negative
+                                const validValue = Math.max(0, value);
+                                updateEditedBikeTypeCapacity(
+                                  bikeType.ID,
+                                  "Capaciteit",
+                                  validValue
+                                );
+                              }}
+                              disabled={!isAllowed}
+                              className="max-w-24 text-sm border-gray-700 rounded-full"
+                            />
+                            <FormCheckbox
+                              checked={!isAllowed}
+                              onChange={(e) =>
+                                updateEditedBikeTypeCapacity(
+                                  bikeType.ID,
+                                  "Toegestaan",
+                                  !e.target.checked
+                                )
+                              }
+                            >
+                              Niet toegestaan
+                            </FormCheckbox>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Descriptive text */}
+                <div className="text-sm text-gray-600">
+                  Als er voor de capaciteit geen onderscheid wordt gemaakt in bijvoorbeeld
+                  e-fietsen en normale fietsen, dan vult u geen waarde in bij e-fietsen. U kunt dan
+                  nog wel onderscheid maken in de tarieven.
+                </div>
+              </div>
+            </SectionBlockEdit>
+
+            <div className="flex gap-2">
+              <Button onClick={handleSaveEdit}>Opslaan</Button>
+              <Button onClick={handleCancelEdit}>Afbreken</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

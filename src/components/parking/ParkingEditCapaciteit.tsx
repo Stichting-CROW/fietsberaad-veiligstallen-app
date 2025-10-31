@@ -53,7 +53,10 @@ const calculateCapacityData = (parkingdata: ParkingDetailsType, allFietstypen: V
           if (item) {
             item.Toegestaan = item.Toegestaan || data.Toegestaan !== null && data.Toegestaan;
             item.Capaciteit += data.Capaciteit || 0;
-            capacity.total += data.Capaciteit || 0;
+            // Only count capacity for bike types that are explicitly allowed
+            if (data.Toegestaan === true) {
+              capacity.total += data.Capaciteit || 0;
+            }
           }
         });
       });

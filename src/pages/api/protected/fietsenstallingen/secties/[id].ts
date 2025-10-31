@@ -21,7 +21,7 @@ const calculateFietsenstallingCapacity = async (fietsenstallingId: string): Prom
     include: {
       secties_fietstype: {
         where: {
-          Toegestaan: { not: false } // Include all where Toegestaan is true or null
+          Toegestaan: true // Only include bike types that are explicitly allowed
         }
       }
     }
