@@ -14,7 +14,8 @@ function FormInput({
   style,
   defaultValue,
   disabled,
-  autoComplete
+  autoComplete,
+  selectOnFocus
 }: {
   innerRef?: React.LegacyRef<HTMLInputElement>,
   type?: string,
@@ -29,7 +30,15 @@ function FormInput({
   style?: object
   disabled?: boolean
   autoComplete?: string
+  selectOnFocus?: boolean
 }) {
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (selectOnFocus !== false) {
+      // Select all text on focus by default, unless explicitly disabled
+      e.target.select();
+    }
+  };
+
   return (
     <>
       <label>
@@ -58,6 +67,7 @@ function FormInput({
           `}
           disabled={disabled === true}
           autoComplete={autoComplete}
+          onFocus={handleFocus}
         />
       </label>
     </>
