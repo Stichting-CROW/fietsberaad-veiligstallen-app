@@ -120,7 +120,7 @@ const ParkingView = ({
   
   // Add showTariefCompact flag for tariefcodes 1-5
   const parkingTariefCode = parkingdata?.Tariefcode || 0;
-  const showTariefCompact = parkingTariefCode >= 1 && parkingTariefCode <= 5;
+  const showTariefCompact = parkingTariefCode >= 1 && parkingTariefCode <= 5 || parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";;
 
   let status = "";
   switch (parkingdata.Status) {
@@ -344,17 +344,21 @@ export default ParkingView;
 const ParkingViewTariefAboveAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
   const { getTariefcodeText, isLoading } = useTariefcodes();
 
-  if (parkingdata.Tariefcode === null || parkingdata.Tariefcode === undefined) {
-    return null;
-  }
+  // if (parkingdata.Tariefcode === null || parkingdata.Tariefcode === undefined) {
+  //   return null;
+  // }
 
   if (isLoading) {
     return null;
   }
 
   const tariefcodeText = getTariefcodeText(parkingdata.Tariefcode);
+  const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
+  console.log("### tariefcodeText ###", tariefcodeText);
+  console.log("### hasOmschrijvingTarieven ###", hasOmschrijvingTarieven);
 
-  if (!tariefcodeText) {
+  if (!tariefcodeText && !hasOmschrijvingTarieven) {
+    console.log("### no tariefcode text and no omschrijving tarieven ###", parkingdata.Title);
     return null;
   }
 
@@ -362,6 +366,11 @@ const ParkingViewTariefAboveAbonnementen = ({ parkingdata }: { parkingdata: Park
     <>
       <SectionBlock heading="Tarief">
         {tariefcodeText}
+        {hasOmschrijvingTarieven && (
+          <div className="mt-2">
+            <div dangerouslySetInnerHTML={{ __html: parkingdata.OmschrijvingTarieven || "" }} />
+          </div>
+        )}
       </SectionBlock>
       <HorizontalDivider className="my-4" />
     </>

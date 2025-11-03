@@ -9,7 +9,10 @@ const ParkingViewTarief = ({ parkingdata }: { parkingdata: any }) => {
 
   // console.log("### " + parkingdata.Title + " berekent stallingkosten ###", parkingdata.Tariefcode);
 
-  if (parkingdata.Tariefcode === null) {
+  const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
+  
+  // Show section if there's a tariefcode or if there's OmschrijvingTarieven
+  if (parkingdata.Tariefcode === null && !hasOmschrijvingTarieven) {
     return null;
   }
 
@@ -17,12 +20,22 @@ const ParkingViewTarief = ({ parkingdata }: { parkingdata: any }) => {
     return null;
   }
 
-  const tariefcodeText = getTariefcodeText(parkingdata.Tariefcode);
+  const tariefcodeText = parkingdata.Tariefcode !== null 
+    ? getTariefcodeText(parkingdata.Tariefcode)
+    : "";
+
+  // Don't show section if there's neither tariefcode text nor OmschrijvingTarieven
+  if (!tariefcodeText && !hasOmschrijvingTarieven) {
+    return null;
+  }
 
   return (
     <>
       <SectionBlock heading="Tarief">
-        {tariefcodeText || ""}
+        {tariefcodeText && <div className="mb-2">{tariefcodeText}</div>}
+        {hasOmschrijvingTarieven && (
+          <div dangerouslySetInnerHTML={{ __html: parkingdata.OmschrijvingTarieven || "" }} />
+        )}
       </SectionBlock>
       <HorizontalDivider className="my-4" />
     </>

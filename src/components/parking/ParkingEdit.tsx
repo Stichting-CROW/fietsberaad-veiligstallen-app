@@ -45,6 +45,7 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
 import { useTariefcodes } from "~/hooks/useTariefcodes";
+import RichTextEditor from "~/components/common/RichTextEditor";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -67,6 +68,7 @@ export type ParkingEditUpdateStructure = {
   Openingstijden?: any; // Replace with the actual type if different
   Type?: string;
   Tariefcode?: number | null;
+  OmschrijvingTarieven?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -180,6 +182,10 @@ const ParkingEdit = ({
   const [newTariefcode, setNewTariefcode] = React.useState<number | null | undefined>(
     undefined,
   );
+
+  const [newOmschrijvingTarieven, setNewOmschrijvingTarieven] = React.useState<
+    string | undefined
+  >(undefined);
 
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
@@ -445,6 +451,12 @@ const ParkingEdit = ({
     if (newTariefcode !== undefined) {
       // Convert 0 to null for consistency (both represent "niet tonen")
       update.Tariefcode = (newTariefcode === 0 || newTariefcode === null) ? null : newTariefcode;
+    }
+
+    if (newOmschrijvingTarieven !== undefined) {
+      if (newOmschrijvingTarieven !== parkingdata.OmschrijvingTarieven) {
+        update.OmschrijvingTarieven = newOmschrijvingTarieven;
+      }
     }
 
     // Set DateCreated and DateModified
@@ -1157,7 +1169,7 @@ const ParkingEdit = ({
 
     return (
       <div
-        className="mt-10 flex w-full justify-between"
+        className="mt-10 flex flex-col w-full"
         style={{ display: visible ? "flex" : "none" }}
       >
         <SectionBlockEdit>
@@ -1185,6 +1197,22 @@ const ParkingEdit = ({
             </FormHelperText>
           </div>
         </SectionBlockEdit>
+        <HorizontalDivider className="my-4" />
+        <SectionBlock
+          heading="Omschrijving Tarieven"
+          contentClasses="w-full">
+          <RichTextEditor
+            value={undefined === newOmschrijvingTarieven ? (parkingdata.OmschrijvingTarieven || '') : newOmschrijvingTarieven}
+            onChange={(value: string) => {
+              if (value === parkingdata.OmschrijvingTarieven) {
+                setNewOmschrijvingTarieven(undefined);
+              } else {
+                setNewOmschrijvingTarieven(value);
+              }
+            }}
+            className="w-full"
+          />
+        </SectionBlock>
       </div>
     );
   };
