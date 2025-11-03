@@ -120,7 +120,7 @@ const ParkingView = ({
   
   // Add showTariefCompact flag for tariefcodes 1-5
   const parkingTariefCode = parkingdata?.Tariefcode || 0;
-  const showTariefCompact = parkingTariefCode >= 1 && parkingTariefCode <= 5 || parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";;
+  const showTariefCompact = (parkingTariefCode >= 1 && parkingTariefCode <= 5) || (parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "");
 
   let status = "";
   switch (parkingdata.Status) {
