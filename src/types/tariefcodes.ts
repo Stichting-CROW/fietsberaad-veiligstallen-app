@@ -10,11 +10,6 @@ export const tariefcodeSelect = {
   Omschrijving: true,
 };
 
-export const tariefcodeLijstSelect = {
-  ID: true,
-  Omschrijving: true,
-};
-
 // Schema for validation
 export const tariefcodeSchema = z.object({
   ID: z.number().int().positive(),

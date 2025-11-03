@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSTariefcode, tariefcodeLijstSelect } from "~/types/tariefcodes";
+import { type VSTariefcode, tariefcodeSelect } from "~/types/tariefcodes";
 
 export type TariefcodesPublicResponse = {
   data?: VSTariefcode[];
@@ -19,7 +19,7 @@ export default async function handle(
   try {
     // Public read endpoint - no authentication required
     const tariefcodes = await prisma.tariefcodes.findMany({
-      select: tariefcodeLijstSelect,
+      select: tariefcodeSelect,
       orderBy: {
         ID: 'asc'
       }

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSTariefcode, tariefcodeSelect, tariefcodeLijstSelect } from "~/types/tariefcodes";
+import { type VSTariefcode, tariefcodeSelect } from "~/types/tariefcodes";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { tariefcodeCreateSchema } from "~/types/tariefcodes";
@@ -37,7 +37,7 @@ export default async function handle(
     case "GET": {
       // GET all tariefcodes
       const tariefcodes = await prisma.tariefcodes.findMany({
-        select: tariefcodeLijstSelect,
+        select: tariefcodeSelect,
         orderBy: {
           ID: 'asc'
         }
