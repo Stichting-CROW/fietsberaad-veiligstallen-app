@@ -56,11 +56,21 @@ export default async function handle(
           return;
         }
 
+        const maxID = await prisma.tariefcodes.aggregate({
+          _max: {
+            ID: true
+          }
+        });
+        const newID = maxID._max.ID !== null ? maxID._max.ID + 1 : 0;
+
         const newTariefcode = await prisma.tariefcodes.create({
-          data: parseResult.data,
+          data: {
+            ID: newID,
+            Omschrijving: parseResult.data.Omschrijving,
+          },
           select: tariefcodeSelect,
         });
-
+        
         res.status(201).json({ data: [newTariefcode as VSTariefcode] });
       } catch (error) {
         console.error("Error creating tariefcode:", error);
