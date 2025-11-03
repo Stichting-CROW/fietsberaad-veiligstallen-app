@@ -354,14 +354,12 @@ const ParkingViewTariefAboveAbonnementen = ({ parkingdata }: { parkingdata: Park
 
   const tariefcodeText = getTariefcodeText(parkingdata.Tariefcode);
   const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
-  console.log("### tariefcodeText ###", tariefcodeText);
-  console.log("### hasOmschrijvingTarieven ###", hasOmschrijvingTarieven);
+
+
 
   if (!tariefcodeText && !hasOmschrijvingTarieven) {
-    console.log("### no tariefcode text and no omschrijving tarieven ###", parkingdata.Title);
     return null;
   }
-
   return (
     <>
       <SectionBlock heading="Tarief">
