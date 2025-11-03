@@ -121,7 +121,7 @@ export default async function handle(
         }) > 0;
 
         if (inUse) {
-          res.status(400).json({ error: "deze tariefcode is ingebruik en kan daarom niet verwijderd worden" });
+          res.status(400).json({ error: "Deze tariefcode is in gebruik en kan daarom niet verwijderd worden" });
           return;
         }
 
