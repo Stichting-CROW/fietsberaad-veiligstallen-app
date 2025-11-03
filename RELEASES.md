@@ -1,5 +1,33 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-10-30 (tariefcodes-feature branch)
+
+**Beheer / Database**
+
+- ✨ Nieuw: Beheerscherm voor tariefcodes toegevoegd aan database-beheer
+- ✨ Volledige CRUD-functionaliteit voor tariefcodes (aanmaken, bewerken, verwijderen)
+- ✨ Seed-functionaliteit voor het initialiseren van tariefcodes
+- ✨ Database cleanup tools voor orphaned sections en tarieven:
+  - Tool voor het identificeren en opruimen van incorrecte/verweesde secties
+  - Tool voor het identificeren en opruimen van incorrecte tarieven (sectie_fietstype entries)
+- ✨ Validatie bij het aanmaken van stallingen om foutieve secties te voorkomen
+- ✨ Database check scripts toegevoegd voor controle op database consistentie (orphaned sections en tarieven)
+
+**Stalling-beheer**
+
+- ✨ Velden voor tariefcodes toegevoegd aan stalling bewerkformulier
+- 🖌️ OmschrijvingTarieven-veld nu zichtbaar en bewerkbaar in stalling bewerkformulier
+- 🖌️ OmschrijvingTarieven-veld getoond in stalling details en tariefoverzicht
+
+**Technisch**
+
+- ✨ Nieuwe API endpoints: `/api/protected/tariefcodes` voor volledige CRUD operaties op tariefcodes
+- ✨ Nieuwe API endpoint: `/api/protected/tariefcodes/seed` voor seed-functionaliteit
+- ✨ Nieuwe hook `useTariefcodes` voor data fetching van tariefcodes
+- ✨ TypeScript types toegevoegd voor tariefcodes (`src/types/tariefcodes.ts`)
+- ✨ Validatie en error handling verbeterd bij het aanmaken van stallingen met sectie checks
+- 🐛 Fix: OmschrijvingTarieven-veld wordt nu correct opgeslagen en getoond
+
 ## VeiligStallen 2025-10-30 (wachtrij-feature branch)
 
 **Beheer / Monitoring**
