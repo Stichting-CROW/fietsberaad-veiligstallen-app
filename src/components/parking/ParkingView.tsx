@@ -120,7 +120,7 @@ const ParkingView = ({
   
   // Add showTariefCompact flag for tariefcodes 1-5
   const parkingTariefCode = parkingdata?.Tariefcode || 0;
-  const showTariefCompact = parkingTariefCode >= 1 && parkingTariefCode <= 5 || parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";;
+  const showTariefCompact = (parkingTariefCode >= 1 && parkingTariefCode <= 5) || (parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "");
 
   let status = "";
   switch (parkingdata.Status) {
@@ -354,14 +354,12 @@ const ParkingViewTariefAboveAbonnementen = ({ parkingdata }: { parkingdata: Park
 
   const tariefcodeText = getTariefcodeText(parkingdata.Tariefcode);
   const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
-  console.log("### tariefcodeText ###", tariefcodeText);
-  console.log("### hasOmschrijvingTarieven ###", hasOmschrijvingTarieven);
+
+
 
   if (!tariefcodeText && !hasOmschrijvingTarieven) {
-    console.log("### no tariefcode text and no omschrijving tarieven ###", parkingdata.Title);
     return null;
   }
-
   return (
     <>
       <SectionBlock heading="Tarief">
