@@ -80,12 +80,30 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           </LeftMenuItem>
         }
 
-        {hasFietsberaadSuperadmin && 
+        {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && 
           <LeftMenuItem 
-            component={VSMenuTopic.Database} 
+            component={false} 
             title={'Database'} 
+            compact={false} 
             activecomponent={activecomponent} 
-            onSelect={onSelect} />
+            onSelect={onSelect}>
+            <ul className="ml-4 mt-1">
+              {hasFietsberaadSuperadmin && (
+                <LeftMenuItem 
+                  component={VSMenuTopic.Database} 
+                  title={'Beheer'} 
+                  compact={true} 
+                  activecomponent={activecomponent} 
+                  onSelect={onSelect} />
+              )}
+              <LeftMenuItem 
+                component={VSMenuTopic.Tariefcodes} 
+                title={'Tariefcodes'} 
+                compact={true} 
+                activecomponent={activecomponent} 
+                onSelect={onSelect} />
+            </ul>
+          </LeftMenuItem>
         }
 
         {(hasFietsberaadSuperadmin && hasAcceptatieOntwikkeling) && 

@@ -32,6 +32,7 @@ import ReportComponent from '~/components/beheer/reports';
 import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
+import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
@@ -299,6 +300,16 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             selectedComponent = <AccessDenied />;
           } else {
             selectedComponent = <DatabaseComponent bikeparks={bikeparks} firstDate={firstDate} lastDate={lastDate} />;
+          }
+          break;
+        case VSMenuTopic.Tariefcodes:
+          // Check if user has fietsberaad_admin or fietsberaad_superadmin rights
+          const hasFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasFietsberaadAdmin && !hasFietsberaadSuperadmin) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <TariefcodesTableComponent />;
           }
           break;
         case VSMenuTopic.Export:

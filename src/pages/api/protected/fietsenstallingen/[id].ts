@@ -567,6 +567,25 @@ export default async function handle(
     }
     case "DELETE": {
       try {
+        // First, get all sections for this fietsenstalling
+        const sections = await prisma.fietsenstalling_sectie.findMany({
+          where: { fietsenstallingsId: id },
+          select: { sectieId: true }
+        });
+
+        // Delete all sectie_fietstype records for each section
+        for (const section of sections) {
+          await prisma.sectie_fietstype.deleteMany({
+            where: { sectieID: section.sectieId }
+          });
+        }
+
+        // Delete all sections
+        await prisma.fietsenstalling_sectie.deleteMany({
+          where: { fietsenstallingsId: id }
+        });
+
+        // Finally, delete the fietsenstalling
         await prisma.fietsenstallingen.delete({
           where: { ID: id }
         });

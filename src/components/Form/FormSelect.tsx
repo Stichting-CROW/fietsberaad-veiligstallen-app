@@ -6,6 +6,7 @@ function FormSelect({
   required,
   placeholder,
   className,
+  style,
   onChange,
   value,
   label,
@@ -16,6 +17,7 @@ function FormSelect({
   required?: boolean,
   placeholder?: string,
   className?: string,
+  style?: React.CSSProperties,
   onChange?: React.ChangeEventHandler<HTMLSelectElement>,
   value?: any,
   label?: string,
@@ -33,6 +35,7 @@ function FormSelect({
           required={required || false}
           onChange={onChange}
           value={value}
+          style={style}
           className={`
             px-5
             py-2

@@ -8,6 +8,7 @@ import { openRoute } from "~/utils/map/index";
 import { formatOpeningToday } from "~/utils/parkings-openclose";
 import type { ParkingDetailsType } from "~/types/parking";
 import type { AppState } from "~/store/store";
+import { useTariefcodes } from "~/hooks/useTariefcodes";
 
 import Styles from "./ParkingFacilityBlock.module.css";
 
@@ -28,6 +29,7 @@ function ParkingFacilityBlock({
 }) {
   // Get the active municipality info from Redux store to access theme colors
   const activeMunicipalityInfo = useSelector((state: AppState) => state.map.activeMunicipalityInfo);
+  const { getTariefcodeText } = useTariefcodes();
   
   if(!parking) {
     return null;
@@ -36,31 +38,9 @@ function ParkingFacilityBlock({
   const locationDescription = `${parking.Location || ""}${parking.Location && parking.Plaats ? ", " : ""
     }${parking.Plaats ? parking.Plaats : ''}`;
 
-  let costDescription: string | undefined = "";
-  switch (parking.Tariefcode) {
-    case 1:
-      costDescription = "betaald";
-      break;
-    case 2:
-      costDescription = "gratis";
-      break;
-    case 3:
-      // lijkt een testwaarde
-      costDescription = "";
-      break;
-    case 4:
-      costDescription = "gratis";
-      break;
-    case 5:
-      costDescription = "gratis";
-      break;
-    case null:
-      costDescription = "";
-      break;
-    default:
-      costDescription = `tariefcode ${parking.Tariefcode}`;
-      break;
-  }
+  const costDescription = parking.Tariefcode !== null && parking.Tariefcode !== undefined
+    ? getTariefcodeText(parking.Tariefcode) || ""
+    : "";
 
   const openingDescription = formatOpeningToday(parking, moment()).message;
 
