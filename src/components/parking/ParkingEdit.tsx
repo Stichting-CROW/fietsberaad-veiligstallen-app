@@ -44,6 +44,8 @@ import type { VSContactExploitant } from "~/types/contacts";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
+import { useTariefcodes } from "~/hooks/useTariefcodes";
+import RichTextEditor from "~/components/common/RichTextEditor";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -65,6 +67,8 @@ export type ParkingEditUpdateStructure = {
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
   Type?: string;
+  Tariefcode?: number | null;
+  OmschrijvingTarieven?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -174,6 +178,14 @@ const ParkingEdit = ({
   const [newStallingsID, setNewStallingsID] = React.useState<string | undefined>(
     undefined,
   );
+
+  const [newTariefcode, setNewTariefcode] = React.useState<number | null | undefined>(
+    undefined,
+  );
+
+  const [newOmschrijvingTarieven, setNewOmschrijvingTarieven] = React.useState<
+    string | undefined
+  >(undefined);
 
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
@@ -432,6 +444,18 @@ const ParkingEdit = ({
     if (undefined !== newOpeningstijden) {
       if (newOpeningstijden !== parkingdata.Openingstijden) {
         update.Openingstijden = newOpeningstijden;
+      }
+    }
+
+    // Add Tariefcode handling (only include if explicitly changed)
+    if (newTariefcode !== undefined) {
+      // Convert 0 to null for consistency (both represent "niet tonen")
+      update.Tariefcode = (newTariefcode === 0 || newTariefcode === null) ? null : newTariefcode;
+    }
+
+    if (newOmschrijvingTarieven !== undefined) {
+      if (newOmschrijvingTarieven !== parkingdata.OmschrijvingTarieven) {
+        update.OmschrijvingTarieven = newOmschrijvingTarieven;
       }
     }
 
@@ -1112,31 +1136,83 @@ const ParkingEdit = ({
   };
 
   const renderTabTarieven = (visible = false) => {
-    return (
-      <div
-        className="mt-10 flex w-full justify-between"
-        style={{ display: visible ? "flex" : "none" }}
-      >
-        <ParkingViewTarief parkingdata={parkingdata} />
-      </div>
-    );
+    const { tariefcodes, isLoading: isLoadingTariefcodes, getTariefcodeText } = useTariefcodes();
+    
+    // Get current tariefcode value (use new value if set, otherwise use existing)
+    const currentTariefcode = newTariefcode !== undefined 
+      ? newTariefcode 
+      : (parkingdata.Tariefcode !== null && parkingdata.Tariefcode !== undefined ? parkingdata.Tariefcode : null);
+
+    // Prepare options for FormSelect
+    const tariefcodeOptions: { value: string; label: string }[] = [];
+    
+    // Add single option for "niet tonen" (handles both null and 0)
+    tariefcodeOptions.push({ value: "null", label: "niet tonen" });
+    
+    // Add other tariefcodes (excluding 0 since it's handled by "niet tonen")
+    if (!isLoadingTariefcodes && tariefcodes) {
+      tariefcodes
+        .filter(tc => tc.ID !== 0) // Exclude 0 as it's handled by "niet tonen"
+        .forEach(tc => {
+          tariefcodeOptions.push({
+            value: tc.ID.toString(),
+            label: tc.Omschrijving || `Tariefcode ${tc.ID}`
+          });
+        });
+    }
+
+    // Determine the value to show in dropdown
+    // Map both null and 0 to "null" (niet tonen)
+    const dropdownValue = currentTariefcode === null || currentTariefcode === undefined || currentTariefcode === 0
+      ? "null"
+      : currentTariefcode.toString();
 
     return (
-      <div className="mt-10 flex w-full justify-between">
+      <div
+        className="mt-10 flex flex-col w-full"
+        style={{ display: visible ? "flex" : "none" }}
+      >
         <SectionBlockEdit>
-          <div className="font-bold">Fietsen</div>
-          <div className="ml-2 grid w-full grid-cols-2">
-            <div>Eerste 24 uur:</div>
-            <div className="text-right sm:text-center">gratis</div>
-            <div>Daarna per 24 uur:</div>
-            <div className="text-right sm:text-center">&euro;0,60</div>
-          </div>
-          <div className="mt-4 font-bold">Bromfietsen</div>
-          <div className="ml-2 grid w-full grid-cols-2">
-            <div>Eerste 24 uur:</div>
-            <div className="text-right sm:text-center">&euro;0,60</div>
+          <div className="mt-4">
+            <FormSelect
+              key="i-tariefcode"
+              label="Tarief (Compacte weergave)"
+              className="mb-1 border-2 border-black"
+              style={{ width: 'auto', minWidth: '200px' }}
+              value={dropdownValue}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "null") {
+                  // Set to null for "niet tonen" (handles both null and 0 cases)
+                  setNewTariefcode(null);
+                } else {
+                  setNewTariefcode(parseInt(value, 10));
+                }
+              }}
+              disabled={!canEditAllFields && !canEditLimitedFields}
+              options={tariefcodeOptions}
+            />
+            <FormHelperText>
+              Deze tekst wordt getoond in de compacte weergaven van stallingen.
+            </FormHelperText>
           </div>
         </SectionBlockEdit>
+        <HorizontalDivider className="my-4" />
+        <SectionBlock
+          heading="Omschrijving Tarieven"
+          contentClasses="w-full">
+          <RichTextEditor
+            value={undefined === newOmschrijvingTarieven ? (parkingdata.OmschrijvingTarieven || '') : newOmschrijvingTarieven}
+            onChange={(value: string) => {
+              if (value === parkingdata.OmschrijvingTarieven) {
+                setNewOmschrijvingTarieven(undefined);
+              } else {
+                setNewOmschrijvingTarieven(value);
+              }
+            }}
+            className="w-full"
+          />
+        </SectionBlock>
       </div>
     );
   };
@@ -1283,8 +1359,7 @@ const ParkingEdit = ({
         <Tab label="Algemeen" value="tab-algemeen" />
         {hasID && <Tab label="Afbeelding" value="tab-afbeelding" />}
         <Tab label="Openingstijden" value="tab-openingstijden" />
-
-        {/* <Tab label="Tarieven" value='tab-tarieven'/> */}
+        <Tab label="Tarieven" value="tab-tarieven" />
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}

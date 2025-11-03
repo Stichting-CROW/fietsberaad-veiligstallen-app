@@ -350,7 +350,12 @@ export default async function handle(
         }
       }
 
-      // Delete section (will cascade to sectie_fietstype due to database constraints)
+      // First, delete all sectie_fietstype records linked to this section
+      await prisma.sectie_fietstype.deleteMany({
+        where: { sectieID: sectionIdNum }
+      });
+
+      // Then, delete the section
       await prisma.fietsenstalling_sectie.delete({
         where: { sectieId: sectionIdNum }
       });

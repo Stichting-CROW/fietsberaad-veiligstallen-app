@@ -96,7 +96,7 @@ export type ParkingDetailsType = {
     FMS: boolean | null; // Check if/how this is still used
     Beheerder: string | null,
     BeheerderContact: string | null,
-    OmschrijvingTarieven: string | null; // not used in the app
+    OmschrijvingTarieven: string | null;
     IsStationsstalling: boolean; // not used in the app
     IsPopup: boolean; // not used in the app
     NotaVerwijssysteem: string | null; // not used in the app

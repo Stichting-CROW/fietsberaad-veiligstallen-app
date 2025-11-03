@@ -2,49 +2,40 @@ import React from "react";
 import HorizontalDivider from "~/components/HorizontalDivider";
 
 import SectionBlock from "~/components/SectionBlock";
+import { useTariefcodes } from "~/hooks/useTariefcodes";
 
 const ParkingViewTarief = ({ parkingdata }: { parkingdata: any }) => {
-
-  const isBetaald = (tariefcode: number): boolean => { return tariefcode === 1; };
-
-  const tariefCode2Text = (tariefcode: number): string => {
-    let tariefcodestring: string;
-
-    switch (tariefcode) {
-      case 0:
-        tariefcodestring = "tariefcode 0";
-        break;
-      case 1:
-        tariefcodestring = "betaald";
-        break;
-      case 2:
-        tariefcodestring = "gratis";
-        break;
-      case 3:
-        tariefcodestring = "weekend gratis";
-        break;
-      case 4:
-        tariefcodestring = "overdag gratis";
-        break;
-      case 5:
-        tariefcodestring = "eerste dag gratis";
-        break;
-      default:
-        tariefcodestring = "";
-    }
-
-    return tariefcodestring;
-  };
+  const { getTariefcodeText, isLoading } = useTariefcodes();
 
   // console.log("### " + parkingdata.Title + " berekent stallingkosten ###", parkingdata.Tariefcode);
 
-  if (parkingdata.Tariefcode === null) {
+  const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
+  
+  // Show section if there's a tariefcode or if there's OmschrijvingTarieven
+  if (parkingdata.Tariefcode === null && !hasOmschrijvingTarieven) {
     return null;
   }
+
+  if (isLoading) {
+    return null;
+  }
+
+  const tariefcodeText = parkingdata.Tariefcode !== null 
+    ? getTariefcodeText(parkingdata.Tariefcode)
+    : "";
+
+  // Don't show section if there's neither tariefcode text nor OmschrijvingTarieven
+  if (!tariefcodeText && !hasOmschrijvingTarieven) {
+    return null;
+  }
+
   return (
     <>
       <SectionBlock heading="Tarief">
-        {tariefCode2Text(parkingdata.Tariefcode)}
+        {tariefcodeText && <div className="mb-2">{tariefcodeText}</div>}
+        {hasOmschrijvingTarieven && (
+          <div dangerouslySetInnerHTML={{ __html: parkingdata.OmschrijvingTarieven || "" }} />
+        )}
       </SectionBlock>
       <HorizontalDivider className="my-4" />
     </>
