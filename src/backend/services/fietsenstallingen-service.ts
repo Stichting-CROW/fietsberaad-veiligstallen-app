@@ -129,6 +129,54 @@ const FietsenstallingenService: ICrudService<fietsenstallingen> = {
       // Remove ID and SiteID from the data object as they need special handling
       const { ID, SiteID, ...updateData } = _data;
       
+      // Check if Type is being changed - if so, update all sections' isKluis flag
+      if (updateData.Type !== undefined) {
+        // Get current type to compare
+        const currentFietsenstalling = await prisma.fietsenstallingen.findFirst({
+          where: { ID: _id },
+          select: { Type: true }
+        });
+        
+        // Normalize type values for comparison (case-insensitive)
+        const currentType = currentFietsenstalling?.Type?.toLowerCase() || null;
+        const newType = updateData.Type?.toLowerCase() || null;
+        
+        // Check if type is actually changing
+        if (currentType !== newType) {
+          // Set isKluis based on new type: true for fietskluizen, false for others
+          const newIsKluis = newType === "fietskluizen";
+          
+          console.log(`[FietsenstallingenService] Type change detected: "${currentFietsenstalling?.Type}" -> "${updateData.Type}". Setting isKluis to ${newIsKluis} for all sections`);
+          
+          // Get section count before update
+          const sectionCount = await prisma.fietsenstalling_sectie.count({
+            where: { fietsenstallingsId: _id }
+          });
+          
+          if (sectionCount > 0) {
+            // Update all sections for this fietsenstalling
+            const updateResult = await prisma.fietsenstalling_sectie.updateMany({
+              where: { fietsenstallingsId: _id },
+              data: { isKluis: newIsKluis }
+            });
+            
+            console.log(`[FietsenstallingenService] Updated ${updateResult.count} section(s) out of ${sectionCount} total. isKluis set to ${newIsKluis}`);
+            
+            // Verify the update worked
+            const verifySections = await prisma.fietsenstalling_sectie.findMany({
+              where: { fietsenstallingsId: _id },
+              select: { sectieId: true, isKluis: true }
+            });
+            
+            console.log(`[FietsenstallingenService] Verification - Sections isKluis values:`, verifySections.map(s => ({ sectieId: s.sectieId, isKluis: s.isKluis })));
+          } else {
+            console.log(`[FietsenstallingenService] No sections found to update for fietsenstalling ${_id}`);
+          }
+        } else {
+          console.log(`[FietsenstallingenService] Type not changed: "${currentFietsenstalling?.Type}" (no update needed)`);
+        }
+      }
+      
       const result = await prisma.fietsenstallingen.update({
         where: { ID: _id },
         data: updateData

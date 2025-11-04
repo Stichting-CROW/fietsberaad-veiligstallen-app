@@ -46,9 +46,10 @@ const calculateCapacityData = (parkingdata: ParkingDetailsType): capacitydata | 
             detailed.Toegestaan = detailed.Toegestaan || (data.Toegestaan !== null && data.Toegestaan);
             detailed.Capaciteit += data.Capaciteit || 0;
           }
-          // capacity.detailed[name].Toegestaan = capacity.detailed[name].Toegestaan || data.Toegestaan !== null && data.Toegestaan;
-          // capacity.detailed[name].Capaciteit += data.Capaciteit || 0;
-          capacity.total += data.Capaciteit || 0;
+          // Only count capacity for bike types that are explicitly allowed
+          if (data.Toegestaan === true) {
+            capacity.total += data.Capaciteit || 0;
+          }
         });
       });
     }

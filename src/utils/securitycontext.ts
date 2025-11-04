@@ -120,9 +120,17 @@ export const getRoleRights = (
     currentTopics[VSSecurityTopic.exploitanten_toegangsrecht] = isRootAdmin ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
-    currentTopics[VSSecurityTopic.instellingen_site_content] = isEditor? allowCRUD : allowNone
+    if(isFietsberaad) {
+        currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isRootAdmin ? allowCRUD : allowNone
+        // FAQ only for fietsberaad editors
+        currentTopics[VSSecurityTopic.instellingen_site_content_faq] = isEditor ? allowCRUD : allowNone
+    } else {
+        currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isEditor? allowReadUpdate : allowNone
+        currentTopics[VSSecurityTopic.instellingen_site_content_faq] = allowNone
+    }
     currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.fmsservices] = isRootAdmin ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.wachtrij] = isRootAdminFietsberaad ? allowCRUD : (isAdminFietsberaad ? allowRead : allowNone)
 
     return currentTopics;        
 };

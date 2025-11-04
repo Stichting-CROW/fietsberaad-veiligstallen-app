@@ -32,8 +32,10 @@ import ReportComponent from '~/components/beheer/reports';
 import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
+import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
+import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -275,7 +277,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.ArticlesPages:
           // Check if user has access to site content
-          const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
           if (!hasInstellingenSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {
@@ -284,7 +286,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.Faq:
           // Check if user has access to site content
-          const hasFaqSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content);
+          const hasFaqSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_faq);
           if (!hasFaqSiteContent) {
             selectedComponent = <AccessDenied />;
           } else {
@@ -298,6 +300,16 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             selectedComponent = <AccessDenied />;
           } else {
             selectedComponent = <DatabaseComponent bikeparks={bikeparks} firstDate={firstDate} lastDate={lastDate} />;
+          }
+          break;
+        case VSMenuTopic.Tariefcodes:
+          // Check if user has fietsberaad_admin or fietsberaad_superadmin rights
+          const hasFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasFietsberaadAdmin && !hasFietsberaadSuperadmin) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <TariefcodesTableComponent />;
           }
           break;
         case VSMenuTopic.Export:
@@ -337,6 +349,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         //   break;
         case VSMenuTopic.ExploreGemeenten:
           selectedComponent = <ExploreGemeenteComponent />;
+          break;
+        case VSMenuTopic.Wachtrij:
+          selectedComponent = <WachtrijMonitorComponent />;
           break;
         case VSMenuTopic.Logboek:
           selectedComponent = <LogboekComponent />;

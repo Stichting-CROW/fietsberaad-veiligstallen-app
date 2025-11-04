@@ -13,3 +13,5 @@
 
 # setup web app for next js startup
 * az-app-set-config -> setup web app for next js startup (node server.js) 
+
+Make sure you are in the azure folder when executing the files.

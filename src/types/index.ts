@@ -39,6 +39,7 @@ export enum VSMenuTopic {
     "SettingsGemeente" = "settingsgemeente",
     "SettingsExploitant" = "settingsexploitant",
     "SystemSettings" = "systemsettings",
+    "Tariefcodes" = "tariefcodes",
     "UsersBeheerders" = "usersbeheerders",
     "UsersGebruikersbeheerFietsberaad" = "usersgebruikersbeheerfietsberaad",
     "UsersGebruikersbeheerGemeente" = "usersgebruikersbeheergemeente",
@@ -47,5 +48,6 @@ export enum VSMenuTopic {
     "Website" = "website",
 
     "TestDatabaseApi" = "testdatabaseapi",
+    "Wachtrij" = "wachtrij",
 
 }

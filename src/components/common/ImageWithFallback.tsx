@@ -7,7 +7,7 @@ const ImageWithFallback = ({ src, fallbackSrc, ...props }: { src: string, fallba
 
   // For local uploads, use regular img tag to avoid Next.js optimization issues
   if (isLocalUpload) {
-    const localSrc = src.replace('[local]', '');
+    const localSrc = src.replace('[local]', '/api');
     return (
       <img
         {...props}

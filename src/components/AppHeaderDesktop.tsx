@@ -128,7 +128,7 @@ function AppHeaderDesktop({
     if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
       logofile = activecontact.CompanyLogo;
       if(!logofile.startsWith('http')) {
-        logofile =logofile.replace('[local]', '')
+        logofile =logofile.replace('[local]', '/api')
         if(!logofile.startsWith('/')) {
           logofile = '/' + logofile;
         }
@@ -212,9 +212,6 @@ function AppHeaderDesktop({
         <div className="flex flex-end">
           {secundaryMenuItems && secundaryMenuItems.map((x: VSArticle, idx: number) => {
             let url = `/${(mapZoom >= 12 && activeMunicipalityInfo) && activeMunicipalityInfo.UrlName ? activeMunicipalityInfo.UrlName : 'fietsberaad'}/${x.Title ? x.Title : ''}`
-            if(x.Title === 'Tips') {
-              url = `/fietsberaad/${x.Title ? x.Title : ''}`
-            }
 
             return <SecundaryMenuItem
               key={`pmi-h2-${idx}`}

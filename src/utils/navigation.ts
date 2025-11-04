@@ -23,7 +23,7 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
   const filterPrimaryItems = (items: VSArticle[]) => {
     return items.filter(x => x.Navigation === 'main')
     .filter((x) => {
-      const excludeTitles = ['Tips', 'Contact', 'FAQ'];
+      const excludeTitles = ['Contact', 'FAQ'];
       return !excludeTitles.includes((x.Title || "")) && hasContent(x);
     })
     .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
@@ -40,17 +40,6 @@ export const getPrimary = (itemsMunicipality: VSArticle[]|undefined, itemsFietsb
 
 export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfietsberaad: VSArticle[]|undefined, showGemeenteMenu: boolean): VSArticle[] => {
   const secundaryItems = [];
-
-  // Tips always comes from fietsberaad site
-  const tips = itemsfietsberaad && itemsfietsberaad?.find(x => x.Title === 'Tips');
-  if (tips) {
-    const showTip = tips.Status === '1' &&
-     ((tips.Abstract||"")!=='' || (tips.Article||"")!==''); 
-
-    if (showTip) {  
-      secundaryItems.push(tips);
-    }
-  }
 
   let contact = undefined;
   if(showGemeenteMenu === true && itemsMunicipality) {

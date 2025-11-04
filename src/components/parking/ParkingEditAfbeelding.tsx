@@ -13,7 +13,7 @@ const ParkingEditAfbeelding = ({ parkingdata, onUpdateAfbeelding }: { parkingdat
     const update = { Image: '' }
     try {
       const result = await fetch(
-        "/api/fietsenstallingen?id=" + parkingdata.ID,
+        `/api/protected/fietsenstallingen/${parkingdata.ID}`,
         {
           method: "PUT",
           body: JSON.stringify(update),
@@ -114,8 +114,11 @@ const ParkingEditAfbeelding = ({ parkingdata, onUpdateAfbeelding }: { parkingdat
           }
         );
         if (!result.ok) {
+          console.error('onUploadFile - error', result);
           throw Error('Er ging iets fout bij het opslaan. Probeer je het later nog eens.')
         }
+
+        console.log('onUpdateAfbeelding', onUpdateAfbeelding);
 
         onUpdateAfbeelding && onUpdateAfbeelding();
       } catch (err: any) {

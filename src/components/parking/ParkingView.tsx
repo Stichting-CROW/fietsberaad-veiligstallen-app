@@ -24,6 +24,7 @@ import { setMunicipalities } from "~/store/geoSlice";
 import type { AppState } from "~/store/store";
 import ReportComponent from "../beheer/reports";
 import { type ReportBikepark } from "../beheer/reports/ReportsFilter";
+import { useTariefcodes } from "~/hooks/useTariefcodes";
 
 const ParkingView = ({
   parkingdata,
@@ -116,6 +117,10 @@ const ParkingView = ({
     "geautomatiseerd",
   ].includes(parkingdata.Type || "");
   const showTarief = false;
+  
+  // Add showTariefCompact flag for tariefcodes 1-5
+  const parkingTariefCode = parkingdata?.Tariefcode || 0;
+  const showTariefCompact = (parkingTariefCode >= 1 && parkingTariefCode <= 5) || (parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "");
 
   let status = "";
   switch (parkingdata.Status) {
@@ -213,6 +218,9 @@ const ParkingView = ({
             <ParkingViewServices parkingdata={parkingdata} />
 
             <ParkingViewCapaciteit parkingdata={parkingdata} />
+
+            {/* Add Tarief section for tariefcodes 1-5 above Abonnementen */}
+            {showTariefCompact ? <ParkingViewTariefAboveAbonnementen parkingdata={parkingdata} /> : null}
 
             <ParkingViewAbonnementen parkingdata={parkingdata} />
 
@@ -332,3 +340,37 @@ const Reports = ({ bikeparks }: { bikeparks: ReportBikepark[] }) => {
 }
 
 export default ParkingView;
+
+const ParkingViewTariefAboveAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
+  const { getTariefcodeText, isLoading } = useTariefcodes();
+
+  // if (parkingdata.Tariefcode === null || parkingdata.Tariefcode === undefined) {
+  //   return null;
+  // }
+
+  if (isLoading) {
+    return null;
+  }
+
+  const tariefcodeText = getTariefcodeText(parkingdata.Tariefcode);
+  const hasOmschrijvingTarieven = parkingdata.OmschrijvingTarieven && parkingdata.OmschrijvingTarieven.trim() !== "";
+
+
+
+  if (!tariefcodeText && !hasOmschrijvingTarieven) {
+    return null;
+  }
+  return (
+    <>
+      <SectionBlock heading="Tarief">
+        {tariefcodeText}
+        {hasOmschrijvingTarieven && (
+          <div className="mt-2">
+            <div dangerouslySetInnerHTML={{ __html: parkingdata.OmschrijvingTarieven || "" }} />
+          </div>
+        )}
+      </SectionBlock>
+      <HorizontalDivider className="my-4" />
+    </>
+  );
+};
