@@ -1,5 +1,20 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-11-04
+
+**Stallingsbeheer**
+
+- Verbeterde UX voor beheren capaciteit:
+  - toon capaciteit tijdens bewerken van secties
+  - toon informatieve test als er nog geen secties zijn
+  - bewerk secties in een dialoog, om te verduidelijken dat secties apart opgeslagen moeten worden
+
+**Tariefcodes**
+
+- ✨ Nieuw: beheer en zie tariefcodes per stalling
+  - Configureer tariefcodes en -beschrijvingen in FMS en database (bekijken, toevoegen, bewerken, verwijderen)
+  - Toon tariefcodes bij stalling
+
 ## VeiligStallen 2025-10-30 (tariefcodes-feature branch)
 
 **Beheer / Database**
