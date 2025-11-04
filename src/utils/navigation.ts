@@ -60,6 +60,7 @@ export const getSecondary = (itemsMunicipality: VSArticle[]|undefined, itemsfiet
     }
   }
 
+  // console.debug("#### secundary items", secundaryItems);
   return secundaryItems;
 }
 
