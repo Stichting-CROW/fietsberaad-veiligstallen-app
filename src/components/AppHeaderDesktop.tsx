@@ -165,7 +165,10 @@ function AppHeaderDesktop({
         "
         style={{ height: '64px' }}
       >
-        <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
+        <Link
+          href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}
+          className="flex flex-col justify-center"
+        >
           {renderLogo()}
         </Link>
         <div className={`
