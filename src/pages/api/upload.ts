@@ -54,8 +54,7 @@ const handler = async (
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ data: null, error: "Internal Server Error \n\n"+JSON.stringify(e) });
-    return;
+    res.status(500).json({ data: null, error: "Internal Server Error" });
   }
 };
 
