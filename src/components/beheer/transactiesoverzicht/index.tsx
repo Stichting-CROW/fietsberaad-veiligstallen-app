@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useExploitanten } from '~/hooks/useExploitanten';
@@ -45,11 +45,16 @@ const TransactiesOverzichtComponent: React.FC = () => {
   // Cache for interval data
   const [cachedIntervals, setCachedIntervals] = useState<TransactionIntervalData[] | null>(null);
   const [cacheKey, setCacheKey] = useState<string | null>(null);
+  
+  // Track if we're in the initial load phase to prevent clearing cache on page reload
+  const isInitialLoad = useRef(true);
+  const previousFilters = useRef<{ contactID: string | null; locationID: string | null; year: number } | null>(null);
 
   const isFietsberaad = session?.user?.mainContactId === "1";
 
-  // Storage key for filter settings
+  // Storage keys
   const STORAGE_KEY = 'VS_transactiesoverzicht_filterState';
+  const CACHE_STORAGE_KEY = 'VS_transactiesoverzicht_cache';
 
   // Load initial state from localStorage (only once on mount)
   useEffect(() => {
@@ -70,7 +75,32 @@ const TransactiesOverzichtComponent: React.FC = () => {
         setSelectedContactID(session.user.mainContactId);
       }
     }
+
+    // Load cached data from localStorage (will be checked against filters after they load)
+    const savedCache = localStorage.getItem(CACHE_STORAGE_KEY);
+    if (savedCache) {
+      try {
+        const parsed = JSON.parse(savedCache);
+        if (parsed.cachedIntervals && parsed.cacheKey) {
+          setCachedIntervals(parsed.cachedIntervals);
+          setCacheKey(parsed.cacheKey);
+        }
+      } catch (e) {
+        console.warn('Failed to parse saved cache:', e);
+      }
+    }
   }, []); // Empty dependency array - only run once on mount
+
+  // Restore transaction data from cache when filters and cache are both loaded
+  useEffect(() => {
+    if (cachedIntervals && cacheKey && selectedLocationID && selectedYear) {
+      const currentCacheKey = `${selectedContactID}-${selectedLocationID}-${selectedYear}`;
+      if (cacheKey === currentCacheKey) {
+        const processedData = processData(cachedIntervals);
+        setTransactionData(processedData);
+      }
+    }
+  }, [cachedIntervals, cacheKey, selectedContactID, selectedLocationID, selectedYear]);
 
   // Generate years from 2000 to current year (descending)
   const currentYear = new Date().getFullYear();
@@ -94,11 +124,39 @@ const TransactiesOverzichtComponent: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [selectedContactID, selectedParkingType, selectedLocationID, selectedYear]);
 
-  // Clear cache when filters that affect the query change
+  // Clear cache when filters that affect the query change (but not on initial load)
   useEffect(() => {
-    setCachedIntervals(null);
-    setCacheKey(null);
-    setTransactionData([]);
+    // Skip clearing cache during initial load
+    if (isInitialLoad.current) {
+      // Mark initial load as complete after filters are set
+      const currentFilters = { contactID: selectedContactID, locationID: selectedLocationID, year: selectedYear };
+      previousFilters.current = currentFilters;
+      // Set a small timeout to mark initial load as complete after all state updates
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 100);
+      return;
+    }
+
+    // Only clear cache if filters actually changed (not just restored from localStorage)
+    const currentFilters = { contactID: selectedContactID, locationID: selectedLocationID, year: selectedYear };
+    if (previousFilters.current) {
+      const filtersChanged = 
+        previousFilters.current.contactID !== currentFilters.contactID ||
+        previousFilters.current.locationID !== currentFilters.locationID ||
+        previousFilters.current.year !== currentFilters.year;
+      
+      if (filtersChanged) {
+        setCachedIntervals(null);
+        setCacheKey(null);
+        setTransactionData([]);
+        // Also clear from localStorage
+        localStorage.removeItem(CACHE_STORAGE_KEY);
+        previousFilters.current = currentFilters;
+      }
+    } else {
+      previousFilters.current = currentFilters;
+    }
   }, [selectedContactID, selectedLocationID, selectedYear]);
 
   // Fetch parking locations when contact or parking type changes
@@ -157,12 +215,30 @@ const TransactiesOverzichtComponent: React.FC = () => {
     // Generate cache key based on filters that affect the query
     const currentCacheKey = `${selectedContactID}-${selectedLocationID}-${selectedYear}`;
     
-    // Check if we have cached data for this combination
+    // Check if we have cached data in state for this combination
     if (cacheKey === currentCacheKey && cachedIntervals) {
       // Use cached data
       const processedData = processData(cachedIntervals);
       setTransactionData(processedData);
       return;
+    }
+
+    // Check localStorage cache
+    const savedCache = localStorage.getItem(CACHE_STORAGE_KEY);
+    if (savedCache) {
+      try {
+        const parsed = JSON.parse(savedCache);
+        if (parsed.cachedIntervals && parsed.cacheKey === currentCacheKey) {
+          // Use cached data from localStorage
+          setCachedIntervals(parsed.cachedIntervals);
+          setCacheKey(parsed.cacheKey);
+          const processedData = processData(parsed.cachedIntervals);
+          setTransactionData(processedData);
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to parse saved cache:', e);
+      }
     }
 
     // Cache is invalid or missing, fetch new data
@@ -194,6 +270,16 @@ const TransactiesOverzichtComponent: React.FC = () => {
       // Cache the intervals and update cache key
       setCachedIntervals(data);
       setCacheKey(currentCacheKey);
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
+          cachedIntervals: data,
+          cacheKey: currentCacheKey
+        }));
+      } catch (e) {
+        console.warn('Failed to save cache to localStorage:', e);
+      }
       
       // Process and set the data
       const processedData = processData(data);
@@ -267,12 +353,21 @@ const TransactiesOverzichtComponent: React.FC = () => {
 
     const categories = sortedForChart.map(row => `${row.date} ${row.startTime}`);
     const netTransactionChange = sortedForChart.map(row => row.transactionsStarted - row.transactionsClosed);
+    const transactionsStarted = sortedForChart.map(row => row.transactionsStarted);
+    const negativeTransactionsClosed = sortedForChart.map(row => -1 * row.transactionsClosed);
     const openTransactionsAtStart = sortedForChart.map(row => row.openTransactionsAtStart);
+
+    // Calculate max absolute delta for symmetric y-axis scale
+    const maxDelta = Math.max(...netTransactionChange.map(Math.abs));
+    const symmetricMax = maxDelta > 0 ? Math.ceil(maxDelta * 1.1) : 1; // Add 10% padding
 
     return {
       categories,
       netTransactionChange,
-      openTransactionsAtStart
+      transactionsStarted,
+      negativeTransactionsClosed,
+      openTransactionsAtStart,
+      maxDelta: symmetricMax
     };
   }, [transactionData]);
 
@@ -498,22 +593,53 @@ const TransactiesOverzichtComponent: React.FC = () => {
                     },
                     tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
                   },
-                  yaxis: {
-                    title: {
-                      text: 'Delta transacties'
+                  yaxis: [
+                    {
+                      // Left y-axis for delta (symmetric scale)
+                      title: {
+                        text: 'Delta transacties'
+                      },
+                      min: -chartData.maxDelta,
+                      max: chartData.maxDelta,
+                      opposite: false
+                    },
+                    {
+                      // Right y-axis for started/closed transactions
+                      title: {
+                        text: 'Aantal transacties'
+                      },
+                      opposite: true
                     }
-                  },
+                  ],
                   tooltip: {
                     enabled: true,
                     shared: true,
                     intersect: false,
                     followCursor: true
+                  },
+                  colors: ['#000000', '#22c55e', '#ef4444'], // black for delta, green for started, red for closed
+                  legend: {
+                    show: true,
+                    position: 'top'
                   }
                 }}
-                series={[{
-                  name: 'Delta transacties',
-                  data: chartData.netTransactionChange
-                }]}
+                series={[
+                  {
+                    name: 'Delta transacties',
+                    data: chartData.netTransactionChange,
+                    yAxisIndex: 0 // Use first y-axis (left, symmetric)
+                  },
+                  {
+                    name: 'Aantal transactions gestart',
+                    data: chartData.transactionsStarted,
+                    yAxisIndex: 1 // Use second y-axis (right)
+                  },
+                  {
+                    name: '-1 × Aantal transactions gesloten',
+                    data: chartData.negativeTransactionsClosed,
+                    yAxisIndex: 1 // Use second y-axis (right)
+                  }
+                ]}
                 style={{ height: '50vh' }}
               />
             </div>
@@ -577,22 +703,48 @@ const TransactiesOverzichtComponent: React.FC = () => {
                     },
                     tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
                   },
-                  yaxis: {
-                    title: {
-                      text: 'Open transacties bij start'
+                  yaxis: [
+                    {
+                      // Left y-axis for open transactions
+                      title: {
+                        text: 'Open transacties bij start'
+                      },
+                      opposite: false
+                    },
+                    {
+                      // Right y-axis for delta (symmetric scale)
+                      title: {
+                        text: 'Delta transacties'
+                      },
+                      min: -chartData.maxDelta,
+                      max: chartData.maxDelta,
+                      opposite: true
                     }
-                  },
+                  ],
                   tooltip: {
                     enabled: true,
                     shared: true,
                     intersect: false,
                     followCursor: true
+                  },
+                  colors: ['#3b82f6', '#000000'], // blue for open transactions, black for delta
+                  legend: {
+                    show: true,
+                    position: 'top'
                   }
                 }}
-                series={[{
-                  name: 'Open transacties bij start',
-                  data: chartData.openTransactionsAtStart
-                }]}
+                series={[
+                  {
+                    name: 'Open transacties bij start',
+                    data: chartData.openTransactionsAtStart,
+                    yAxisIndex: 0 // Use first y-axis (left)
+                  },
+                  {
+                    name: 'Delta transacties',
+                    data: chartData.netTransactionChange,
+                    yAxisIndex: 1 // Use second y-axis (right, symmetric)
+                  }
+                ]}
                 style={{ height: '50vh' }}
               />
             </div>
