@@ -36,6 +36,7 @@ import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesT
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
+import TransactiesOverzichtComponent from '~/components/beheer/transactiesoverzicht';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -355,6 +356,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           break;
         case VSMenuTopic.Logboek:
           selectedComponent = <LogboekComponent />;
+          break;
+        case VSMenuTopic.TransactiesOverzicht:
+          selectedComponent = <TransactiesOverzichtComponent />;
           break;
         case VSMenuTopic.UsersGebruikersbeheerFietsberaad:
           selectedComponent = <UsersComponent siteID={"1"} contacts={contacts} />;

@@ -116,6 +116,11 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
               {hasWachtrijAccess && (
                 <LeftMenuItem component={VSMenuTopic.Wachtrij} title={'Wachtrij'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
               )}
+              <LeftMenuItem component={false} title={'Overzichten'} compact={false} activecomponent={activecomponent} onSelect={onSelect}>
+                <ul className="ml-4 mt-1">
+                  <LeftMenuItem component={VSMenuTopic.TransactiesOverzicht} title={'Transacties Overzicht'} compact={true} activecomponent={activecomponent} onSelect={onSelect} />
+                </ul>
+              </LeftMenuItem>
               {/* <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
               {/* <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
             </ul>
