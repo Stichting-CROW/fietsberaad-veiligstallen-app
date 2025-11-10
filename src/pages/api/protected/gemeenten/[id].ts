@@ -160,6 +160,16 @@ export default async function handle(
 
         const parsed = parseResult.data;
         
+        // Check if Status is being changed (archive/unarchive operation)
+        if (parsed.Status !== undefined) {
+          const hasFietsberaadSuperadmin = userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasFietsberaadSuperadmin) {
+            console.error("Unauthorized - no fietsberaad superadmin rights for archive/unarchive");
+            res.status(403).json({ error: "Alleen fietsberaad superadmins kunnen organisaties archiveren/herstellen" });
+            return;
+          }
+        }
+        
         // Check if user is a fietsberaad admin (mainContactId === "1")
         const isFietsberaadAdmin = session.user.mainContactId === "1";
         
@@ -189,6 +199,11 @@ export default async function handle(
           updateData.AlternativeCompanyName = parsed.AlternativeCompanyName ?? undefined;
           updateData.UrlName = parsed.UrlName ?? undefined;
           updateData.ZipID = parsed.ZipID ?? undefined;
+        }
+
+        // Add Status if it's being updated (archive/unarchive)
+        if (parsed.Status !== undefined) {
+          updateData.Status = parsed.Status;
         }
 
         const updatedOrg = await prisma.contacts.update({

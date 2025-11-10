@@ -6,6 +6,8 @@ import { z } from "zod";
 import { generateID, validateUserSession, updateSecurityProfile } from "~/utils/server/database-tools";
 import { dataproviderSchema, dataproviderCreateSchema, getDefaultNewDataprovider } from "~/types/database";
 import { type VSContactDataprovider, VSContactItemType, dataproviderSelect } from "~/types/contacts";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type DataproviderResponse = {
   data?: VSContactDataprovider;
@@ -109,6 +111,17 @@ export default async function handle(
         }
 
         const parsed = parseResult.data;
+        
+        // Check if Status is being changed (archive/unarchive operation)
+        if (parsed.Status !== undefined) {
+          const hasFietsberaadSuperadmin = userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasFietsberaadSuperadmin) {
+            console.error("Unauthorized - no fietsberaad superadmin rights for archive/unarchive");
+            res.status(403).json({ error: "Alleen fietsberaad superadmins kunnen organisaties archiveren/herstellen" });
+            return;
+          }
+        }
+
         const updatedOrg = await prisma.contacts.update({
           select: dataproviderSelect,
           where: { ID: id },

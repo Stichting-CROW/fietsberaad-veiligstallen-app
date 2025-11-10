@@ -35,7 +35,11 @@ export default async function handle(
     StallingsID: { not: null },
     Title: { // Never include Systeemstalling
       not: 'Systeemstalling'
-    }
+    },
+    // Exclude stallingen from archived data owners (Status = "0")
+    contacts_fietsenstallingen_SiteIDTocontacts: {
+      Status: { not: "0" }
+    },
   };
   
   if ('error' in validationResult === false) {

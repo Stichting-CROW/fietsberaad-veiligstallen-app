@@ -79,6 +79,7 @@ export default async function handle(
             CompanyLogo: gemeente.CompanyLogo,
             ThemeColor1: gemeente.ThemeColor1,
             ThemeColor2: gemeente.ThemeColor2,
+            Status: gemeente.Status,
             hasStallingen,
             hasUsers,
             hasExploitanten

@@ -23,6 +23,10 @@ export default async function handle(
       not: 'Systeemstalling'
     },
     StallingsID: { not: null },
+    // Exclude stallingen from archived data owners (Status = "0")
+    contacts_fietsenstallingen_SiteIDTocontacts: {
+      Status: { not: "0" }
+    },
   };
 
 
