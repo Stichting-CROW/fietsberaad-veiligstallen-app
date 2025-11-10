@@ -2,20 +2,24 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { prisma } from "~/server/db";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
 
 interface Settings {
   contactID?: string | null;
   locationID?: string | null;
   year: number;
   intervalDurations: number[];
+  section?: 'overview' | 'parkeerduur';
 }
 
 interface TransactionIntervalData {
   date: string;
   startTime: string;
   transactionsStarted: number;
+  transactionsClosed: number;
   openTransactionsAtStart: number;
-  transactionsEnded: {
+  openTransactionsByDuration?: {
     duration_leq_1h: number;
     duration_1_3h: number;
     duration_3_6h: number;
@@ -32,27 +36,25 @@ interface TransactionIntervalData {
   };
 }
 
-// Calculate duration bucket for a transaction
-function getDurationBucket(durationHours: number): string {
-  if (durationHours <= 1) return 'duration_leq_1h';
-  if (durationHours <= 3) return 'duration_1_3h';
-  if (durationHours <= 6) return 'duration_3_6h';
-  if (durationHours <= 9) return 'duration_6_9h';
-  if (durationHours <= 13) return 'duration_9_13h';
-  if (durationHours <= 18) return 'duration_13_18h';
-  if (durationHours <= 24) return 'duration_18_24h';
-  if (durationHours <= 36) return 'duration_24_36h';
-  if (durationHours <= 48) return 'duration_36_48h';
-  if (durationHours <= 168) return 'duration_48h_1w'; // 1 week = 168 hours
-  if (durationHours <= 336) return 'duration_1w_2w'; // 2 weeks = 336 hours
-  if (durationHours <= 504) return 'duration_2w_3w'; // 3 weeks = 504 hours
-  return 'duration_gt_3w';
+interface OpenTransactionDuration {
+  date: string;
+  startTime: string;
+  durationHours: number;
 }
 
-// Calculate interval start times for a day based on DayBeginsAt and intervalDurations
-function calculateIntervalStartTimes(dayBeginsAt: Date, intervalDurations: number[]): Date[] {
+interface RawIntervalResult {
+  date: string;
+  startTime: string;
+  transactionsStarted: bigint;
+  transactionsClosed: bigint;
+  openTransactionsAtStart: bigint;
+}
+
+// Calculate interval start times for a day starting at 00:00:00
+function calculateIntervalStartTimes(dayStart: Date, intervalDurations: number[]): Date[] {
   const startTimes: Date[] = [];
-  let currentTime = new Date(dayBeginsAt);
+  let currentTime = new Date(dayStart);
+  currentTime.setHours(0, 0, 0, 0); // Always start at midnight
   
   for (const duration of intervalDurations) {
     startTimes.push(new Date(currentTime));
@@ -107,18 +109,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       return;
     }
 
-    // Get parking location and contact to retrieve DayBeginsAt
+    // Get parking location to validate it exists
     const parkingQueryStart = Date.now();
     const parking = await prisma.fietsenstallingen.findFirst({
       where: {
         StallingsID: settings.locationID
-      },
-      include: {
-        contacts_fietsenstallingen_SiteIDTocontacts: {
-          select: {
-            DayBeginsAt: true
-          }
-        }
       }
     });
     console.log('[transacties_voltooid] Parking query took', Date.now() - parkingQueryStart, 'ms');
@@ -129,62 +124,23 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       return;
     }
 
-    // Get DayBeginsAt from contact (default to 00:00:00 if not set)
-    // DayBeginsAt is a TIME field, so we extract hours and minutes
-    const dayBeginsAtTime = parking.contacts_fietsenstallingen_SiteIDTocontacts?.DayBeginsAt;
-    const dayBeginsAtHours = dayBeginsAtTime ? dayBeginsAtTime.getHours() : 0;
-    const dayBeginsAtMinutes = dayBeginsAtTime ? dayBeginsAtTime.getMinutes() : 0;
-
-    // Calculate date range for the year
-    const yearStart = new Date(settings.year, 0, 1);
-    const yearEnd = new Date(settings.year, 11, 31, 23, 59, 59);
-
-    // Fetch all transactions for the location and year
-    const transactionsQueryStart = Date.now();
-    const transactions = await prisma.transacties_archief.findMany({
-      where: {
-        locationid: settings.locationID,
-        OR: [
-          {
-            checkindate: {
-              gte: yearStart,
-              lte: yearEnd
-            }
-          },
-          {
-            checkoutdate: {
-              gte: yearStart,
-              lte: yearEnd
-            }
-          }
-        ]
-      },
-      orderBy: {
-        checkindate: 'asc'
-      }
-    });
-    console.log('[transacties_voltooid] Transactions query took', Date.now() - transactionsQueryStart, 'ms');
-    console.log('[transacties_voltooid] Found', transactions.length, 'transactions');
-
-    // Generate all intervals for the year
-    const intervals: Map<string, TransactionIntervalData> = new Map();
-    
     // Calculate number of days in the year (handle leap years)
     const isLeapYear = (settings.year % 4 === 0 && settings.year % 100 !== 0) || (settings.year % 400 === 0);
     const daysInYear = isLeapYear ? 366 : 365;
+
+    // Generate all interval start/end times for the year
+    const intervalList: Array<{ date: string; startTime: string; startDateTime: string; endDateTime: string }> = [];
     
-    // Iterate through each day of the year
     for (let day = 0; day < daysInYear; day++) {
       const currentDate = new Date(settings.year, 0, 1);
       currentDate.setDate(currentDate.getDate() + day);
       
-      // Calculate interval start times for this day
+      // Always start intervals at 00:00:00 (midnight)
       const dayStart = new Date(currentDate);
-      dayStart.setHours(dayBeginsAtHours, dayBeginsAtMinutes, 0, 0);
+      dayStart.setHours(0, 0, 0, 0);
       
       const intervalStartTimes = calculateIntervalStartTimes(dayStart, settings.intervalDurations);
       
-      // Create interval entries
       for (let i = 0; i < intervalStartTimes.length; i++) {
         const intervalStart = intervalStartTimes[i];
         const intervalDuration = settings.intervalDurations[i];
@@ -194,160 +150,217 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           ? intervalStartTimes[i + 1]
           : new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000);
         
-        const dateStr = currentDate.toISOString().split('T')[0];
-        const timeStr = `${String(intervalStart.getHours()).padStart(2, '0')}:${String(intervalStart.getMinutes()).padStart(2, '0')}`;
-        const intervalKey = `${dateStr}_${timeStr}`;
+        if (!intervalEnd) continue;
         
-        intervals.set(intervalKey, {
-          date: dateStr || '',
-          startTime: timeStr || '',
-          transactionsStarted: 0,
-          openTransactionsAtStart: 0,
-          transactionsEnded: {
-            duration_leq_1h: 0,
-            duration_1_3h: 0,
-            duration_3_6h: 0,
-            duration_6_9h: 0,
-            duration_9_13h: 0,
-            duration_13_18h: 0,
-            duration_18_24h: 0,
-            duration_24_36h: 0,
-            duration_36_48h: 0,
-            duration_48h_1w: 0,
-            duration_1w_2w: 0,
-            duration_2w_3w: 0,
-            duration_gt_3w: 0
-          }
+        const dateStr = currentDate.toISOString().split('T')[0] || '';
+        const timeStr = `${String(intervalStart.getHours()).padStart(2, '0')}:${String(intervalStart.getMinutes()).padStart(2, '0')}`;
+        const startDateTime = intervalStart.toISOString().slice(0, 19).replace('T', ' ') || '';
+        const endDateTime = intervalEnd.toISOString().slice(0, 19).replace('T', ' ') || '';
+        
+        intervalList.push({
+          date: dateStr,
+          startTime: timeStr,
+          startDateTime,
+          endDateTime
         });
       }
     }
 
-    // Process transactions
-    for (const transaction of transactions) {
-      const checkinDate = new Date(transaction.checkindate);
-      const checkoutDate = transaction.checkoutdate ? new Date(transaction.checkoutdate) : null;
+    console.log('[transacties_voltooid] Generated', intervalList.length, 'intervals');
 
-      // Find which interval the checkin belongs to
-      const checkinDay = new Date(checkinDate);
-      checkinDay.setHours(dayBeginsAtHours, dayBeginsAtMinutes, 0, 0);
+    // Build SQL query to aggregate data for all intervals
+    const sqlQueryStart = Date.now();
+
+    // Build UNION ALL for interval values
+    const intervalValues = intervalList.map((interval, idx) => 
+      `SELECT '${interval.date}' AS interval_date, '${interval.startTime}' AS interval_start_time, '${interval.startDateTime}' AS interval_start, '${interval.endDateTime}' AS interval_end`
+    ).join(' UNION ALL ');
+
+    const includeDurationBuckets = settings.section === 'parkeerduur';
+    
+    const sql = `
+      WITH intervals AS (
+        ${intervalValues}
+      ),
+      transactions_started AS (
+        SELECT 
+          i.interval_date AS date,
+          i.interval_start_time AS startTime,
+          COUNT(*) AS transactionsStarted
+        FROM intervals i
+        INNER JOIN transacties_archief ta ON 
+          ta.locationid = '${settings.locationID}'
+          AND ta.checkindate >= i.interval_start
+          AND ta.checkindate < i.interval_end
+        GROUP BY i.interval_date, i.interval_start_time
+      ),
+      transactions_open AS (
+        SELECT 
+          i.interval_date AS date,
+          i.interval_start_time AS startTime,
+          COUNT(*) AS openTransactionsAtStart
+        FROM intervals i
+        INNER JOIN transacties_archief ta ON 
+          ta.locationid = '${settings.locationID}'
+          AND ta.checkindate < i.interval_start
+          AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
+        GROUP BY i.interval_date, i.interval_start_time
+      ),
+      transactions_open_by_duration AS (
+        SELECT 
+          i.interval_date AS date,
+          i.interval_start_time AS startTime,
+          TIMESTAMPDIFF(HOUR, ta.checkindate, i.interval_start) AS durationHours
+        FROM intervals i
+        INNER JOIN transacties_archief ta ON 
+          ta.locationid = '${settings.locationID}'
+          AND ta.checkindate < i.interval_start
+          AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
+      ),
+      transactions_ended AS (
+        SELECT 
+          i.interval_date AS date,
+          i.interval_start_time AS startTime,
+          COUNT(*) AS transactionsClosed
+        FROM intervals i
+        INNER JOIN transacties_archief ta ON 
+          ta.locationid = '${settings.locationID}'
+          AND ta.checkoutdate IS NOT NULL
+          AND ta.checkoutdate >= i.interval_start
+          AND ta.checkoutdate < i.interval_end
+        GROUP BY i.interval_date, i.interval_start_time
+      )
+      SELECT 
+        i.interval_date AS date,
+        i.interval_start_time AS startTime,
+        COALESCE(ts.transactionsStarted, 0) AS transactionsStarted,
+        COALESCE(te.transactionsClosed, 0) AS transactionsClosed,
+        COALESCE(to_count.openTransactionsAtStart, 0) AS openTransactionsAtStart
+      FROM intervals i
+      LEFT JOIN transactions_started ts ON 
+        i.interval_date = ts.date 
+        AND i.interval_start_time = ts.startTime
+      LEFT JOIN transactions_open to_count ON 
+        i.interval_date = to_count.date 
+        AND i.interval_start_time = to_count.startTime
+      LEFT JOIN transactions_ended te ON 
+        i.interval_date = te.date 
+        AND i.interval_start_time = te.startTime
+      ORDER BY i.interval_date, i.interval_start_time
+    `;
+
+    // Write the SQL query to a file for external tool usage
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const section = settings.section || 'overview';
+      const filename = `sql-query-${section}-${timestamp}.sql`;
+      const logsDir = join(process.cwd(), 'logs');
       
-      // Adjust if checkin is before dayBeginsAt (belongs to previous day)
-      if (checkinDate.getHours() < dayBeginsAtHours || 
-          (checkinDate.getHours() === dayBeginsAtHours && checkinDate.getMinutes() < dayBeginsAtMinutes)) {
-        checkinDay.setDate(checkinDay.getDate() - 1);
-      }
-
-      const intervalStartTimes = calculateIntervalStartTimes(checkinDay, settings.intervalDurations);
+      // Create logs directory if it doesn't exist
+      await mkdir(logsDir, { recursive: true });
       
-        // Find the interval for checkin
-        let checkinIntervalIndex = -1;
-        for (let i = 0; i < intervalStartTimes.length; i++) {
-          const intervalStart = intervalStartTimes[i];
-          const intervalDuration = settings.intervalDurations[i];
-          if (!intervalStart || intervalDuration === undefined) continue;
-          
-          const intervalEnd = i < intervalStartTimes.length - 1 
-            ? (intervalStartTimes[i + 1] || new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000))
-            : new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000);
-        
-          if (intervalEnd && checkinDate >= intervalStart && checkinDate < intervalEnd) {
-            checkinIntervalIndex = i;
-            break;
-          }
-        }
+      const filepath = join(logsDir, filename);
+      
+      // Write SQL query to file with header comments
+      const fileContent = `-- SQL Query for section: ${section}
+-- Generated at: ${new Date().toISOString()}
+-- Location ID: ${settings.locationID}
+-- Year: ${settings.year}
+-- Interval Durations: [${settings.intervalDurations.join(', ')}]
 
-        if (checkinIntervalIndex >= 0) {
-          const intervalStart = intervalStartTimes[checkinIntervalIndex];
-          if (intervalStart) {
-            const dateStr = checkinDay.toISOString().split('T')[0];
-            const timeStr = `${String(intervalStart.getHours()).padStart(2, '0')}:${String(intervalStart.getMinutes()).padStart(2, '0')}`;
-            const intervalKey = `${dateStr}_${timeStr}`;
-            
-            const interval = intervals.get(intervalKey);
-            if (interval) {
-              interval.transactionsStarted++;
-            }
-          }
-        }
-
-      // Count open transactions at start of each interval
-      for (const [intervalKey, interval] of intervals.entries()) {
-        const [dateStr, timeStr] = intervalKey.split('_');
-        if (!dateStr || !timeStr) continue;
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        if (hours === undefined || minutes === undefined) continue;
-        const intervalStart = new Date(dateStr);
-        intervalStart.setHours(hours, minutes, 0, 0);
-        
-        // Transaction is open at interval start if:
-        // - checkinDate < intervalStart AND
-        // - (checkoutDate is null OR checkoutDate >= intervalStart)
-        if (checkinDate < intervalStart && (!checkoutDate || checkoutDate >= intervalStart)) {
-          interval.openTransactionsAtStart++;
-        }
-      }
-
-      // Count transactions ended in intervals
-      if (checkoutDate) {
-        const checkoutDay = new Date(checkoutDate);
-        checkoutDay.setHours(dayBeginsAtHours, dayBeginsAtMinutes, 0, 0);
-        
-        // Adjust if checkout is before dayBeginsAt
-        if (checkoutDate.getHours() < dayBeginsAtHours || 
-            (checkoutDate.getHours() === dayBeginsAtHours && checkoutDate.getMinutes() < dayBeginsAtMinutes)) {
-          checkoutDay.setDate(checkoutDay.getDate() - 1);
-        }
-
-        const checkoutIntervalStartTimes = calculateIntervalStartTimes(checkoutDay, settings.intervalDurations);
-        
-        // Find the interval for checkout
-        for (let i = 0; i < checkoutIntervalStartTimes.length; i++) {
-          const intervalStart = checkoutIntervalStartTimes[i];
-          const intervalDuration = settings.intervalDurations[i];
-          if (!intervalStart || intervalDuration === undefined) continue;
-          
-          const intervalEnd = i < checkoutIntervalStartTimes.length - 1 
-            ? (checkoutIntervalStartTimes[i + 1] || new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000))
-            : new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000);
-          
-          if (intervalEnd && checkoutDate >= intervalStart && checkoutDate < intervalEnd) {
-            const dateStr = checkoutDay.toISOString().split('T')[0];
-            const timeStr = `${String(intervalStart.getHours()).padStart(2, '0')}:${String(intervalStart.getMinutes()).padStart(2, '0')}`;
-            const intervalKey = `${dateStr}_${timeStr}`;
-            
-            const interval = intervals.get(intervalKey);
-            if (interval) {
-              // Calculate duration
-              const durationHours = (checkoutDate.getTime() - checkinDate.getTime()) / (1000 * 60 * 60);
-              const bucket = getDurationBucket(durationHours);
-              (interval.transactionsEnded as any)[bucket]++;
-            }
-            break;
-          }
-        }
-      }
+${sql}
+`;
+      
+      await writeFile(filepath, fileContent, 'utf-8');
+      console.log(`[transacties_voltooid] SQL query written to: ${filepath}`);
+    } catch (fileError) {
+      console.error('[transacties_voltooid] Error writing SQL query to file:', fileError);
+      // Fallback to console logging if file write fails
+      console.log('\n========================================');
+      console.log(`[transacties_voltooid] SQL Query for section: ${settings.section || 'overview'}`);
+      console.log('========================================');
+      console.log(sql);
+      console.log('========================================\n');
     }
 
-    // Convert map to array and sort by date and time
-    const processingEnd = Date.now();
-    console.log('[transacties_voltooid] Processing transactions took', processingEnd - transactionsQueryStart, 'ms');
-    
-    const result = Array.from(intervals.values()).sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      if (dateCompare !== 0) return dateCompare;
-      return a.startTime.localeCompare(b.startTime);
-    });
+    console.log('[transacties_voltooid] Executing SQL query...');
+    const rawResults = await prisma.$queryRawUnsafe<RawIntervalResult[]>(sql);
+    console.log('[transacties_voltooid] SQL query took', Date.now() - sqlQueryStart, 'ms');
+    console.log('[transacties_voltooid] Found', rawResults.length, 'intervals');
 
-    const totalTime = Date.now() - startTime;
-    console.log('[transacties_voltooid] API call completed successfully at', new Date().toISOString());
-    console.log('[transacties_voltooid] Total time:', totalTime, 'ms');
-    console.log('[transacties_voltooid] Returning', result.length, 'intervals');
+    // Fetch duration data separately if needed
+    let durationData: OpenTransactionDuration[] = [];
+    if (includeDurationBuckets) {
+      const durationQueryStart = Date.now();
+      const durationSql = `
+        SELECT 
+          i.interval_date AS date,
+          i.interval_start_time AS startTime,
+          TIMESTAMPDIFF(HOUR, ta.checkindate, i.interval_start) AS durationHours
+        FROM (
+          ${intervalValues}
+        ) AS intervals i
+        INNER JOIN transacties_archief ta ON 
+          ta.locationid = '${settings.locationID}'
+          AND ta.checkindate < i.interval_start
+          AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
+        ORDER BY i.interval_date, i.interval_start_time, durationHours
+      `;
+      
+      // Write duration SQL query to file
+      try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `sql-query-durations-${timestamp}.sql`;
+        const logsDir = join(process.cwd(), 'logs');
+        
+        await mkdir(logsDir, { recursive: true });
+        const filepath = join(logsDir, filename);
+        
+        const fileContent = `-- SQL Query for duration data (parkeerduur section)
+-- Generated at: ${new Date().toISOString()}
+-- Location ID: ${settings.locationID}
+-- Year: ${settings.year}
+-- Interval Durations: [${settings.intervalDurations.join(', ')}]
 
-    res.status(200).json(result);
+${durationSql}
+`;
+        
+        await writeFile(filepath, fileContent, 'utf-8');
+        console.log(`[transacties_voltooid] Duration SQL query written to: ${filepath}`);
+      } catch (fileError) {
+        console.error('[transacties_voltooid] Error writing duration SQL query to file:', fileError);
+      }
+      
+      console.log('[transacties_voltooid] Fetching duration data...');
+      const rawDurationResults = await prisma.$queryRawUnsafe<Array<{ date: string; startTime: string; durationHours: bigint }>>(durationSql);
+      durationData = rawDurationResults.map(row => ({
+        date: row.date,
+        startTime: row.startTime,
+        durationHours: Number(row.durationHours)
+      }));
+      console.log('[transacties_voltooid] Duration query took', Date.now() - durationQueryStart, 'ms');
+      console.log('[transacties_voltooid] Found', durationData.length, 'open transactions with duration');
+    }
+
+    // Convert raw results to expected format
+    const result: TransactionIntervalData[] = rawResults.map(row => ({
+      date: row.date,
+      startTime: row.startTime,
+      transactionsStarted: Number(row.transactionsStarted),
+      transactionsClosed: Number(row.transactionsClosed),
+      openTransactionsAtStart: Number(row.openTransactionsAtStart)
+    }));
+
+    // Add duration data to response if needed
+    if (includeDurationBuckets) {
+      res.status(200).json({ intervals: result, durations: durationData });
+    } else {
+      res.status(200).json(result);
+    }
+
   } catch (error) {
     const totalTime = Date.now() - startTime;
     console.error('[transacties_voltooid] Error in API call after', totalTime, 'ms:', error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
-

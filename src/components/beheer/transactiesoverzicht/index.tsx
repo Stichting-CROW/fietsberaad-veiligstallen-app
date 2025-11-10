@@ -6,14 +6,15 @@ import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import type { ParkingDetailsType } from '~/types/parking';
 
 // Interval durations constant - can be changed later to be user-configurable
-const INTERVAL_DURATIONS = [12, 12]; // Two 12-hour intervals per day
+const INTERVAL_DURATIONS = [24]; // Two 12-hour intervals per day
 
 interface TransactionIntervalData {
   date: string;
   startTime: string;
   transactionsStarted: number;
+  transactionsClosed: number;
   openTransactionsAtStart: number;
-  transactionsEnded: {
+  openTransactionsByDuration?: {
     duration_leq_1h: number;
     duration_1_3h: number;
     duration_3_6h: number;
@@ -35,6 +36,7 @@ interface Settings {
   locationID: string | null;
   year: number;
   intervalDurations: number[];
+  section?: 'overview' | 'parkeerduur';
 }
 
 const TransactiesOverzichtComponent: React.FC = () => {
@@ -47,11 +49,14 @@ const TransactiesOverzichtComponent: React.FC = () => {
   const [selectedParkingType, setSelectedParkingType] = useState<string>('all');
   const [selectedLocationID, setSelectedLocationID] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedSection, setSelectedSection] = useState<'overview' | 'parkeerduur'>('overview');
   const [parkingLocations, setParkingLocations] = useState<ParkingDetailsType[]>([]);
   const [filteredParkingLocations, setFilteredParkingLocations] = useState<ParkingDetailsType[]>([]);
   const [transactionData, setTransactionData] = useState<TransactionIntervalData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const isFietsberaad = session?.user?.mainContactId === "1";
 
@@ -150,7 +155,8 @@ const TransactiesOverzichtComponent: React.FC = () => {
       contactID: selectedContactID,
       locationID: selectedLocationID,
       year: selectedYear,
-      intervalDurations: INTERVAL_DURATIONS
+      intervalDurations: INTERVAL_DURATIONS,
+      section: selectedSection
     };
 
     try {
@@ -167,7 +173,98 @@ const TransactiesOverzichtComponent: React.FC = () => {
       }
 
       const data = await response.json();
-      setTransactionData(data);
+      
+      // Handle different response formats
+      let intervals: TransactionIntervalData[];
+      let durations: Array<{ date: string; startTime: string; durationHours: number }> = [];
+      
+      if (selectedSection === 'parkeerduur' && data.intervals && data.durations) {
+        intervals = data.intervals;
+        durations = data.durations;
+      } else {
+        intervals = data;
+      }
+      
+      // Filter out future dates
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // End of today
+      let filteredData = intervals.filter((row: TransactionIntervalData) => {
+        const rowDate = new Date(row.date);
+        return rowDate <= today;
+      });
+      
+      // Calculate duration buckets on client side for parkeerduur section
+      if (selectedSection === 'parkeerduur' && durations.length > 0) {
+        // Helper function to get duration bucket key
+        const getDurationBucket = (hours: number): keyof TransactionIntervalData['openTransactionsByDuration'] => {
+          if (hours <= 1) return 'duration_leq_1h';
+          if (hours <= 3) return 'duration_1_3h';
+          if (hours <= 6) return 'duration_3_6h';
+          if (hours <= 9) return 'duration_6_9h';
+          if (hours <= 13) return 'duration_9_13h';
+          if (hours <= 18) return 'duration_13_18h';
+          if (hours <= 24) return 'duration_18_24h';
+          if (hours <= 36) return 'duration_24_36h';
+          if (hours <= 48) return 'duration_36_48h';
+          if (hours <= 168) return 'duration_48h_1w';
+          if (hours <= 336) return 'duration_1w_2w';
+          if (hours <= 504) return 'duration_2w_3w';
+          return 'duration_gt_3w';
+        };
+        
+        // Group durations by interval and calculate buckets
+        const durationMap = new Map<string, Record<string, number>>();
+        
+        durations.forEach(d => {
+          const key = `${d.date}-${d.startTime}`;
+          if (!durationMap.has(key)) {
+            durationMap.set(key, {
+              duration_leq_1h: 0,
+              duration_1_3h: 0,
+              duration_3_6h: 0,
+              duration_6_9h: 0,
+              duration_9_13h: 0,
+              duration_13_18h: 0,
+              duration_18_24h: 0,
+              duration_24_36h: 0,
+              duration_36_48h: 0,
+              duration_48h_1w: 0,
+              duration_1w_2w: 0,
+              duration_2w_3w: 0,
+              duration_gt_3w: 0
+            });
+          }
+          const bucket = getDurationBucket(d.durationHours);
+          const counts = durationMap.get(key)!;
+          counts[bucket] = (counts[bucket] || 0) + 1;
+        });
+        
+        // Add duration buckets to filtered data
+        filteredData = filteredData.map(row => {
+          const key = `${row.date}-${row.startTime}`;
+          const buckets = durationMap.get(key);
+          return {
+            ...row,
+            openTransactionsByDuration: buckets || {
+              duration_leq_1h: 0,
+              duration_1_3h: 0,
+              duration_3_6h: 0,
+              duration_6_9h: 0,
+              duration_9_13h: 0,
+              duration_13_18h: 0,
+              duration_18_24h: 0,
+              duration_24_36h: 0,
+              duration_36_48h: 0,
+              duration_48h_1w: 0,
+              duration_1w_2w: 0,
+              duration_2w_3w: 0,
+              duration_gt_3w: 0
+            }
+          };
+        });
+      }
+      
+      setTransactionData(filteredData);
     } catch (err) {
       console.error('Error fetching transaction data:', err);
       setError(err instanceof Error ? err.message : 'Fout bij ophalen van data');
@@ -176,47 +273,117 @@ const TransactiesOverzichtComponent: React.FC = () => {
     }
   };
 
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Get sorted data
+  const getSortedData = (): TransactionIntervalData[] => {
+    if (!sortColumn) return transactionData;
+
+    return [...transactionData].sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+
+      if (sortColumn === 'date' || sortColumn === 'startTime') {
+        // Sort by date and time
+        const aDateTime = new Date(`${a.date}T${a.startTime}:00`);
+        const bDateTime = new Date(`${b.date}T${b.startTime}:00`);
+        aValue = aDateTime.getTime();
+        bValue = bDateTime.getTime();
+      } else if (sortColumn === 'transactionsStarted') {
+        aValue = a.transactionsStarted;
+        bValue = b.transactionsStarted;
+      } else if (sortColumn === 'transactionsClosed') {
+        aValue = a.transactionsClosed;
+        bValue = b.transactionsClosed;
+      } else if (sortColumn === 'openTransactionsAtStart') {
+        aValue = a.openTransactionsAtStart;
+        bValue = b.openTransactionsAtStart;
+      } else if (a.openTransactionsByDuration && b.openTransactionsByDuration) {
+        // Duration bucket columns
+        const bucketKey = sortColumn as keyof typeof a.openTransactionsByDuration;
+        aValue = a.openTransactionsByDuration[bucketKey] || 0;
+        bValue = b.openTransactionsByDuration[bucketKey] || 0;
+      } else {
+        aValue = 0;
+        bValue = 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
   // Generate CSV
   const handleDownloadCSV = () => {
-    if (transactionData.length === 0) return;
+    const sortedData = getSortedData();
+    if (sortedData.length === 0) return;
 
-    const headers = [
-      'Datum + Starttijd',
-      'Transacties gestart',
-      'Open transacties bij start',
-      'Transacties beëindigd (≤1u)',
-      'Transacties beëindigd (1-3u)',
-      'Transacties beëindigd (3-6u)',
-      'Transacties beëindigd (6-9u)',
-      'Transacties beëindigd (9-13u)',
-      'Transacties beëindigd (13-18u)',
-      'Transacties beëindigd (18-24u)',
-      'Transacties beëindigd (24-36u)',
-      'Transacties beëindigd (36-48u)',
-      'Transacties beëindigd (48u-1w)',
-      'Transacties beëindigd (1w-2w)',
-      'Transacties beëindigd (2w-3w)',
-      'Transacties beëindigd (>3w)'
-    ];
+    let headers: string[];
+    let rows: string[][];
 
-    const rows = transactionData.map(row => [
-      `${row.date} ${row.startTime}`,
-      row.transactionsStarted.toString(),
-      row.openTransactionsAtStart.toString(),
-      row.transactionsEnded.duration_leq_1h.toString(),
-      row.transactionsEnded.duration_1_3h.toString(),
-      row.transactionsEnded.duration_3_6h.toString(),
-      row.transactionsEnded.duration_6_9h.toString(),
-      row.transactionsEnded.duration_9_13h.toString(),
-      row.transactionsEnded.duration_13_18h.toString(),
-      row.transactionsEnded.duration_18_24h.toString(),
-      row.transactionsEnded.duration_24_36h.toString(),
-      row.transactionsEnded.duration_36_48h.toString(),
-      row.transactionsEnded.duration_48h_1w.toString(),
-      row.transactionsEnded.duration_1w_2w.toString(),
-      row.transactionsEnded.duration_2w_3w.toString(),
-      row.transactionsEnded.duration_gt_3w.toString()
-    ]);
+    if (selectedSection === 'overview') {
+      headers = [
+        'Datum + Starttijd',
+        'Transacties gestart',
+        'Transacties gesloten',
+        'Open transacties bij start'
+      ];
+
+      rows = sortedData.map(row => [
+        `${row.date} ${row.startTime}`,
+        row.transactionsStarted.toString(),
+        row.transactionsClosed.toString(),
+        row.openTransactionsAtStart.toString()
+      ]);
+    } else {
+      // Parkeerduur section
+      headers = [
+        'Datum + Starttijd',
+        'Open transacties bij start',
+        '≤1u',
+        '1-3u',
+        '3-6u',
+        '6-9u',
+        '9-13u',
+        '13-18u',
+        '18-24u',
+        '24-36u',
+        '36-48u',
+        '48u-1w',
+        '1w-2w',
+        '2w-3w',
+        '>3w'
+      ];
+
+      rows = sortedData.map(row => [
+        `${row.date} ${row.startTime}`,
+        row.openTransactionsAtStart.toString(),
+        (row.openTransactionsByDuration?.duration_leq_1h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_1_3h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_3_6h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_6_9h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_9_13h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_13_18h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_18_24h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_24_36h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_36_48h || 0).toString(),
+        (row.openTransactionsByDuration?.duration_48h_1w || 0).toString(),
+        (row.openTransactionsByDuration?.duration_1w_2w || 0).toString(),
+        (row.openTransactionsByDuration?.duration_2w_3w || 0).toString(),
+        (row.openTransactionsByDuration?.duration_gt_3w || 0).toString()
+      ]);
+    }
 
     const csvContent = [
       headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
@@ -329,11 +496,32 @@ const TransactiesOverzichtComponent: React.FC = () => {
             ))}
           </select>
         </div>
+
+        {/* Section Selection */}
+        <div className="flex flex-col">
+          <label htmlFor="section" className="text-sm font-medium text-gray-700 mb-1">
+            Sectie
+          </label>
+          <select
+            id="section"
+            className="min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md"
+            value={selectedSection}
+            onChange={(e) => {
+              setSelectedSection(e.target.value as 'overview' | 'parkeerduur');
+              setTransactionData([]); // Clear data when switching sections
+            }}
+          >
+            <option value="overview">Transactie Overzicht</option>
+            <option value="parkeerduur">Parkeerduur</option>
+          </select>
+        </div>
       </div>
 
-      {/* Transactions Overview Section */}
+      {/* Data Section */}
       <div className="mt-6">
-        <h2 className="text-xl font-semibold mb-4">Transactions Overview</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {selectedSection === 'overview' ? 'Transactie Overzicht' : 'Parkeerduur'}
+        </h2>
         <div className="mb-4 flex gap-2">
           <button
             onClick={handleFetchData}
@@ -358,52 +546,174 @@ const TransactiesOverzichtComponent: React.FC = () => {
           </div>
         )}
 
-        {transactionData.length > 0 && (
+        {transactionData.length > 0 && selectedSection === 'overview' && (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-2 text-left">Datum + Starttijd</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">Transacties gestart</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">Open transacties bij start</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">≤1u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">1-3u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">3-6u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">6-9u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">9-13u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">13-18u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">18-24u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">24-36u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">36-48u</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">48u-1w</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">1w-2w</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">2w-3w</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">>3w</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactionData.map((row, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 px-4 py-2">{row.date} {row.startTime}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsStarted}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsAtStart}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_leq_1h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_1_3h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_3_6h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_6_9h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_9_13h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_13_18h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_18_24h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_24_36h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_36_48h}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_48h_1w}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_1w_2w}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_2w_3w}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsEnded.duration_gt_3w}</td>
+            <div className="max-h-[600px] overflow-y-auto border border-gray-300">
+              <table className="min-w-full border-collapse">
+                <thead className="sticky top-0 bg-gray-100 z-10">
+                  <tr>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-left cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('date')}
+                    >
+                      Datum + Starttijd {sortColumn === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('transactionsStarted')}
+                    >
+                      Transacties gestart {sortColumn === 'transactionsStarted' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('transactionsClosed')}
+                    >
+                      Transacties gesloten {sortColumn === 'transactionsClosed' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('openTransactionsAtStart')}
+                    >
+                      Open transacties bij start {sortColumn === 'openTransactionsAtStart' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {getSortedData().map((row, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2">{row.date} {row.startTime}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsStarted}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.transactionsClosed}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsAtStart}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {transactionData.length > 0 && selectedSection === 'parkeerduur' && (
+          <div className="overflow-x-auto">
+            <div className="max-h-[600px] overflow-y-auto border border-gray-300">
+              <table className="min-w-full border-collapse">
+                <thead className="sticky top-0 bg-gray-100 z-10">
+                  <tr>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-left cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('date')}
+                    >
+                      Datum + Starttijd {sortColumn === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('openTransactionsAtStart')}
+                    >
+                      Open transacties bij start {sortColumn === 'openTransactionsAtStart' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_leq_1h')}
+                    >
+                      ≤1u {sortColumn === 'duration_leq_1h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_1_3h')}
+                    >
+                      1-3u {sortColumn === 'duration_1_3h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_3_6h')}
+                    >
+                      3-6u {sortColumn === 'duration_3_6h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_6_9h')}
+                    >
+                      6-9u {sortColumn === 'duration_6_9h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_9_13h')}
+                    >
+                      9-13u {sortColumn === 'duration_9_13h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_13_18h')}
+                    >
+                      13-18u {sortColumn === 'duration_13_18h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_18_24h')}
+                    >
+                      18-24u {sortColumn === 'duration_18_24h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_24_36h')}
+                    >
+                      24-36u {sortColumn === 'duration_24_36h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_36_48h')}
+                    >
+                      36-48u {sortColumn === 'duration_36_48h' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_48h_1w')}
+                    >
+                      48u-1w {sortColumn === 'duration_48h_1w' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_1w_2w')}
+                    >
+                      1w-2w {sortColumn === 'duration_1w_2w' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_2w_3w')}
+                    >
+                      2w-3w {sortColumn === 'duration_2w_3w' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
+                      onClick={() => handleSort('duration_gt_3w')}
+                    >
+                      >3w {sortColumn === 'duration_gt_3w' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getSortedData().map((row, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2">{row.date} {row.startTime}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsAtStart}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_leq_1h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_1_3h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_3_6h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_6_9h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_9_13h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_13_18h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_18_24h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_24_36h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_36_48h || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_48h_1w || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_1w_2w || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_2w_3w || 0}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{row.openTransactionsByDuration?.duration_gt_3w || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
