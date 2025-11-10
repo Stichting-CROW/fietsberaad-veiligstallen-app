@@ -404,14 +404,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.Settings:
           selectedComponent = <SettingsComponent />;
           break;
-        case VSMenuTopic.SettingsGemeente:
+        case VSMenuTopic.SettingsGemeente: {
+          const handleGemeenteSettingsClose = (confirmClose: boolean) => {
+            if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
+              return;
+            }
+            queryRouter.push('/beheer/home');
+          };
           selectedComponent =           
             <GemeenteEdit 
               fietsenstallingtypen={fietsenstallingtypen || []}
               id={selectedContactID} 
-              onClose={undefined} 
+              onClose={handleGemeenteSettingsClose} 
             />
           break;
+        }
         case VSMenuTopic.SettingsExploitant:
           selectedComponent =           
             <ExploitantEdit 
