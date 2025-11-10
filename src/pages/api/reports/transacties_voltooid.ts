@@ -10,7 +10,6 @@ interface Settings {
   locationID?: string | null;
   year: number;
   intervalDurations: number[];
-  section?: 'overview' | 'parkeerduur';
 }
 
 interface TransactionIntervalData {
@@ -19,27 +18,6 @@ interface TransactionIntervalData {
   transactionsStarted: number;
   transactionsClosed: number;
   openTransactionsAtStart: number;
-  openTransactionsByDuration?: {
-    duration_leq_1h: number;
-    duration_1_3h: number;
-    duration_3_6h: number;
-    duration_6_9h: number;
-    duration_9_13h: number;
-    duration_13_18h: number;
-    duration_18_24h: number;
-    duration_24_36h: number;
-    duration_36_48h: number;
-    duration_48h_1w: number;
-    duration_1w_2w: number;
-    duration_2w_3w: number;
-    duration_gt_3w: number;
-  };
-}
-
-interface OpenTransactionDuration {
-  date: string;
-  startTime: string;
-  durationHours: number;
 }
 
 interface RawIntervalResult {
@@ -175,8 +153,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const intervalValues = intervalList.map((interval, idx) => 
       `SELECT '${interval.date}' AS interval_date, '${interval.startTime}' AS interval_start_time, '${interval.startDateTime}' AS interval_start, '${interval.endDateTime}' AS interval_end`
     ).join(' UNION ALL ');
-
-    const includeDurationBuckets = settings.section === 'parkeerduur';
     
     const sql = `
       WITH intervals AS (
@@ -205,17 +181,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           AND ta.checkindate < i.interval_start
           AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
         GROUP BY i.interval_date, i.interval_start_time
-      ),
-      transactions_open_by_duration AS (
-        SELECT 
-          i.interval_date AS date,
-          i.interval_start_time AS startTime,
-          TIMESTAMPDIFF(HOUR, ta.checkindate, i.interval_start) AS durationHours
-        FROM intervals i
-        INNER JOIN transacties_archief ta ON 
-          ta.locationid = '${settings.locationID}'
-          AND ta.checkindate < i.interval_start
-          AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
       ),
       transactions_ended AS (
         SELECT 
@@ -252,8 +217,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     // Write the SQL query to a file for external tool usage
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const section = settings.section || 'overview';
-      const filename = `sql-query-${section}-${timestamp}.sql`;
+      const filename = `sql-query-${timestamp}.sql`;
       const logsDir = join(process.cwd(), 'logs');
       
       // Create logs directory if it doesn't exist
@@ -262,7 +226,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       const filepath = join(logsDir, filename);
       
       // Write SQL query to file with header comments
-      const fileContent = `-- SQL Query for section: ${section}
+      const fileContent = `-- SQL Query for transaction overview
 -- Generated at: ${new Date().toISOString()}
 -- Location ID: ${settings.locationID}
 -- Year: ${settings.year}
@@ -277,7 +241,7 @@ ${sql}
       console.error('[transacties_voltooid] Error writing SQL query to file:', fileError);
       // Fallback to console logging if file write fails
       console.log('\n========================================');
-      console.log(`[transacties_voltooid] SQL Query for section: ${settings.section || 'overview'}`);
+      console.log('[transacties_voltooid] SQL Query');
       console.log('========================================');
       console.log(sql);
       console.log('========================================\n');
@@ -288,60 +252,6 @@ ${sql}
     console.log('[transacties_voltooid] SQL query took', Date.now() - sqlQueryStart, 'ms');
     console.log('[transacties_voltooid] Found', rawResults.length, 'intervals');
 
-    // Fetch duration data separately if needed
-    let durationData: OpenTransactionDuration[] = [];
-    if (includeDurationBuckets) {
-      const durationQueryStart = Date.now();
-      const durationSql = `
-        SELECT 
-          i.interval_date AS date,
-          i.interval_start_time AS startTime,
-          TIMESTAMPDIFF(HOUR, ta.checkindate, i.interval_start) AS durationHours
-        FROM (
-          ${intervalValues}
-        ) AS intervals i
-        INNER JOIN transacties_archief ta ON 
-          ta.locationid = '${settings.locationID}'
-          AND ta.checkindate < i.interval_start
-          AND (ta.checkoutdate IS NULL OR ta.checkoutdate >= i.interval_start)
-        ORDER BY i.interval_date, i.interval_start_time, durationHours
-      `;
-      
-      // Write duration SQL query to file
-      try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `sql-query-durations-${timestamp}.sql`;
-        const logsDir = join(process.cwd(), 'logs');
-        
-        await mkdir(logsDir, { recursive: true });
-        const filepath = join(logsDir, filename);
-        
-        const fileContent = `-- SQL Query for duration data (parkeerduur section)
--- Generated at: ${new Date().toISOString()}
--- Location ID: ${settings.locationID}
--- Year: ${settings.year}
--- Interval Durations: [${settings.intervalDurations.join(', ')}]
-
-${durationSql}
-`;
-        
-        await writeFile(filepath, fileContent, 'utf-8');
-        console.log(`[transacties_voltooid] Duration SQL query written to: ${filepath}`);
-      } catch (fileError) {
-        console.error('[transacties_voltooid] Error writing duration SQL query to file:', fileError);
-      }
-      
-      console.log('[transacties_voltooid] Fetching duration data...');
-      const rawDurationResults = await prisma.$queryRawUnsafe<Array<{ date: string; startTime: string; durationHours: bigint }>>(durationSql);
-      durationData = rawDurationResults.map(row => ({
-        date: row.date,
-        startTime: row.startTime,
-        durationHours: Number(row.durationHours)
-      }));
-      console.log('[transacties_voltooid] Duration query took', Date.now() - durationQueryStart, 'ms');
-      console.log('[transacties_voltooid] Found', durationData.length, 'open transactions with duration');
-    }
-
     // Convert raw results to expected format
     const result: TransactionIntervalData[] = rawResults.map(row => ({
       date: row.date,
@@ -351,12 +261,10 @@ ${durationSql}
       openTransactionsAtStart: Number(row.openTransactionsAtStart)
     }));
 
-    // Add duration data to response if needed
-    if (includeDurationBuckets) {
-      res.status(200).json({ intervals: result, durations: durationData });
-    } else {
-      res.status(200).json(result);
-    }
+    const totalTime = Date.now() - startTime;
+    console.log('[transacties_voltooid] API call completed in', totalTime, 'ms');
+
+    res.status(200).json(result);
 
   } catch (error) {
     const totalTime = Date.now() - startTime;
