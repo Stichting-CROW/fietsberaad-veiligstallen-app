@@ -678,23 +678,39 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                   />
                   <br />
                   {!isDataOwnerEdit && (
-                    <FormGroup>
-                      <FormLabel>Modules</FormLabel>
-                      {AVAILABLE_MODULES.map((module) => (
-                        <FormControlLabel
-                          key={module.ID}
-                          control={
-                            <Checkbox 
-                              checked={selectedModules.includes(module.ID)}
-                              onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
-                              disabled={!isEditing}
-                            />
-                          }
-                          label={module.Name}
-                        />
-                      ))}
-                    </FormGroup>
+                    <>
+                      <div>
+                        <b>Modules</b>
+                      </div>
+                      <FormGroup>
+                        {AVAILABLE_MODULES.map((module) => (
+                          <FormControlLabel
+                            key={module.ID}
+                            control={
+                              <Checkbox 
+                                checked={selectedModules.includes(module.ID)}
+                                onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
+                                disabled={!isEditing}
+                              />
+                            }
+                            label={module.Name}
+                          />
+                        ))}
+                      </FormGroup>
+                    </>
                   )}
+                  <br />
+                  <FormInput 
+                    label="Registratiedatum"
+                    value={DateRegistration 
+                      ? new Date(DateRegistration).toLocaleDateString('nl-NL', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric' 
+                        }).replace(/\//g, '-')
+                      : ''} 
+                    disabled={true}
+                  />
               </div>
             )}
             {selectedTab === "tab-kaart" && (
