@@ -11,6 +11,7 @@ export interface MapState {
   activeParkingId: string | undefined;  // visible in modal
   activeMunicipalityInfo: VSContactGemeente | undefined;
   initialLatLng: string[] | undefined;
+  initialZoom: number | undefined;
   currentLatLng: string[] | undefined;
   visibleFeatures: string[];
   visibleFeaturesHash: string;
@@ -26,6 +27,7 @@ const initialState: MapState = {
   activeParkingId: undefined,
   activeMunicipalityInfo: undefined,
   initialLatLng: undefined,
+  initialZoom: undefined,
   currentLatLng: undefined,
 };
 
@@ -72,6 +74,10 @@ export const mapSlice = createSlice({
     setInitialLatLng(state, action) {
       state.initialLatLng = action.payload;
     },
+    // setInitialZoom
+    setInitialZoom(state, action) {
+      state.initialZoom = action.payload;
+    },
   },
 
   // Special reducer for hydrating the state. Special case for next-redux-wrapper
@@ -94,5 +100,6 @@ export const {
   setActiveParkingId,
   // setActiveMunicipality,
   setActiveMunicipalityInfo,
-  setInitialLatLng
+  setInitialLatLng,
+  setInitialZoom
 } = mapSlice.actions;

@@ -16,6 +16,7 @@ import {
 //  setActiveMunicipality,
   setActiveMunicipalityInfo,
   setInitialLatLng,
+  setInitialZoom,
   setSelectedParkingId,
 } from "~/store/mapSlice";
 
@@ -158,6 +159,9 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           if (initialLatLng) {
               dispatch(setInitialLatLng(initialLatLng));
           }
+          // Set zoom from contact's Zoom field, or default to 13
+          const initialZoom = info.Zoom || 13;
+          dispatch(setInitialZoom(initialZoom));
         }
 
         if(articlechanged && url_municipalitypage!== undefined) {
