@@ -24,11 +24,11 @@ export interface VSContactExploitant {
       childSiteID: string;
       admin: boolean;
     }[];
-    // isManagedByContacts: {
-    //   ID: number;
-    //   parentSiteID: string;
-    //   admin: boolean;
-    // }[];
+    isManagedByContacts?: {
+      ID: number;
+      parentSiteID: string;
+      admin: boolean;
+    }[];
     // modules_contacts: {
     //   module: VSModule;
     // }[];
@@ -41,13 +41,13 @@ export interface VSContactExploitant {
       ItemType: true,
       Helpdesk: true,
       Status: true,
-    //   isManagedByContacts: {
-    //       select: {
-    //           ID: true,
-    //           parentSiteID: true,
-    //           admin: true
-    //       }
-    //   },
+      isManagedByContacts: {
+          select: {
+              ID: true,
+              parentSiteID: true,
+              admin: true
+          }
+      },
       isManagingContacts: {
           select: {
               ID: true,
@@ -76,8 +76,17 @@ export interface VSContactExploitant {
   "Status"
   > & {
     hasStallingen: boolean;
-    hasExploitanten: boolean;
     hasUsers: boolean;
+    isManagingContacts?: {
+      ID: number;
+      childSiteID: string;
+      admin: boolean;
+    }[];
+    isManagedByContacts?: {
+      ID: number;
+      parentSiteID: string;
+      admin: boolean;
+    }[];
   }
   
   export type VSContactGemeente = Pick<contacts, 

@@ -11,6 +11,7 @@ import type { VSContactGemeenteInLijst } from "~/types/contacts";
 import type { ParkingDetailsType } from "~/types/parking";
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useUsers } from '~/hooks/useUsers';
+import { useExploitanten } from '~/hooks/useExploitanten';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { Table } from '~/components/common/Table';
 import { userHasRight } from '~/types/utils';
@@ -36,6 +37,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
 
   const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsers();
   const { gemeenten, reloadGemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
 
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
@@ -124,6 +126,29 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     }
   };
 
+  const getBeheert = (contact: VSContactGemeenteInLijst) => {
+    const managedIDs = contact.isManagingContacts?.map(c => c.childSiteID) || [];
+    const selected = managedIDs.map(id => {
+      // Check if it's a gemeente
+      const gemeente = gemeenten.find(g => g.ID === id);
+      if (gemeente) return gemeente.CompanyName;
+      // Check if it's an exploitant
+      const exploitant = exploitanten.find(e => e.ID === id);
+      if (exploitant) return exploitant.CompanyName;
+      return "Onbekende organisatie";
+    });
+    return selected.sort().map(o => <>{o}<br/></>);
+  };
+
+  const getWordtBeheerdDoor = (contact: VSContactGemeenteInLijst) => {
+    const exploitantIDs = contact.isManagedByContacts?.map(c => c.parentSiteID) || [];
+    const selected = exploitantIDs.map(id => {
+      const exploitant = exploitanten.find(e => e.ID === id);
+      return exploitant ? exploitant.CompanyName : "Onbekende exploitant";
+    });
+    return selected.sort().map(e => <>{e}<br/></>);
+  };
+
   const handleSort = (header: string) => {
     if (sortColumn === header) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -197,6 +222,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           <GemeenteFilter
             gemeenten={gemeenten}
             users={users}
+            exploitanten={exploitanten}
             onFilterChange={setFilteredGemeenten}
             showStallingenFilter={true}
             showUsersFilter={true}
@@ -207,6 +233,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           <GemeenteFilter
             gemeenten={gemeenten}
             users={users}
+            exploitanten={exploitanten}
             onFilterChange={setFilteredGemeenten}
             showStallingenFilter={false}
             showUsersFilter={false}
@@ -221,6 +248,15 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
               header: 'Naam',
               accessor: 'CompanyName'
             },
+            // TODO: Re-enable when needed
+            // ...(hasFietsberaadSuperadmin ? [{
+            //   header: "Beheert", 
+            //   accessor: (contact: VSContactGemeenteInLijst) => getBeheert(contact)
+            // }] : []),
+            ...(hasFietsberaadSuperadmin ? [{
+              header: "Wordt beheerd door", 
+              accessor: (contact: VSContactGemeenteInLijst) => getWordtBeheerdDoor(contact)
+            }] : []),
             {
               header: 'Acties',
               accessor: (contact) => {
@@ -322,16 +358,17 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     );
   };
 
-  if(isLoadingUsers || isLoadingGemeenten) {
+  if(isLoadingUsers || isLoadingGemeenten || isLoadingExploitanten) {
     const whatIsLoading = [
         isLoadingUsers && "Gebruikers",
         isLoadingGemeenten && "Gemeenten",
+        isLoadingExploitanten && "Exploitanten",
     ].filter(Boolean).join(" + ");
     return <LoadingSpinner message={whatIsLoading + ' laden'} />;
   }
 
-  if(errorUsers || errorGemeenten) {
-    return <div>Error: {errorUsers || errorGemeenten}</div>;
+  if(errorUsers || errorGemeenten || errorExploitanten) {
+    return <div>Error: {errorUsers || errorGemeenten || errorExploitanten}</div>;
   }
 
   return (

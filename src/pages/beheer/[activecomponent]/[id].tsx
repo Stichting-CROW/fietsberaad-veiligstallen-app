@@ -237,9 +237,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const exploitantnaam = exploitanten?.find(exploitant => exploitant.ID === selectedContactID)?.CompanyName || "";
 
   const contacts = [
-    { ID: "1", CompanyName: "Fietsberaad" },
-    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID})),
-    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+    { ID: "1", CompanyName: "Fietsberaad", ItemType: "admin" },
+    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID, ItemType: "organizations"})),
+    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID, ItemType: "exploitant"}))
   ];
 
   const renderComponent = () => {
@@ -347,9 +347,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         // case VSMenuTopic.ExploreUsersColdfusion:
         //   selectedComponent = <ExploreUsersComponentColdfusion />;
         //   break;
-        case VSMenuTopic.ExploreGemeenten:
-          selectedComponent = <ExploreGemeenteComponent />;
-          break;
         case VSMenuTopic.Wachtrij:
           selectedComponent = <WachtrijMonitorComponent />;
           break;

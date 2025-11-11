@@ -19,7 +19,7 @@ export enum VSSecurityTopic {
   "fietsberaad_admin" = "fietsberaad_admin",
   "exploitant_superadmin" = "exploitant_superadmin",
   "acceptatie_ontwikkeling" = "acceptatie_ontwikkeling",
-  "exploitanten_toegangsrecht" = "exploitanten_toegangsrecht",
+  "exploitanten_beheerrecht" = "exploitanten_beheerrecht",
   "gebruikers_dataeigenaar_admin" = "gebruikers_dataeigenaar_admin",
   "gebruikers_dataeigenaar_beperkt" = "gebruikers_dataeigenaar_beperkt",
   "instellingen_dataeigenaar" = "instellingen_dataeigenaar",
@@ -104,7 +104,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     ].join(",")
   },
   {
-    topic: VSSecurityTopic.exploitanten_toegangsrecht,
+    topic: VSSecurityTopic.exploitanten_beheerrecht,
     name: "Beheer exploitanten bij huidige organisatie (data-eigenaar)",
     description: [
       "Instellingen voor beheer van data-eigenaars tot deze organisatie door een of meer exploitanten"

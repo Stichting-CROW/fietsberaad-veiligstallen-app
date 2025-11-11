@@ -18,7 +18,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   activecomponent,
   onSelect,
 }) => {
-  const hasExploitantenToegangsrecht = userHasRight(securityProfile, VSSecurityTopic.exploitanten_toegangsrecht);
   const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
   const hasGebruikersDataeigenaarBeperkt = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt);
   const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
@@ -48,17 +47,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
               component={VSMenuTopic.UsersGebruikersbeheerGemeente} 
               title={'Gebruikers'} activecomponent={activecomponent} 
               onSelect={onSelect} /> }
-        {/* { (hasExploitantenToegangsrecht) && 
-            <LeftMenuItem 
-              component={VSMenuTopic.ContactsExploitanten} 
-              title={'Exploitanten'} 
-              activecomponent={activecomponent} 
-              onSelect={onSelect} /> } */}
-            {/* <LeftMenuItem 
-              component={VSMenuTopic.ContactsDataproviders} 
-              title={'Dataleveranciers'} 
-              activecomponent={activecomponent} 
-              onSelect={onSelect} /> */}
 
         { (hasInstellingenFietsenstallingenAdmin || hasInstellingenFietsenstallingenBeperkt) && 
             <LeftMenuItem 
