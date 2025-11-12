@@ -17,16 +17,36 @@ if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DBUSER_RW" ] || [ -z "$DBUSE
     exit 1
 fi
 
+# Check if pv (pipe viewer) is available for progress display
+check_pv_available() {
+    if command -v pv >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Get file size in bytes (works on both Linux and macOS)
+get_file_size() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        # Try Linux stat first, then macOS stat
+        stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0"
+    else
+        echo "0"
+    fi
+}
+
 check_database_users_exist() {
     trap 'unset MYSQL_PWD' EXIT
 
     # check if DBUSER_RW exist by attempting to connect to the database using the RW user credentials
     export MYSQL_PWD="$DBUSER_RW_PASSWORD"
-    userrw_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" -p"$DBUSER_RW_PASSWORD" "$DB_NAME" -e "SELECT 1" 2>/dev/null)
+    userrw_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib -p"$DBUSER_RW_PASSWORD" "$DB_NAME" -e "SELECT 1" 2>/dev/null)
 
     # check if DBUSER_RO exist by attempting to connect to the database using the RO user credentials
     export MYSQL_PWD="$DBUSER_RO_PASSWORD"
-    userro_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RO" -P "$DB_PORT" -e "SELECT 1" 2>/dev/null)
+    userro_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RO" -P "$DB_PORT" --compression-algorithms=zlib -e "SELECT 1" 2>/dev/null)
 
     if [ -z "$userrw_exists" ] || [ -z "$userro_exists" ]; then 
         echo "One or more database users do not exist in the $DB_NAME database or have incorrect credentials."
@@ -66,12 +86,28 @@ restore_structure() {
 
     local start_time=$(date +"%H:%M:%S")
     echo "Restoring database structure from $dump_file at $start_time"
-        if [ "$DB_NAME" != "veiligstallen" ]; then
-            # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
+    
+    local file_size=$(get_file_size "$dump_file")
+    local use_pv=false
+    
+    if check_pv_available && [ "$file_size" -gt 0 ]; then
+        use_pv=true
+    fi
+    
+    if [ "$DB_NAME" != "veiligstallen" ]; then
+        # replace the database name in the dump file
+        if [ "$use_pv" = true ]; then
+            sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file" | pv -s "$file_size" -N "Structure" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < "$dump_file"
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
         fi
+    else
+        if [ "$use_pv" = true ]; then
+            pv -s "$file_size" -N "Structure" "$dump_file" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+        else
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < "$dump_file"
+        fi
+    fi
 
     # execute these mysql commands after importing
     # echo "converting fk column to bigint for bikeparklog"
@@ -109,7 +145,7 @@ drop_unused_tables() {
     for table in $tablelist; do
         echo "Dropping unused table $table"
         # disable foreign key checks to prevent errors based on links between the ds_ tables
-        mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE $table; SET FOREIGN_KEY_CHECKS = 1;"
+        mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib "$DB_NAME" -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE $table; SET FOREIGN_KEY_CHECKS = 1;"
     done
 }
 
@@ -125,22 +161,45 @@ restore_tables_individual() {
         fi
 
         local start_time=$(date +"%H:%M:%S")
+        local file_size=$(get_file_size "$dump_file")
+        local use_pv=false
+        
+        if check_pv_available && [ "$file_size" -gt 0 ]; then
+            use_pv=true
+        fi
+        
         echo "Restoring table $table from $dump_file at $start_time"
         # Disable unique checks for faster import (equivalent to --disable-keys)
         # Note: SET UNIQUE_CHECKS is session-level, so we must combine it with the import in a single session
         if [ "$DB_NAME" != "veiligstallen" ]; then
             # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(
-                echo "SET UNIQUE_CHECKS = 0;"
-                sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
-                echo "SET UNIQUE_CHECKS = 1;"
-            )
+            if [ "$use_pv" = true ]; then
+                {
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                } | pv -s "$file_size" -N "$table" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+            else
+                mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                )
+            fi
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(
-                echo "SET UNIQUE_CHECKS = 0;"
-                cat "$dump_file"
-                echo "SET UNIQUE_CHECKS = 1;"
-            )
+            if [ "$use_pv" = true ]; then
+                {
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    cat "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                } | pv -s "$file_size" -N "$table" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+            else
+                mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    cat "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                )
+            fi
         fi
         
         local end_time=$(date +"%H:%M:%S")
@@ -170,6 +229,15 @@ fi
 
 echo "Proceeding with database delete and restore"
 
+# Check if pv is available and inform user if not
+if ! check_pv_available; then
+    echo ""
+    echo "Note: 'pv' (pipe viewer) is not installed. Installing it will show progress bars"
+    echo "      with transfer speed, ETA, and percentage during the restore process."
+    echo "      Install with: sudo apt-get install pv (Debian/Ubuntu) or brew install pv (macOS)"
+    echo ""
+fi
+
 # Restore the database structure
 restore_structure
 
@@ -179,6 +247,12 @@ if [ "$confirm_dataimport" != "yes" ]; then
 fi
 
 echo "Proceeding with database data import"
+
+# Remind user about pv if not available (only show once if structure restore already showed it)
+if ! check_pv_available; then
+    echo "Note: Progress bars are not available (pv not installed). Install 'pv' to see detailed progress."
+    echo ""
+fi
 
 # Lists of tables to restore
 
