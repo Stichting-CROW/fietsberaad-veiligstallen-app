@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useExploitanten } from '~/hooks/useExploitanten';
-import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import type { ParkingDetailsType } from '~/types/parking';
 import Chart from '~/components/beheer/reports/Chart';
+import TransactionFilters from '~/components/beheer/reports/TransactionFilters';
 
 // Interval durations constant - can be changed later to be user-configurable
 const INTERVAL_DURATIONS = [24]; // Two 12-hour intervals per day
@@ -28,21 +28,25 @@ const TransactiesOverzichtComponent: React.FC = () => {
   const { data: session } = useSession();
   const { gemeenten } = useGemeentenInLijst();
   const { exploitanten } = useExploitanten(undefined);
-  const { fietsenstallingtypen } = useFietsenstallingtypen();
 
   const [selectedContactID, setSelectedContactID] = useState<string | null>(null);
-  const [selectedParkingType, setSelectedParkingType] = useState<string>('all');
   const [selectedLocationID, setSelectedLocationID] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [parkingLocations, setParkingLocations] = useState<ParkingDetailsType[]>([]);
   const [filteredParkingLocations, setFilteredParkingLocations] = useState<ParkingDetailsType[]>([]);
+  const [contacts, setContacts] = useState<Array<{ ID: string; CompanyName: string }>>([]);
   const [transactionData, setTransactionData] = useState<TransactionIntervalData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [aggregationProgress, setAggregationProgress] = useState<number | null>(null);
   
-  // Cache for interval data
+  // Cache for raw transaction data and aggregated data
+  const [cachedRawData, setCachedRawData] = useState<Array<{
+    locationid: string;
+    checkindate: string;
+    checkoutdate: string | null;
+  }> | null>(null);
   const [cachedIntervals, setCachedIntervals] = useState<TransactionIntervalData[] | null>(null);
   const [cacheKey, setCacheKey] = useState<string | null>(null);
   
@@ -63,7 +67,6 @@ const TransactiesOverzichtComponent: React.FC = () => {
       try {
         const parsed = JSON.parse(savedState);
         if (parsed.selectedContactID) setSelectedContactID(parsed.selectedContactID);
-        if (parsed.selectedParkingType) setSelectedParkingType(parsed.selectedParkingType);
         if (parsed.selectedLocationID) setSelectedLocationID(parsed.selectedLocationID);
         if (parsed.selectedYear) setSelectedYear(parsed.selectedYear);
       } catch (e) {
@@ -81,15 +84,174 @@ const TransactiesOverzichtComponent: React.FC = () => {
     if (savedCache) {
       try {
         const parsed = JSON.parse(savedCache);
-        if (parsed.cachedIntervals && parsed.cacheKey) {
-          setCachedIntervals(parsed.cachedIntervals);
+        if (parsed.cacheKey) {
           setCacheKey(parsed.cacheKey);
+          // Load raw data if available
+          if (parsed.cachedRawData) {
+            setCachedRawData(parsed.cachedRawData);
+            console.log('[transacties_voltooid] [CLIENT] Loaded cached raw data:', parsed.cachedRawData.length, 'records');
+          }
+          // Load aggregated data if available
+          if (parsed.cachedIntervals) {
+            setCachedIntervals(parsed.cachedIntervals);
+            console.log('[transacties_voltooid] [CLIENT] Loaded cached aggregated data:', parsed.cachedIntervals.length, 'records');
+          }
         }
       } catch (e) {
         console.warn('Failed to parse saved cache:', e);
       }
     }
   }, []); // Empty dependency array - only run once on mount
+
+  // Calculate interval start times for a day starting at 00:00:00
+  const calculateIntervalStartTimes = useMemo(() => {
+    return (dayStart: Date, intervalDurations: number[]): Date[] => {
+      const startTimes: Date[] = [];
+      let currentTime = new Date(dayStart);
+      currentTime.setHours(0, 0, 0, 0); // Always start at midnight
+      
+      for (const duration of intervalDurations) {
+        startTimes.push(new Date(currentTime));
+        currentTime = new Date(currentTime.getTime() + duration * 60 * 60 * 1000);
+      }
+      
+      return startTimes;
+    };
+  }, []);
+
+  // Aggregate raw transaction data into intervals
+  const aggregateRawDataAsync = async (
+    rawData: Array<{ locationid: string; checkindate: string; checkoutdate: string | null }>,
+    intervalDurations: number[],
+    year: number,
+    onProgress?: (progress: number) => void
+  ): Promise<TransactionIntervalData[]> => {
+    const aggregationStart = Date.now();
+    console.log('[transacties_voltooid] [CLIENT] Starting aggregation of', rawData.length, 'raw transactions');
+    
+    if (!rawData || rawData.length === 0) {
+      console.log('[transacties_voltooid] [CLIENT] No data to aggregate');
+      if (onProgress) onProgress(100);
+      return [];
+    }
+
+    // Pre-process transactions: normalize dates
+    const preprocessStart = Date.now();
+    console.log('[transacties_voltooid] [CLIENT] Pre-processing transactions...');
+    const processedTxs = rawData.map(tx => {
+      const checkinDate = new Date(tx.checkindate);
+      const checkoutDate = tx.checkoutdate ? new Date(tx.checkoutdate) : null;
+      return {
+        checkinDate,
+        checkoutDate
+      };
+    });
+    console.log('[transacties_voltooid] [CLIENT] Pre-processing completed in', Date.now() - preprocessStart, 'ms');
+
+    // Calculate number of days in the year (handle leap years)
+    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const daysInYear = isLeapYear ? 366 : 365;
+
+    // Generate all interval start/end times for the year
+    const intervalList: Array<{ date: string; startTime: string; startDateTime: Date; endDateTime: Date }> = [];
+    
+    for (let day = 0; day < daysInYear; day++) {
+      const currentDate = new Date(year, 0, 1);
+      currentDate.setDate(currentDate.getDate() + day);
+      
+      // Always start intervals at 00:00:00 (midnight)
+      const dayStart = new Date(currentDate);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const intervalStartTimes = calculateIntervalStartTimes(dayStart, intervalDurations);
+      
+      for (let i = 0; i < intervalStartTimes.length; i++) {
+        const intervalStart = intervalStartTimes[i];
+        const intervalDuration = intervalDurations[i];
+        if (!intervalStart || intervalDuration === undefined) continue;
+        
+        const intervalEnd = i < intervalStartTimes.length - 1 
+          ? intervalStartTimes[i + 1]
+          : new Date(intervalStart.getTime() + intervalDuration * 60 * 60 * 1000);
+        
+        if (!intervalEnd) continue;
+        
+        const dateStr = currentDate.toISOString().split('T')[0] || '';
+        const timeStr = `${String(intervalStart.getHours()).padStart(2, '0')}:${String(intervalStart.getMinutes()).padStart(2, '0')}`;
+        
+        intervalList.push({
+          date: dateStr,
+          startTime: timeStr,
+          startDateTime: intervalStart,
+          endDateTime: intervalEnd
+        });
+      }
+    }
+
+    console.log('[transacties_voltooid] [CLIENT] Generated', intervalList.length, 'intervals');
+    console.log('[transacties_voltooid] [CLIENT] Processing intervals...');
+
+    // Generate all intervals and calculate counts
+    const results: TransactionIntervalData[] = [];
+    const totalIntervals = intervalList.length;
+    let processedIntervals = 0;
+    const logInterval = Math.max(1, Math.floor(totalIntervals / 20)); // Log every 5%
+
+    // Process in batches to allow React to update UI
+    for (let i = 0; i < intervalList.length; i++) {
+      const interval = intervalList[i];
+      
+      let transactionsStarted = 0;
+      let transactionsClosed = 0;
+      let openTransactionsAtStart = 0;
+
+      processedTxs.forEach(tx => {
+        // Count transactions started in this interval
+        if (tx.checkinDate >= interval.startDateTime && tx.checkinDate < interval.endDateTime) {
+          transactionsStarted++;
+        }
+
+        // Count transactions closed in this interval
+        if (tx.checkoutDate && 
+            tx.checkoutDate >= interval.startDateTime && 
+            tx.checkoutDate < interval.endDateTime) {
+          transactionsClosed++;
+        }
+
+        // Count transactions open at the start of this interval
+        if (tx.checkinDate < interval.startDateTime &&
+            (tx.checkoutDate === null || tx.checkoutDate >= interval.startDateTime)) {
+          openTransactionsAtStart++;
+        }
+      });
+
+      results.push({
+        date: interval.date,
+        startTime: interval.startTime,
+        transactionsStarted,
+        transactionsClosed,
+        openTransactionsAtStart
+      });
+
+      processedIntervals++;
+      if (processedIntervals % logInterval === 0 || processedIntervals === totalIntervals) {
+        const progress = (processedIntervals / totalIntervals) * 100;
+        const progressFixed = progress.toFixed(1);
+        console.log('[transacties_voltooid] [CLIENT] Aggregation progress:', progressFixed + '%', `(${processedIntervals}/${totalIntervals})`);
+        if (onProgress) {
+          onProgress(progress);
+        }
+        // Yield control to allow React to update
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+
+    const aggregationTime = Date.now() - aggregationStart;
+    console.log('[transacties_voltooid] [CLIENT] Aggregation completed in', aggregationTime, 'ms');
+    console.log('[transacties_voltooid] [CLIENT] Generated', results.length, 'interval records');
+    if (onProgress) onProgress(100);
+    return results;
+  };
 
   // Restore transaction data from cache when filters and cache are both loaded
   useEffect(() => {
@@ -106,23 +268,16 @@ const TransactiesOverzichtComponent: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1999 }, (_, i) => currentYear - i);
 
-  // Combine contacts for selection and sort ascending
-  const contacts = [
-    { ID: "1", CompanyName: "Fietsberaad" },
-    ...(gemeenten || []).map(gemeente => ({ ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID })),
-    ...(exploitanten || []).map(exploitant => ({ ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID }))
-  ].sort((a, b) => a.CompanyName.localeCompare(b.CompanyName));
 
   // Save filter state to localStorage whenever it changes
   useEffect(() => {
     const stateToSave = {
       selectedContactID,
-      selectedParkingType,
       selectedLocationID,
       selectedYear
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [selectedContactID, selectedParkingType, selectedLocationID, selectedYear]);
+  }, [selectedContactID, selectedLocationID, selectedYear]);
 
   // Clear cache when filters that affect the query change (but not on initial load)
   useEffect(() => {
@@ -147,6 +302,7 @@ const TransactiesOverzichtComponent: React.FC = () => {
         previousFilters.current.year !== currentFilters.year;
       
       if (filtersChanged) {
+        setCachedRawData(null);
         setCachedIntervals(null);
         setCacheKey(null);
         setTransactionData([]);
@@ -159,40 +315,6 @@ const TransactiesOverzichtComponent: React.FC = () => {
     }
   }, [selectedContactID, selectedLocationID, selectedYear]);
 
-  // Fetch parking locations when contact or parking type changes
-  useEffect(() => {
-    const fetchParkingLocations = async () => {
-      if (!selectedContactID) {
-        setParkingLocations([]);
-        setFilteredParkingLocations([]);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/protected/fietsenstallingen?GemeenteID=${selectedContactID}`);
-        const json = await response.json();
-        if (json.data) {
-          setParkingLocations(json.data);
-        }
-      } catch (err) {
-        console.error('Error fetching parking locations:', err);
-        setParkingLocations([]);
-      }
-    };
-
-    fetchParkingLocations();
-  }, [selectedContactID]);
-
-  // Filter parking locations by type and sort ascending
-  useEffect(() => {
-    let filtered = selectedParkingType === 'all' 
-      ? parkingLocations 
-      : parkingLocations.filter(p => p.Type === selectedParkingType);
-    
-    // Sort by Title ascending
-    filtered = filtered.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
-    setFilteredParkingLocations(filtered);
-  }, [parkingLocations, selectedParkingType]);
 
   // Helper function to process data (filter future dates)
   const processData = (intervals: TransactionIntervalData[]): TransactionIntervalData[] => {
@@ -215,9 +337,10 @@ const TransactiesOverzichtComponent: React.FC = () => {
     // Generate cache key based on filters that affect the query
     const currentCacheKey = `${selectedContactID}-${selectedLocationID}-${selectedYear}`;
     
-    // Check if we have cached data in state for this combination
+    // Check if we have cached aggregated data in state for this combination
     if (cacheKey === currentCacheKey && cachedIntervals) {
-      // Use cached data
+      console.log('[transacties_voltooid] [CLIENT] Using cached aggregated data from state:', cachedIntervals.length, 'records');
+      // Use cached aggregated data
       const processedData = processData(cachedIntervals);
       setTransactionData(processedData);
       return;
@@ -228,20 +351,54 @@ const TransactiesOverzichtComponent: React.FC = () => {
     if (savedCache) {
       try {
         const parsed = JSON.parse(savedCache);
-        if (parsed.cachedIntervals && parsed.cacheKey === currentCacheKey) {
-          // Use cached data from localStorage
-          setCachedIntervals(parsed.cachedIntervals);
-          setCacheKey(parsed.cacheKey);
-          const processedData = processData(parsed.cachedIntervals);
-          setTransactionData(processedData);
-          return;
+        if (parsed.cacheKey === currentCacheKey) {
+          // If we have cached aggregated data, use it
+          if (parsed.cachedIntervals) {
+            console.log('[transacties_voltooid] [CLIENT] Using cached aggregated data from localStorage:', parsed.cachedIntervals.length, 'records');
+            setCachedIntervals(parsed.cachedIntervals);
+            setCacheKey(parsed.cacheKey);
+            if (parsed.cachedRawData) {
+              setCachedRawData(parsed.cachedRawData);
+            }
+            const processedData = processData(parsed.cachedIntervals);
+            setTransactionData(processedData);
+            return;
+          }
+          // If we have raw data but no aggregated, aggregate it
+          if (parsed.cachedRawData) {
+            console.log('[transacties_voltooid] [CLIENT] Aggregating cached raw data (aggregated data missing)...');
+            setCachedRawData(parsed.cachedRawData);
+            setCacheKey(parsed.cacheKey);
+            setAggregationProgress(0);
+            const aggregated = await aggregateRawDataAsync(parsed.cachedRawData, INTERVAL_DURATIONS, selectedYear, (progress) => {
+              setAggregationProgress(progress);
+            });
+            setAggregationProgress(null);
+            setCachedIntervals(aggregated);
+            const processedData = processData(aggregated);
+            setTransactionData(processedData);
+            
+            // Update localStorage with aggregated data
+            try {
+              localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
+                cachedRawData: parsed.cachedRawData,
+                cachedIntervals: aggregated,
+                cacheKey: parsed.cacheKey
+              }));
+            } catch (e) {
+              console.warn('[transacties_voltooid] [CLIENT] Failed to update cache with aggregated data:', e);
+            }
+            return;
+          }
         }
       } catch (e) {
-        console.warn('Failed to parse saved cache:', e);
+        console.warn('[transacties_voltooid] [CLIENT] Failed to parse saved cache:', e);
       }
     }
 
     // Cache is invalid or missing, fetch new data
+    console.log('[transacties_voltooid] [CLIENT] Fetching data from API...');
+    const fetchStart = Date.now();
     setLoading(true);
     setError(null);
 
@@ -265,25 +422,59 @@ const TransactiesOverzichtComponent: React.FC = () => {
         throw new Error(`Error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const fetchTime = Date.now() - fetchStart;
+      console.log('[transacties_voltooid] [CLIENT] Fetch completed in', fetchTime, 'ms');
+      console.log('[transacties_voltooid] [CLIENT] Parsing JSON response...');
       
-      // Cache the intervals and update cache key
-      setCachedIntervals(data);
-      setCacheKey(currentCacheKey);
+      const parseStart = Date.now();
+      const rawData = await response.json();
+      const parseTime = Date.now() - parseStart;
       
-      // Save to localStorage
-      try {
-        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
-          cachedIntervals: data,
-          cacheKey: currentCacheKey
-        }));
-      } catch (e) {
-        console.warn('Failed to save cache to localStorage:', e);
+      // Calculate approximate size
+      const dataSize = JSON.stringify(rawData).length;
+      const dataSizeMB = parseFloat((dataSize / (1024 * 1024)).toFixed(2));
+      console.log('[transacties_voltooid] [CLIENT] JSON parsed in', parseTime, 'ms');
+      console.log('[transacties_voltooid] [CLIENT] Received', rawData.length, 'transaction records');
+      console.log('[transacties_voltooid] [CLIENT] Approximate data size:', dataSizeMB, 'MB');
+      
+      if (dataSizeMB > 4) {
+        console.warn('[transacties_voltooid] [CLIENT] ⚠️ Response size exceeds Next.js 4MB limit. Consider implementing pagination or data compression.');
       }
       
+      // Cache the raw data and update cache key
+      setCachedRawData(rawData);
+      setCacheKey(currentCacheKey);
+      
+      // Aggregate raw data once (this is expensive, so we cache the result)
+      console.log('[transacties_voltooid] [CLIENT] Aggregating raw data (one-time operation)...');
+      setAggregationProgress(0);
+      const aggregated = await aggregateRawDataAsync(rawData, INTERVAL_DURATIONS, selectedYear, (progress) => {
+        setAggregationProgress(progress);
+      });
+      setAggregationProgress(null);
+      
+      // Cache the aggregated data
+      setCachedIntervals(aggregated);
+      
       // Process and set the data
-      const processedData = processData(data);
+      const processStart = Date.now();
+      const processedData = processData(aggregated);
+      console.log('[transacties_voltooid] [CLIENT] Data processing completed in', Date.now() - processStart, 'ms');
+      console.log('[transacties_voltooid] [CLIENT] Final processed data:', processedData.length, 'records');
       setTransactionData(processedData);
+      
+      // Save to localStorage with both raw and aggregated data
+      try {
+        const saveStart = Date.now();
+        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
+          cachedRawData: rawData,
+          cachedIntervals: aggregated,
+          cacheKey: currentCacheKey
+        }));
+        console.log('[transacties_voltooid] [CLIENT] Saved to localStorage in', Date.now() - saveStart, 'ms');
+      } catch (e) {
+        console.warn('[transacties_voltooid] [CLIENT] Failed to save cache to localStorage:', e);
+      }
     } catch (err) {
       console.error('Error fetching transaction data:', err);
       setError(err instanceof Error ? err.message : 'Fout bij ophalen van data');
@@ -410,99 +601,25 @@ const TransactiesOverzichtComponent: React.FC = () => {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Transacties Overzicht</h1>
 
-      <div className="mb-6 space-y-4">
-        {/* Contact Selection (only for Fietsberaad) */}
-        {isFietsberaad && (
-          <div className="flex flex-col">
-            <label htmlFor="contact" className="text-sm font-medium text-gray-700 mb-1">
-              Contact
-            </label>
-            <select
-              id="contact"
-              className="min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md"
-              value={selectedContactID || ''}
-              onChange={(e) => {
-                setSelectedContactID(e.target.value || null);
-                setSelectedLocationID(null);
-              }}
-            >
-              <option value="">Geen</option>
-              {contacts.map(contact => (
-                <option key={contact.ID} value={contact.ID}>
-                  {contact.CompanyName}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Parking Type Selection */}
-        <div className="flex flex-col">
-          <label htmlFor="parkingType" className="text-sm font-medium text-gray-700 mb-1">
-            Type Stalling
-          </label>
-          <select
-            id="parkingType"
-            className="min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md"
-            value={selectedParkingType}
-            onChange={(e) => {
-              setSelectedParkingType(e.target.value);
-              setSelectedLocationID(null);
-            }}
-          >
-            <option value="all">Alle types</option>
-            {fietsenstallingtypen
-              ?.slice()
-              .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-              .map(type => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Parking Location Selection */}
-        <div className="flex flex-col">
-          <label htmlFor="location" className="text-sm font-medium text-gray-700 mb-1">
-            Stalling
-          </label>
-          <select
-            id="location"
-            className="min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md"
-            value={selectedLocationID || ''}
-            onChange={(e) => setSelectedLocationID(e.target.value || null)}
-            disabled={!selectedContactID || filteredParkingLocations.length === 0}
-          >
-            <option value="">Selecteer een stalling</option>
-            {filteredParkingLocations.map(location => (
-              <option key={location.ID} value={location.StallingsID || ''}>
-                {location.Title}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Year Selection */}
-        <div className="flex flex-col">
-          <label htmlFor="year" className="text-sm font-medium text-gray-700 mb-1">
-            Jaar
-          </label>
-          <select
-            id="year"
-            className="min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-          >
-            {years.map(year => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-
-      </div>
+      <TransactionFilters
+        selectedYear={selectedYear}
+        selectedContactID={selectedContactID}
+        selectedLocationID={selectedLocationID}
+        years={years}
+        contacts={contacts}
+        filteredParkingLocations={filteredParkingLocations}
+        onYearChange={(year) => {
+          setSelectedYear(year);
+        }}
+        onContactChange={(contactID) => {
+          setSelectedContactID(contactID);
+          setSelectedLocationID(null);
+        }}
+        onLocationChange={setSelectedLocationID}
+        showContactFilter={isFietsberaad}
+        yearFirst={true}
+        locationDisabled={filteredParkingLocations.length === 0}
+      />
 
       {/* Data Section */}
       <div className="mt-6">
@@ -510,10 +627,14 @@ const TransactiesOverzichtComponent: React.FC = () => {
         <div className="mb-4 flex gap-2">
           <button
             onClick={handleFetchData}
-            disabled={loading || !selectedLocationID}
+            disabled={loading || aggregationProgress !== null || !selectedLocationID}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? 'Laden...' : 'Go'}
+            {aggregationProgress !== null 
+              ? `Aggregeren (${Math.round(aggregationProgress)}%)` 
+              : loading 
+                ? 'Laden...' 
+                : 'Go'}
           </button>
           {transactionData.length > 0 && (
             <button

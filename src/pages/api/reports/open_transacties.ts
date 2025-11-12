@@ -9,53 +9,47 @@ interface Settings {
   contactID?: string | null;
   locationID?: string | null;
   year: number;
-  intervalDurations: number[];
-}
-
-interface TransactionIntervalData {
-  date: string;
-  startTime: string;
-  transactionsStarted: number;
-  transactionsClosed: number;
-  openTransactionsAtStart: number;
 }
 
 interface RawTransactionData {
   locationid: string;
-  checkindate: string;
-  checkoutdate: string | null;
+  checkintype: string;
+  checkouttype: string | null;
+  checkindate: Date;
+  checkoutdate: Date | null;
 }
 
 interface RawResult {
   locationid: string;
+  checkintype: string;
+  checkouttype: string | null;
   checkindate: Date;
   checkoutdate: Date | null;
 }
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now();
-  console.log('[transacties_voltooid] API call started at', new Date().toISOString());
+  console.log('[open_transacties] API call started at', new Date().toISOString());
   
   // Require authentication
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
-    console.log('[transacties_voltooid] Authentication failed');
+    console.log('[open_transacties] Authentication failed');
     res.status(401).json({ error: "Niet ingelogd - geen sessie gevonden" });
     return;
   }
 
   if (req.method !== 'POST') {
-    console.log('[transacties_voltooid] Invalid method:', req.method);
+    console.log('[open_transacties] Invalid method:', req.method);
     res.status(405).json({ error: "Method Not Allowed" });
     return;
   }
 
   try {
     const settings: Settings = req.body;
-    console.log('[transacties_voltooid] Processing request with settings:', {
+    console.log('[open_transacties] Processing request with settings:', {
       locationID: settings.locationID,
       year: settings.year,
-      intervalDurations: settings.intervalDurations,
       contactID: settings.contactID
     });
 
@@ -77,16 +71,17 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         StallingsID: settings.locationID
       }
     });
-    console.log('[transacties_voltooid] Parking query took', Date.now() - parkingQueryStart, 'ms');
+    console.log('[open_transacties] Parking query took', Date.now() - parkingQueryStart, 'ms');
 
     if (!parking) {
-      console.log('[transacties_voltooid] Parking location not found:', settings.locationID);
+      console.log('[open_transacties] Parking location not found:', settings.locationID);
       res.status(404).json({ error: "Parking location not found" });
       return;
     }
 
     // Calculate date range for the year
     const yearStart = `${settings.year}-01-01`;
+    const yearEnd = `${settings.year}-12-31 23:59:59`;
     
     // Build SQL query to get all raw transaction data
     const sqlQueryStart = Date.now();
@@ -95,19 +90,21 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const sql = `
       SELECT 
         ta.locationid,
+        ta.checkintype,
+        ta.checkouttype,
         ta.checkindate,
         ta.checkoutdate
       FROM transacties_archief ta
       WHERE ta.locationid = '${settings.locationID}'
         AND ta.checkindate >= '${yearStart}'
         AND ta.checkindate < DATE_ADD('${yearStart}', INTERVAL 1 YEAR)
-      ORDER BY ta.checkindate, ta.checkoutdate
+      ORDER BY ta.checkindate, ta.checkintype, ta.checkouttype
     `;
 
     // Write the SQL query to a file for external tool usage
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `sql-query-transacties-voltooid-${timestamp}.sql`;
+      const filename = `sql-query-open-transacties-${timestamp}.sql`;
       const logsDir = join(process.cwd(), 'logs');
       
       // Create logs directory if it doesn't exist
@@ -116,7 +113,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       const filepath = join(logsDir, filename);
       
       // Write SQL query to file with header comments
-      const fileContent = `-- SQL Query for transaction overview (raw data)
+      const fileContent = `-- SQL Query for open transactions overview
 -- Generated at: ${new Date().toISOString()}
 -- Location ID: ${settings.locationID}
 -- Year: ${settings.year}
@@ -125,31 +122,40 @@ ${sql}
 `;
       
       await writeFile(filepath, fileContent, 'utf-8');
-      console.log(`[transacties_voltooid] SQL query written to: ${filepath}`);
+      console.log(`[open_transacties] SQL query written to: ${filepath}`);
     } catch (fileError) {
-      console.error('[transacties_voltooid] Error writing SQL query to file:', fileError);
+      console.error('[open_transacties] Error writing SQL query to file:', fileError);
+      // Fallback to console logging if file write fails
+      console.log('\n========================================');
+      console.log('[open_transacties] SQL Query');
+      console.log('========================================');
+      console.log(sql);
+      console.log('========================================\n');
     }
 
-    console.log('[transacties_voltooid] Executing SQL query...');
+    console.log('[open_transacties] Executing SQL query...');
     const rawResults = await prisma.$queryRawUnsafe<RawResult[]>(sql);
-    console.log('[transacties_voltooid] SQL query took', Date.now() - sqlQueryStart, 'ms');
-    console.log('[transacties_voltooid] Found', rawResults.length, 'transaction records');
+    console.log('[open_transacties] SQL query took', Date.now() - sqlQueryStart, 'ms');
+    console.log('[open_transacties] Found', rawResults.length, 'transaction records');
 
     // Convert raw results to expected format
     const result: RawTransactionData[] = rawResults.map(row => ({
       locationid: row.locationid,
-      checkindate: row.checkindate.toISOString(),
-      checkoutdate: row.checkoutdate ? row.checkoutdate.toISOString() : null
+      checkintype: row.checkintype,
+      checkouttype: row.checkouttype,
+      checkindate: row.checkindate,
+      checkoutdate: row.checkoutdate
     }));
 
     const totalTime = Date.now() - startTime;
-    console.log('[transacties_voltooid] API call completed in', totalTime, 'ms');
+    console.log('[open_transacties] API call completed in', totalTime, 'ms');
 
     res.status(200).json(result);
 
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    console.error('[transacties_voltooid] Error in API call after', totalTime, 'ms:', error);
+    console.error('[open_transacties] Error in API call after', totalTime, 'ms:', error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
