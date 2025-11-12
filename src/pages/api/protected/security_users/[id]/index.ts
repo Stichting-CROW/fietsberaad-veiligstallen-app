@@ -156,7 +156,7 @@ export default async function handle(
 
         const oldRole = convertNewRoleToOldRole(parsed.RoleID);
 
-        const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword">  = {
+        const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword" | "Locale" | "EncryptedPassword2" | "Theme" | "SendMailToMailAddress">  = {
           UserID: newUserID,
           UserName: parsed.UserName,
           DisplayName: parsed.DisplayName,
@@ -166,7 +166,11 @@ export default async function handle(
           EncryptedPassword: hashedPassword,
           SiteID: parsed.SiteID,
           ParentID: null,
-          LastLogin: null
+          LastLogin: null,
+          Locale: "Dutch (Standard)",
+          EncryptedPassword2: "",
+          Theme: "default",
+          SendMailToMailAddress: null
         }
         
         await prisma.security_users.create({
@@ -191,8 +195,9 @@ export default async function handle(
           },
         });
 
-        // add security_users_sites record for external users
-        if (parsed.SiteID && groupID === VSUserGroupValues.Extern) {
+        // add security_users_sites record for ALL users (required for ColdFusion login)
+        // ColdFusion login requires at least one entry in security_users_sites table
+        if (parsed.SiteID) {
           await prisma.security_users_sites.create({
             data: {
               UserID: newUserID,
