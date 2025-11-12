@@ -68,9 +68,9 @@ restore_structure() {
     echo "Restoring database structure from $dump_file at $start_time"
         if [ "$DB_NAME" != "veiligstallen" ]; then
             # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < "$dump_file"
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < "$dump_file"
         fi
 
     # execute these mysql commands after importing
@@ -126,11 +126,21 @@ restore_tables_individual() {
 
         local start_time=$(date +"%H:%M:%S")
         echo "Restoring table $table from $dump_file at $start_time"
+        # Disable unique checks for faster import (equivalent to --disable-keys)
+        # Note: SET UNIQUE_CHECKS is session-level, so we must combine it with the import in a single session
         if [ "$DB_NAME" != "veiligstallen" ]; then
             # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(
+                echo "SET UNIQUE_CHECKS = 0;"
+                sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
+                echo "SET UNIQUE_CHECKS = 1;"
+            )
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < "$dump_file"
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --quick "$DB_NAME" < <(
+                echo "SET UNIQUE_CHECKS = 0;"
+                cat "$dump_file"
+                echo "SET UNIQUE_CHECKS = 1;"
+            )
         fi
         
         local end_time=$(date +"%H:%M:%S")
@@ -173,16 +183,16 @@ echo "Proceeding with database data import"
 # Lists of tables to restore
 
 # partial restore
-TABLES_CONFIG="abonnementen abonnementsvorm_fietsenstalling abonnementsvorm_fietstype abonnementsvormen account_transacties accounts accounts_pasids articles articles_templates barcoderegister  bikeparklog bulkreservering bulkreserveringuitzondering contact_contact contact_fietsenstalling contact_report_settings contacts contacts_faq contacts_fietsberaad documenttemplates externe_apis externe_apis_locaties faq fietsenstalling_plek fietsenstalling_plek_bezetting fietsenstalling_sectie fietsenstalling_sectie_kostenperioden fietsenstallingen fietsenstallingen_services fietsenstallingen_winkansen fietsenstallingtypen fietstypen financialtransactions fmsservice_permit fmsservicelog gemeenteaccounts historischesaldos instellingen klanttypen log lopers loterij_log mailings_lists mailings_members mailings_messages mailings_standaardteksten modules modules_contacts modules_contacts_copy1 plaats_fietstype presentations presentations_ticker prijswinnaars prijswinnaars_backup prijzen prijzenpot producten rapportageinfo schema_version sectie_fietstype sectie_fietstype_tmp security_roles security_users security_users_sites services sleutelhangerreeksen tariefcodes tariefregels tariefregels_copy1 tariefregels_copy2 tariefregels_copy3 tariefregels_copy4 tariefregels_copy5 tariefregels_tmp texts tmp_audit_grabbelton_na tmp_audit_grabbelton_voor  transacties_gemeente_totaal transacties_view trekkingen uitzonderingenopeningstijden unieke_bezoekers users_beheerder_log v_ds_surveyareas_parkinglocations vw_fmsservice_errors vw_locations vw_lopende_transacties vw_pasids vw_stallingstegoeden vw_stallingstegoedenexploitant wachtlijst wachtlijst_fietstype wachtlijst_item wachtrij_betalingen wachtrij_pasids wachtrij_sync winkansen winkansen_reminderteksten winkansen_zelf_inzet emails transacties_archief_tmp bezettingsdata_tmp"   
+TABLES_DONE=""
+TABLES_CONFIG="abonnementen abonnementsvorm_fietsenstalling abonnementsvorm_fietstype abonnementsvormen account_transacties accounts accounts_pasids articles articles_templates barcoderegister  bikeparklog bulkreservering bulkreserveringuitzondering contact_contact contact_fietsenstalling contact_report_settings contacts contacts_faq contacts_fietsberaad documenttemplates externe_apis externe_apis_locaties faq fietsenstalling_plek fietsenstalling_plek_bezetting fietsenstalling_sectie fietsenstalling_sectie_kostenperioden fietsenstallingen fietsenstallingen_services fietsenstallingen_winkansen fietsenstallingtypen fietstypen financialtransactions fmsservice_permit fmsservicelog gemeenteaccounts historischesaldos instellingen klanttypen log lopers loterij_log mailings_lists mailings_members mailings_messages mailings_standaardteksten modules modules_contacts modules_contacts_copy1 plaats_fietstype presentations presentations_ticker prijswinnaars prijswinnaars_backup prijzen prijzenpot producten rapportageinfo schema_version sectie_fietstype sectie_fietstype_tmp security_roles security_users security_users_sites services sleutelhangerreeksen tariefcodes tariefregels tariefregels_copy1 tariefregels_copy2 tariefregels_copy3 tariefregels_copy4 tariefregels_copy5 tariefregels_tmp texts tmp_audit_grabbelton_na tmp_audit_grabbelton_voor  transacties_gemeente_totaal transacties_view trekkingen uitzonderingenopeningstijden unieke_bezoekers users_beheerder_log v_ds_surveyareas_parkinglocations vw_fmsservice_errors vw_locations vw_lopende_transacties vw_pasids vw_stallingstegoeden vw_stallingstegoedenexploitant wachtlijst wachtlijst_fietstype wachtlijst_item wachtrij_betalingen wachtrij_pasids wachtrij_sync winkansen winkansen_reminderteksten winkansen_zelf_inzet emails transacties_archief_tmp bezettingsdata_tmp user_contact_role user_status"
+
+# All tables from backup that are NOT in TABLES_CONFIG (data tables)
+TABLES_DATA="transacties transacties_archief bezettingsdata bezettingsdata_day_hour_cache stallingsduur_cache transacties_archief_day_cache wachtrij_transacties"
+
+#for now not restored, 4GB and not used
+TABLES_DATA_SKIP="webservice_log"
+
 restore_tables_individual "$TABLES_CONFIG"
-
-# TABLES_ALL="$TABLES_CONFIG $TABLES_INDIVIDUAL"
-# restore_tables_individual "$TABLES_ALL"
-
-# TABLES_INDIVIDUAL="transacties_archief bezettingsdata webservice_log transacties"
-restore_tables_individual "transacties"
-restore_tables_individual "transacties_archief"
-restore_tables_individual "bezettingsdata"
-# # restore_tables_individual "webservice_log" -> not used, 4GB!
+restore_tables_individual "$TABLES_DATA"
 
 echo "Restore complete"
