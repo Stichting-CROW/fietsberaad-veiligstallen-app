@@ -15,7 +15,6 @@
     "migrate-db": "curl -X POST http://localhost:3000/api/protected/database/migrate",
     "migrate-db:acceptance": "curl -X POST https://vstfb-eu-acc-app01.azurewebsites.net/api/protected/database/migrate",
     "migrate-db:production": "curl -X POST https://beta.veiligstallen.nl/api/protected/database/migrate",
-
     "setup-db-local": "cd mysql-db && bash setup-db.sh && cd .. && prisma db pull --force && prisma generate",
     "start-db-local": "docker start veiligstallen-mysql",
     "start-db": "cd scripts && bash launch-ssh-tunnel.sh && echo 'SSH tunnel started'",
@@ -100,7 +99,7 @@
     "postcss": "^8.4.21",
     "prettier": "^2.8.6",
     "prettier-plugin-tailwindcss": "^0.2.5",
-    "prisma": "^5.22.0",
+    "prisma": "^6.8.2",
     "tailwindcss": "^3.2.7",
     "typescript": "^5.0.2"
   },

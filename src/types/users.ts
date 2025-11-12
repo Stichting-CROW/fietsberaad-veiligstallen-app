@@ -18,6 +18,10 @@ export type VSUserWithRolesNew = Pick<security_users, "UserID" | "UserName" | "D
 }
 // "EncryptedPassword" | "EncryptedPassword2"
 
+// Re-export types from users-coldfusion for convenience
+export type { VSUserWithRoles } from "./users-coldfusion";
+export { securityUserSelect as securityUserChangePasswordSelect } from "./users-coldfusion";
+
 export const getDefaultSecurityProfile = (): VSUserSecurityProfile => ({
     roleId: VSUserRoleValuesNew.None,
     rights: initAllTopics({
