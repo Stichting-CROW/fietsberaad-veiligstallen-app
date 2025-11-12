@@ -60,17 +60,8 @@ jobs:
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
         run: |
           npm install
-          npx prisma generate
-          echo "DIR ./src"
-          ls -la ./src
-          echo "DIR node_modules"
-          ls -la ./node_modules
-          echo "DIR .prisma"
-          ls -la ./node_modules/.prisma
           npm run build
           mv ./build/static ./build/standalone/build
-          ls -la ./build/standalone
-          ls -la ./build/standalone/build
           mv ./public ./build/standalone
 
       - name: "Deploy to Azure Web App"
