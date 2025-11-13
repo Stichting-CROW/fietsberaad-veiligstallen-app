@@ -1,5 +1,41 @@
 import moment, { utc } from "moment";
-import { type ReportState } from "./ReportsFilter";
+import { type PeriodPreset, type ReportRangeUnit, type ReportState } from "./ReportsFilter";
+
+const normalizeStartOfDay = (input: Date) => {
+  const normalized = new Date(input);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const normalizeEndOfDay = (input: Date) => {
+  const normalized = new Date(input);
+  normalized.setHours(23, 59, 59, 999);
+  return normalized;
+};
+
+const clampDate = (date: Date, min: Date, max: Date) => {
+  if (date < min) {
+    return new Date(min);
+  }
+  if (date > max) {
+    return new Date(max);
+  }
+  return date;
+};
+
+const clampRange = (start: Date, end: Date, firstDate: Date, lastDate: Date) => {
+  const min = normalizeStartOfDay(firstDate);
+  const max = normalizeEndOfDay(lastDate);
+
+  const clampedStart = clampDate(start, min, max);
+  const clampedEnd = clampDate(end, min, max);
+
+  if (clampedStart > clampedEnd) {
+    return { startDT: new Date(min), endDT: new Date(min) };
+  }
+
+  return { startDT: clampedStart, endDT: clampedEnd };
+};
 
 export const getWeekNumber = (date: Date): number => {
   const start = new Date(date.getFullYear(), 0, 1);
@@ -27,18 +63,18 @@ export const getWeekNumber = (date: Date): number => {
  *  getDateOfIsoWeek(53, 2023) -> Invalid (no week 53 in 2023)
  */
 function getDateOfIsoWeek(year: number, week: number) {
-  week = parseFloat(week);
-  year = parseFloat(year);
+  const numericWeek = Number(week);
+  const numericYear = Number(year);
 
-  if (week < 1 || week > 53) {
+  if (numericWeek < 1 || numericWeek > 53) {
     throw new RangeError("ISO 8601 weeks are numbered from 1 to 53");
-  } else if (!Number.isInteger(week)) {
+  } else if (!Number.isInteger(numericWeek)) {
     throw new TypeError("Week must be an integer");
-  } else if (!Number.isInteger(year)) {
+  } else if (!Number.isInteger(numericYear)) {
     throw new TypeError("Year must be an integer");
   }
 
-  const simple = new Date(year, 0, 1 + (week - 1) * 7);
+  const simple = new Date(numericYear, 0, 1 + (numericWeek - 1) * 7);
   const dayOfWeek = simple.getDay();
   const isoWeekStart = simple;
 
@@ -51,11 +87,11 @@ function getDateOfIsoWeek(year: number, week: number) {
   }
 
   // The latest possible ISO week starts on December 28 of the current year.
-  if (isoWeekStart.getFullYear() > year ||
-    (isoWeekStart.getFullYear() == year &&
+  if (isoWeekStart.getFullYear() > numericYear ||
+    (isoWeekStart.getFullYear() == numericYear &&
       isoWeekStart.getMonth() == 11 &&
       isoWeekStart.getDate() > 28)) {
-    throw new RangeError(`${year} has no ISO week ${week}`);
+    throw new RangeError(`${numericYear} has no ISO week ${numericWeek}`);
   }
 
   return isoWeekStart;
@@ -90,41 +126,34 @@ export const getSingleYearRange = (year: number | "lastPeriod") => {
   let filteryear: number, filtermonth: number;
   if (year === "lastPeriod") {
     const now = new Date();
-    filteryear = now.getFullYear()
-    filtermonth = now.getMonth() + 1
+    filteryear = now.getFullYear();
+    filtermonth = now.getMonth() + 1;
   } else {
-    filteryear = year
-    filtermonth = 12
+    filteryear = year;
+    filtermonth = 12;
   }
-  const startDT = new Date(filteryear - (filtermonth === 12 ? 0 : 1), (filtermonth === 12 ? 1 : filtermonth + 1) - 1, 1);
-  startDT.setHours(0, 0, 0, 0);
-  const endDT = new Date(filteryear, filtermonth, 0);
-  endDT.setHours(23, 59, 59, 999);
-
-  startDT.setHours(0, 0, 0, 0);
-  endDT.setHours(23, 59, 59, 999);
+  const startDT = normalizeStartOfDay(new Date(filteryear - (filtermonth === 12 ? 0 : 1), (filtermonth === 12 ? 1 : filtermonth + 1) - 1, 1));
+  const endDT = normalizeEndOfDay(new Date(filteryear, filtermonth, 0));
 
   return { startDT, endDT };
-}
+};
 
 export const getSingleMonthRange = (year: number | "lastPeriod", month: number | "lastPeriod") => {
-  let startDT, endDT;
+  let startDT: Date, endDT: Date;
   if (month === "lastPeriod" || year === "lastPeriod") {
     const now = new Date();
-    startDT = new Date(now.getFullYear(), now.getMonth(), 1);
-    endDT = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    startDT = normalizeStartOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+    endDT = normalizeEndOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   } else {
-    startDT = new Date(year, month, 1);
-    endDT = new Date(year, month + 1, 0);
+    startDT = normalizeStartOfDay(new Date(year, month, 1));
+    endDT = normalizeEndOfDay(new Date(year, month + 1, 0));
   }
-  startDT.setHours(0, 0, 0, 0);
-  endDT.setHours(23, 59, 59, 999);
 
   return { startDT, endDT };
-}
+};
 
 export const getSingleQuarterRange = (year: number | "lastPeriod", quarter: number | "lastPeriod") => {
-  let startDT, endDT, currentYear, currentQuarter;
+  let startDT: Date, endDT: Date, currentYear: number, currentQuarter: number;
 
   if (year === "lastPeriod" || quarter === "lastPeriod") {
     const now = new Date();
@@ -135,16 +164,14 @@ export const getSingleQuarterRange = (year: number | "lastPeriod", quarter: numb
     currentYear = year;
   }
 
-  startDT = new Date(currentYear, (currentQuarter - 1) * 3, 1);
-  endDT = new Date(currentYear, (currentQuarter * 3), 0);
-  startDT.setHours(0, 0, 0, 0);
-  endDT.setHours(23, 59, 59, 999);
+  startDT = normalizeStartOfDay(new Date(currentYear, (currentQuarter - 1) * 3, 1));
+  endDT = normalizeEndOfDay(new Date(currentYear, currentQuarter * 3, 0));
 
   return { startDT, endDT };
-}
+};
 
 export const getSingleWeekRange = (year: number | "lastPeriod", week: number | "lastPeriod") => {
-  let startDT, endDT;
+  let startDT: Date, endDT: Date;
   const theWeek = week === "lastPeriod" ? getWeekNumber(new Date()) : week;
 
   if (year === "lastPeriod" || week === "lastPeriod") {
@@ -156,11 +183,11 @@ export const getSingleWeekRange = (year: number | "lastPeriod", week: number | "
     endDT = lastDayOfWeek(year, theWeek);
   }
 
-  startDT.setHours(0, 0, 0, 0);
-  endDT.setHours(23, 59, 59, 999);
-
-  return { startDT, endDT };
-}
+  return {
+    startDT: normalizeStartOfDay(startDT),
+    endDT: normalizeEndOfDay(endDT),
+  };
+};
 
 // export const calculateStartWeek = (endweek: number, year: number): number => {
 //     const weeksInYear = getWeeksInYear(year);
@@ -188,44 +215,142 @@ export const getAdjustedStartEndDates = (
   return { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate };
 }
 
-export const getStartEndDT = (state: ReportState, firstDate: Date, lastDate: Date) => {
-  switch (state.reportRangeUnit) {
-    case "range_all": {
-      const startDT = new Date(firstDate);
-      startDT.setHours(0, 0, 0, 0);
-      const endDT = new Date(lastDate);
-      endDT.setHours(23, 59, 59, 999);
+type PresetRange = {
+  startDT: Date;
+  endDT: Date;
+  reportRangeUnit: ReportRangeUnit;
+};
 
-      return { startDT, endDT };
-    }
-    case "range_year": {
-      return getSingleYearRange(state.reportRangeYear);
-    }
-    case "range_month": {
-      return getSingleMonthRange(state.reportRangeYear, state.reportRangeValue);
-    }
-    case "range_quarter": {
-      return getSingleQuarterRange(state.reportRangeYear, state.reportRangeValue);
-    }
-    case "range_week": {
-      return getSingleWeekRange(state.reportRangeYear, state.reportRangeValue);
-    }
-    case "range_custom": {
-      const startDT = state.customStartDate ? new Date(state.customStartDate) : new Date(firstDate);
-      const endDT = state.customEndDate ? new Date(state.customEndDate) : new Date(lastDate);
+export const getRangeForPreset = (
+  preset: PeriodPreset,
+  {
+    now = new Date(),
+    firstDate,
+    lastDate,
+  }: {
+    now?: Date;
+    firstDate: Date;
+    lastDate: Date;
+  }
+): PresetRange => {
+  const unitByPreset: Record<PeriodPreset, ReportRangeUnit> = {
+    deze_week: "range_week",
+    deze_maand: "range_month",
+    dit_kwartaal: "range_quarter",
+    dit_jaar: "range_year",
+    afgelopen_7_dagen: "range_custom",
+    afgelopen_30_dagen: "range_custom",
+    afgelopen_12_maanden: "range_custom",
+    alles: "range_all",
+  };
 
-      if (!state.customStartDate) {
-        startDT.setHours(0, 0, 0, 0);
-      }
-      if (!state.customEndDate) {
-        endDT.setHours(23, 59, 59, 999);
-      }
+  const normalizedNow = normalizeStartOfDay(now);
 
-      return { startDT, endDT };
+  let startDT: Date;
+  let endDT: Date;
+
+  switch (preset) {
+    case "deze_week": {
+      const startOfWeek = new Date(normalizedNow);
+      const day = startOfWeek.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      startOfWeek.setDate(startOfWeek.getDate() + diff);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      startDT = normalizeStartOfDay(startOfWeek);
+      endDT = normalizeEndOfDay(endOfWeek);
+      break;
     }
+    case "deze_maand": {
+      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth(), 1));
+      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth() + 1, 0));
+      break;
+    }
+    case "dit_kwartaal": {
+      const quarter = getQuarter(normalizedNow);
+      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), (quarter - 1) * 3, 1));
+      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), quarter * 3, 0));
+      break;
+    }
+    case "dit_jaar": {
+      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), 0, 1));
+      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), 11, 31));
+      break;
+    }
+    case "afgelopen_7_dagen": {
+      const end = normalizeEndOfDay(new Date(now));
+      const start = normalizeStartOfDay(new Date(end));
+      start.setDate(start.getDate() - 6);
+      startDT = start;
+      endDT = end;
+      break;
+    }
+    case "afgelopen_30_dagen": {
+      const end = normalizeEndOfDay(new Date(now));
+      const start = normalizeStartOfDay(new Date(end));
+      start.setDate(start.getDate() - 29);
+      startDT = start;
+      endDT = end;
+      break;
+    }
+    case "afgelopen_12_maanden": {
+      const end = normalizeEndOfDay(new Date(now));
+      const start = normalizeStartOfDay(new Date(end));
+      start.setDate(start.getDate() - 364);
+      startDT = start;
+      endDT = end;
+      break;
+    }
+    case "alles":
     default: {
-      console.warn("Unhandled reportUnit", state.reportRangeUnit);
-      return { startDT: new Date(), endDT: new Date() };
+      startDT = normalizeStartOfDay(new Date(firstDate));
+      endDT = normalizeEndOfDay(new Date(lastDate));
+      break;
     }
   }
-}
+
+  const { startDT: clampedStart, endDT: clampedEnd } = clampRange(startDT, endDT, firstDate, lastDate);
+
+  return {
+    startDT: clampedStart,
+    endDT: clampedEnd,
+    reportRangeUnit: unitByPreset[preset],
+  };
+};
+
+export const getStartEndDT = (state: ReportState, firstDate: Date, lastDate: Date) => {
+  const fallbackStart = normalizeStartOfDay(new Date(firstDate));
+  const fallbackEnd = normalizeEndOfDay(new Date(lastDate));
+
+  const parseDate = (input?: string) => {
+    if (!input) return undefined;
+    const parsed = new Date(input);
+    if (Number.isNaN(parsed.getTime())) {
+      return undefined;
+    }
+    return parsed;
+  };
+
+  const customStart = parseDate(state.customStartDate);
+  const customEnd = parseDate(state.customEndDate);
+
+  if (customStart && customEnd) {
+    const normalizedStart = normalizeStartOfDay(customStart);
+    const normalizedEnd = normalizeEndOfDay(customEnd);
+
+    if (normalizedStart <= normalizedEnd) {
+      return clampRange(normalizedStart, normalizedEnd, firstDate, lastDate);
+    }
+  }
+
+  if (state.activePreset) {
+    const { startDT, endDT } = getRangeForPreset(state.activePreset, { firstDate, lastDate });
+    return { startDT, endDT };
+  }
+
+  if (state.reportRangeUnit === "range_all") {
+    return clampRange(fallbackStart, fallbackEnd, firstDate, lastDate);
+  }
+
+  return clampRange(fallbackStart, fallbackEnd, firstDate, lastDate);
+};
