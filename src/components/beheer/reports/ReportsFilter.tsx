@@ -252,6 +252,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   const [percQuiet, setPercQuiet] = useState("");
   const [errorState, setErrorState] = useState<string | undefined>(undefined);
   const [warningState, setWarningState] = useState<string | undefined>(undefined);
+  const xAxisSelectRef = useRef<HTMLSelectElement>(null);
+  const legendaSelectRef = useRef<HTMLSelectElement>(null);
 
   const currentReportState: ReportState = {
     reportType,
@@ -474,6 +476,31 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     return true;
   }
 
+  const getXAxisLabel = (value: ReportGrouping): string => {
+    const labels: Record<ReportGrouping, string> = {
+      per_year: "Jaar",
+      per_month: "Maand",
+      per_week: "Week",
+      per_day: "Dag",
+      per_weekday: "Dag van de week",
+      per_hour: "Uur van de dag",
+      per_bucket: "Stallingsduur",
+      per_quarter: "Kwartaal",
+    };
+    return labels[value] || value;
+  };
+
+  const getLegendaLabel = (value: ReportCategories): string => {
+    const labels: Record<ReportCategories, string> = {
+      none: "Geen",
+      per_stalling: "Per stalling",
+      per_weekday: "Per dag van de week",
+      per_section: "Per sectie",
+      per_type_klant: "Per type klant",
+    };
+    return labels[value] || value;
+  };
+
   const renderUnitSelect = () => {
     if (undefined === reportType) return null;
 
@@ -501,6 +528,32 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalBucket = isStallingsduurReport;
 
     const showBikeparkSelect = reportCategories !== "per_stalling";
+
+    // Build available X-axis options
+    const xAxisOptions: Array<{ value: ReportGrouping; label: string }> = [];
+    if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
+    if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+    if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
+    if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
+    if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
+    if (showIntervalHour) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+    if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
+
+    // Build available Legenda options
+    const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];
+    if (!isStallingsduurReport && !isBezettingReport) {
+      legendaOptions.push({ value: "none", label: "Geen" });
+      legendaOptions.push({ value: "per_stalling", label: "Per stalling" });
+    }
+    if (isBezettingReport) {
+      legendaOptions.push({ value: "per_weekday", label: "Per dag van de week" });
+    }
+    if (showCategorySection && !isBezettingReport) {
+      legendaOptions.push({ value: "per_section", label: "Per sectie" });
+    }
+    if (showCategoryPerTypeKlant) {
+      legendaOptions.push({ value: "per_type_klant", label: "Per type klant" });
+    }
 
     return (
       <div className="flex flex-wrap gap-4">
@@ -538,65 +591,92 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           </div>
         )}
 
-        <FormLabel title="X-as">
+        <div className="relative inline-block text-left">
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
+          >
+            <span>X-as</span>
+            {/* <span>{getXAxisLabel(reportGrouping)}</span> */}
+            <svg
+              className="h-4 w-4 text-gray-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
           <select
+            ref={xAxisSelectRef}
             value={reportGrouping}
             onChange={(e) => setReportGrouping(e.target.value as ReportGrouping)}
             name="reportGrouping"
             id="reportGrouping"
-            className={selectClasses}
+            className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
             required
           >
-            {showIntervalYear && <option value="per_year">Jaar</option>}
-            {showIntervalMonth && <option value="per_month">Maand</option>}
-            {showIntervalWeek && <option value="per_week">Week</option>}
-            {showIntervalDay && <option value="per_day">Dag</option>}
-            {showIntervalWeekday && <option value="per_weekday">Dag van de week</option>}
-            {showIntervalHour && <option value="per_hour">Uur van de dag</option>}
-            {showIntervalBucket && <option value="per_bucket">Stallingsduur</option>}
+            {xAxisOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
-        </FormLabel>
+        </div>
 
-        <FormLabel title="Legenda">
+        <div className="relative inline-block text-left">
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
+          >
+            {/* <span>{getLegendaLabel(reportCategories)}</span> */}
+            <span>Legenda</span>
+            <svg
+              className="h-4 w-4 text-gray-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
           <select
+            ref={legendaSelectRef}
             value={reportCategories}
             onChange={(e) => setReportCategories(e.target.value as ReportCategories)}
             name="reportCategories"
             id="reportCategories"
-            className={selectClasses}
+            className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
             required
           >
-            {!isStallingsduurReport && !isBezettingReport && (
-              <>
-                <option value="none">Geen</option>
-                <option value="per_stalling">Per stalling</option>
-                <option value="per_weekday">Per dag van de week</option>
-              </>
-            )}
-            {showCategorySection && <option value="per_section">Per sectie</option>}
-            {showCategoryPerTypeKlant && <option value="per_type_klant">Per type klant</option>}
+            {legendaOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
-        </FormLabel>
+        </div>
+
         {showBikeparkSelect && bikeparks.length > 1 &&
-          <FormLabel title="Stallingen">
-            <div className="w-96">
-              <BikeparkSelect
-                bikeparks={bikeparks}
-                selectedBikeparkIDs={selectedBikeparkIDs}
-                setSelectedBikeparkIDs={setSelectedBikeparkIDs}
-              />
-            </div>
-          </FormLabel>
+          <div className="w-96">
+            <BikeparkSelect
+              bikeparks={bikeparks}
+              selectedBikeparkIDs={selectedBikeparkIDs}
+              setSelectedBikeparkIDs={setSelectedBikeparkIDs}
+            />
+          </div>
         }
         {showBikeparkSelect && reportType === 'bezetting' && bikeparks.length > 1 &&
-          <FormLabel title="Databron per stalling">
-            <div className="w-96">
-              <BikeparkDataSourceSelect
-                bikeparks={bikeparks}
-                onSelectionChange={setSelectedBikeparkDataSources}
-              />
-            </div>
-          </FormLabel>
+          // <FormLabel title="Databron per stalling">
+          <div className="w-96">
+            <BikeparkDataSourceSelect
+              bikeparks={bikeparks}
+              onSelectionChange={setSelectedBikeparkDataSources}
+            />
+          </div>
+          // </FormLabel>
         }
       </div>
     );
