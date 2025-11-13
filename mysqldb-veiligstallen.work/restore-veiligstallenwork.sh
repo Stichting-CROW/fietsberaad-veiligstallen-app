@@ -17,16 +17,36 @@ if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DBUSER_RW" ] || [ -z "$DBUSE
     exit 1
 fi
 
+# Check if pv (pipe viewer) is available for progress display
+check_pv_available() {
+    if command -v pv >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Get file size in bytes (works on both Linux and macOS)
+get_file_size() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        # Try Linux stat first, then macOS stat
+        stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0"
+    else
+        echo "0"
+    fi
+}
+
 check_database_users_exist() {
     trap 'unset MYSQL_PWD' EXIT
 
     # check if DBUSER_RW exist by attempting to connect to the database using the RW user credentials
     export MYSQL_PWD="$DBUSER_RW_PASSWORD"
-    userrw_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" -p"$DBUSER_RW_PASSWORD" "$DB_NAME" -e "SELECT 1" 2>/dev/null)
+    userrw_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib -p"$DBUSER_RW_PASSWORD" "$DB_NAME" -e "SELECT 1" 2>/dev/null)
 
     # check if DBUSER_RO exist by attempting to connect to the database using the RO user credentials
     export MYSQL_PWD="$DBUSER_RO_PASSWORD"
-    userro_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RO" -P "$DB_PORT" -e "SELECT 1" 2>/dev/null)
+    userro_exists=$(mysql -h "$DB_HOST" -u "$DBUSER_RO" -P "$DB_PORT" --compression-algorithms=zlib -e "SELECT 1" 2>/dev/null)
 
     if [ -z "$userrw_exists" ] || [ -z "$userro_exists" ]; then 
         echo "One or more database users do not exist in the $DB_NAME database or have incorrect credentials."
@@ -66,12 +86,28 @@ restore_structure() {
 
     local start_time=$(date +"%H:%M:%S")
     echo "Restoring database structure from $dump_file at $start_time"
-        if [ "$DB_NAME" != "veiligstallen" ]; then
-            # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
+    
+    local file_size=$(get_file_size "$dump_file")
+    local use_pv=false
+    
+    if check_pv_available && [ "$file_size" -gt 0 ]; then
+        use_pv=true
+    fi
+    
+    if [ "$DB_NAME" != "veiligstallen" ]; then
+        # replace the database name in the dump file
+        if [ "$use_pv" = true ]; then
+            sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file" | pv -s "$file_size" -N "Structure" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < "$dump_file"
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
         fi
+    else
+        if [ "$use_pv" = true ]; then
+            pv -s "$file_size" -N "Structure" "$dump_file" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+        else
+            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < "$dump_file"
+        fi
+    fi
 
     # execute these mysql commands after importing
     # echo "converting fk column to bigint for bikeparklog"
@@ -109,7 +145,7 @@ drop_unused_tables() {
     for table in $tablelist; do
         echo "Dropping unused table $table"
         # disable foreign key checks to prevent errors based on links between the ds_ tables
-        mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE $table; SET FOREIGN_KEY_CHECKS = 1;"
+        mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib "$DB_NAME" -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE $table; SET FOREIGN_KEY_CHECKS = 1;"
     done
 }
 
@@ -125,12 +161,45 @@ restore_tables_individual() {
         fi
 
         local start_time=$(date +"%H:%M:%S")
+        local file_size=$(get_file_size "$dump_file")
+        local use_pv=false
+        
+        if check_pv_available && [ "$file_size" -gt 0 ]; then
+            use_pv=true
+        fi
+        
         echo "Restoring table $table from $dump_file at $start_time"
+        # Disable unique checks for faster import (equivalent to --disable-keys)
+        # Note: SET UNIQUE_CHECKS is session-level, so we must combine it with the import in a single session
         if [ "$DB_NAME" != "veiligstallen" ]; then
             # replace the database name in the dump file
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < <(sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file")
+            if [ "$use_pv" = true ]; then
+                {
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                } | pv -s "$file_size" -N "$table" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+            else
+                mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    sed 's/veiligstallen/veiligstallenprisma/g' "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                )
+            fi
         else
-            mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" "$DB_NAME" < "$dump_file"
+            if [ "$use_pv" = true ]; then
+                {
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    cat "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                } | pv -s "$file_size" -N "$table" | mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME"
+            else
+                mysql -h "$DB_HOST" -u "$DBUSER_RW" -P "$DB_PORT" --compression-algorithms=zlib --quick "$DB_NAME" < <(
+                    echo "SET UNIQUE_CHECKS = 0;"
+                    cat "$dump_file"
+                    echo "SET UNIQUE_CHECKS = 1;"
+                )
+            fi
         fi
         
         local end_time=$(date +"%H:%M:%S")
@@ -160,6 +229,15 @@ fi
 
 echo "Proceeding with database delete and restore"
 
+# Check if pv is available and inform user if not
+if ! check_pv_available; then
+    echo ""
+    echo "Note: 'pv' (pipe viewer) is not installed. Installing it will show progress bars"
+    echo "      with transfer speed, ETA, and percentage during the restore process."
+    echo "      Install with: sudo apt-get install pv (Debian/Ubuntu) or brew install pv (macOS)"
+    echo ""
+fi
+
 # Restore the database structure
 restore_structure
 
@@ -170,19 +248,25 @@ fi
 
 echo "Proceeding with database data import"
 
+# Remind user about pv if not available (only show once if structure restore already showed it)
+if ! check_pv_available; then
+    echo "Note: Progress bars are not available (pv not installed). Install 'pv' to see detailed progress."
+    echo ""
+fi
+
 # Lists of tables to restore
 
 # partial restore
-TABLES_CONFIG="abonnementen abonnementsvorm_fietsenstalling abonnementsvorm_fietstype abonnementsvormen account_transacties accounts accounts_pasids articles articles_templates barcoderegister  bikeparklog bulkreservering bulkreserveringuitzondering contact_contact contact_fietsenstalling contact_report_settings contacts contacts_faq contacts_fietsberaad documenttemplates externe_apis externe_apis_locaties faq fietsenstalling_plek fietsenstalling_plek_bezetting fietsenstalling_sectie fietsenstalling_sectie_kostenperioden fietsenstallingen fietsenstallingen_services fietsenstallingen_winkansen fietsenstallingtypen fietstypen financialtransactions fmsservice_permit fmsservicelog gemeenteaccounts historischesaldos instellingen klanttypen log lopers loterij_log mailings_lists mailings_members mailings_messages mailings_standaardteksten modules modules_contacts modules_contacts_copy1 plaats_fietstype presentations presentations_ticker prijswinnaars prijswinnaars_backup prijzen prijzenpot producten rapportageinfo schema_version sectie_fietstype sectie_fietstype_tmp security_roles security_users security_users_sites services sleutelhangerreeksen tariefcodes tariefregels tariefregels_copy1 tariefregels_copy2 tariefregels_copy3 tariefregels_copy4 tariefregels_copy5 tariefregels_tmp texts tmp_audit_grabbelton_na tmp_audit_grabbelton_voor  transacties_gemeente_totaal transacties_view trekkingen uitzonderingenopeningstijden unieke_bezoekers users_beheerder_log v_ds_surveyareas_parkinglocations vw_fmsservice_errors vw_locations vw_lopende_transacties vw_pasids vw_stallingstegoeden vw_stallingstegoedenexploitant wachtlijst wachtlijst_fietstype wachtlijst_item wachtrij_betalingen wachtrij_pasids wachtrij_sync winkansen winkansen_reminderteksten winkansen_zelf_inzet emails transacties_archief_tmp bezettingsdata_tmp"   
+TABLES_DONE=""
+TABLES_CONFIG="abonnementen abonnementsvorm_fietsenstalling abonnementsvorm_fietstype abonnementsvormen account_transacties accounts accounts_pasids articles articles_templates barcoderegister  bikeparklog bulkreservering bulkreserveringuitzondering contact_contact contact_fietsenstalling contact_report_settings contacts contacts_faq contacts_fietsberaad documenttemplates externe_apis externe_apis_locaties faq fietsenstalling_plek fietsenstalling_plek_bezetting fietsenstalling_sectie fietsenstalling_sectie_kostenperioden fietsenstallingen fietsenstallingen_services fietsenstallingen_winkansen fietsenstallingtypen fietstypen financialtransactions fmsservice_permit fmsservicelog gemeenteaccounts historischesaldos instellingen klanttypen log lopers loterij_log mailings_lists mailings_members mailings_messages mailings_standaardteksten modules modules_contacts modules_contacts_copy1 plaats_fietstype presentations presentations_ticker prijswinnaars prijswinnaars_backup prijzen prijzenpot producten rapportageinfo schema_version sectie_fietstype sectie_fietstype_tmp security_roles security_users security_users_sites services sleutelhangerreeksen tariefcodes tariefregels tariefregels_copy1 tariefregels_copy2 tariefregels_copy3 tariefregels_copy4 tariefregels_copy5 tariefregels_tmp texts tmp_audit_grabbelton_na tmp_audit_grabbelton_voor  transacties_gemeente_totaal transacties_view trekkingen uitzonderingenopeningstijden unieke_bezoekers users_beheerder_log v_ds_surveyareas_parkinglocations vw_fmsservice_errors vw_locations vw_lopende_transacties vw_pasids vw_stallingstegoeden vw_stallingstegoedenexploitant wachtlijst wachtlijst_fietstype wachtlijst_item wachtrij_betalingen wachtrij_pasids wachtrij_sync winkansen winkansen_reminderteksten winkansen_zelf_inzet emails transacties_archief_tmp bezettingsdata_tmp user_contact_role user_status"
+
+# All tables from backup that are NOT in TABLES_CONFIG (data tables)
+TABLES_DATA="transacties transacties_archief bezettingsdata bezettingsdata_day_hour_cache stallingsduur_cache transacties_archief_day_cache wachtrij_transacties"
+
+#for now not restored, 4GB and not used
+TABLES_DATA_SKIP="webservice_log"
+
 restore_tables_individual "$TABLES_CONFIG"
-
-# TABLES_ALL="$TABLES_CONFIG $TABLES_INDIVIDUAL"
-# restore_tables_individual "$TABLES_ALL"
-
-# TABLES_INDIVIDUAL="transacties_archief bezettingsdata webservice_log transacties"
-restore_tables_individual "transacties"
-restore_tables_individual "transacties_archief"
-restore_tables_individual "bezettingsdata"
-# # restore_tables_individual "webservice_log" -> not used, 4GB!
+restore_tables_individual "$TABLES_DATA"
 
 echo "Restore complete"

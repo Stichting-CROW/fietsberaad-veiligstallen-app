@@ -30,7 +30,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [organizationFilter, setOrganizationFilter] = useState<string | undefined>(undefined);
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
-  const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
+  const [sortColumn, setSortColumn] = useState<string | undefined>(undefined);
   const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
   const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
   const [hasManageExploitantsRights, setHasManageExploitantsRights] = useState<boolean>(false);

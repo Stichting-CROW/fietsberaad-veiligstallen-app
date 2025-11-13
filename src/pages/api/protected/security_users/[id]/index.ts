@@ -153,7 +153,7 @@ export default async function handle(
 
         const oldRole = convertNewRoleToOldRole(parsed.RoleID);
 
-        const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword">  = {
+        const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword" | "Locale" | "EncryptedPassword2" | "Theme" | "SendMailToMailAddress">  = {
           UserID: newUserID,
           UserName: parsed.UserName,
           DisplayName: parsed.DisplayName,
@@ -163,7 +163,11 @@ export default async function handle(
           EncryptedPassword: hashedPassword,
           SiteID: activeContactId,  
           ParentID: null,
-          LastLogin: null
+          LastLogin: null,
+          Locale: "Dutch (Standard)",
+          EncryptedPassword2: "",
+          Theme: "default",
+          SendMailToMailAddress: null
         }
         
         await prisma.security_users.create({
