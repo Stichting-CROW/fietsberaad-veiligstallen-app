@@ -23,9 +23,6 @@ const BikeparkDataSourceSelect: React.FC<BikeparkDataSourceSelectProps> = ({
 
   const isScrollable = bikeparks.length > 20;
 
-  const selectClasses = "min-w-56 border-2 border-gray-300 rounded-md w-full cursor-pointer relative h-10 leading-10 px-2";
-  const buttonClasses = "w-16 h-8 text-sm border-2 border-gray-300 rounded-md";
-
   // Initialize state with all bikeparks set to FMS by default
   const [selectedBikeparks, setSelectedBikeparks] = useState<BikeparkWithDataSource[]>(
     bikeparks.map(park => ({
@@ -63,6 +60,15 @@ const BikeparkDataSourceSelect: React.FC<BikeparkDataSourceSelectProps> = ({
     setIsDropdownOpen(false);
   };
 
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
   const handleSourceChange = (StallingsID: string, source: 'FMS' | 'Lumiguide') => {
     setSelectedBikeparks(prev =>
       prev.map(park =>
@@ -83,72 +89,63 @@ const BikeparkDataSourceSelect: React.FC<BikeparkDataSourceSelectProps> = ({
   }
 
   return (
-    <>
-      <div
+    <div className="relative inline-block text-left">
+      <button
         ref={divRef}
-        className={selectClasses}
-        style={{ userSelect: 'none', backgroundColor: 'rgb(239, 239, 239)' }}
+        type="button"
         onClick={() => setIsDropdownOpen((prev) => !prev)}
+        className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 w-full"
       >
-        {getButtonText()}
-        <button
-          className={buttonClasses}
-          style={{
-            width: '100px',
-            position: 'absolute',
-            right: '10px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            backgroundColor: 'white'
-          }}
+        <span>{getButtonText()}</span>
+        <svg
+          className={`h-4 w-4 text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180" : "rotate-0"}`}
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
-          Selecteer
-        </button>
-      </div>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
       {isDropdownOpen && (
         <div
           ref={dropdownRef}
-          className={selectClasses}
+          className="absolute left-0 z-30 mt-2 min-w-full w-auto origin-top-left rounded-lg border border-gray-200 bg-white shadow-lg"
           style={{
-            width: 'auto',
-            height: 'auto',
-            maxHeight: isScrollable ? '200px' : 'auto',
+            maxHeight: isScrollable ? '400px' : 'auto',
             overflowY: isScrollable ? 'auto' : 'visible',
             overflowX: 'hidden',
-            border: '1px solid #ccc',
-            position: 'absolute',
-            backgroundColor: 'white',
-            zIndex: 1000,
           }}
         >
-          <div className="mt-4">
-            <h3 className="text-lg font-medium mb-2">Gegevensbron per stalling</h3>
-            <div className="space-y-1 max-h-60 overflow-y-auto p-2 border rounded">
+          <div className="py-1">
+            <div className="px-3 py-2 border-b border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700">Gegevensbron per stalling</h3>
+            </div>
+            <div className="max-h-60 overflow-y-auto w-auto">
               {bikeparks.map(park => (
-                <div key={park.StallingsID} className="flex justify-flex-start py-0 px-2 border-b">
-                  <div className="flex space-x-4 text-left">
-                    <label className="inline-flex items-center">
+                <div key={park.StallingsID} className="px-3 py-2 border-b border-gray-100 hover:bg-gray-50 whitespace-nowrap">
+                  <div className="flex items-center space-x-4">
+                    <label className="inline-flex items-center cursor-pointer">
                       <input
                         type="radio"
                         name={`source-${park.StallingsID}`}
                         checked={selectedBikeparks.find(p => p.StallingsID === park.StallingsID)?.source === 'FMS'}
                         onChange={() => handleSourceChange(park.StallingsID, 'FMS')}
-                        className="form-radio h-4 w-4 text-blue-600"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2">FMS</span>
+                      <span className="ml-2 text-sm text-gray-700">FMS</span>
                     </label>
-                    <label className="inline-flex items-center">
+                    <label className="inline-flex items-center cursor-pointer">
                       <input
                         type="radio"
                         name={`source-${park.StallingsID}`}
                         checked={selectedBikeparks.find(p => p.StallingsID === park.StallingsID)?.source === 'Lumiguide'}
                         onChange={() => handleSourceChange(park.StallingsID, 'Lumiguide')}
-                        className="form-radio h-4 w-4 text-blue-600"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2">Lumiguide</span>
+                      <span className="ml-2 text-sm text-gray-700">Lumiguide</span>
                     </label>
-                    <div className="flex-1 font-medium">{park.Title}</div>
+                    <div className="text-sm font-medium text-gray-900">{park.Title}</div>
                   </div>
                 </div>
               ))}
@@ -156,7 +153,7 @@ const BikeparkDataSourceSelect: React.FC<BikeparkDataSourceSelectProps> = ({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
