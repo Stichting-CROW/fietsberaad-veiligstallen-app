@@ -24,11 +24,11 @@ export interface VSContactExploitant {
       childSiteID: string;
       admin: boolean;
     }[];
-    // isManagedByContacts: {
-    //   ID: number;
-    //   parentSiteID: string;
-    //   admin: boolean;
-    // }[];
+    isManagedByContacts?: {
+      ID: number;
+      parentSiteID: string;
+      admin: boolean;
+    }[];
     // modules_contacts: {
     //   module: VSModule;
     // }[];
@@ -41,13 +41,13 @@ export interface VSContactExploitant {
       ItemType: true,
       Helpdesk: true,
       Status: true,
-    //   isManagedByContacts: {
-    //       select: {
-    //           ID: true,
-    //           parentSiteID: true,
-    //           admin: true
-    //       }
-    //   },
+      isManagedByContacts: {
+          select: {
+              ID: true,
+              parentSiteID: true,
+              admin: true
+          }
+      },
       isManagingContacts: {
           select: {
               ID: true,
@@ -72,11 +72,21 @@ export interface VSContactExploitant {
   "CompanyName" |
   "CompanyLogo" | 
   "ThemeColor1" |
-  "ThemeColor2" 
+  "ThemeColor2" |
+  "Status"
   > & {
     hasStallingen: boolean;
-    hasExploitanten: boolean;
     hasUsers: boolean;
+    isManagingContacts?: {
+      ID: number;
+      childSiteID: string;
+      admin: boolean;
+    }[];
+    isManagedByContacts?: {
+      ID: number;
+      parentSiteID: string;
+      admin: boolean;
+    }[];
   }
   
   export type VSContactGemeente = Pick<contacts, 
@@ -119,6 +129,7 @@ export interface VSContactExploitant {
         CompanyLogo: true,
         ThemeColor1: true,
         ThemeColor2: true,
+        Status: true,
         fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
           where: {
             StallingsID: { not: null },
@@ -179,6 +190,7 @@ export interface VSContactExploitant {
       Tnv: true,
       Notes: true,
       DateRegistration: true,
+      Status: true,
       fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
         where: {
           StallingsID: { not: null },

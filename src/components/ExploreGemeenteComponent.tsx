@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { VSMenuTopic } from "~/types";
-import type { VSContactExploitant, VSContactGemeente } from "~/types/contacts";
+import type { VSContactGemeente } from "~/types/contacts";
 import type { VSUserWithRolesNew } from "~/types/users";
-import Link from "next/link";
 import { useFietsenstallingenCompact } from "~/hooks/useFietsenstallingenCompact";
 import { useGemeenten } from "~/hooks/useGemeenten";
 import { useUsers } from "~/hooks/useUsers";
@@ -25,8 +23,6 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
 
     const [nameFilter, setNameFilter] = useState<string>("");
     const [showGemeentenWithoutStallingen, setShowGemeentenWithoutStallingen] = useState<"yes"|"no"|"only">("no");
-    // const [showGemeentenWithoutUsers, setShowGemeentenWithoutUsers] = useState<"yes"|"no"|"only">("no");
-    // const [showGemeentenWithoutExploitanten, setShowGemeentenWithoutExploitanten] = useState<"yes"|"no"|"only">("yes");
 
     useEffect(() => {
         const filtered = gemeenten
@@ -36,19 +32,10 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
             )
             .filter((gemeente) => {
                 const numStallingen = fietsenstallingen?.length || 0;
-                // const hasUsers = users.some((user) => 
-                //     user.sites.some((site) => site.SiteID === gemeente.ID)
-                // );
-                // const hasExploitanten = gemeente.isManagedByContacts?.length || 0 > 0;
 
                 return (
                     (numStallingen === 0 && showGemeentenWithoutStallingen !== "no" || 
-                     numStallingen > 0 && showGemeentenWithoutStallingen !== "only") // &&
-                    // (!hasUsers && showGemeentenWithoutUsers !== "no" || 
-                    // hasUsers && showGemeentenWithoutUsers !== "only") &&
-                    // (!hasExploitanten && showGemeentenWithoutExploitanten !== "no" ||
-                    // hasExploitanten && showGemeentenWithoutExploitanten !== "only")
-                );
+                     numStallingen > 0 && showGemeentenWithoutStallingen !== "only"));
             });
         setFilteredGemeenten(filtered);
     }, [nameFilter, gemeenten, showGemeentenWithoutStallingen ]); // showGemeentenWithoutUsers, showGemeentenWithoutExploitanten
@@ -64,36 +51,8 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
     const resetFilters = () => {
         setNameFilter("");
         setShowGemeentenWithoutStallingen("no");
-        // setShowGemeentenWithoutUsers("no");
-        // setShowGemeentenWithoutExploitanten("yes");
         setSelectedGemeenteID(null);
     };
-
-    // const resetUserRoles = () => {
-    //     console.log("resetUserRoles");
-    // }
-
-    // const getDubiousUserIDs = (users: VSUserWithRolesNew[]) => {  
-    //     const dubiousUserIDs: {UserID: string, Reasons: string[]}[] = [];
-
-    //     const addReason = (user: VSUserWithRolesNew, reason: string) => {
-    //         const dubiousUser = dubiousUserIDs.find((user) => user.UserID === user.UserID);
-    //         if(dubiousUser) {
-    //             dubiousUser.Reasons.push(reason);
-    //         } else {
-    //             dubiousUserIDs.push({UserID: user.UserID, Reasons: [reason]});
-    //         }
-    //     }
-    //     // add all users that have a mismatch between GroupID in security_users and GroupID in security_roles
-    //     const mismatchUsers = users.filter((user) => user.GroupID !== user.security_roles?.GroupID);
-    //     mismatchUsers.forEach((user) => {
-    //         addReason(user, `GroupID mismatch: ${user.GroupID} !== ${user.security_roles?.GroupID}`);
-    //     });
-
-
-    //     return dubiousUserIDs;
-    // }
-
 
     const renderFilterSection = () => {
         return (
@@ -134,34 +93,6 @@ const ExploreGemeenteComponent = (props: ExploreGemeenteComponentProps) => {
                             <option value="only">Only</option>
                         </select>
                     </div>
-                    {/* <div className="flex items-center">
-                        <label htmlFor="showGemeentenWithoutUsers" className="text-sm font-medium text-gray-700">Toon Gemeenten Zonder Gemeentegebruikers:</label>
-                        <select 
-                            id="showGemeentenWithoutUsers" 
-                            name="showGemeentenWithoutUsers" 
-                            value={showGemeentenWithoutUsers}
-                            onChange={(e) => setShowGemeentenWithoutUsers(e.target.value as "yes"|"no"|"only")}
-                            className="ml-2 p-2 border border-gray-300 rounded-md"
-                        >
-                            <option value="yes">Ja</option>
-                            <option value="no">Nee</option>
-                            <option value="only">Only</option>
-                        </select>
-                    </div>
-                    <div className="flex items-center">
-                        <label htmlFor="showGemeentenWithoutExploitanten" className="text-sm font-medium text-gray-700">Toon Gemeenten Zonder Exploitanten:</label>
-                        <select 
-                            id="showGemeentenWithoutExploitanten" 
-                            name="showGemeentenWithoutExploitanten" 
-                            value={showGemeentenWithoutExploitanten}
-                            onChange={(e) => setShowGemeentenWithoutExploitanten(e.target.value as "yes"|"no"|"only")}
-                            className="ml-2 p-2 border border-gray-300 rounded-md"
-                        >
-                            <option value="yes">Ja</option>
-                            <option value="no">Nee</option>
-                            <option value="only">Only</option>
-                        </select>
-                    </div> */}
                     <div>
                         <h2 className="text-xl font-semibold mt-6">Lijst van Gemeenten</h2>
                         <ul className="list-disc list-inside max-h-fit overflow-y-auto">

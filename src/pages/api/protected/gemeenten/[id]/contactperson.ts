@@ -45,6 +45,13 @@ export default async function handle(
 
   switch (req.method) {
     case "PUT": {
+      // Only fietsberaad admins can update contact person
+      if (session.user.mainContactId !== "1") {
+        console.error("Unauthorized - only fietsberaad admins can update contact person");
+        res.status(403).json({ error: "Alleen fietsberaad beheerders kunnen de contactpersoon wijzigen" });
+        return;
+      }
+
       try {
         const parseResult = updateContactPersonSchema.safeParse(req.body);
         if (!parseResult.success) {

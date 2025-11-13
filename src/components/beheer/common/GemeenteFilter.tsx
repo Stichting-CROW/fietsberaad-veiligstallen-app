@@ -17,9 +17,12 @@ import {
   selectGemeenteFilters,
 } from '~/store/gemeenteFiltersSlice';
 
+import type { VSContactExploitant } from "~/types/contacts";
+
 interface GemeenteFilterProps {
   gemeenten: VSContactGemeenteInLijst[];
   users: VSUserWithRolesNew[];
+  exploitanten?: VSContactExploitant[];
   onFilterChange: (filteredGemeenten: VSContactGemeenteInLijst[]) => void;
   showStallingenFilter?: boolean;
   showUsersFilter?: boolean;
@@ -30,6 +33,7 @@ interface GemeenteFilterProps {
 const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
   gemeenten,
   users,
+  exploitanten = [],
   onFilterChange,
   showStallingenFilter = false,
   showUsersFilter = false,
@@ -79,13 +83,39 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
     return getModulesForGemeente(gemeenteId).some(mc => mc.ModuleID === moduleId);
   };
 
+  const getBeheertText = (gemeente: VSContactGemeenteInLijst) => {
+    const managedIDs = gemeente.isManagingContacts?.map(c => c.childSiteID) || [];
+    return managedIDs.map(id => {
+      const g = gemeenten.find(ge => ge.ID === id);
+      if (g) return g.CompanyName;
+      const e = exploitanten.find(ex => ex.ID === id);
+      if (e) return e.CompanyName;
+      return "";
+    }).filter(Boolean).join(" ").toLowerCase();
+  };
+
+  const getWordtBeheerdDoorText = (gemeente: VSContactGemeenteInLijst) => {
+    const exploitantIDs = gemeente.isManagedByContacts?.map(c => c.parentSiteID) || [];
+    return exploitantIDs.map(id => {
+      const exploitant = exploitanten.find(e => e.ID === id);
+      return exploitant ? exploitant.CompanyName : "";
+    }).filter(Boolean).join(" ").toLowerCase();
+  };
+
   useEffect(() => {
     const filtered = gemeenten
-      .filter((gemeente) => 
-        (!filters?.nameFilter || filters.nameFilter === "") || 
-        gemeente.CompanyName?.toLowerCase().includes((filters?.nameFilter || "").toLowerCase())
-      )
       .filter((gemeente) => {
+        if (!filters?.nameFilter || filters.nameFilter === "") {
+          return true;
+        }
+        const searchText = (filters.nameFilter || "").toLowerCase();
+        const matchesName = gemeente.CompanyName?.toLowerCase().includes(searchText);
+        const matchesBeheert = getBeheertText(gemeente).includes(searchText);
+        const matchesWordtBeheerdDoor = getWordtBeheerdDoorText(gemeente).includes(searchText);
+        return matchesName || matchesBeheert || matchesWordtBeheerdDoor;
+      })
+      .filter((gemeente) => {
+        const hasExploitanten = (gemeente.isManagedByContacts?.length || 0) > 0;
         return (
           (!showStallingenFilter || 
             (!gemeente.hasStallingen && filters?.showGemeentenWithoutStallingen !== "no" || 
@@ -94,8 +124,8 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
             (!gemeente.hasUsers && filters?.showGemeentenWithoutUsers !== "no" || 
               gemeente.hasUsers && filters?.showGemeentenWithoutUsers !== "only")) &&
           (!showExploitantenFilter || 
-            (!gemeente.hasExploitanten && filters?.showGemeentenWithoutExploitanten !== "no" ||
-              gemeente.hasExploitanten && filters?.showGemeentenWithoutExploitanten !== "only")) &&
+            (!hasExploitanten && filters?.showGemeentenWithoutExploitanten !== "no" ||
+              hasExploitanten && filters?.showGemeentenWithoutExploitanten !== "only")) &&
           (!showModulesFilter || 
             filters?.selectedModuleFilter === "all" ||
             filters?.selectedModuleFilter === "none" && getModulesForGemeente(gemeente.ID).length === 0 ||
@@ -109,6 +139,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
     filters,
     gemeenten, 
     users,
+    exploitanten,
     allModulesContacts.modulesContacts,
     showStallingenFilter,
     showUsersFilter,

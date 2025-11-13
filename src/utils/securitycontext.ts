@@ -105,19 +105,22 @@ export const getRoleRights = (
 
     const isFietsberaad = contactItemType === "admin";
     const isExploitant = contactItemType === "exploitant";
+    const isDataEigenaar = contactItemType === "organizations";
 
     const isRootAdminFietsberaad = isFietsberaad && isRootAdmin;
     const isAdminFietsberaad = isFietsberaad && isAdmin;
     const isRootAdminExploitant = isExploitant && isRootAdmin;
+    const isAdminDataEigenaar = isDataEigenaar && isAdmin;
 
     currentTopics[VSSecurityTopic.fietsberaad_superadmin] = isRootAdminFietsberaad ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.fietsberaad_admin] = isAdminFietsberaad ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.exploitant_superadmin] = isRootAdminExploitant ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.acceptatie_ontwikkeling] = isAdminFietsberaad ? allowCRUD : allowNone
-    currentTopics[VSSecurityTopic.instellingen_dataeigenaar] = isAdminFietsberaad ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.instellingen_dataeigenaar] = (isAdminFietsberaad || isAdminDataEigenaar) ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_admin] = isRootAdmin ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_beperkt] = isAdmin? allowCRUD : allowNone
-    currentTopics[VSSecurityTopic.exploitanten_toegangsrecht] = isRootAdmin ? allowCRUD : allowNone
+    // Deny exploitanten_beheerrecht if current organization is an exploitant
+    currentTopics[VSSecurityTopic.exploitanten_beheerrecht] = (isRootAdmin && !isExploitant) ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
     if(isFietsberaad) {

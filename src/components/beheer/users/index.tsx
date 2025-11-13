@@ -14,7 +14,7 @@ import { VSSecurityTopic } from '~/types/securityprofile';
 
 type UserComponentProps = { 
   siteID: string | null,
-  contacts: {ID: string, CompanyName: string}[],
+  contacts: {ID: string, CompanyName: string, ItemType?: string}[],
 };
 
 const UsersComponent: React.FC<UserComponentProps> = (props) => {
@@ -47,7 +47,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
 
   useEffect(() => {
     setHasManageExploitantsRights(
-      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_toegangsrecht)
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_beheerrecht)
     );
   }, [session?.user]);
 

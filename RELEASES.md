@@ -15,6 +15,49 @@
 
 - Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
 - Gebruiker kan eenvoudig instellen van periode (van datum t/m datum)
+- Verbeterd filterontwerp 
+
+## VeiligStallen 2025-11-13 (acceptance)
+
+**Gemeente-beheer**
+
+- ✨ Volledige bewerkfunctionaliteit voor gemeenten toegevoegd
+  - Nieuwe kaart-editor component voor het bewerken van gemeentegrenzen
+  - Toegevoegd: registratiedatum veld voor gemeenten
+  - Verbeterde validatie en foutafhandeling bij gemeente-bewerkingen
+  - Contactpersoon beheer toegevoegd aan gemeente API
+
+**Organisatie-archivering**
+
+- ✨ Nieuw: archiveringsfunctionaliteit voor organisaties
+  - Gemeenten, exploitanten en dataproviders kunnen nu worden gearchiveerd
+  - Gearchiveerde organisaties worden uitgesloten van standaard overzichten
+  - Archiveringsstatus is bewerkbaar via beheerschermen
+
+**Beveiliging**
+
+- 🔒 Verbeterde beveiligingsrestricties voor exploitant-organisaties
+  - Exploitanten kunnen geen exploitanten_toegangsrecht meer beheren
+  - Automatische autorisatiecontrole voor exploitant-gemeente koppelingen
+  - Vereenvoudigde component-level checks door verbeterde security profile
+
+**Kaart & Navigatie**
+
+- 🖌️ Kaart gebruikt nu zoom-niveau van contact wanneer gemeente in URL wordt opgegeven
+  - Betere gebruikerservaring bij directe navigatie naar gemeente
+
+**Gebruikersbeheer**
+
+- 🐛 Fix: nieuwe gebruikers kunnen nu weer inloggen in oude FMS 
+  - Automatische aanmaak van security_users_sites records bij nieuwe gebruikers
+  - Partiele fix: moet nog verder doorgetest worden
+
+
+**Technisch**
+
+- ✨ Nieuwe API endpoints voor gemeente contactpersoon beheer
+- ✨ Verbeterde modules_contacts API functionaliteit
+- 🗑️ Opgeruimd: verwijderde overbodige component-level security checks
 
 ## VeiligStallen 2025-11-06
 
