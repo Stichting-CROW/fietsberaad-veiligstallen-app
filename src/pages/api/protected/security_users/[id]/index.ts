@@ -28,7 +28,8 @@ export const securityUserCreateSchema = z.object({
   DisplayName: z.string().min(1),
   Status: z.string(),
   RoleID: z.nativeEnum(VSUserRoleValuesNew),
-  SiteID: z.string().nullable(),
+  // SiteID is ignored - determined from authenticated user's session (activeContactId)
+  SiteID: z.string().nullable().optional(),
   password: z.string(),
 });
 
@@ -100,9 +101,9 @@ export default async function handle(
         }
         const parsed = parseResult.data;
 
-        if(parsed.SiteID===null) {
-          console.error("SiteID is required");
-          res.status(400).json({error: "SiteID is required"});
+        if(!activeContactId) {
+          console.error("No active contact ID found in session");
+          res.status(400).json({error: "No active contact ID found in session"});
           return;
         }
 
@@ -120,38 +121,34 @@ export default async function handle(
         // Hash the password
         const hashedPassword = await bcrypt.hash(parsed.password, saltRounds);
 
-        // determine the groupID based on the siteID
+        // determine the groupID based on the targetSiteID (from authenticated session)
         let groupID: VSUserGroupValues | undefined = undefined;
-        if(parsed.SiteID===activeContactId) {
+        const contact = await prisma.contacts.findFirst({
+          where: {
+            ID: activeContactId,
+          },
+        });
+
+        if(!contact) {
+          console.error("Contact not found for activeContactId:", activeContactId);
+          res.status(400).json({error: "Contact not found for active contact ID"});
+          return;
+        }
+
+        if(contact.ItemType === "admin") {
           groupID = VSUserGroupValues.Intern;
+        } else if(contact.ItemType === "organizations") {
+          groupID = VSUserGroupValues.Extern;
+        } else if(contact.ItemType === "exploitant") {
+          groupID = VSUserGroupValues.Exploitant;
+        } else if(contact.ItemType === "dataprovider") {
+          console.error("Dataproviders have no users");
+          res.status(400).json({error: "Dataproviders cannot have users"});
+          return;
         } else {
-          const contact = await prisma.contacts.findFirst({
-            where: {
-              ID: parsed.SiteID,
-            },
-          });
-
-          if(!contact) {
-            console.error("Contact not found for siteID:", parsed.SiteID);
-            res.status(400).json({error: "Contact not found for siteID"});
-            return;
-          }
-
-          if(contact.ItemType === "admin") {
-            groupID = VSUserGroupValues.Intern;
-          } else if(contact.ItemType === "organizations") {
-            groupID = VSUserGroupValues.Extern;
-          } else if(contact.ItemType === "exploitant") {
-            groupID = VSUserGroupValues.Exploitant;
-          } else if(contact.ItemType === "dataprovider") {
-            console.error("Dataproviders have no users");
-            res.status(400).json({error: "Contact has unknown item type"});
-            return;
-          } else {
-            console.error("Contact has unknown item type:", contact.ItemType);
-            res.status(400).json({error: "Contact has unknown item type"});
-            return;
-          }
+          console.error("Contact has unknown item type:", contact.ItemType);
+          res.status(400).json({error: "Contact has unknown item type"});
+          return;
         }
 
         const oldRole = convertNewRoleToOldRole(parsed.RoleID);
@@ -164,7 +161,7 @@ export default async function handle(
           GroupID: groupID,
           Status: parsed.Status ?? "1",
           EncryptedPassword: hashedPassword,
-          SiteID: parsed.SiteID,
+          SiteID: activeContactId,  
           ParentID: null,
           LastLogin: null
         }
@@ -191,12 +188,13 @@ export default async function handle(
           },
         });
 
-        // add security_users_sites record for external users
-        if (parsed.SiteID && groupID === VSUserGroupValues.Extern) {
+        // add security_users_sites record for ALL users (required for ColdFusion login)
+        // ColdFusion login requires at least one entry in security_users_sites table
+        if (activeContactId) {
           await prisma.security_users_sites.create({
             data: {
               UserID: newUserID,
-              SiteID: parsed.SiteID,
+              SiteID: activeContactId,
               IsContact: false,
             },
           });
@@ -205,7 +203,7 @@ export default async function handle(
         // get all related sites for the user
         const relatedSites = await prisma.contact_contact.findMany({
           where: {
-            parentSiteID: parsed.SiteID,
+            parentSiteID: activeContactId,
           },
         });
 
@@ -249,8 +247,9 @@ export default async function handle(
           return;
         }
 
-        const theRoleInfo = createdUser.user_contact_roles.find((role) => role.ContactID === activeContactId);
         const ownRoleInfo = createdUser.user_contact_roles.find((role) => role.isOwnOrganization);
+        // Find the role for the organization the user was created in (targetSiteID from authenticated session)
+        const theRoleInfo = createdUser.user_contact_roles.find((role) => role.ContactID === activeContactId);
         if(!ownRoleInfo || !theRoleInfo?.ContactID) {
           console.error("Error creating security user: no own organization ID found");
           res.status(500).json({error: "Error creating security user: no own organization ID found"});
