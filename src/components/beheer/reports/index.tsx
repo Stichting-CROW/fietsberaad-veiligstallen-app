@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import ReportsFilterComponent, { type ReportParams, type ReportBikepark, type ReportState } from "./ReportsFilter";
+import ReportsFilterComponent, { type ReportParams, type ReportBikepark, type ReportState, type ReportType, getAvailableReports } from "./ReportsFilter";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import { getStartEndDT } from "./ReportsDateFunctions";
@@ -45,9 +45,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const [loading, setLoading] = useState(false);
 
   const [filterState, setFilterState] = useState<ReportState | undefined>(undefined);
+  const availableReports = React.useMemo(
+    () => getAvailableReports(showAbonnementenRapporten),
+    [showAbonnementenRapporten]
+  );
+  const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(undefined);
 
   const handleFilterChange = (newState: ReportState) => {
     setFilterState(newState);
+    setSelectedReportType(newState.reportType);
   };
 
   useEffect(() => {
@@ -224,9 +230,44 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   const showReportParams = false; // used for debugging / testing
 
+  const handleReportTypeClick = (reportId: ReportType) => {
+    if (reportId === selectedReportType) {
+      return;
+    }
+    setSelectedReportType(reportId);
+  };
+
   return (
     <div className="noPrint w-full h-full" id="ReportComponent">
-      <div className="flex flex-col space-y-2 p-2 h-full">
+      <div className="flex h-full w-full flex-col md:flex-row">
+        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:border-r md:border-gray-200 md:bg-white md:px-4 md:py-6">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Statistieken
+            </div>
+          </div>
+          <nav className="flex flex-col gap-1">
+            {availableReports.map((report) => {
+              const isActive = report.id === selectedReportType;
+              return (
+                <button
+                  key={report.id}
+                  type="button"
+                  onClick={() => handleReportTypeClick(report.id as ReportType)}
+                  className={`rounded-md px-4 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    isActive
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {report.title}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+        <div className="flex-1 overflow-y-auto p-2 md:p-6">
+          <div className="flex flex-col space-y-2 h-full">
 
         {/* <div className="flex-none">
           <GemeenteFilter
@@ -246,6 +287,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               firstDate={firstDate}
               lastDate={lastDate}
               bikeparks={bikeparksWithData}
+              activeReportType={selectedReportType}
               onStateChange={handleFilterChange}
             />
           </CollapsibleContent>
@@ -376,6 +418,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
             )}
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

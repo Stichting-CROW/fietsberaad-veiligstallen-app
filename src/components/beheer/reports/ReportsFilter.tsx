@@ -58,6 +58,7 @@ interface ReportsFilterComponentProps {
   lastDate: Date;
   bikeparks: ReportBikepark[];
   showDetails?: boolean;
+  activeReportType?: ReportType;
   onStateChange: (newState: ReportState) => void;
 }
 
@@ -111,6 +112,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
   lastDate,
   bikeparks,
   showDetails = true,
+  activeReportType,
   onStateChange
 }) => {
   const selectClasses = "min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md";
@@ -159,6 +161,12 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
   const [warningState, setWarningState] = useState<string | undefined>(undefined);
 
   const availableReports = getAvailableReports(showAbonnementenRapporten);
+
+  useEffect(() => {
+    if (activeReportType && activeReportType !== reportType) {
+      setReportType(activeReportType);
+    }
+  }, [activeReportType, reportType]);
 
   const previousStateRef = useRef<ReportState | null>(null);
 
@@ -418,19 +426,25 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
 
     return (
       <div className="flex flex-wrap gap-4">
-        <FormLabel title="Rapportage">
+        <div className="md:hidden w-full">
+          <label htmlFor="report" className="block text-sm font-semibold text-gray-700 mb-2">
+            Rapportage
+          </label>
           <select
-            className={selectClasses}
+            className={`${selectClasses} w-full`}
             name="report"
             id="report"
             value={reportType}
             onChange={(e) => setReportType(e.target.value as ReportType)}
             required
-          > {availableReports.map((report) => (
-            <option key={report.id} value={report.id}>{report.title}</option>
-          ))}
+          >
+            {availableReports.map((report) => (
+              <option key={report.id} value={report.id}>
+                {report.title}
+              </option>
+            ))}
           </select>
-        </FormLabel>
+        </div>
         <FormLabel title="Periode">
           <select
             value={reportRangeUnit}

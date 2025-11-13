@@ -1,5 +1,27 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-XX-XX
+
+**Beheer**
+
+- Verbeterd ontwerp voor het linkermenu
+- Smallere organisatie-selector in topmenu
+
+**Gebruikersbeheer**
+
+- In gebruikersoverzicht: toon eerst de interne gebruikers (van eigen organisatie) en daarna de externe gebruikers
+
+**Rapportages**
+
+- Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
+
+## VeiligStallen 2025-11-06
+
+**Stallingenbeheer**
+
+- 🖌️ Logo gemeente in site-header staat nu verticaal gecentreerd
+- 🐛 Fix: Foto van fietsenstalling kan weer worden opgeslagen
+
 ## VeiligStallen 2025-11-04
 
 **Stallingsbeheer**
