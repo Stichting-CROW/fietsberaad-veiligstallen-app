@@ -436,9 +436,10 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     if(! isValidPeriod) return;
 
     const now = new Date();
+    console.log('periodInDays', periodInDays);
     if(periodInDays <= 100) {
       // Do nothing
-    } else if(periodInDays <= 366) {
+    } else if(periodInDays <= 124) {
       setReportRangeUnit("range_week");
       console.log('Naar week')
     } else if(periodInDays <= 732) {
@@ -451,7 +452,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       setReportRangeUnit("range_year");
       console.log('Naar jaar')
     }
-  }, [customStartDate, customEndDate]);
+  }, [customStartDate, customEndDate, activePreset]);
 
   // useEffect(() => {
   // Filter out any selected bikeparks that are no longer in the bikeparks array
@@ -483,17 +484,21 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const isValidPeriod = endDT >= startDT;
     const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
 
+    const isStallingsduurReport = ["stallingsduur"].includes(reportType);
+    const isBezettingReport = ["bezetting"].includes(reportType);
+    const showIntervalPeriods = !isStallingsduurReport && !isBezettingReport;
+
     const showCategorySection = ["bezetting"].includes(reportType);
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
-    const showIntervalYear = true;
-    const showIntervalQuarter = isValidPeriod ? periodInDays <= 1464 : false;
-    const showIntervalMonth = isValidPeriod ? periodInDays <= 732 : false;
-    const showIntervalWeek = isValidPeriod ? periodInDays <= 366 : false;
-    const showIntervalDay = isValidPeriod ? periodInDays <= 90 : false;
-    const showIntervalWeekday = ["stallingsduur"].includes(reportType);
+    const showIntervalYear = showIntervalPeriods && true;
+    const showIntervalQuarter = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 1464 : false;
+    const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
+    const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
+    const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
+    const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
     const showIntervalHour = ["bezetting"].includes(reportType) === true;
-    const showIntervalBucket = false;//["stallingsduur"].includes(reportType);
+    const showIntervalBucket = isStallingsduurReport;
 
     const showBikeparkSelect = reportCategories !== "per_stalling";
 
@@ -562,9 +567,13 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             className={selectClasses}
             required
           >
-            <option value="none">Geen</option>
-            <option value="per_stalling">Per stalling</option>
-            <option value="per_weekday">Per dag van de week</option>
+            {!isStallingsduurReport && !isBezettingReport && (
+              <>
+                <option value="none">Geen</option>
+                <option value="per_stalling">Per stalling</option>
+                <option value="per_weekday">Per dag van de week</option>
+              </>
+            )}
             {showCategorySection && <option value="per_section">Per sectie</option>}
             {showCategoryPerTypeKlant && <option value="per_type_klant">Per type klant</option>}
           </select>
