@@ -660,22 +660,18 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         </div>
 
         {showBikeparkSelect && bikeparks.length > 1 &&
-          <div className="w-96">
             <BikeparkSelect
               bikeparks={bikeparks}
               selectedBikeparkIDs={selectedBikeparkIDs}
               setSelectedBikeparkIDs={setSelectedBikeparkIDs}
             />
-          </div>
         }
         {showBikeparkSelect && reportType === 'bezetting' && bikeparks.length > 1 &&
           // <FormLabel title="Databron per stalling">
-          <div className="w-96">
             <BikeparkDataSourceSelect
               bikeparks={bikeparks}
               onSelectionChange={setSelectedBikeparkDataSources}
             />
-          </div>
           // </FormLabel>
         }
       </div>

@@ -257,7 +257,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   return (
     <div className="noPrint w-full h-full" id="ReportComponent">
-      <div className="flex w-full">
+      <div className="flex w-full mb-4">
         {selectedReportType && (
           <div className="flex-1 mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">
@@ -276,12 +276,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         </div>
       </div>
       <div className="flex h-full w-full flex-col md:flex-row">
-        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:border-r md:border-gray-200 md:px-4 md:py-6">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Statistieken
-            </div>
-          </div>
+        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:md:mr-6 md:py-6">
           <nav className="flex flex-col gap-1">
             {availableReports.map((report) => {
               const isActive = report.id === selectedReportType;
