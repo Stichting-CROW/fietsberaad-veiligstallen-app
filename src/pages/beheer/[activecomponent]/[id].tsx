@@ -478,12 +478,20 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
     // By default: render empty left menu
     else {
-      return <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4" />
+      return (
+        <nav
+          id="leftMenu"
+          className="h-[calc(100vh-64px)] w-72 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+          aria-label="Hoofdmenu"
+        >
+          <ul className="space-y-1" />
+        </nav>
+      );
     }
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-y-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <TopBar
         gemeenten={gemeenten}
         exploitanten={exploitanten}
@@ -496,7 +504,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
-        <div className={`flex-1 p-4 overflow-auto`} style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex-1 overflow-auto px-10 py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
           {renderComponent()}
         </div>
       </div>
