@@ -309,17 +309,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         </div>
 
         <div className="flex-none">
-          <CollapsibleContent buttonText="Filteropties">
-            <ReportsFilterComponent
-              ref={filterComponentRef}
-              showAbonnementenRapporten={showAbonnementenRapporten}
-              firstDate={firstDate}
-              lastDate={lastDate}
-              bikeparks={bikeparksWithData}
-              activeReportType={selectedReportType}
-              onStateChange={handleFilterChange}
-            />
-          </CollapsibleContent>
+          <ReportsFilterComponent
+            ref={filterComponentRef}
+            showAbonnementenRapporten={showAbonnementenRapporten}
+            firstDate={firstDate}
+            lastDate={lastDate}
+            bikeparks={bikeparksWithData}
+            activeReportType={selectedReportType}
+            onStateChange={handleFilterChange}
+          />
         </div>
 
         <div className="flex-none flex flex-col space-y-2">
@@ -419,10 +417,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                       },
                     },
                     legend: {
-                      position: 'right',
+                      position: 'top',
                       horizontalAlign: 'center',
                       floating: false,
-                      offsetY: 25,
+                      // offsetY: 25,
                     },
                     tooltip: {
                       enabled: true,
