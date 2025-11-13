@@ -549,7 +549,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           >
             {showIntervalYear && <option value="per_year">Jaar</option>}
             {showIntervalMonth && <option value="per_month">Maand</option>}
-            {showIntervalQuarter && <option value="per_quarter">Kwartaal</option>}
             {showIntervalWeek && <option value="per_week">Week</option>}
             {showIntervalDay && <option value="per_day">Dag</option>}
             {showIntervalWeekday && <option value="per_weekday">Dag van de week</option>}

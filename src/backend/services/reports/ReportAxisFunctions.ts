@@ -27,13 +27,13 @@ export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: str
       return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
     }
     case 'per_day': {
-      return moment(value).format('YYYY-DDD');
+      return moment(value).format('YYYY-MM-DD');
     }
     case 'per_month': {
       return moment(value).format('YYYY-M');
     }
     case 'per_week': {
-      return moment(value).format('YYYY-W');
+      return moment(value).format('YYYY-\\wW');
     }
     case 'per_quarter': {
       return moment(value).format('YYYY-Q');
