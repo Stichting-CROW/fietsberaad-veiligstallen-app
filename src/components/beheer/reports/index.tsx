@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import ReportsFilterComponent, { type ReportParams, type ReportBikepark, type ReportState, type ReportType, getAvailableReports } from "./ReportsFilter";
+import ReportsFilterComponent, {
+  type ReportParams,
+  type ReportBikepark,
+  type ReportState,
+  type ReportType,
+  type PeriodPreset,
+  type ReportsFilterHandle,
+  getAvailableReports
+} from "./ReportsFilter";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import { getStartEndDT } from "./ReportsDateFunctions";
@@ -10,6 +18,7 @@ import type { VSUserSecurityProfile } from "~/types/securityprofile";
 import type { VSContactGemeente } from "~/types/contacts";
 
 import Chart from './Chart';
+import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
 import { getXAxisFormatter } from "~/backend/services/reports/ReportAxisFunctions";
 
@@ -50,6 +59,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     [showAbonnementenRapporten]
   );
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(undefined);
+  const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+
+  const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
+    filterComponentRef.current?.applyPreset(preset);
+  }, []);
+
+  const handleCustomRangeChange = React.useCallback((start: Date, end: Date) => {
+    filterComponentRef.current?.applyCustomRange(start, end);
+  }, []);
 
   const handleFilterChange = (newState: ReportState) => {
     setFilterState(newState);
@@ -280,9 +298,20 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           />
         </div> */}
 
+        <div className="flex-none flex justify-end">
+          <PeriodSelector
+            firstDate={firstDate}
+            lastDate={lastDate}
+            currentState={filterState}
+            onSelectPreset={handlePresetSelect}
+            onCustomRangeChange={handleCustomRangeChange}
+          />
+        </div>
+
         <div className="flex-none">
           <CollapsibleContent buttonText="Filteropties">
             <ReportsFilterComponent
+              ref={filterComponentRef}
               showAbonnementenRapporten={showAbonnementenRapporten}
               firstDate={firstDate}
               lastDate={lastDate}

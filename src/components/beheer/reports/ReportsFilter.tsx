@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import BikeparkSelect from './BikeparkSelect';
-import { getMaanden, getWeekNumber, getQuarter } from "./ReportsDateFunctions";
+import { getWeekNumber, getQuarter } from "./ReportsDateFunctions";
 import BikeparkDataSourceSelect, { type BikeparkWithDataSource } from "./BikeparkDataSourceSelect";
 import { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
@@ -16,11 +16,21 @@ export const reportCategoriesValues = ["none", "per_stalling", "per_weekday", "p
 export type ReportGrouping = "per_hour" | "per_day" | "per_weekday" | "per_week" | "per_month" | "per_quarter" | "per_year" | "per_bucket"
 export const reportGroupingValues = ["per_hour", "per_day", "per_weekday", "per_week", "per_month", "per_quarter", "per_year", "per_bucket"]
 
-export type ReportRangeUnit = "range_all" | "range_year" | "range_month" | "range_quarter" | "range_week"
-export const reportRangeUnitValues = ["range_all", "range_year", "range_month", "range_quarter", "range_week"]
+export type ReportRangeUnit = "range_all" | "range_year" | "range_month" | "range_quarter" | "range_week" | "range_custom"
+export const reportRangeUnitValues = ["range_all", "range_year", "range_month", "range_quarter", "range_week", "range_custom"]
 // export type ReportUnit = "reportUnit_day" | "reportUnit_weekDay" | "reportUnit_week" | "range_month" | "reportUnit_quarter" | "reportUnit_year" // | "reportUnit_onequarter" | "reportUnit_oneyear"
 
 export type ReportBikepark = VSFietsenstallingLijst
+
+export type PeriodPreset =
+  | "deze_week"
+  | "deze_maand"
+  | "dit_kwartaal"
+  | "dit_jaar"
+  | "afgelopen_7_dagen"
+  | "afgelopen_30_dagen"
+  | "afgelopen_12_maanden"
+  | "alles";
 
 export interface ReportParams {
   reportType: ReportType;
@@ -49,7 +59,10 @@ export const defaultReportState: ReportState = {
   reportRangeValue: 1,
   fillups: false,
   grouped: "0",
-  bikeparkDataSources: []
+  bikeparkDataSources: [],
+  customStartDate: undefined,
+  customEndDate: undefined,
+  activePreset: undefined
 }
 
 interface ReportsFilterComponentProps {
@@ -102,11 +115,19 @@ export type ReportState = {
   fillups: boolean;
   grouped: string;
   bikeparkDataSources: BikeparkWithDataSource[];
+  customStartDate?: string;
+  customEndDate?: string;
+  activePreset?: PeriodPreset;
 };
+
+export interface ReportsFilterHandle {
+  applyPreset: (preset: PeriodPreset) => void;
+  applyCustomRange: (start: Date, end: Date) => void;
+}
 
 const STORAGE_KEY = 'VS_reports_filterState';
 
-const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
+const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
   firstDate,
   lastDate,
@@ -114,7 +135,7 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
   showDetails = true,
   activeReportType,
   onStateChange
-}) => {
+}, ref) => {
   const selectClasses = "min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md";
 
   // Load initial state from localStorage or use defaults
@@ -133,7 +154,10 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
           fillups: parsed.fillups || false,
           grouped: parsed.grouped || "0",
           selectedBikeparkIDs: parsed.selectedBikeparkIDs || [],
-          selectedBikeparkDataSources: parsed.selectedBikeparkDataSources || []
+          selectedBikeparkDataSources: parsed.selectedBikeparkDataSources || [],
+          customStartDate: parsed.customStartDate,
+          customEndDate: parsed.customEndDate,
+          activePreset: parsed.activePreset as PeriodPreset | undefined
         };
       } catch (e) {
         console.warn('Failed to parse saved filter state:', e);
@@ -153,12 +177,123 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
   const [datatype, setDatatype] = useState<ReportDatatype | undefined>(undefined);
   const [reportRangeYear, setReportRangeYear] = useState<number | "lastPeriod">(initialState?.reportRangeYear || new Date().getFullYear());
   const [reportRangeValue, setReportRangeValue] = useState<number | "lastPeriod">(initialState?.reportRangeValue || new Date().getFullYear());
+  const [customStartDate, setCustomStartDate] = useState<string | undefined>(initialState?.customStartDate);
+  const [customEndDate, setCustomEndDate] = useState<string | undefined>(initialState?.customEndDate);
+  const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(initialState?.activePreset);
   const [fillups, setFillups] = useState(initialState?.fillups || false);
   const [grouped, setGrouped] = useState(initialState?.grouped || "0");
   const [percBusy, setPercBusy] = useState("");
   const [percQuiet, setPercQuiet] = useState("");
   const [errorState, setErrorState] = useState<string | undefined>(undefined);
   const [warningState, setWarningState] = useState<string | undefined>(undefined);
+
+  const normalizeDate = (date: Date) => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  const applyCustomRangeInternal = (start: Date, end: Date, preset?: PeriodPreset) => {
+    let normalizedStart = normalizeDate(start);
+    let normalizedEnd = normalizeDate(end);
+
+    if (normalizedStart > normalizedEnd) {
+      const temp = normalizedStart;
+      normalizedStart = normalizedEnd;
+      normalizedEnd = temp;
+    }
+
+    normalizedStart.setHours(0, 0, 0, 0);
+    normalizedEnd.setHours(23, 59, 59, 999);
+
+    setReportRangeUnit("range_custom");
+    setReportRangeYear(normalizedStart.getFullYear());
+    setReportRangeValue(normalizedStart.getMonth());
+    setCustomStartDate(normalizedStart.toISOString());
+    setCustomEndDate(normalizedEnd.toISOString());
+    setActivePreset(preset);
+  };
+
+  const applyPresetInternal = (preset: PeriodPreset) => {
+    const now = new Date();
+
+    switch (preset) {
+      case "deze_week": {
+        setReportRangeUnit("range_week");
+        setReportRangeYear(now.getFullYear());
+        setReportRangeValue(getWeekNumber(now));
+        setCustomStartDate(undefined);
+        setCustomEndDate(undefined);
+        setActivePreset(preset);
+        break;
+      }
+      case "deze_maand": {
+        setReportRangeUnit("range_month");
+        setReportRangeYear(now.getFullYear());
+        setReportRangeValue(now.getMonth());
+        setCustomStartDate(undefined);
+        setCustomEndDate(undefined);
+        setActivePreset(preset);
+        break;
+      }
+      case "dit_kwartaal": {
+        setReportRangeUnit("range_quarter");
+        setReportRangeYear(now.getFullYear());
+        setReportRangeValue(getQuarter(now));
+        setCustomStartDate(undefined);
+        setCustomEndDate(undefined);
+        setActivePreset(preset);
+        break;
+      }
+      case "dit_jaar": {
+        setReportRangeUnit("range_year");
+        setReportRangeYear(now.getFullYear());
+        setReportRangeValue(1);
+        setCustomStartDate(undefined);
+        setCustomEndDate(undefined);
+        setActivePreset(preset);
+        break;
+      }
+      case "afgelopen_7_dagen": {
+        const start = new Date(now);
+        start.setDate(start.getDate() - 6);
+        applyCustomRangeInternal(start, now, preset);
+        break;
+      }
+      case "afgelopen_30_dagen": {
+        const start = new Date(now);
+        start.setDate(start.getDate() - 29);
+        applyCustomRangeInternal(start, now, preset);
+        break;
+      }
+      case "afgelopen_12_maanden": {
+        const start = new Date(now);
+        start.setDate(start.getDate() - 364);
+        applyCustomRangeInternal(start, now, preset);
+        break;
+      }
+      case "alles": {
+        setReportRangeUnit("range_all");
+        setCustomStartDate(undefined);
+        setCustomEndDate(undefined);
+        setActivePreset(preset);
+        break;
+      }
+      default: {
+        // Ensure preset state clears if unexpected input
+        setActivePreset(undefined);
+      }
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    applyPreset: (preset: PeriodPreset) => {
+      applyPresetInternal(preset);
+    },
+    applyCustomRange: (start: Date, end: Date) => {
+      applyCustomRangeInternal(start, end, undefined);
+    }
+  }));
 
   const availableReports = getAvailableReports(showAbonnementenRapporten);
 
@@ -185,7 +320,10 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
       reportRangeValue,
       fillups,
       grouped,
-      bikeparkDataSources: selectedBikeparkDataSources
+      bikeparkDataSources: selectedBikeparkDataSources,
+      customStartDate,
+      customEndDate,
+      activePreset
     };
 
     // If state has changed:
@@ -267,13 +405,16 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     fillups,
     grouped,
     selectedBikeparkDataSources,
+    customStartDate,
+    customEndDate,
+    activePreset,
     onStateChange,
     bikeparks
   ]);
 
   useEffect(() => {
     checkInput();
-  }, [reportRangeUnit, reportType, selectedBikeparkIDs, reportRangeYear, reportRangeValue, datatype]);
+  }, [reportRangeUnit, reportType, selectedBikeparkIDs, reportRangeYear, reportRangeValue, datatype, customStartDate, customEndDate]);
 
   // useEffect(() => {
   // Filter out any selected bikeparks that are no longer in the bikeparks array
@@ -295,110 +436,6 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     return true;
   }
 
-  const renderWeekSelect = (showLastPeriod = true) => {
-    return (
-      <div className="mt-2 w-56 flex flex-col">
-        <select
-          value={reportRangeValue}
-          onChange={(e) => {
-            const value = e.target.value === "lastPeriod" ? "lastPeriod" : parseInt(e.target.value);
-            setReportRangeValue(value);
-          }}
-          name="week"
-          id="week"
-          className={selectClasses}
-          required>
-          {showLastPeriod && <option value="lastPeriod">Afgelopen week</option>}
-          {[...Array(53).keys()].map((_week) => {
-            const weekNumber = _week + 1;
-            const isValidWeek =
-              !(reportRangeYear === firstDate.getFullYear() && weekNumber < getWeekNumber(firstDate)) &&
-              !(reportRangeYear === lastDate.getFullYear() && weekNumber > getWeekNumber(lastDate));
-            return (
-              isValidWeek && (
-                <option key={weekNumber} value={weekNumber}>
-                  Week {weekNumber}
-                </option>
-              )
-            );
-          })}
-        </select>
-        {reportRangeValue !== "lastPeriod" && renderYearSelect(false)}
-      </div>
-    )
-  }
-
-  const renderMonthSelect = (showLastPeriod = true) => {
-    return (
-      <div className="mt-2 w-56 flex flex-col">
-        <select
-          value={reportRangeValue}
-          onChange={(e) => setReportRangeValue(e.target.value === "lastPeriod" ? "lastPeriod" : parseInt(e.target.value))}
-          className={selectClasses} required>
-          {showLastPeriod && <option value="lastPeriod">Afgelopen maand</option>}
-          {getMaanden().map((maand, index) => (
-            <option key={index} value={index}>
-              {maand}
-            </option>
-          ))}
-        </select>
-        {reportRangeValue !== "lastPeriod" && renderYearSelect(false)}
-      </div>
-    )
-  }
-
-  const renderQuarterSelect = (showLastPeriod = true) => {
-    return (
-      <div className="mt-2 w-56 flex flex-col">
-        <select
-          value={reportRangeValue}
-          onChange={(e) => setReportRangeValue(e.target.value as number | "lastPeriod")}
-          name="quarter"
-          id="quarter"
-          className={selectClasses}
-          required
-        >
-          {showLastPeriod && <option value="lastPeriod">Afgelopen kwartaal</option>}
-          {[1, 2, 3, 4].map((kwartaal) => {
-            const isValidQuarter =
-              !(reportRangeYear === firstDate.getFullYear() && kwartaal < getQuarter(firstDate)) &&
-              !(reportRangeYear === lastDate.getFullYear() && kwartaal > getQuarter(lastDate));
-            return (
-              isValidQuarter && (
-                <option key={kwartaal} value={kwartaal}>
-                  Kwartaal {kwartaal}
-                </option>
-              )
-            );
-          })}
-        </select>
-        {reportRangeValue !== "lastPeriod" && renderYearSelect(false)}
-      </div>
-    )
-  }
-
-  const renderYearSelect = (showLastPeriod = true) => {
-    return <div className="mt-2 w-56 flex flex-col">
-      <select
-        value={reportRangeYear}
-        onChange={(e) => {
-          const value = e.target.value === "lastPeriod" ? "lastPeriod" : parseInt(e.target.value);
-          setReportRangeYear(value)
-        }}
-        name="year"
-        id="year"
-        className={selectClasses}
-        required
-      >
-        {showLastPeriod && <option value="lastPeriod">Afgelopen jaar</option>}
-        {Array.from({ length: lastDate.getFullYear() - firstDate.getFullYear() + 1 }, (_, i) => {
-          const jaar = firstDate.getFullYear() + i;
-          return <option key={jaar} value={jaar}>{jaar}</option>;
-        })}
-      </select>
-    </div>
-  }
-
   const renderUnitSelect = () => {
     if (undefined === reportType) return null;
 
@@ -408,19 +445,11 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
     const showCategorySection = ["bezetting"].includes(reportType);
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
-    const showRangeWeek = true; //  ["transacties_voltooid", "inkomsten", "volmeldingen"].includes(reportType)
-    const showRangeAll = true; //  ["transacties_voltooid", "inkomsten", "volmeldingen", "bezetting", "downloads", "abonnementen", "abonnementen_lopend"].includes(reportType)
-    const showRangeMaand = true; //  ["transacties_voltooid", "inkomsten", "volmeldingen", "bezetting", "downloads", "abonnementen", "abonnementen_lopend"].includes(reportType)
-    const showRangeKwartaal = true; //  ["transacties_voltooid", "inkomsten", "volmeldingen", "bezetting", "stallingsduur"].includes(reportType)
-    const showRangeJaar = true; //  ["transacties_voltooid", "inkomsten", "volmeldingen", "bezetting", "downloads", "stallingsduur"].includes(reportType)
-
     const showIntervalYear = reportRangeUnit === "range_all";
-    const showIntervalMonthQuarter = showIntervalYear || reportRangeUnit === "range_year";
-    const showIntervalWeek = showIntervalMonthQuarter || reportRangeUnit === "range_month" || reportRangeUnit === "range_quarter";
+    const showIntervalMonthQuarter = showIntervalYear || ["range_year", "range_custom"].includes(reportRangeUnit);
+    const showIntervalWeek = showIntervalMonthQuarter || ["range_month", "range_quarter", "range_custom"].includes(reportRangeUnit);
     const showIntervalHour = ["bezetting"].includes(reportType) === true;
     const showIntervalBucket = ["stallingsduur"].includes(reportType);
-
-    const showLastPeriod = false; // TODO: range calculations are not yet implemented correctly for lastPeriod
 
     const showBikeparkSelect = reportCategories !== "per_stalling";
 
@@ -445,43 +474,6 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
             ))}
           </select>
         </div>
-        <FormLabel title="Periode">
-          <select
-            value={reportRangeUnit}
-            onChange={(e) => setReportRangeUnit(e.target.value as ReportRangeUnit)}
-            name="reportRangeUnit"
-            id="reportRangeUnit"
-            className={selectClasses}
-            required
-          >
-            {showRangeJaar && (
-              <option value="range_year">1 Jaar</option>
-            )}
-            {showRangeKwartaal && (
-              <option value="range_quarter">1 Kwartaal</option>
-            )}
-            {showRangeMaand && (
-              <option value="range_month">1 Maand</option>
-            )}
-            {showRangeWeek && (
-              <option value="range_week">1 Week</option>
-            )}
-            {showRangeAll && (
-              <option value="range_all">Alles</option>
-            )}
-            {/* {showGelijktijdigVol && (
-                <>
-                  <option value="reportUnit_onequarter">Kwartaal</option>
-                  <option value="reportUnit_oneyear">Jaar</option>
-                </>
-              )} */}
-          </select>
-          {reportRangeUnit === "range_week" && renderWeekSelect(showLastPeriod)}
-          {reportRangeUnit === "range_month" && renderMonthSelect(showLastPeriod)}
-          {reportRangeUnit === "range_quarter" && renderQuarterSelect(showLastPeriod)}
-          {reportRangeUnit === "range_year" && renderYearSelect(showLastPeriod)}
-        </FormLabel>
-
         {reportType === "downloads" && (
           <div className="row">
             <div className="title">Soort data</div>
@@ -650,7 +642,10 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
       reportRangeYear,
       reportRangeValue,
       fillups,
-      grouped
+    grouped,
+    customStartDate,
+    customEndDate,
+    activePreset
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [
@@ -695,6 +690,8 @@ const ReportsFilterComponent: React.FC<ReportsFilterComponentProps> = ({
       </div>
     </div>
   );
-};
+});
+
+ReportsFilterComponent.displayName = "ReportsFilterComponent";
 
 export default ReportsFilterComponent;

@@ -14,6 +14,7 @@
 **Rapportages**
 
 - Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
+- Gebruiker kan eenvoudig instellen van periode (van datum t/m datum)
 
 ## VeiligStallen 2025-11-06
 

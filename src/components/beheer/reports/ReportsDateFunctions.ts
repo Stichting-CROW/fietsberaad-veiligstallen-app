@@ -191,9 +191,9 @@ export const getAdjustedStartEndDates = (
 export const getStartEndDT = (state: ReportState, firstDate: Date, lastDate: Date) => {
   switch (state.reportRangeUnit) {
     case "range_all": {
-      const startDT = firstDate;
+      const startDT = new Date(firstDate);
       startDT.setHours(0, 0, 0, 0);
-      const endDT = lastDate;
+      const endDT = new Date(lastDate);
       endDT.setHours(23, 59, 59, 999);
 
       return { startDT, endDT };
@@ -209,6 +209,19 @@ export const getStartEndDT = (state: ReportState, firstDate: Date, lastDate: Dat
     }
     case "range_week": {
       return getSingleWeekRange(state.reportRangeYear, state.reportRangeValue);
+    }
+    case "range_custom": {
+      const startDT = state.customStartDate ? new Date(state.customStartDate) : new Date(firstDate);
+      const endDT = state.customEndDate ? new Date(state.customEndDate) : new Date(lastDate);
+
+      if (!state.customStartDate) {
+        startDT.setHours(0, 0, 0, 0);
+      }
+      if (!state.customEndDate) {
+        endDT.setHours(23, 59, 59, 999);
+      }
+
+      return { startDT, endDT };
     }
     default: {
       console.warn("Unhandled reportUnit", state.reportRangeUnit);
