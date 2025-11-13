@@ -481,7 +481,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       return (
         <nav
           id="leftMenu"
-          className="h-[calc(100vh-64px)] w-72 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
           aria-label="Hoofdmenu"
         >
           <ul className="space-y-1" />
@@ -504,7 +504,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
-        <div className="flex-1 overflow-auto px-10 py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
           {renderComponent()}
         </div>
       </div>

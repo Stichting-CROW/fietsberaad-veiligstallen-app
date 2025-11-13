@@ -41,7 +41,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   return (
     <nav
       id="leftMenu"
-      className="h-[calc(100vh-64px)] w-72 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+      className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
       aria-label="Hoofdmenu"
     >
       <ul className="space-y-1">

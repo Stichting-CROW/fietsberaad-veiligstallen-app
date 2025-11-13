@@ -208,7 +208,12 @@ const TopBar: React.FC<TopBarProps> = ({
           <select
             onChange={handleOrganisatieChange}
             value={selectedOrganisatieID || ""}
-            className="h-10 rounded-lg border border-gray-300 bg-white px-3 font-medium text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            className="
+              h-10 rounded-lg border border-gray-300 bg-white px-3 font-medium text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400
+            "
+            style={{
+              maxWidth: '230px'
+            }}
           >
             {organisaties.map(organisatie => (
               <option
