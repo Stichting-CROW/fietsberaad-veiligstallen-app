@@ -437,7 +437,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     if(! isValidPeriod) return;
 
-    const now = new Date();
     console.log('periodInDays', periodInDays);
     if(periodInDays <= 100) {
       // Do nothing
@@ -474,32 +473,32 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     }
 
     return true;
-  }
-
-  const getXAxisLabel = (value: ReportGrouping): string => {
-    const labels: Record<ReportGrouping, string> = {
-      per_year: "Jaar",
-      per_month: "Maand",
-      per_week: "Week",
-      per_day: "Dag",
-      per_weekday: "Dag van de week",
-      per_hour: "Uur van de dag",
-      per_bucket: "Stallingsduur",
-      per_quarter: "Kwartaal",
-    };
-    return labels[value] || value;
   };
 
-  const getLegendaLabel = (value: ReportCategories): string => {
-    const labels: Record<ReportCategories, string> = {
-      none: "Geen",
-      per_stalling: "Per stalling",
-      per_weekday: "Per dag van de week",
-      per_section: "Per sectie",
-      per_type_klant: "Per type klant",
-    };
-    return labels[value] || value;
-  };
+  // const getXAxisLabel = (value: ReportGrouping): string => {
+  //   const labels: Record<ReportGrouping, string> = {
+  //     per_year: "Jaar",
+  //     per_month: "Maand",
+  //     per_week: "Week",
+  //     per_day: "Dag",
+  //     per_weekday: "Dag van de week",
+  //     per_hour: "Uur van de dag",
+  //     per_bucket: "Stallingsduur",
+  //     per_quarter: "Kwartaal",
+  //   };
+  //   return labels[value] || value;
+  // };
+
+  // const getLegendaLabel = (value: ReportCategories): string => {
+  //   const labels: Record<ReportCategories, string> = {
+  //     none: "Geen",
+  //     per_stalling: "Per stalling",
+  //     per_weekday: "Per dag van de week",
+  //     per_section: "Per sectie",
+  //     per_type_klant: "Per type klant",
+  //   };
+  //   return labels[value] || value;
+  // };
 
   const renderUnitSelect = () => {
     if (undefined === reportType) return null;
@@ -519,7 +518,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
     const showIntervalYear = showIntervalPeriods && true;
-    const showIntervalQuarter = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 1464 : false;
+    // const showIntervalQuarter = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 1464 : false;
     const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
     const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
     const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;

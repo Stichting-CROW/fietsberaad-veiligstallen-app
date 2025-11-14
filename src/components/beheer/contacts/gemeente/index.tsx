@@ -126,19 +126,19 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     }
   };
 
-  const getBeheert = (contact: VSContactGemeenteInLijst) => {
-    const managedIDs = contact.isManagingContacts?.map(c => c.childSiteID) || [];
-    const selected = managedIDs.map(id => {
-      // Check if it's a gemeente
-      const gemeente = gemeenten.find(g => g.ID === id);
-      if (gemeente) return gemeente.CompanyName;
-      // Check if it's an exploitant
-      const exploitant = exploitanten.find(e => e.ID === id);
-      if (exploitant) return exploitant.CompanyName;
-      return "Onbekende organisatie";
-    });
-    return selected.sort().map(o => <>{o}<br/></>);
-  };
+  // const getBeheert = (contact: VSContactGemeenteInLijst) => {
+  //   const managedIDs = contact.isManagingContacts?.map(c => c.childSiteID) || [];
+  //   const selected = managedIDs.map(id => {
+  //     // Check if it's a gemeente
+  //     const gemeente = gemeenten.find(g => g.ID === id);
+  //     if (gemeente) return gemeente.CompanyName;
+  //     // Check if it's an exploitant
+  //     const exploitant = exploitanten.find(e => e.ID === id);
+  //     if (exploitant) return exploitant.CompanyName;
+  //     return "Onbekende organisatie";
+  //   });
+  //   return selected.sort().map(o => <>{o}<br/></>);
+  // };
 
   const getWordtBeheerdDoor = (contact: VSContactGemeenteInLijst) => {
     const exploitantIDs = contact.isManagedByContacts?.map(c => c.parentSiteID) || [];
