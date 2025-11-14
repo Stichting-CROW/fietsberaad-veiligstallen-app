@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import GemeenteEdit from "~/components/contact/GemeenteEdit";
 import type { VSFietsenstallingType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
@@ -12,8 +13,12 @@ import type { ParkingDetailsType } from "~/types/parking";
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useUsers } from '~/hooks/useUsers';
 import { useExploitanten } from '~/hooks/useExploitanten';
+import { useExploitanten } from '~/hooks/useExploitanten';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { Table } from '~/components/common/Table';
+import { userHasRight } from '~/types/utils';
+import { VSSecurityTopic } from '~/types/securityprofile';
+import { ConfirmPopover } from '~/components/ConfirmPopover';
 import { userHasRight } from '~/types/utils';
 import { VSSecurityTopic } from '~/types/securityprofile';
 import { ConfirmPopover } from '~/components/ConfirmPopover';
@@ -25,6 +30,7 @@ type GemeenteComponentProps = {
 const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   const router = useRouter();
   const { data: session } = useSession();
+  const { data: session } = useSession();
   const { fietsenstallingtypen } = props;
 
   const [filteredGemeenten, setFilteredGemeenten] = useState<VSContactGemeenteInLijst[]>([]);
@@ -34,9 +40,15 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   const [archiveFilter, setArchiveFilter] = useState<"Actief" | "Verwijderd">("Actief");
   const [deleteAnchorEl, setDeleteAnchorEl] = useState<HTMLElement | null>(null);
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
+  const [archiveFilter, setArchiveFilter] = useState<"Actief" | "Verwijderd">("Actief");
+  const [deleteAnchorEl, setDeleteAnchorEl] = useState<HTMLElement | null>(null);
+  const [contactToDelete, setContactToDelete] = useState<string | null>(null);
 
   const { users, isLoading: isLoadingUsers, error: errorUsers } = useUsers();
   const { gemeenten, reloadGemeenten, isLoading: isLoadingGemeenten, error: errorGemeenten } = useGemeentenInLijst();
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
+
+  const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(undefined);
 
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
@@ -75,8 +87,61 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   };
 
   const handleUnarchiveContact = async (id: string) => {
+  const handleArchiveContact = async (id: string) => {
     try {
       const response = await fetch(`/api/protected/gemeenten/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ Status: "0" }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to archive gemeente');
+      }
+
+      reloadGemeenten();
+    } catch (error) {
+      console.error('Error archiving gemeente:', error);
+      alert('Er is een fout opgetreden bij het archiveren van de data-eigenaar.');
+    }
+  };
+
+  const handleUnarchiveContact = async (id: string) => {
+    try {
+      const response = await fetch(`/api/protected/gemeenten/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ Status: "1" }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to unarchive gemeente');
+      }
+
+      reloadGemeenten();
+    } catch (error) {
+      console.error('Error unarchiving gemeente:', error);
+      alert('Er is een fout opgetreden bij het herstellen van de data-eigenaar.');
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent<HTMLElement>, id: string) => {
+    setDeleteAnchorEl(e.currentTarget);
+    setContactToDelete(id);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteAnchorEl(null);
+    setContactToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!contactToDelete) return;
+
+    try {
+      const response = await fetch(`/api/protected/gemeenten/${contactToDelete}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -170,6 +235,17 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     });
 
     const sorted = [...archiveFiltered].sort((a, b) => {
+    // Apply archive filter
+    // Use filteredGemeenten which includes text filter from GemeenteFilter
+    const sourceData = filteredGemeenten;
+    const archiveFiltered = sourceData.filter(contact => {
+      const matchesArchiveFilter = archiveFilter === "Actief" 
+        ? contact.Status === "1" 
+        : contact.Status === "0";
+      return matchesArchiveFilter;
+    });
+
+    const sorted = [...archiveFiltered].sort((a, b) => {
       let aValue: string = '';
       let bValue: string = '';
 
@@ -216,8 +292,52 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
               </button>
             )}
           </div>
+          <h1 className="text-2xl font-bold">
+            {archiveFilter === "Actief" ? "Data-eigenaren" : "Gearchiveerde data-eigenaren"}
+          </h1>
+          <div className="flex items-center gap-2">
+            {hasFietsberaadSuperadmin && (
+              <button
+                onClick={() => setArchiveFilter(archiveFilter === "Actief" ? "Verwijderd" : "Actief")}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+              >
+                {archiveFilter === "Actief" ? "Gearchiveerde data-eigenaren" : "Terug"}
+              </button>
+            )}
+            {archiveFilter === "Actief" && (
+              <button 
+                onClick={() => handleEditContact('new')}
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Nieuwe data-eigenaar
+              </button>
+            )}
+          </div>
         </div>
 
+        {archiveFilter === "Actief" ? (
+          <GemeenteFilter
+            gemeenten={gemeenten}
+            users={users}
+            exploitanten={exploitanten}
+            onFilterChange={setFilteredGemeenten}
+            showStallingenFilter={true}
+            showUsersFilter={true}
+            showExploitantenFilter={true}
+            showModulesFilter={true}
+          />
+        ) : (
+          <GemeenteFilter
+            gemeenten={gemeenten}
+            users={users}
+            exploitanten={exploitanten}
+            onFilterChange={setFilteredGemeenten}
+            showStallingenFilter={false}
+            showUsersFilter={false}
+            showExploitantenFilter={false}
+            showModulesFilter={false}
+          />
+        )}
         {archiveFilter === "Actief" ? (
           <GemeenteFilter
             gemeenten={gemeenten}
@@ -257,8 +377,65 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
               header: "Wordt beheerd door", 
               accessor: (contact: VSContactGemeenteInLijst) => getWordtBeheerdDoor(contact)
             }] : []),
+            // TODO: Re-enable when needed
+            // ...(hasFietsberaadSuperadmin ? [{
+            //   header: "Beheert", 
+            //   accessor: (contact: VSContactGemeenteInLijst) => getBeheert(contact)
+            // }] : []),
+            ...(hasFietsberaadSuperadmin ? [{
+              header: "Wordt beheerd door", 
+              accessor: (contact: VSContactGemeenteInLijst) => getWordtBeheerdDoor(contact)
+            }] : []),
             {
               header: 'Acties',
+              accessor: (contact) => {
+                const isArchived = contact.Status === "0";
+                const showArchive = !isArchived && hasFietsberaadSuperadmin;
+                const showUnarchive = isArchived && hasFietsberaadSuperadmin && archiveFilter === "Verwijderd";
+                const showDelete = isArchived && hasFietsberaadSuperadmin && archiveFilter === "Verwijderd";
+                const showEdit = archiveFilter === "Actief";
+
+                return (
+                  <>
+                    {showEdit && (
+                      <button 
+                        onClick={() => handleEditContact(contact.ID)} 
+                        className="text-yellow-500 mx-1 disabled:opacity-40"
+                        title="Bewerken"
+                      >
+                        ✏️
+                      </button>
+                    )}
+                    {showArchive && (
+                      <button 
+                        onClick={() => handleArchiveContact(contact.ID)} 
+                        className="text-blue-500 mx-1 disabled:opacity-40"
+                        title="Archiveren"
+                      >
+                        📦
+                      </button>
+                    )}
+                    {showUnarchive && (
+                      <button 
+                        onClick={() => handleUnarchiveContact(contact.ID)} 
+                        className="text-green-500 mx-1 disabled:opacity-40"
+                        title="Herstellen"
+                      >
+                        ↪️
+                      </button>
+                    )}
+                    {showDelete && (
+                      <button 
+                        onClick={(e) => handleDeleteClick(e, contact.ID)} 
+                        className="text-red-500 mx-1 disabled:opacity-40"
+                        title="Verwijderen"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </>
+                );
+              }
               accessor: (contact) => {
                 const isArchived = contact.Status === "0";
                 const showArchive = !isArchived && hasFietsberaadSuperadmin;
@@ -327,6 +504,17 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           confirmText="Verwijderen"
           cancelText="Annuleren"
         />
+
+        <ConfirmPopover
+          open={Boolean(deleteAnchorEl)}
+          anchorEl={deleteAnchorEl}
+          onClose={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+          title="Organisatie verwijderen"
+          message="Weet je zeker dat je deze organisatie wilt verwijderen? Dit kan niet ongedaan worden gemaakt."
+          confirmText="Verwijderen"
+          cancelText="Annuleren"
+        />
       </div>
     );
   };
@@ -359,14 +547,18 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   };
 
   if(isLoadingUsers || isLoadingGemeenten || isLoadingExploitanten) {
+  if(isLoadingUsers || isLoadingGemeenten || isLoadingExploitanten) {
     const whatIsLoading = [
         isLoadingUsers && "Gebruikers",
         isLoadingGemeenten && "Gemeenten",
+        isLoadingExploitanten && "Exploitanten",
         isLoadingExploitanten && "Exploitanten",
     ].filter(Boolean).join(" + ");
     return <LoadingSpinner message={whatIsLoading + ' laden'} />;
   }
 
+  if(errorUsers || errorGemeenten || errorExploitanten) {
+    return <div>Error: {errorUsers || errorGemeenten || errorExploitanten}</div>;
   if(errorUsers || errorGemeenten || errorExploitanten) {
     return <div>Error: {errorUsers || errorGemeenten || errorExploitanten}</div>;
   }
