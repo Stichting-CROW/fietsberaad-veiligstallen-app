@@ -72,9 +72,12 @@ export default async function handle(
 
         // If there's a current contact person, remove the IsContact flag
         if (currentContact) {
-          await prisma.security_users_sites.update({
+          // Use updateMany with explicit UserID and SiteID to ensure we only update the intended record
+          await prisma.security_users_sites.updateMany({
             where: {
               ID: currentContact.ID,
+              UserID: currentContact.UserID,
+              SiteID: id, // Verify SiteID matches the gemeente we're updating
             },
             data: {
               IsContact: false,
@@ -93,10 +96,12 @@ export default async function handle(
           });
 
           if (existingRelation) {
-            // Update existing relation
-            await prisma.security_users_sites.update({
+            // Update existing relation - use updateMany with explicit UserID and SiteID to ensure we only update the intended record
+            await prisma.security_users_sites.updateMany({
               where: {
                 ID: existingRelation.ID,
+                UserID: contactID, // Verify UserID matches
+                SiteID: id, // Verify SiteID matches the gemeente we're updating
               },
               data: {
                 IsContact: true,
