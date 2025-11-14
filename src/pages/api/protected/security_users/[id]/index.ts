@@ -379,6 +379,11 @@ export default async function handle(
           where: { UserID: id }
         });
 
+        // delete user_status record if it exists
+        await prisma.user_status.deleteMany({
+          where: { UserID: id }
+        });
+
         // delete the user
         await prisma.security_users.delete({
           where: { UserID: id }

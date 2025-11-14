@@ -244,6 +244,20 @@ export default async function handle(
           }
         });
 
+        // delete all security_users_sites records for these users
+        await prisma.security_users_sites.deleteMany({
+          where: {
+            UserID: { in: userIDs },
+          }
+        });
+
+        // delete user_status records for these users
+        await prisma.user_status.deleteMany({
+          where: {
+            UserID: { in: userIDs },
+          }
+        });
+
         // delete all users that have a role assignment for this contact
         await prisma.security_users.deleteMany({
           where: {
