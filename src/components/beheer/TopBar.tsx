@@ -107,7 +107,7 @@ const TopBar: React.FC<TopBarProps> = ({
     
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
       //console.log('renderLogo :: activecontact.CompanyLogo starts with http');
-      return <img src={activecontact?.CompanyLogo} className="max-h-16 w-auto bg-white p-2" />
+      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto object-contain" />
     }
 
     let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -127,11 +127,11 @@ const TopBar: React.FC<TopBarProps> = ({
         alt="Logo"
         width={64}
         height={64}
-        className="max-h-16 w-auto bg-white p-2"
+        className="max-h-12 w-auto object-contain"
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-16 w-auto bg-white p-2" />
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto object-contain" />
   }
 
 
@@ -171,60 +171,49 @@ const TopBar: React.FC<TopBarProps> = ({
     ` (${getNewRoleLabel(session?.user?.securityProfile?.roleId)})` : "";
 
   return (
-    <div
-      className="
-      z-10 flex w-full items-center
-      justify-between bg-white px-5 shadow
-    "
-    style={{minHeight: '64px'}}
-    >
-      <div>
-        {renderLogo()}
-      </div>
+    <header className="z-10 w-full border-b border-gray-200 bg-white shadow-sm">
       <div
-        className="
-        primaryMenuItems-wrapper
-
-        flex-start
-        flex flex-1 flex-wrap
-        overflow-hidden text-left
-        opacity-100
-        transition-opacity
-        duration-500
-      
-      "
-        style={{ flex: 4 }}
+        className="flex w-full items-center justify-between gap-6 px-6"
+        style={{ minHeight: '64px' }}
       >
-        <div className="PrimaryMenuItem bock px-5">
-          <a
-            href="/"
-            className="flex h-full flex-col justify-center"
+        <div className="flex flex-1 items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {renderLogo()}
+          </div>
+          <button
+            type="button"
             onClick={e => {
               e.preventDefault();
               push("/");
             }}
+            className="flex h-12 w-12 items-center justify-center rounded-xl border border-transparent bg-sky-50 text-sky-600 transition hover:border-sky-200 hover:bg-sky-100"
           >
-            <img src="/images/icon-map.png" style={{ height: "30px" }} />
-          </a>
+            <img src="/images/icon-map.png" className="h-6 w-6" alt="Kaart" />
+          </button>
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-slate-900">{title}</p>
+            {session?.user?.name && (
+              <button
+                type="button"
+                onClick={handleDisplaySessionInfo}
+                className="text-left text-sm font-medium text-slate-500 hover:text-slate-600"
+              >
+                {session?.user?.name || "---"}{userRole}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="PrimaryMenuItem px-5">
-          <h1 className="text-sm font-semibold">{title}</h1>
-          {session?.user?.name && (
-            <div className="font-normal text-xs" onClick={handleDisplaySessionInfo}>
-              {session?.user?.name || "---"}{userRole}
-            </div>
-          )}
-        </div>
-      </div>
-      <div
-        className="flex items-center justify-end space-x-4 text-sm whitespace-nowrap"
-        style={{ flex: 3 }}
-      >
+        <div className="flex flex-none items-center justify-end gap-3 text-sm">
         {shouldShowOrganisatieList && organisaties && organisaties.length > 0 && (
           <select
             onChange={handleOrganisatieChange}
             value={selectedOrganisatieID || ""}
-            className="rounded bg-gray-700 px-2 py-1 text-white"
+            className="
+              h-10 rounded-lg border border-gray-300 bg-white px-3 font-medium text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400
+            "
+            style={{
+              maxWidth: '230px'
+            }}
           >
             {organisaties.map(organisatie => (
               <option
@@ -241,15 +230,8 @@ const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={() => onOrganisatieSelect(ownOrganisationID||"")}
             className="
-              flex
-              h-10
-              flex-col
-              justify-center
-              rounded-md
-              px-4
-              font-bold
-              text-white
-              shadow-lg
+              inline-flex h-10 items-center justify-center rounded-lg px-4
+              font-semibold text-white shadow-lg transition hover:brightness-110
             "
             style={{
               backgroundColor: themeColor1 || "#15aeef",
@@ -263,16 +245,8 @@ const TopBar: React.FC<TopBarProps> = ({
           href="https://fms.veiligstallen.nl"
           target="_blank"
           className="
-            mx-2
-            flex
-            h-10
-            flex-col
-            justify-center
-            rounded-md
-            px-4
-            font-bold
-            text-white
-            shadow-lg
+            inline-flex h-10 items-center justify-center rounded-lg px-4
+            font-semibold text-white shadow-lg transition hover:brightness-110
           "
           style={{
             backgroundColor: themeColor1 || "#15aeef",
@@ -284,14 +258,8 @@ const TopBar: React.FC<TopBarProps> = ({
 
         <button
           className="
-            mx-2
-            h-10
-            rounded-md
-            px-4
-            font-bold
-            text-white
-            shadow-lg
-            whitespace-nowrap
+            inline-flex h-10 items-center justify-center whitespace-nowrap rounded-lg px-4
+            font-semibold text-white shadow-lg transition hover:brightness-110
           "
           style={{
             backgroundColor: themeColor2 || themeColor1,
@@ -301,7 +269,8 @@ const TopBar: React.FC<TopBarProps> = ({
           {session ? "Log uit" : "Log in"}
         </button>
       </div>
-    </div>
+      </div>
+    </header>
   );
 };
 

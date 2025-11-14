@@ -159,31 +159,57 @@ export default async function handle(
         }
 
         const parsed = parseResult.data;
+        
+        // Check if Status is being changed (archive/unarchive operation)
+        if (parsed.Status !== undefined) {
+          const hasFietsberaadSuperadmin = userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasFietsberaadSuperadmin) {
+            console.error("Unauthorized - no fietsberaad superadmin rights for archive/unarchive");
+            res.status(403).json({ error: "Alleen fietsberaad superadmins kunnen organisaties archiveren/herstellen" });
+            return;
+          }
+        }
+        
+        // Check if user is a fietsberaad admin (mainContactId === "1")
+        const isFietsberaadAdmin = session.user.mainContactId === "1";
+        
+        // Build update data, excluding restricted fields for non-fietsberaad admins
+        const updateData: any = {
+          CompanyName: parsed.CompanyName,
+          ItemType: VSContactItemType.Organizations,
+          Helpdesk: parsed.Helpdesk ?? undefined,
+          CompanyLogo: parsed.CompanyLogo ?? undefined,
+          CompanyLogo2: parsed.CompanyLogo2 ?? undefined,
+          ThemeColor1: parsed.ThemeColor1 ?? undefined,
+          ThemeColor2: parsed.ThemeColor2 ?? undefined,
+          DayBeginsAt: parsed.DayBeginsAt ? new Date(parsed.DayBeginsAt) : undefined,
+          Coordinaten: parsed.Coordinaten !== undefined ? parsed.Coordinaten : undefined,
+          Zoom: parsed.Zoom !== undefined ? parsed.Zoom : undefined,
+          Bankrekeningnr: parsed.Bankrekeningnr ?? undefined,
+          PlaatsBank: parsed.PlaatsBank ?? undefined,
+          Tnv: parsed.Tnv ?? undefined,
+          Notes: parsed.Notes ?? undefined,
+          DateRegistration: parsed.DateRegistration === null ? null : parsed.DateRegistration ? new Date(parsed.DateRegistration) : undefined,
+          DateConfirmed: parsed.DateConfirmed === null ? null : parsed.DateConfirmed ? new Date(parsed.DateConfirmed) : undefined,
+          DateRejected: parsed.DateRejected === null ? null : parsed.DateRejected ? new Date(parsed.DateRejected) : undefined,
+        };
+
+        // Only allow fietsberaad admins to update restricted fields
+        if (isFietsberaadAdmin) {
+          updateData.AlternativeCompanyName = parsed.AlternativeCompanyName ?? undefined;
+          updateData.UrlName = parsed.UrlName ?? undefined;
+          updateData.ZipID = parsed.ZipID ?? undefined;
+        }
+
+        // Add Status if it's being updated (archive/unarchive)
+        if (parsed.Status !== undefined) {
+          updateData.Status = parsed.Status;
+        }
+
         const updatedOrg = await prisma.contacts.update({
           select: gemeenteSelect,
           where: { ID: id },
-          data: {
-            CompanyName: parsed.CompanyName,
-            ItemType: VSContactItemType.Organizations,
-            AlternativeCompanyName: parsed.AlternativeCompanyName ?? undefined,
-            UrlName: parsed.UrlName ?? undefined,
-            ZipID: parsed.ZipID ?? undefined,
-            Helpdesk: parsed.Helpdesk ?? undefined,
-            CompanyLogo: parsed.CompanyLogo ?? undefined,
-            CompanyLogo2: parsed.CompanyLogo2 ?? undefined,
-            ThemeColor1: parsed.ThemeColor1 ?? undefined,
-            ThemeColor2: parsed.ThemeColor2 ?? undefined,
-            DayBeginsAt: parsed.DayBeginsAt ? new Date(parsed.DayBeginsAt) : undefined,
-            Coordinaten: parsed.Coordinaten ?? undefined,
-            Zoom: parsed.Zoom ?? undefined,
-            Bankrekeningnr: parsed.Bankrekeningnr ?? undefined,
-            PlaatsBank: parsed.PlaatsBank ?? undefined,
-            Tnv: parsed.Tnv ?? undefined,
-            Notes: parsed.Notes ?? undefined,
-            DateRegistration: parsed.DateRegistration === null ? null : parsed.DateRegistration ? new Date(parsed.DateRegistration) : undefined,
-            DateConfirmed: parsed.DateConfirmed === null ? null : parsed.DateConfirmed ? new Date(parsed.DateConfirmed) : undefined,
-            DateRejected: parsed.DateRejected === null ? null : parsed.DateRejected ? new Date(parsed.DateRejected) : undefined,
-          }
+          data: updateData
         });
         res.status(200).json({data: updatedOrg});
       } catch (e) {

@@ -237,9 +237,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const exploitantnaam = exploitanten?.find(exploitant => exploitant.ID === selectedContactID)?.CompanyName || "";
 
   const contacts = [
-    { ID: "1", CompanyName: "Fietsberaad" },
-    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID})),
-    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+    { ID: "1", CompanyName: "Fietsberaad", ItemType: "admin" },
+    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID, ItemType: "organizations"})),
+    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID, ItemType: "exploitant"}))
   ];
 
   const renderComponent = () => {
@@ -347,9 +347,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         // case VSMenuTopic.ExploreUsersColdfusion:
         //   selectedComponent = <ExploreUsersComponentColdfusion />;
         //   break;
-        case VSMenuTopic.ExploreGemeenten:
-          selectedComponent = <ExploreGemeenteComponent />;
-          break;
         case VSMenuTopic.Wachtrij:
           selectedComponent = <WachtrijMonitorComponent />;
           break;
@@ -404,14 +401,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.Settings:
           selectedComponent = <SettingsComponent />;
           break;
-        case VSMenuTopic.SettingsGemeente:
+        case VSMenuTopic.SettingsGemeente: {
+          const handleGemeenteSettingsClose = (confirmClose: boolean) => {
+            if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
+              return;
+            }
+            queryRouter.push('/beheer/home');
+          };
           selectedComponent =           
             <GemeenteEdit 
               fietsenstallingtypen={fietsenstallingtypen || []}
               id={selectedContactID} 
-              onClose={undefined} 
+              onClose={handleGemeenteSettingsClose} 
             />
           break;
+        }
         case VSMenuTopic.SettingsExploitant:
           selectedComponent =           
             <ExploitantEdit 
@@ -478,12 +482,20 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
     // By default: render empty left menu
     else {
-      return <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4" />
+      return (
+        <nav
+          id="leftMenu"
+          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+          aria-label="Hoofdmenu"
+        >
+          <ul className="space-y-1" />
+        </nav>
+      );
     }
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-y-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <TopBar
         gemeenten={gemeenten}
         exploitanten={exploitanten}
@@ -496,7 +508,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
-        <div className={`flex-1 p-4 overflow-auto`} style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
           {renderComponent()}
         </div>
       </div>

@@ -123,6 +123,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   const initialLatLng = useSelector(
     (state: AppState) => state.map.initialLatLng
   );
+  const initialZoom = useSelector(
+    (state: AppState) => state.map.initialZoom
+  );
 
   // const municipalities = useSelector(
   //   (state: AppState) => state.geo.municipalities
@@ -218,9 +221,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
       // speed: 0.75,
       duration: 1500,
       essential: true,
-      zoom: 13,
+      zoom: initialZoom || 13,
     });
-  }, [stateMap, initialLatLng]);
+  }, [stateMap, initialLatLng, initialZoom]);
 
   // If 'fietsenstallingen' variable changes: Update source data
   React.useEffect(() => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
-import { Tabs, Tab } from '@mui/material';
+import GemeenteMapEditor from "~/components/contact/GemeenteMapEditor";
+import { Tabs, Tab, Slider, Typography } from '@mui/material';
 import type { VSFietsenstallingType } from "~/types/parking";
 import FormInput from "~/components/Form/FormInput";
 import FormTimeInput from "~/components/Form/FormTimeInput";
@@ -8,6 +8,7 @@ import ContactEditLogo from "~/components/contact/ContactEditLogo";
 import SectionBlockEdit from "~/components/SectionBlock";
 import PageTitle from "~/components/PageTitle";
 import Button from '@mui/material/Button';
+import { useSession } from "next-auth/react";
 
 import { type VSContactGemeente, VSContactItemType } from '~/types/contacts';
 import type { GemeenteValidateResponse } from '~/pages/api/protected/gemeenten/validate';
@@ -33,12 +34,16 @@ const DEFAULTGEMEENTE: VSContactGemeente = getDefaultNewGemeente("Data-eigenaar 
 
 const GemeenteEdit = (props: GemeenteEditProps) => {
     const [selectedTab, setSelectedTab] = useState<string>("tab-algemeen");
-    const [centerCoords, setCenterCoords] = React.useState<string | undefined>(undefined);
     const [isEditing, setIsEditing] = useState(!!props.onClose);
+    const { data: session } = useSession();
 
     const { gemeente: activecontact, isLoading: isLoading, error: error, reloadGemeente: reloadGemeente } = useGemeente(props.id);
     const { modulesContacts, loading: modulesLoading, error: modulesError, createModulesContacts, deleteModulesContactsForContact } = useModulesContacts(props.id === "new" ? undefined : props.id);
     const { users: contactpersons, reloadUsers } = useUsers(props.id);
+
+    // Check if user is editing from within a data-owner organization (not fietsberaad)
+    // Hide restricted fields when editing a non-fietsberaad organization from within that organization
+    const isDataOwnerEdit = props.id !== "1" && session?.user?.activeContactId === props.id;
 
     type CurrentState = {
       CompanyName: string|null,
@@ -56,7 +61,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Notes: string|null,
       DateRegistration: Date|null,
       Modules: string,
-      selectedModules: string[]
+      selectedModules: string[],
+      ThemeColor1: string|null,
+      ThemeColor2: string|null
     }
   
     const isNew = props.id === "new";
@@ -69,8 +76,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [Helpdesk, setHelpdesk] = useState<string|null>(null);
     const [DayBeginsAt, setDayBeginsAt] = useState<Date|null>(null);
     const [selectedModules, setSelectedModules] = useState<string[]>([]);
-    const [Coordinaten, setCoordinaten] = useState<string|null>(null);
-    const [Zoom, setZoom] = useState<number>(13);
+    const [newCoordinaten, setNewCoordinaten] = useState<string | undefined>(undefined);
+    const [newZoom, setNewZoom] = useState<number | undefined>(undefined);
     const [Bankrekeningnr, setBankrekeningnr] = useState<string|null>(null);
     const [PlaatsBank, setPlaatsBank] = useState<string|null>(null);
     const [Tnv, setTnv] = useState<string|null>(null);
@@ -78,6 +85,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [DateRegistration, setDateRegistration] = useState<Date|null>(null);
     const [contactID, setContactID] = useState<string|null>(null);
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
+    const [ThemeColor1, setThemeColor1] = useState<string|null>(null);
+    const [ThemeColor2, setThemeColor2] = useState<string|null>(null);
   
     const cDefaultCoordinaten = [52.1326, 5.2913].join(","); // center of NL by default 
   
@@ -98,6 +107,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       DateRegistration: null,
       Modules: "",
       selectedModules: [],
+      ThemeColor1: null,
+      ThemeColor2: null,
     });
 
     useEffect(() => {
@@ -138,6 +149,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 DateRegistration: DEFAULTGEMEENTE.DateRegistration,
                 Modules: "",
                 selectedModules: [],
+                ThemeColor1: DEFAULTGEMEENTE.ThemeColor1 ? DEFAULTGEMEENTE.ThemeColor1.replace('#', '') : '1f99d2',
+                ThemeColor2: DEFAULTGEMEENTE.ThemeColor2 ? DEFAULTGEMEENTE.ThemeColor2.replace('#', '') : '96c11f',
             };
 
             setCompanyName(initial.CompanyName);
@@ -146,14 +159,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             setZipID(initial.ZipID);
             setHelpdesk(initial.Helpdesk);
             setDayBeginsAt(initial.DayBeginsAt);
-            setCoordinaten(initial.Coordinaten);
-            setZoom(initial.Zoom);
+            setNewCoordinaten(undefined);
+            setNewZoom(undefined);
             setBankrekeningnr(initial.Bankrekeningnr);
             setPlaatsBank(initial.PlaatsBank);
             setTnv(initial.Tnv);
             setNotes(initial.Notes);
             setDateRegistration(initial.DateRegistration);
             setSelectedModules([]);
+            setThemeColor1(initial.ThemeColor1);
+            setThemeColor2(initial.ThemeColor2);
 
             setInitialData(initial);
         } else {
@@ -180,6 +195,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     DateRegistration: activecontact.DateRegistration || initialData.DateRegistration,
                     Modules: "",
                     selectedModules: currentModules,
+                    ThemeColor1: activecontact.ThemeColor1 || initialData.ThemeColor1,
+                    ThemeColor2: activecontact.ThemeColor2 || initialData.ThemeColor2,
                 };
         
                 setCompanyName(initial.CompanyName);
@@ -188,13 +205,15 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setZipID(initial.ZipID);
                 setHelpdesk(initial.Helpdesk);
                 setDayBeginsAt(initial.DayBeginsAt);
-                setCoordinaten(initial.Coordinaten);
-                setZoom(initial.Zoom);
+                setNewCoordinaten(undefined);
+                setNewZoom(undefined);
                 setBankrekeningnr(initial.Bankrekeningnr);
                 setPlaatsBank(initial.PlaatsBank);
                 setTnv(initial.Tnv);
                 setNotes(initial.Notes);
                 setDateRegistration(initial.DateRegistration);
+                setThemeColor1(initial.ThemeColor1);
+                setThemeColor2(initial.ThemeColor2);
         
                 setInitialData(initial);
                 
@@ -213,7 +232,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
     const isDataChanged = () => {
       if (isNew) {
-        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!Coordinaten || !!Zoom || selectedModules.length > 0;
+        const currentCoordinaten = newCoordinaten !== undefined ? newCoordinaten : (initialData.Coordinaten || '');
+        const currentZoom = newZoom !== undefined ? newZoom : (initialData.Zoom || 13);
+        return !!CompanyName || !!ZipID || !!DayBeginsAt || !!currentCoordinaten || !!currentZoom || selectedModules.length > 0;
       }
 
       return (
@@ -224,8 +245,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           ZipID !== initialData.ZipID ||
           Helpdesk !== initialData.Helpdesk ||
           DayBeginsAt !== initialData.DayBeginsAt ||
-          Coordinaten !== initialData.Coordinaten ||
-          Zoom !== initialData.Zoom ||
+          (newCoordinaten !== undefined && newCoordinaten !== initialData.Coordinaten) ||
+          (newZoom !== undefined && newZoom !== initialData.Zoom) ||
           Bankrekeningnr !== initialData.Bankrekeningnr ||
           PlaatsBank !== initialData.PlaatsBank ||
           Tnv !== initialData.Tnv ||
@@ -233,7 +254,9 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           DateRegistration !== initialData.DateRegistration ||
           selectedModules.length !== initialData.selectedModules.length ||
           selectedModules.some(module => !initialData.selectedModules.includes(module)) ||
-          initialData.selectedModules.some(module => !selectedModules.includes(module))
+          initialData.selectedModules.some(module => !selectedModules.includes(module)) ||
+          ThemeColor1 !== initialData.ThemeColor1 ||
+          ThemeColor2 !== initialData.ThemeColor2
       );
     };
 
@@ -302,8 +325,21 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     };
     
       const handleUpdate = async () => {
-        if (!CompanyName || !ZipID || !DayBeginsAt || !Coordinaten) {
-          alert("Organisatie, Postcode ID, Dagstart en Coordinaten mogen niet leeg zijn.");
+        // Get current coordinate value (newCoordinaten if changed, otherwise initialData)
+        const currentCoordinaten = newCoordinaten !== undefined ? newCoordinaten : (initialData.Coordinaten || '');
+        
+        // For data-owner edits, ZipID is not required (it's hidden)
+        const requiredFields = isDataOwnerEdit 
+          ? { CompanyName, DayBeginsAt, Coordinaten: currentCoordinaten }
+          : { CompanyName, ZipID, DayBeginsAt, Coordinaten: currentCoordinaten };
+        
+        if (!requiredFields.CompanyName || (!isDataOwnerEdit && !requiredFields.ZipID) || !requiredFields.DayBeginsAt || !requiredFields.Coordinaten) {
+          const missingFields = [];
+          if (!requiredFields.CompanyName) missingFields.push("Organisatie");
+          if (!isDataOwnerEdit && !requiredFields.ZipID) missingFields.push("Postcode ID");
+          if (!requiredFields.DayBeginsAt) missingFields.push("Dagstart");
+          if (!requiredFields.Coordinaten) missingFields.push("Coördinaten");
+          alert(`${missingFields.join(", ")} mogen niet leeg zijn.`);
           return;
         }
 
@@ -314,19 +350,26 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             ID:id,
             ItemType: VSContactItemType.Organizations,
             CompanyName: CompanyName || '',
-            AlternativeCompanyName: AlternativeCompanyName || '',
-            UrlName: UrlName || '',
-            ZipID: ZipID || '',
+            // Only include restricted fields if user is not a data-owner editing their own org
+            ...(isDataOwnerEdit ? {} : {
+              AlternativeCompanyName: AlternativeCompanyName || '',
+              UrlName: UrlName || '',
+              ZipID: ZipID || '',
+            }),
             Helpdesk: Helpdesk || '',
-            DayBeginsAt: DayBeginsAt,
-            Coordinaten: Coordinaten || '',
-            Zoom: Zoom,
+            DayBeginsAt: DayBeginsAt || undefined,
+            Coordinaten: newCoordinaten,
+            Zoom: newZoom,
             Bankrekeningnr: Bankrekeningnr || '',
             PlaatsBank: PlaatsBank || '',
             Tnv: Tnv || '',
             Notes: Notes || '',
             DateRegistration: DateRegistration,
+            ThemeColor1: ThemeColor1 || undefined,
+            ThemeColor2: ThemeColor2 || undefined,
           }
+
+          console.log("update data-owner:", data);
 
           const urlValidate = `/api/protected/gemeenten/validate/`;
           const responseValidate = await makeClientApiCall<GemeenteValidateResponse>(urlValidate, 'POST', data);
@@ -335,13 +378,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             return;
           }
 
+
           if (!responseValidate.result.valid) {
+            console.log("handleUpdate 3", responseValidate.result.message);
             setErrorMessage(responseValidate.result.message);
             return;
           }
 
           const method = isNew ? 'POST' : 'PUT';
           const url = `/api/protected/gemeenten/${id}`;
+
           const response = await makeClientApiCall<GemeenteResponse>(url, method, data);
           if(!response.success) {
             setErrorMessage(`Kan gemeentedata niet opslaan: (${response.error})`);
@@ -350,8 +396,44 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     
           if (!response.result?.error) {
             if (!isNew && props.id) {
-              await saveModules();
-              await saveContactPerson();
+              // Only save modules and contact person if user is not a data-owner editing their own org
+              if (!isDataOwnerEdit) {
+                await saveModules();
+                await saveContactPerson();
+              }
+            }
+            
+            // Update initialData with saved values to consolidate changes
+            const savedCoordinaten = newCoordinaten !== undefined ? newCoordinaten : initialData.Coordinaten;
+            const savedZoom = newZoom !== undefined ? newZoom : initialData.Zoom;
+            
+            setInitialData(prev => ({
+              ...prev,
+              CompanyName: CompanyName || prev.CompanyName,
+              AlternativeCompanyName: AlternativeCompanyName || prev.AlternativeCompanyName,
+              UrlName: UrlName || prev.UrlName,
+              ZipID: ZipID || prev.ZipID,
+              Helpdesk: Helpdesk || prev.Helpdesk,
+              DayBeginsAt: DayBeginsAt || prev.DayBeginsAt,
+              Coordinaten: savedCoordinaten,
+              Zoom: savedZoom,
+              Bankrekeningnr: Bankrekeningnr || prev.Bankrekeningnr,
+              PlaatsBank: PlaatsBank || prev.PlaatsBank,
+              Tnv: Tnv || prev.Tnv,
+              Notes: Notes || prev.Notes,
+              DateRegistration: DateRegistration || prev.DateRegistration,
+              ThemeColor1: ThemeColor1 || prev.ThemeColor1,
+              ThemeColor2: ThemeColor2 || prev.ThemeColor2,
+            }));
+            
+            // Reset state to use initialData values (consolidate changes)
+            // This ensures the map shows only one marker at the saved location
+            setNewCoordinaten(undefined);
+            setNewZoom(undefined);
+            
+            // Reload gemeente data to get latest from database
+            if (!isNew) {
+              await reloadGemeente();
             }
             
             if (props.onClose) {
@@ -374,8 +456,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setZipID(null);
           setHelpdesk(null);
           setDayBeginsAt(null);
-          setCoordinaten(null);
-          setZoom(13);
+          setNewCoordinaten(undefined);
+          setNewZoom(undefined);
           setBankrekeningnr(null);
           setPlaatsBank(null);
           setTnv(null);
@@ -383,6 +465,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setDateRegistration(null);
           setSelectedModules([]);
           setContactID(null);
+          setThemeColor1(null);
+          setThemeColor2(null);
         } else {
           setCompanyName(initialData.CompanyName);
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
@@ -390,14 +474,16 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setZipID(initialData.ZipID);
           setHelpdesk(initialData.Helpdesk);
           setDayBeginsAt(initialData.DayBeginsAt);
-          setCoordinaten(initialData.Coordinaten);
-          setZoom(initialData.Zoom);
+          setNewCoordinaten(undefined);
+          setNewZoom(undefined);
           setBankrekeningnr(initialData.Bankrekeningnr);
           setPlaatsBank(initialData.PlaatsBank);
           setTnv(initialData.Tnv);
           setNotes(initialData.Notes);
           setDateRegistration(initialData.DateRegistration);
           setContactID(initialData.contactID);
+          setThemeColor1(initialData.ThemeColor1);
+          setThemeColor2(initialData.ThemeColor2);
           if (modulesContacts) {
             const moduleIds = modulesContacts.map(mc => mc.ModuleID);
             setSelectedModules(moduleIds);
@@ -405,39 +491,28 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         }
       };
     
-      const updateCoordinatesFromMap = (lat: number, lng: number) => {
+      const handleCoordinatesChanged = (lat: number, lng: number) => {
         const latlngstring = `${lat},${lng}`;
-        if (latlngstring !== Coordinaten) {
-          setCoordinaten(latlngstring);
+        const originalCoords = initialData.Coordinaten || '';
+        if (latlngstring !== originalCoords) {
+          setNewCoordinaten(latlngstring);
         } else {
-          setCoordinaten(null);
+          setNewCoordinaten(undefined); // Revert to original
         }
-        setCenterCoords(undefined);
-      }
+      };
     
-      const updateCoordinatesFromForm = (isLat: boolean) => (e: { target: { value: string; }; }) => {
-        try {
-          const latlng = initialData.Coordinaten?.split(",")||cDefaultCoordinaten.split(",");
-          if (isLat) {
-            latlng[0] = e.target.value;
-          } else {
-            latlng[1] = e.target.value;
-          }
-          const latlngstring = latlng.join(",");
-          if (latlngstring !== Coordinaten) {
-            setCoordinaten(latlngstring);
-          }
-        } catch (e) {
-          console.error(e);
+      const handleZoomChanged = (zoom: number) => {
+        const originalZoom = initialData.Zoom || 13;
+        if (zoom !== originalZoom) {
+          setNewZoom(zoom);
+        } else {
+          setNewZoom(undefined); // Revert to original
         }
       };
     
       const getCoordinate = (isLat: boolean): string => {
-        let coords = initialData.Coordinaten;
-        if (Coordinaten !== null) {
-          coords = Coordinaten;
-        }
-        if (coords === null || coords === "") return "";
+        const coords = newCoordinaten !== undefined ? newCoordinaten : (initialData.Coordinaten || '');
+        if (coords === "" || coords === null) return "";
     
         const latlng = coords.split(",");
         if (isLat) {
@@ -522,8 +597,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
         </div>
             <Tabs value={selectedTab} onChange={handleChange} aria-label="Edit contact">
               <Tab label="Algemeen" value="tab-algemeen" />
-              <Tab label="Logos" value="tab-logos" />
-              {/* <Tab label="Coordinaten" value="tab-coordinaten" /> */}
+              <Tab label="Thema" value="tab-thema" />
+              <Tab label="Kaart" value="tab-kaart" />
             </Tabs>
             {selectedTab === "tab-algemeen" && (
               <div className="mt-4 w-full">
@@ -540,7 +615,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     disabled={!isEditing}
                   />
                   <br />
-                  {props.id !== "new" && <>
+                  {props.id !== "new" && !isDataOwnerEdit && <>
                     { contactpersons.length > 0 ?
                         <FormSelect 
                           label="Contactpersoon"
@@ -560,28 +635,34 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                       <br />
                     </>
                   }
-                  <FormInput 
-                    label="Alternatieve naam"
-                    value={AlternativeCompanyName || ''} 
-                    onChange={(e) => setAlternativeCompanyName(e.target.value || null)} 
-                    disabled={!isEditing}
-                  />
-                  <br />
-                  <FormInput 
-                    label="URL vriendelijke naam"
-                    value={UrlName || ''} 
-                    onChange={(e) => setUrlName(e.target.value || null)} 
-                    disabled={!isEditing}
-                  />
-                  <br />
-                  <FormInput 
-                    label="Postcode ID"
-                    value={ZipID || ''} 
-                    onChange={(e) => setZipID(e.target.value || null)} 
-                    required
-                    disabled={!isEditing}
-                  />
-                  <br />
+                  {!isDataOwnerEdit && <>
+                    <FormInput 
+                      label="Alternatieve naam"
+                      value={AlternativeCompanyName || ''} 
+                      onChange={(e) => setAlternativeCompanyName(e.target.value || null)} 
+                      disabled={!isEditing}
+                    />
+                    <br />
+                    <FormInput 
+                      label="URL vriendelijke naam"
+                      value={UrlName || ''} 
+                      onChange={(e) => setUrlName(e.target.value || null)} 
+                      disabled={!isEditing}
+                    />
+                    <br />
+                  </>}
+                  {!isDataOwnerEdit && (
+                    <>
+                      <FormInput 
+                        label="Postcode ID"
+                        value={ZipID || ''} 
+                        onChange={(e) => setZipID(e.target.value || null)} 
+                        required
+                        disabled={!isEditing}
+                      />
+                      <br />
+                    </>
+                  )}
                   <FormInput 
                     label="Email helpdesk"
                     value={Helpdesk || ''} 
@@ -596,30 +677,107 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     disabled={!isEditing}
                   />
                   <br />
-                  <FormGroup>
-                    <FormLabel>Modules</FormLabel>
-                    {AVAILABLE_MODULES.map((module) => (
-                      <FormControlLabel
-                        key={module.ID}
-                        control={
-                          <Checkbox 
-                            checked={selectedModules.includes(module.ID)}
-                            onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
-                            disabled={!isEditing}
+                  {!isDataOwnerEdit && (
+                    <>
+                      <div>
+                        <b>Modules</b>
+                      </div>
+                      <FormGroup>
+                        {AVAILABLE_MODULES.map((module) => (
+                          <FormControlLabel
+                            key={module.ID}
+                            control={
+                              <Checkbox 
+                                checked={selectedModules.includes(module.ID)}
+                                onChange={(e) => handleModuleChange(module.ID, e.target.checked)}
+                                disabled={!isEditing}
+                              />
+                            }
+                            label={module.Name}
                           />
-                        }
-                        label={module.Name}
+                        ))}
+                      </FormGroup>
+                    </>
+                  )}
+                  <br />
+                  <FormInput 
+                    label="Registratiedatum"
+                    value={DateRegistration 
+                      ? new Date(DateRegistration).toLocaleDateString('nl-NL', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric' 
+                        }).replace(/\//g, '-')
+                      : ''} 
+                    disabled={true}
+                  />
+              </div>
+            )}
+            {selectedTab === "tab-kaart" && (
+              <div className="border px-4 py-2 space-y-4">
+                <div className="relative">
+                  <GemeenteMapEditor 
+                    coordinaten={newCoordinaten !== undefined ? newCoordinaten : (initialData.Coordinaten || '')} 
+                    zoom={newZoom !== undefined ? newZoom : (initialData.Zoom || 13)}
+                    onCoordinatesChanged={handleCoordinatesChanged}
+                    onZoomChanged={handleZoomChanged}
+                    disabled={!isEditing}
+                  />
+                  <div className="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-sm">
+                    Klik om de kaart te bewegen
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Typography variant="h6" className="text-center">
+                    Verschuif de kaart om de coordinaten aan te passen
+                  </Typography>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="w-56">
+                      <FormInput
+                        label="Latitude"
+                        type="number"
+                        value={getCoordinate(true)}
+                        disabled={true}
+                        placeholder="52.095346"
                       />
-                    ))}
-                  </FormGroup>
+                    </div>
+                    <div className="w-56">
+                      <FormInput
+                        label="Longitude"
+                        type="number"
+                        value={getCoordinate(false)}
+                        disabled={true}
+                        placeholder="5.108147"
+                      />
+                    </div>
+                    <div>
+                      <Typography gutterBottom className="text-sm font-bold">
+                        Zoom niveau: {newZoom !== undefined ? newZoom : (initialData.Zoom || 13)}
+                      </Typography>
+                      <Slider
+                        value={newZoom !== undefined ? newZoom : (initialData.Zoom || 13)}
+                        onChange={(e, newValue) => {
+                          if (typeof newValue === 'number') {
+                            handleZoomChanged(newValue);
+                          }
+                        }}
+                        min={0}
+                        max={22}
+                        step={1}
+                        disabled={!isEditing}
+                        marks={[
+                          { value: 0, label: '0' },
+                          { value: 11, label: '11' },
+                          { value: 22, label: '22' }
+                        ]}
+                        valueLabelDisplay="auto"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
-            {selectedTab === "tab-coordinaten" && (
-              <div className="border px-4 py-2">
-                <ParkingEditLocation parkingCoords={Coordinaten !== null ? Coordinaten : initialData.Coordinaten} centerCoords={centerCoords} onPan={updateCoordinatesFromMap} initialZoom={8} />
-              </div>
-            )}
-            {selectedTab === "tab-logos" && (
+            {selectedTab === "tab-thema" && (
               <div className="border px-4 py-2 space-y-4">
                 <SectionBlockEdit heading="Logo">
                 { isNew ? (
@@ -643,6 +801,90 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                         <p>Geen contact geselecteerd</p>
                     </div>
                 )}
+                </SectionBlockEdit>
+
+                <SectionBlockEdit heading="Huisstijlkleuren:">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="relative">
+                          <input
+                            type="color"
+                            value={ThemeColor1 ? `#${ThemeColor1}` : '#1f99d2'}
+                            onChange={(e) => {
+                              const hex = e.target.value.replace('#', '');
+                              setThemeColor1(hex);
+                            }}
+                            disabled={!isEditing}
+                            className="w-12 h-12 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ 
+                              backgroundColor: ThemeColor1 ? `#${ThemeColor1}` : '#1f99d2',
+                              position: 'relative'
+                            }}
+                          />
+                          {isEditing && (
+                            <div className="absolute bottom-0 left-0 w-0 h-0 border-l-[8px] border-l-transparent border-b-[8px] border-b-gray-600 pointer-events-none" />
+                          )}
+                        </div>
+                        <FormInput
+                          type="text"
+                          label="Themakleur 1"
+                          value={ThemeColor1 || ''}
+                          onChange={(e) => {
+                            const value = e.target.value.replace('#', '').toUpperCase();
+                            if (value.length <= 6 && /^[0-9A-F]*$/.test(value)) {
+                              setThemeColor1(value || null);
+                            }
+                          }}
+                          placeholder="1F99D2"
+                          disabled={!isEditing}
+                          className="w-32"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="relative">
+                          <input
+                            type="color"
+                            value={ThemeColor2 ? `#${ThemeColor2}` : '#96c11f'}
+                            onChange={(e) => {
+                              const hex = e.target.value.replace('#', '');
+                              setThemeColor2(hex);
+                            }}
+                            disabled={!isEditing}
+                            className="w-12 h-12 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ 
+                              backgroundColor: ThemeColor2 ? `#${ThemeColor2}` : '#96c11f',
+                              position: 'relative'
+                            }}
+                          />
+                          {isEditing && (
+                            <div className="absolute bottom-0 left-0 w-0 h-0 border-l-[8px] border-l-transparent border-b-[8px] border-b-gray-600 pointer-events-none" />
+                          )}
+                        </div>
+                        <FormInput
+                          type="text"
+                          label="Themakleur 2"
+                          value={ThemeColor2 || ''}
+                          onChange={(e) => {
+                            const value = e.target.value.replace('#', '').toUpperCase();
+                            if (value.length <= 6 && /^[0-9A-F]*$/.test(value)) {
+                              setThemeColor2(value || null);
+                            }
+                          }}
+                          placeholder="96C11F"
+                          disabled={!isEditing}
+                          className="w-32"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>• De huisstijlkleuren worden gebruikt als basiskleuren in de website.</p>
+                    <p>• Kies geen heel lichte kleuren, aangezien de witte letters dan niet meer leesbaar zijn.</p>
+                    <p>• NB. Check na het aanpassen van de kleuren altijd of de website er naar wens uitziet.</p>
+                  </div>
                 </SectionBlockEdit>
               </div>
             )}
