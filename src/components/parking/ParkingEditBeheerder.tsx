@@ -82,7 +82,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
     });
   });
 
-  const showBeheerderInput = selectedExploitantID !== "anders";
+  const showBeheerderInput = selectedExploitantID === "anders";
 
   return (
     <div className="flex justify-between" style={{ display: visible ? "flex" : "none" }}>
@@ -90,14 +90,13 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
         <SectionBlockEdit>
           <div className="mt-4 w-full">
             {/* Row 1: Exploitant/beheerder label + select */}
-            <div className="mb-4">
               <div className="flex items-center">
                 <div className="w-1/3 p-3">
                   <label className="block text-sm font-bold text-gray-700">
                     Exploitant/beheerder:
                   </label>
                 </div>
-                <div className="w-2/3 p-3">
+                <div className="w-2/3 px-3">
                   <FormSelect
                     key="i-exploitant"
                     label=""
@@ -111,63 +110,150 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
                     disabled={!canEditAllFields}
                   />
                 </div>
-              </div>
             </div>
-            {/* Row 2: No label + (Namelijk + input) */}
+            {/* Row 2: Naam beheerder label + input */}
             {showBeheerderInput && (
-              <div className="mb-4">
                 <div className="flex items-center">
-                  <div className="w-1/3 p-3">{/* Empty label space */}</div>
-                  <div className="w-2/3 p-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                        Namelijk:
-                      </label>
-                      <input
-                        type="text"
-                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md ${!canEditAllFields ? "bg-gray-100 opacity-50 cursor-not-allowed" : "bg-white"}`}
-                        value={
-                          newBeheerder !== undefined &&
-                          newBeheerder !== null &&
-                          newBeheerder !== ""
-                            ? newBeheerder
-                            : parkingdata.Beheerder || ""
-                        }
-                        onChange={(e) => {
-                          setNewBeheerder(e.target.value);
-                        }}
-                        placeholder="Website en contactgegevens"
-                        disabled={!canEditAllFields}
-                      />
-                    </div>
+                  <div className="w-1/3 p-3">
+                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
+                      Naam beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 px-3">
+                    <FormInput
+                      key="i-beheerder"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Naam beheerder"
+                      onChange={(e: any) => {
+                        setNewBeheerder(e.target.value);
+                      }}
+                      value={
+                        newBeheerder !== undefined
+                          ? newBeheerder
+                          : parkingdata.Beheerder || ""
+                      }
+                      disabled={!canEditAllFields}
+                    />
                   </div>
                 </div>
-              </div>
             )}
             {/* Row 3: Contact beheerder label + input */}
-            <div className="mb-4">
-              <div className="flex items-center">
-                <div className="w-1/3 p-3">
-                  <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
-                    Contact beheerder:
-                  </label>
+            {showBeheerderInput && (
+                <div className="flex items-center">
+                  <div className="w-1/3 px-3">
+                    <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
+                      Contact beheerder:
+                    </label>
+                  </div>
+                  <div className="w-2/3 px-3">
+                    <FormInput
+                      key="i-beheerdercontact"
+                      label=""
+                      className="w-full border border-gray-300"
+                      placeholder="Email adres of website"
+                      onChange={(e: any) => {
+                        setNewBeheerderContact(e.target.value);
+                      }}
+                      value={
+                        newBeheerderContact !== undefined
+                          ? newBeheerderContact
+                          : parkingdata.BeheerderContact
+                      }
+                      disabled={!canEditAllFields}
+                    />
+                  </div>
                 </div>
-                <div className="w-2/3 p-3">
-                  <FormInput
-                    key="i-beheerdercontact"
-                    label=""
-                    className="w-full border border-gray-300"
-                    placeholder="Email adres"
-                    onChange={(e: any) => {
-                      setNewBeheerderContact(e.target.value);
-                    }}
-                    value={
-                      newBeheerderContact !== undefined
-                        ? newBeheerderContact
-                        : parkingdata.BeheerderContact
+            )}
+
+            {/* Preview box */}
+            <div className="mt-6 mb-4">
+              <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
+                <label className="block text-sm font-bold text-gray-700 mb-3">
+                  Weergave op de website
+                </label>
+                <div className="text-sm text-gray-600">
+                  {(() => {
+                    // Get current values (new values if set, otherwise existing values)
+                    // Use newExploitantID if it's been set (even if "anders"), otherwise use original
+                    const currentExploitantID = newExploitantID !== undefined 
+                      ? newExploitantID 
+                      : (parkingdata.ExploitantID === null ? "anders" : parkingdata.ExploitantID);
+                    
+                    // Use newBeheerder if it's been set (even if empty string), otherwise use original
+                    const currentBeheerder = newBeheerder !== undefined
+                      ? newBeheerder
+                      : parkingdata.Beheerder;
+                    
+                    // Use newBeheerderContact if it's been set (even if empty string), otherwise use original
+                    const currentBeheerderContact = newBeheerderContact !== undefined
+                      ? newBeheerderContact
+                      : parkingdata.BeheerderContact;
+
+                    // Find selected exploitant
+                    const selectedExploitant = currentExploitantID && currentExploitantID !== "anders"
+                      ? exploitanten.find(exp => exp.ID === currentExploitantID)
+                      : null;
+
+                    // Display logic matches ParkingViewBeheerder
+                    if (selectedExploitant) {
+                      const mailtoLink = 'mailto:' + (selectedExploitant.Helpdesk || '');
+                      return (
+                        <div>
+                          <span className="font-semibold">Beheerder:</span>{" "}
+                          <a 
+                            href={mailtoLink}
+                            className="text-blue-600 underline hover:text-blue-700"
+                            title={mailtoLink}
+                          >
+                            {selectedExploitant.CompanyName}
+                          </a>
+                        </div>
+                      );
+                    } else if (currentBeheerderContact !== null && currentBeheerderContact !== undefined && currentBeheerderContact !== "") {
+                      let contactlink = "";
+                      if (currentBeheerderContact.includes("@")) {
+                        contactlink = 'mailto:' + currentBeheerderContact;
+                      } else if (currentBeheerderContact.startsWith("http")) {
+                        contactlink = currentBeheerderContact;
+                      } else if (currentBeheerderContact.startsWith("www")) {
+                        contactlink = 'https://' + currentBeheerderContact;
+                      }
+
+                      if(contactlink === "https://www.nsfiets.nl") {
+                        contactlink = "https://www.ns.nl/fietsenstallingen/";
+                      }
+
+                      const displayText = currentBeheerder === null || currentBeheerder === "" 
+                        ? currentBeheerderContact 
+                        : currentBeheerder;
+
+                      return (
+                        <div>
+                          <span className="font-semibold">Beheerder:</span>{" "}
+                          {contactlink ? (
+                            <a 
+                              href={contactlink}
+                              className="text-blue-600 underline hover:text-blue-700"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={contactlink}
+                            >
+                              {displayText}
+                            </a>
+                          ) : (
+                            <span>{displayText}</span>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="text-gray-500 italic">
+                          Geen beheerder informatie beschikbaar. Dit veld wordt niet getoond op de website.
+                        </div>
+                      );
                     }
-                    disabled={!canEditAllFields}
-                  />
+                  })()}
                 </div>
               </div>
             </div>
