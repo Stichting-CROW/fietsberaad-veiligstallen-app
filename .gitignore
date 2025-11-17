@@ -46,7 +46,6 @@ yarn-error.log*
 
 #deploy scripts
 /scripts/updatelog.txt
-/scripts/mysqldb-productiondata/*.*
 
 #check
 /public/fallback*

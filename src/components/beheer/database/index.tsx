@@ -7,7 +7,6 @@ import PagesFaqUpdateComponent from './PagesFaqUpdate';
 import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
 import OrphanedSectionsCleanup from './OrphanedSectionsCleanup';
-import DatabaseSyncComponent from './DatabaseSyncComponent';
 // import OrphanedTarievenCleanup from './OrphanedTarievenCleanup';
 
 interface DatabaseComponentProps {
@@ -50,7 +49,6 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-4">Database beheer</h1>
-      <DatabaseSyncComponent />
       <CacheUpdateComponent />
       <PagesFaqUpdateComponent />
       <OrphanedSectionsCleanup />

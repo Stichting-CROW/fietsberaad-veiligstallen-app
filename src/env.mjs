@@ -10,9 +10,6 @@ const server = z.object({
   NEXTAUTH_SECRET: z.string().min(1),
   NEXTAUTH_URL: z.string().url(),
   NEXT_PUBLIC_MAPBOX_TOKEN: z.string().min(1),
-  // Database sync configuration (optional)
-  DBSYNC_MASTER_URL: z.string().optional(),
-  DBSYNC_TEST_URL: z.string().optional(),
 });
 
 /**
@@ -35,8 +32,6 @@ const processEnv = {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
   NODE_ENV: process.env.NODE_ENV,
-  DBSYNC_MASTER_URL: process.env.DBSYNC_MASTER_URL,
-  DBSYNC_TEST_URL: process.env.DBSYNC_TEST_URL,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 
