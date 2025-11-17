@@ -8,12 +8,13 @@ import { z } from "zod";
 import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import bcrypt from "bcryptjs";
 import { convertNewRoleToOldRole } from "~/utils/securitycontext";
-import { type security_users } from "@prisma/client";
+import type { security_users } from "~/generated/prisma-client";
 import { getSecurityUserNew } from "~/utils/server/security-users-tools";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { getOrganisationTypeByID } from "~/utils/server/database-tools";
+import { syncSecurityUsersSitesFromUserContactRole } from "~/utils/server/user-sync-tools";
 
 const saltRounds = 13;
 
@@ -151,7 +152,14 @@ export default async function handle(
           return;
         }
 
-        const oldRole = convertNewRoleToOldRole(parsed.RoleID);
+        const oldRole = convertNewRoleToOldRole(parsed.RoleID, groupID);
+
+        // For exploitant users, SiteID must be set to their home organization ID
+        // because ColdFusion uses this field to determine the home exploitant organization
+        // (ColdFusion does not create security_users_sites records for the own organization)
+        const siteID = (contact.ItemType === "exploitant") 
+          ? activeContactId 
+          : null;  // For other user types, SiteID is no longer used by ColdFusion
 
         const data: Pick<security_users, "UserID" | "UserName" | "DisplayName" | "RoleID" | "Status" | "GroupID" | "SiteID" | "ParentID" | "LastLogin" | "EncryptedPassword" | "Locale" | "EncryptedPassword2" | "Theme" | "SendMailToMailAddress">  = {
           UserID: newUserID,
@@ -161,7 +169,7 @@ export default async function handle(
           GroupID: groupID,
           Status: parsed.Status ?? "1",
           EncryptedPassword: hashedPassword,
-          SiteID: activeContactId,  
+          SiteID: siteID,
           ParentID: null,
           LastLogin: null,
           Locale: "Dutch (Standard)",
@@ -175,7 +183,7 @@ export default async function handle(
           select: securityUserSelect
         }) as VSUserWithRoles;
 
-        // add role to the user_contact_role table
+        // add role to the user_contact_role table (source of truth)
         await prisma.user_contact_role.upsert({
           where: {
             UserID: newUserID, ContactID: activeContactId
@@ -192,18 +200,6 @@ export default async function handle(
           },
         });
 
-        // add security_users_sites record for ALL users (required for ColdFusion login)
-        // ColdFusion login requires at least one entry in security_users_sites table
-        if (activeContactId) {
-          await prisma.security_users_sites.create({
-            data: {
-              UserID: newUserID,
-              SiteID: activeContactId,
-              IsContact: false,
-            },
-          });
-        }
-
         // get all related sites for the user
         const relatedSites = await prisma.contact_contact.findMany({
           where: {
@@ -211,15 +207,8 @@ export default async function handle(
           },
         });
 
-        relatedSites.forEach(async (site) => {
-          await prisma.security_users_sites.create({
-            data: {
-              UserID: newUserID,
-              SiteID: site.childSiteID,
-              IsContact: false,
-            },
-          });
-
+        // Create user_contact_role records for related sites first
+        for (const site of relatedSites) {
           await prisma.user_contact_role.upsert({
             where: {
               UserID: newUserID, ContactID: site.childSiteID
@@ -235,7 +224,10 @@ export default async function handle(
               isOwnOrganization: false,
             },
           });
-        });
+        }
+
+        // Sync security_users_sites from user_contact_role (required for ColdFusion login)
+        await syncSecurityUsersSitesFromUserContactRole(newUserID);
 
         // fetch the new user with the full info
         const createdUser = await prisma.security_users.findFirst({
@@ -261,7 +253,7 @@ export default async function handle(
         }
 
         
-        const newUserContactType = await getOrganisationTypeByID(createdUser.SiteID||"");
+        const newUserContactType = await getOrganisationTypeByID(ownRoleInfo?.ContactID || "");
 
         const newUserData: VSUserWithRolesNew = {
           UserID: createdUser.UserID, 
@@ -318,7 +310,16 @@ export default async function handle(
             },
           });
 
-          updateData.RoleID = convertNewRoleToOldRole(parsed.RoleID) || undefined;
+          // Sync security_users_sites after user_contact_role update
+          await syncSecurityUsersSitesFromUserContactRole(id);
+
+          // Fetch existing user's GroupID to determine correct old role
+          const existingUser = await prisma.security_users.findUnique({
+            where: { UserID: id },
+            select: { GroupID: true }
+          });
+
+          updateData.RoleID = convertNewRoleToOldRole(parsed.RoleID, existingUser?.GroupID || undefined) || undefined;
         }
 
         // If RoleID was set but user cannot update role, remove it
@@ -336,7 +337,8 @@ export default async function handle(
         const theRoleInfo = updatedUser.user_contact_roles.find((role) => role.ContactID === activeContactId)
         const ownRoleInfo = updatedUser.user_contact_roles.find((role) => role.isOwnOrganization)
 
-        const updatedUserContactType = await getOrganisationTypeByID(updatedUser.SiteID||"");
+        // Get organization type from user_contact_role (own organization) instead of security_users.SiteID
+        const updatedUserContactType = await getOrganisationTypeByID(ownRoleInfo?.ContactID || "");
 
         const newUserData: VSUserWithRolesNew = {
           UserID: updatedUser.UserID, 
