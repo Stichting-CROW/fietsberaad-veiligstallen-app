@@ -18,7 +18,7 @@ type ExportRow = {
 };
 
 /**
- * Escape and quote CSV field value
+ * Escape and quote CSV field value (for string fields)
  */
 const escapeCsvField = (value: any): string => {
   if (value === null || value === undefined) {
@@ -32,19 +32,30 @@ const escapeCsvField = (value: any): string => {
 };
 
 /**
+ * Format numeric field for CSV (no quotes)
+ */
+const formatNumericField = (value: any): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+};
+
+/**
  * Format date for CSV (YYYY-MM-DD HH:MM:SS)
+ * Returns empty string for null/invalid dates - caller should use escapeCsvField
  */
 const formatDate = (date: Date | null | undefined): string => {
-  if (!date) return '""';
+  if (!date) return '';
   const d = new Date(date);
-  if (isNaN(d.getTime())) return '""';
+  if (isNaN(d.getTime())) return '';
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   const seconds = String(d.getSeconds()).padStart(2, '0');
-  return escapeCsvField(`${year}-${month}-${day} ${hours}:${minutes}:${seconds}`);
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 export default async function handle(
@@ -121,9 +132,9 @@ export default async function handle(
       'Latitude',
       'Longitude',
       'Url',
-      'Laatst bewerkt'
+      'Laatst bewerkt (UTC)'
     ];
-    rows.push(headers.map(escapeCsvField).join('\t'));
+    rows.push(headers.map(escapeCsvField).join(','));
 
     // Data rows
     for (const row of results) {
@@ -138,20 +149,21 @@ export default async function handle(
         }
       }
 
+      // Build CSV row with proper quoting: strings quoted, numbers unquoted
       const csvRow = [
-        row.data_eigenaar || '',
-        row.titel || '',
-        row.stallings_id || '',
-        row.soort_stalling || '',
-        row.status || '',
-        Number(row.totale_capaciteit).toString(),
-        latitude,
-        longitude,
-        row.url || '',
-        row.date_modified ? formatDate(row.date_modified) : ''
+        escapeCsvField(row.data_eigenaar || ''),           // String - quoted
+        escapeCsvField(row.titel || ''),                   // String - quoted
+        escapeCsvField(row.stallings_id || ''),            // String - quoted
+        escapeCsvField(row.soort_stalling || ''),         // String - quoted
+        escapeCsvField(row.status || ''),                  // String - quoted
+        formatNumericField(Number(row.totale_capaciteit)), // Number - unquoted
+        escapeCsvField(latitude),                         // String - quoted
+        escapeCsvField(longitude),                         // String - quoted
+        escapeCsvField(row.url || ''),                     // String - quoted
+        escapeCsvField(row.date_modified ? formatDate(row.date_modified) : '') // Date string - quoted
       ];
 
-      rows.push(csvRow.map(escapeCsvField).join('\t'));
+      rows.push(csvRow.join(','));
     }
 
     const csvContent = rows.join('\n');
