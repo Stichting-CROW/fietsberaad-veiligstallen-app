@@ -21,6 +21,7 @@ export enum VSMenuTopic {
     "ContactsExploitanten" = "contactsexploitanten",
     "ContactsGemeenten" = "contactsgemeenten",
     "Database" = "database",
+    "DatabaseExport" = "databaseexport",
     "Development" = "development",
     "Documents" = "documents",
     "ExploreUsers" = "exploreusers",
