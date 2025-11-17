@@ -307,18 +307,6 @@ const ParkingEdit = ({
       },
       {
         type: "string",
-        text: "invoer van de straat en huisnummer",
-        value: parkingdata.Location,
-        newvalue: newLocation,
-      },
-      {
-        type: "string",
-        text: "invoer van de plaats",
-        value: parkingdata.Plaats,
-        newvalue: newPlaats,
-      },
-      {
-        type: "string",
         text: "selectie van de gemeente",
         value: parkingdata.SiteID,
         newvalue: newSiteID,
@@ -330,6 +318,8 @@ const ParkingEdit = ({
         newvalue: newCoordinaten,
       },
     ];
+    // parkingdata.Locatie is optional
+    // parkingdata.Plaats is optional
     // parkingdata.Postcode is optional
 
     // Only validate beheerder fields if user has admin rights
