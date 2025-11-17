@@ -3,6 +3,7 @@ import React from 'react';
 import {
   FiBriefcase,
   FiClock,
+  FiDownload,
   FiFileText,
   FiHelpCircle,
   FiHome,
@@ -154,6 +155,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiTag}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.DatabaseExport}
+                title={'Export'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiDownload}
               />
             </>
           </LeftMenuItem>
