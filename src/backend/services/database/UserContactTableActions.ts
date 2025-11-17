@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { syncSecurityUsersSitesFromUserContactRole } from "~/utils/server/user-sync-tools";
 import { type UserContactRoleParams, type UserContactRoleStatus } from "~/backend/services/database-service";
 import { convertRoleToNewRole } from "~/utils/securitycontext";
 import { generateID } from "~/utils/server/database-tools";
@@ -94,6 +95,9 @@ const processInternUsers = async () => {
         });
       }
     }
+    
+    // Sync security_users_sites after creating user_contact_role
+    await syncSecurityUsersSitesFromUserContactRole(user.UserID);
   }
 
   return true;
@@ -123,6 +127,9 @@ const processExternUsers = async () => {
           isOwnOrganization: true,
         } 
       });
+      
+      // Sync security_users_sites after creating user_contact_role
+      await syncSecurityUsersSitesFromUserContactRole(user.UserID);
     }
   }
 }
@@ -223,6 +230,9 @@ const processExploitantUsers = async () => {
         // Not added to the table, because the user is not an admin or viewer of the site
       }
     }
+    
+    // Sync security_users_sites after creating all user_contact_role records for this user
+    await syncSecurityUsersSitesFromUserContactRole(user.UserID);
   }
 }
 

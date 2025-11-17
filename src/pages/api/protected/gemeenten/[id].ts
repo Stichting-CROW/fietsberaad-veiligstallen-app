@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { z } from "zod";
 import { generateID, validateUserSession } from "~/utils/server/database-tools";
+import { syncSecurityUsersSitesFromUserContactRole } from "~/utils/server/user-sync-tools";
 import { gemeenteSchema, gemeenteCreateSchema, getDefaultNewGemeente } from "~/types/database";
 import { type VSContactGemeente, gemeenteSelect, VSContactItemType } from "~/types/contacts";
 import { VSUserRoleValuesNew } from "~/types/users";
@@ -138,6 +139,8 @@ export default async function handle(
               isOwnOrganization: false,
             }
           });
+          // Sync security_users_sites after creating user_contact_role
+          await syncSecurityUsersSitesFromUserContactRole(fbuser.UserID);
         }
 
         res.status(201).json({ 
@@ -241,6 +244,20 @@ export default async function handle(
         await prisma.user_contact_role.deleteMany({
           where: {
             ContactID: id,
+          }
+        });
+
+        // delete all security_users_sites records for these users
+        await prisma.security_users_sites.deleteMany({
+          where: {
+            UserID: { in: userIDs },
+          }
+        });
+
+        // delete user_status records for these users
+        await prisma.user_status.deleteMany({
+          where: {
+            UserID: { in: userIDs },
           }
         });
 

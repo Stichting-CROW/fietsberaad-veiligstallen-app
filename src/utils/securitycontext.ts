@@ -55,22 +55,63 @@ export const convertRoleToNewRole = (roleID: VSUserRoleValues | null, isOwnOrgan
     return newRoleID;
 }
 
-export const convertNewRoleToOldRole = (newRoleID: VSUserRoleValuesNew | null): VSUserRoleValues | null => {
+export const convertNewRoleToOldRole = (newRoleID: VSUserRoleValuesNew | null, groupID?: string): VSUserRoleValues | null => {
     if (!newRoleID) {
         return null;
     }
 
     switch(newRoleID) {
         case VSUserRoleValuesNew.RootAdmin:
-            return VSUserRoleValues.Root;
+            // RootAdmin is relative to the organization:
+            // - For intern users (Fietsberaad): RootAdmin = Root (RoleID 1)
+            // - For extern users: RootAdmin = ExternAdmin (RoleID 4) - they're admin of their organization
+            // - For exploitant users: RootAdmin = Exploitant (RoleID 6) - they're admin of their organization
+            if (groupID === "extern") {
+                return VSUserRoleValues.ExternAdmin;  // 4
+            }
+            if (groupID === "exploitant") {
+                return VSUserRoleValues.Exploitant;  // 6
+            }
+            if (groupID === "beheerder") {
+                return VSUserRoleValues.Beheerder;  // 7
+            }
+            // Default to Root for intern users or undefined
+            return VSUserRoleValues.Root;  // 1
         case VSUserRoleValuesNew.Admin:
-            // Since Admin could come from multiple old roles, we'll return the most restrictive one
-            // that would map back to Admin in the new system
-            return VSUserRoleValues.InternAdmin;
+            // Use groupID to determine correct old role
+            if (groupID === "extern") {
+                return VSUserRoleValues.ExternAdmin;  // 4
+            }
+            if (groupID === "exploitant") {
+                return VSUserRoleValues.Exploitant;  // 6
+            }
+            if (groupID === "beheerder") {
+                return VSUserRoleValues.Beheerder;  // 7
+            }
+            // Default to InternAdmin for intern or undefined
+            return VSUserRoleValues.InternAdmin;  // 2
         case VSUserRoleValuesNew.Editor:
-            return VSUserRoleValues.InternEditor;
+            // Use groupID to determine correct old role
+            if (groupID === "extern") {
+                return VSUserRoleValues.ExternEditor;  // 5
+            }
+            if (groupID === "exploitant" || groupID === "beheerder") {
+                // Exploitant (and beheerder) users must keep RoleID 6 in security_users
+                // regardless of the new Editor role selection
+                return VSUserRoleValues.Exploitant;  // 6
+            }
+            // Editor role doesn't exist for other groups, use InternEditor as fallback
+            return VSUserRoleValues.InternEditor;  // 3
         case VSUserRoleValuesNew.Viewer:
-            return VSUserRoleValues.InternDataAnalyst;
+            // Use groupID to determine correct old role
+            if (groupID === "extern") {
+                return VSUserRoleValues.ExternDataAnalyst;  // 10
+            }
+            if (groupID === "exploitant") {
+                return VSUserRoleValues.ExploitantDataAnalyst;  // 8
+            }
+            // Default to InternDataAnalyst for intern, beheerder, or undefined
+            return VSUserRoleValues.InternDataAnalyst;  // 9
         case VSUserRoleValuesNew.None:
             return null;
         default:

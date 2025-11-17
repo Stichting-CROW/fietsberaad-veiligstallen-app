@@ -47,13 +47,25 @@ export default async function handle(
 
   if(data.UserID !== "new") {
     // check if the logged in user can manage this user
+    // Get the user's own organization from user_contact_role instead of security_users.SiteID
+    const userOwnOrg = await prisma.user_contact_role.findFirst({
+      where: {
+        UserID: data.UserID,
+        isOwnOrganization: true,
+      },
+      select: {
+        ContactID: true,
+      },
+    });
+
+    const userOwnOrgID = userOwnOrg?.ContactID || null;
+    
     const allowed = 
-      data.SiteID!==undefined && 
-      (data.SiteID===null && validateUserSessionResult.activeContactId==="1") ||  // internal user veiligstallen
-      validateUserSessionResult.activeContactId === data.SiteID || // own organization
-      data.SiteID !== null && data.SiteID !== undefined && validateUserSessionResult.sites.includes(data.SiteID ); // managed organization
+      (userOwnOrgID === null && validateUserSessionResult.activeContactId === "1") ||  // internal user veiligstallen
+      (validateUserSessionResult.activeContactId === userOwnOrgID) || // own organization
+      (userOwnOrgID !== null && validateUserSessionResult.sites.includes(userOwnOrgID)); // managed organization
     if (!allowed) {
-      console.error("Geen toegang tot deze organisatie", data.SiteID, validateUserSessionResult.activeContactId);
+      console.error("Geen toegang tot deze organisatie", userOwnOrgID, validateUserSessionResult.activeContactId);
       res.status(403).json({ valid: false, error: "Geen toegang tot deze organisatie" });
       return;
     }

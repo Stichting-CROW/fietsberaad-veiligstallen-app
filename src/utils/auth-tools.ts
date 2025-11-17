@@ -4,7 +4,7 @@
 // import type { User } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "~/server/db";
-import { type security_users } from "@prisma/client";
+import type { security_users } from "~/generated/prisma-client";
 import type { User } from "next-auth";
 import {
   VSUserRoleValuesNew,
@@ -145,7 +145,6 @@ export const getUserFromLoginCode = async (
           UserID: true, 
           GroupID: true,
           ParentID: true,
-          SiteID: true,
           EncryptedPassword: true,
           user_contact_roles: {
             select: {
