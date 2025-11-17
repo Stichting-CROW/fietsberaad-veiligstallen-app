@@ -61,9 +61,9 @@ export default async function handle(
     const userOwnOrgID = userOwnOrg?.ContactID || null;
     
     const allowed = 
-      userOwnOrgID === null && validateUserSessionResult.activeContactId === "1" ||  // internal user veiligstallen
-      validateUserSessionResult.activeContactId === userOwnOrgID || // own organization
-      userOwnOrgID !== null && validateUserSessionResult.sites.includes(userOwnOrgID); // managed organization
+      (userOwnOrgID === null && validateUserSessionResult.activeContactId === "1") ||  // internal user veiligstallen
+      (validateUserSessionResult.activeContactId === userOwnOrgID) || // own organization
+      (userOwnOrgID !== null && validateUserSessionResult.sites.includes(userOwnOrgID)); // managed organization
     if (!allowed) {
       console.error("Geen toegang tot deze organisatie", userOwnOrgID, validateUserSessionResult.activeContactId);
       res.status(403).json({ valid: false, error: "Geen toegang tot deze organisatie" });
