@@ -236,6 +236,7 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
 
   // Show table view
   const totalCapacity = secties.reduce((sum, sectie) => sum + calculateSectionCapacity(sectie), 0);
+  const showKenmerk = fietsenstallingType === "buurtstalling" ||  fietsenstallingType === "fietstrommel";
 
   return (
     <div className="space-y-4">
@@ -266,6 +267,7 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
             {
               header: "Kenmerk",
               accessor: (sectie: SectieDetailsType) => getQualificationLabel(sectie.qualificatie),
+              className: showKenmerk ? '' : 'hidden',
             },
             {
               header: "Kleur",
@@ -354,21 +356,6 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
                 {/* Row 2: Kenmerk and Kleur */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Kenmerk:</label>
-                    <select
-                      value={editedSection.qualificatie || "NONE"}
-                      onChange={(e) => updateEditedSection("qualificatie", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-700 rounded-full"
-                    >
-                      {getQualificationOptions().map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="block text-sm font-medium mb-1">Kleur:</label>
                     <div className="flex items-center gap-2">
                       <div
@@ -384,6 +371,21 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
                       />
                     </div>
                   </div>
+                  { showKenmerk &&<div>
+                      <label className="block text-sm font-medium mb-1">Kenmerk:</label>
+                      <select
+                        value={editedSection.qualificatie || "NONE"}
+                        onChange={(e) => updateEditedSection("qualificatie", e.target.value)}
+                        className="w-full px-3 py-2 mt-3 border border-gray-700 rounded-full"
+                      >
+                        {getQualificationOptions().map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                  </div> }
+
                 </div>
 
                 {/* Row 3: Capaciteit */}

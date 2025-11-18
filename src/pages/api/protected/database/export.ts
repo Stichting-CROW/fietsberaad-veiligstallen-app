@@ -6,6 +6,7 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 
 type ExportRow = {
+  id: string | null;
   data_eigenaar: string | null;
   titel: string | null;
   stallings_id: string | null;
