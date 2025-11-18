@@ -13,6 +13,7 @@ const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExp
 import TopBar from "~/components/beheer/TopBar";
 
 // import AbonnementenComponent from '~/components/beheer/abonnementen';
+import AbonnementsvormenComponent from '~/components/beheer/abonnementsvormen';
 import AccountsComponent from '~/components/beheer/accounts';
 import ApisComponent from '~/components/beheer/apis';
 import ArticlesComponent from '~/components/beheer/articles';
@@ -437,9 +438,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             // case VSMenuTopic.Abonnementen:
         //   selectedComponent = <AbonnementenComponent type="abonnementen" />;
         //   break;
-        // case VSMenuTopic.Abonnementsvormen:
-        //   selectedComponent = <AbonnementenComponent type="abonnementsvormen" />;
-        //   break;
+        case VSMenuTopic.Abonnementsvormen:
+          selectedComponent = <AbonnementsvormenComponent />;
+          break;
         case VSMenuTopic.Accounts:
           selectedComponent = <AccountsComponent />;
           break;

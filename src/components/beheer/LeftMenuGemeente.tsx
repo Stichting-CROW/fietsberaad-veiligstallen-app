@@ -82,6 +82,16 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
+        {hasInstellingenDataeigenaar && (
+          <LeftMenuItem
+            component={VSMenuTopic.Abonnementsvormen}
+            title={'Abonnementsvormen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiFileText}
+          />
+        )}
+
         {hasInstellingenSiteContentPages && (
           <LeftMenuItem
             component={VSMenuTopic.ArticlesPages}
