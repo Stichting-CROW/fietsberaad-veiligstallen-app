@@ -94,6 +94,7 @@ export default async function handle(
     // Using LEFT JOIN with GROUP BY instead of correlated subquery for better performance
     const sql = `
       SELECT 
+        f.ID as id,
         c.CompanyName as data_eigenaar,
         f.Title as titel,
         f.StallingsID as stallings_id,
@@ -105,13 +106,13 @@ export default async function handle(
           ELSE 0 
         END), 0) as totale_capaciteit,
         f.Coordinaten as coordinaten,
-        f.Url as url,
         f.DateModified as date_modified
       FROM fietsenstallingen f
       LEFT JOIN contacts c ON f.SiteID = c.ID
       LEFT JOIN fietsenstallingtypen ft ON f.Type = ft.id
       LEFT JOIN fietsenstalling_sectie fs ON fs.fietsenstallingsId = f.ID
       LEFT JOIN sectie_fietstype sft ON fs.sectieId = sft.sectieID
+      WHERE f.Title NOT LIKE '%Systeemstalling%'
       GROUP BY f.ID, c.CompanyName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
       ORDER BY c.CompanyName ASC, ft.name ASC, f.Title ASC
     `;
@@ -129,8 +130,7 @@ export default async function handle(
       'Soort stalling',
       'Status',
       'Totale capaciteit',
-      'Latitude',
-      'Longitude',
+      'Locatie',
       'Url',
       'Laatst bewerkt (UTC)'
     ];
@@ -138,17 +138,6 @@ export default async function handle(
 
     // Data rows
     for (const row of results) {
-      // Parse coordinates
-      let latitude = '';
-      let longitude = '';
-      if (row.coordinaten) {
-        const coords = row.coordinaten.split(',');
-        if (coords.length >= 2) {
-          latitude = coords[0]?.trim() || '';
-          longitude = coords[1]?.trim() || '';
-        }
-      }
-
       // Build CSV row with proper quoting: strings quoted, numbers unquoted
       const csvRow = [
         escapeCsvField(row.data_eigenaar || ''),           // String - quoted
@@ -157,9 +146,8 @@ export default async function handle(
         escapeCsvField(row.soort_stalling || ''),         // String - quoted
         escapeCsvField(row.status || ''),                  // String - quoted
         formatNumericField(Number(row.totale_capaciteit)), // Number - unquoted
-        escapeCsvField(latitude),                         // String - quoted
-        escapeCsvField(longitude),                         // String - quoted
-        escapeCsvField(row.url || ''),                     // String - quoted
+        escapeCsvField(row.coordinaten||''),               // String - quoted
+        escapeCsvField(`https://beta.veiligstallen.nl/utrecht?stallingid=${row.id || ''}`),                     // String - quoted
         escapeCsvField(row.date_modified ? formatDate(row.date_modified) : '') // Date string - quoted
       ];
 
