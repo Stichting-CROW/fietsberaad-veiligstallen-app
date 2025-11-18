@@ -234,9 +234,6 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     if (sortColumn === 'Naam') {
       return [...filteredusers].sort((a, b) => (a.DisplayName || "").localeCompare(b.DisplayName || ""));
     }
-    if (sortColumn === 'E-mail') {
-      return [...filteredusers].sort((a, b) => (a.UserName || "").localeCompare(b.UserName || ""));
-    }
     if (sortColumn === 'Organisatie') {
       return [...filteredusers].sort((a, b) => {
         const aOrg = props.contacts.find(contact => contact.ID === a.ownOrganizationID)?.CompanyName || "";
@@ -298,11 +295,6 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
         accessor: 'DisplayName',
       },
       {
-        header: 'E-mail',
-        accessor: 'UserName',
-      },
-      // Only show organization column when no organization filter is set
-      {
         header: 'Organisatie',
         accessor: (user: any) => {
           const organizationName = props.contacts.find(contact => contact.ID === user.ownOrganizationID)?.CompanyName || "Onbekende organisatie";
@@ -351,7 +343,12 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
         accessor: (user) => (
           <div className="whitespace-nowrap">
             {/* <button onClick={() => handleResetPassword(user.UserID)} className="text-blue-500 mx-1 disabled:opacity-40" disabled={true || !user.isOwnOrganization}>🔑</button> */}
-            <button onClick={() => handleEditUser(user.UserID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
+            <button 
+              onClick={() => handleEditUser(user.UserID)} 
+              className="text-yellow-500 mx-1 disabled:opacity-40"
+            >
+              ✏️
+            </button>
             {process.env.NODE_ENV === "development" &&
               session?.user?.mainContactId === "1" && (
                 <button 
@@ -503,7 +500,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
           columns={columns}
           data={sortedUsers}
           className="mt-4"
-          sortableColumns={organizationFilter ? ['Naam', 'E-mail', 'Rol'] : ['Naam', 'E-mail', 'Organisatie', 'Rol']}
+          sortableColumns={organizationFilter ? ['Naam', 'Rol'] : ['Naam', 'Organisatie', 'Rol']}
           sortColumn={sortColumn}
           onSort={handleSort}
         />
