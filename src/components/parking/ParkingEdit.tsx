@@ -67,6 +67,7 @@ export type ParkingEditUpdateStructure = {
   Type?: string;
   Tariefcode?: number | null;
   OmschrijvingTarieven?: string | null;
+  ExtraServices?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -182,6 +183,10 @@ const ParkingEdit = ({
   );
 
   const [newOmschrijvingTarieven, setNewOmschrijvingTarieven] = React.useState<
+    string | undefined
+  >(undefined);
+
+  const [newExtraServices, setNewExtraServices] = React.useState<
     string | undefined
   >(undefined);
 
@@ -441,6 +446,12 @@ const ParkingEdit = ({
     if (newOmschrijvingTarieven !== undefined) {
       if (newOmschrijvingTarieven !== parkingdata.OmschrijvingTarieven) {
         update.OmschrijvingTarieven = newOmschrijvingTarieven;
+      }
+    }
+
+    if (newExtraServices !== undefined) {
+      if (newExtraServices !== parkingdata.ExtraServices) {
+        update.ExtraServices = newExtraServices;
       }
     }
 
@@ -951,6 +962,24 @@ const ParkingEdit = ({
               </div>
             </div>
           </SectionBlock>
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlockEdit>
+            <div className="mt-4 w-full">
+              <FormInput
+                key="i-extraservices"
+                label="Extra services (komma gescheiden)"
+                className="mb-1 w-full border-2 border-black"
+                placeholder="extra services"
+                onChange={e => {
+                  setNewExtraServices(e.target.value);
+                }}
+                value={newExtraServices !== undefined ? newExtraServices : (parkingdata.ExtraServices || "")}
+                disabled={!canEditAllFields && !canEditLimitedFields}
+              />
+            </div>
+          </SectionBlockEdit>
 
           <HorizontalDivider className="my-4" />
 
