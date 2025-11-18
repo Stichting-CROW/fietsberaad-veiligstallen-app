@@ -2,12 +2,12 @@ import React from "react";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import FormSelect from "~/components/Form/FormSelect";
 import FormInput from "~/components/Form/FormInput";
+import { useExploitanten } from "~/hooks/useExploitanten";
+import { useGemeente } from "~/hooks/useGemeente";
+import { getSectionBlockBeheerder } from "./ParkingViewBeheerder";
 
 interface ParkingEditBeheerderProps {
   visible?: boolean;
-  isLoadingExploitanten: boolean;
-  exploitanten: any[];
-  errorExploitanten: string | null;
   newExploitantID: string | undefined;
   setNewExploitantID: (id: string) => void;
   parkingdata: any;
@@ -20,9 +20,6 @@ interface ParkingEditBeheerderProps {
 
 const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   visible = false,
-  isLoadingExploitanten,
-  exploitanten,
-  errorExploitanten,
   newExploitantID,
   setNewExploitantID,
   parkingdata,
@@ -32,7 +29,11 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   newBeheerderContact,
   setNewBeheerderContact,
 }) => {
-  if (isLoadingExploitanten) {
+  // Use the hook for exploitanten
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
+  const { gemeente, isLoading: isLoadingGemeente, error: errorGemeente } = useGemeente(parkingdata.SiteID || "");
+
+  if (isLoadingExploitanten || isLoadingGemeente) {
     return (
       <div className="flex justify-between" style={{ display: visible ? "flex" : "none" }}>
         <div data-name="content-left" className="sm:mr-12">
@@ -40,7 +41,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
             <div className="mt-4 w-full">
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Exploitanten laden...</p>
+                <p className="mt-2 text-gray-600">Laden...</p>
               </div>
             </div>
           </SectionBlockEdit>
@@ -49,14 +50,14 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
     );
   }
 
-  if (errorExploitanten) {
+  if (errorExploitanten || errorGemeente) {
     return (
       <div className="flex justify-between" style={{ display: visible ? "flex" : "none" }}>
         <div data-name="content-left" className="sm:mr-12">
           <SectionBlockEdit>
             <div className="mt-4 w-full">
               <div className="text-center py-8">
-                <p className="text-red-600">Fout bij het laden van exploitanten: {errorExploitanten}</p>
+                <p className="text-red-600">Fout bij het laden: {errorExploitanten || errorGemeente}</p>
               </div>
             </div>
           </SectionBlockEdit>
@@ -75,6 +76,12 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   const exploitantOptions: { label: string; value: string | undefined }[] = [
     { label: "Anders", value: "anders" },
   ];
+
+  exploitantOptions.push({
+    label: `Eigen gemeente`,
+    value: parkingdata.SiteID,
+  });
+
   exploitanten.forEach((exp) => {
     exploitantOptions.push({
       label: exp.CompanyName || "Onbekende exploitant",
@@ -83,6 +90,23 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   });
 
   const showBeheerderInput = selectedExploitantID === "anders";
+
+  let currentBeheerderName = "";
+  let currentBeheerderContact = "";
+
+  // derive current beheerder name and contact from the selected organization
+  if(selectedExploitantID === parkingdata.SiteID) {
+    currentBeheerderName = gemeente?.CompanyName || `Gemeente ${parkingdata.SiteID}`;
+    currentBeheerderContact = gemeente?.Helpdesk ? gemeente.Helpdesk : '';
+  } else if(selectedExploitantID!=='anders') {
+    const currentExploitant = exploitanten.find(exp => exp.ID === selectedExploitantID);
+    currentBeheerderName = currentExploitant?.CompanyName || "";
+    currentBeheerderContact = currentExploitant?.Helpdesk ? currentExploitant.Helpdesk : '';
+  } else {
+    currentBeheerderName = newBeheerder || "";
+    currentBeheerderContact = newBeheerderContact || "";
+  }
+
 
   return (
     <div className="flex justify-between" style={{ display: visible ? "flex" : "none" }}>
@@ -172,89 +196,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
                 <label className="block text-sm font-bold text-gray-700 mb-3">
                   Weergave op de website
                 </label>
-                <div className="text-sm text-gray-600">
-                  {(() => {
-                    // Get current values (new values if set, otherwise existing values)
-                    // Use newExploitantID if it's been set (even if "anders"), otherwise use original
-                    const currentExploitantID = newExploitantID !== undefined 
-                      ? newExploitantID 
-                      : (parkingdata.ExploitantID === null ? "anders" : parkingdata.ExploitantID);
-                    
-                    // Use newBeheerder if it's been set (even if empty string), otherwise use original
-                    const currentBeheerder = newBeheerder !== undefined
-                      ? newBeheerder
-                      : parkingdata.Beheerder;
-                    
-                    // Use newBeheerderContact if it's been set (even if empty string), otherwise use original
-                    const currentBeheerderContact = newBeheerderContact !== undefined
-                      ? newBeheerderContact
-                      : parkingdata.BeheerderContact;
-
-                    // Find selected exploitant
-                    const selectedExploitant = currentExploitantID && currentExploitantID !== "anders"
-                      ? exploitanten.find(exp => exp.ID === currentExploitantID)
-                      : null;
-
-                    // Display logic matches ParkingViewBeheerder
-                    if (selectedExploitant) {
-                      const mailtoLink = 'mailto:' + (selectedExploitant.Helpdesk || '');
-                      return (
-                        <div>
-                          <span className="font-semibold">Beheerder:</span>{" "}
-                          <a 
-                            href={mailtoLink}
-                            className="text-blue-600 underline hover:text-blue-700"
-                            title={mailtoLink}
-                          >
-                            {selectedExploitant.CompanyName}
-                          </a>
-                        </div>
-                      );
-                    } else if (currentBeheerderContact !== null && currentBeheerderContact !== undefined && currentBeheerderContact !== "") {
-                      let contactlink = "";
-                      if (currentBeheerderContact.includes("@")) {
-                        contactlink = 'mailto:' + currentBeheerderContact;
-                      } else if (currentBeheerderContact.startsWith("http")) {
-                        contactlink = currentBeheerderContact;
-                      } else if (currentBeheerderContact.startsWith("www")) {
-                        contactlink = 'https://' + currentBeheerderContact;
-                      }
-
-                      if(contactlink === "https://www.nsfiets.nl") {
-                        contactlink = "https://www.ns.nl/fietsenstallingen/";
-                      }
-
-                      const displayText = currentBeheerder === null || currentBeheerder === "" 
-                        ? currentBeheerderContact 
-                        : currentBeheerder;
-
-                      return (
-                        <div>
-                          <span className="font-semibold">Beheerder:</span>{" "}
-                          {contactlink ? (
-                            <a 
-                              href={contactlink}
-                              className="text-blue-600 underline hover:text-blue-700"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={contactlink}
-                            >
-                              {displayText}
-                            </a>
-                          ) : (
-                            <span>{displayText}</span>
-                          )}
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="text-gray-500 italic">
-                          Geen beheerder informatie beschikbaar. Dit veld wordt niet getoond op de website.
-                        </div>
-                      );
-                    }
-                  })()}
-                </div>
+                { getSectionBlockBeheerder(currentBeheerderName, currentBeheerderContact) }
               </div>
             </div>
           </div>

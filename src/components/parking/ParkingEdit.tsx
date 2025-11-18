@@ -39,8 +39,6 @@ import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/uti
 import toast from "react-hot-toast";
 import { type VSservice } from "~/types/services";
 import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
-import { useExploitanten } from "~/hooks/useExploitanten";
-import type { VSContactExploitant } from "~/types/contacts";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
@@ -203,9 +201,6 @@ const ParkingEdit = ({
 
   // Use the hook for fietsenstallingtypen
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
-
-  // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -1236,9 +1231,6 @@ const ParkingEdit = ({
     return (
       <ParkingEditBeheerder
         visible={visible}
-        isLoadingExploitanten={isLoadingExploitanten}
-        exploitanten={exploitanten}
-        errorExploitanten={errorExploitanten}
         newExploitantID={newExploitantID}
         setNewExploitantID={setNewExploitantID}
         parkingdata={parkingdata}
