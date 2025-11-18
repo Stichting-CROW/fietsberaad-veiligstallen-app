@@ -161,7 +161,7 @@ export const getRoleRights = (
     currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_admin] = isRootAdmin ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.gebruikers_dataeigenaar_beperkt] = isAdmin? allowCRUD : allowNone
     // Deny exploitanten_beheerrecht if current organization is an exploitant
-    currentTopics[VSSecurityTopic.exploitanten_beheerrecht] = (isRootAdmin && !isExploitant) ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.exploitanten_beheerrecht] = (isRootAdmin) ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
     if(isFietsberaad) {
