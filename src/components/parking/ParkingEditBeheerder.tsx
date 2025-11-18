@@ -78,7 +78,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   ];
 
   exploitantOptions.push({
-    label: `Eigen gemeente`,
+    label: `Eigen organisatie`,
     value: parkingdata.SiteID,
   });
 
