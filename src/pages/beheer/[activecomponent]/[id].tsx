@@ -13,6 +13,7 @@ const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExp
 import TopBar from "~/components/beheer/TopBar";
 
 // import AbonnementenComponent from '~/components/beheer/abonnementen';
+import AbonnementsvormenComponent from '~/components/beheer/abonnementsvormen';
 import AccountsComponent from '~/components/beheer/accounts';
 import ApisComponent from '~/components/beheer/apis';
 import ArticlesComponent from '~/components/beheer/articles';
@@ -41,6 +42,7 @@ import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorCompo
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { userHasRight } from "~/types/utils";
+import type { VSmodules_contacts } from "~/types/modules-contacts";
 
 // import Styles from "~/pages/content.module.css";
 import { useSession } from "next-auth/react";
@@ -157,6 +159,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const { fietsenstallingtypen, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError, reloadFietsenstallingtypen } = useFietsenstallingtypen();
 
   const showAbonnementenRapporten = true;
+  const [hasAbonnementenModule, setHasAbonnementenModule] = useState(false);
 
   const firstDate = new Date("2018-03-01");
 
@@ -243,6 +246,44 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID, ItemType: "exploitant"}))
   ];
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureModuleState = async () => {
+      if (!selectedContactID) {
+        setHasAbonnementenModule(false);
+        return;
+      }
+
+      if (selectedContactID === "1") {
+        setHasAbonnementenModule(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch modules for ${selectedContactID}`);
+        }
+        const modules: VSmodules_contacts[] = await response.json();
+        if (!cancelled) {
+          setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching modules for contact:", error);
+          setHasAbonnementenModule(false);
+        }
+      }
+    };
+
+    ensureModuleState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedContactID]);
+
   const renderComponent = () => {
     try {
       let selectedComponent = undefined;
@@ -251,6 +292,8 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
       const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
       const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+      const hasAbonnementsvormenRights = userHasRight(session?.user?.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
+      const hasAbonnementsvormenAccess = hasAbonnementsvormenRights && hasAbonnementenModule;
       
       switch (activecomponent) {
         case VSMenuTopic.Home:
@@ -437,9 +480,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             // case VSMenuTopic.Abonnementen:
         //   selectedComponent = <AbonnementenComponent type="abonnementen" />;
         //   break;
-        // case VSMenuTopic.Abonnementsvormen:
-        //   selectedComponent = <AbonnementenComponent type="abonnementsvormen" />;
-        //   break;
+        case VSMenuTopic.Abonnementsvormen:
+          selectedComponent = hasAbonnementsvormenAccess ? <AbonnementsvormenComponent /> : <AccessDenied />;
+          break;
         case VSMenuTopic.Accounts:
           selectedComponent = <AccountsComponent />;
           break;
@@ -482,6 +525,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         securityProfile={session?.user?.securityProfile}
         activecomponent={activecomponent}
         onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
+        hasAbonnementenModule={hasAbonnementenModule}
       />
     }
     else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {

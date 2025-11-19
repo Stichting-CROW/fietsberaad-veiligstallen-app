@@ -11,6 +11,7 @@ interface TableProps<T> {
   data: T[];
   className?: string;
   onRowClick?: (item: T) => void;
+  getRowClassName?: (item: T) => string;
   options?: {
     hideHeaders?: boolean;
   };
@@ -20,7 +21,7 @@ interface TableProps<T> {
   onSort?: (header: string) => void;
 }
 
-export function Table<T>({ columns, data, className = '', onRowClick, options = {}, sortableColumns = [], sortColumn, sortDirection, onSort }: TableProps<T>) {
+export function Table<T>({ columns, data, className = '', onRowClick, getRowClassName, options = {}, sortableColumns = [], sortColumn, sortDirection, onSort }: TableProps<T>) {
   return (
     <div className="overflow-x-auto">
       <table className={`min-w-full bg-white ${className}`}>
@@ -51,7 +52,7 @@ export function Table<T>({ columns, data, className = '', onRowClick, options = 
             <tr 
               key={rowIndex}
               onClick={() => onRowClick?.(item)}
-              className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''} ${getRowClassName ? getRowClassName(item) : ''}`}
             >
               {columns.map((column, colIndex) => (
                 <td 
