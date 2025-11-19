@@ -16,5 +16,6 @@ export type VSAbonnementsvormInLijst = {
   bikeparkTypeName: string | null;
   isActief: boolean;
   hasSubscriptions?: boolean;
+  allowedBikeTypes?: string[];
 };
 

@@ -40,10 +40,22 @@ export default async function handle(
     case "GET": {
       try {
         // Get all abonnementsvormen for the active organization
+        const parkingTypeFilter = typeof req.query.parkingType === "string"
+          ? req.query.parkingType
+          : undefined;
+
         const [abonnementsvormen, fietsenstallingtypen] = await Promise.all([
           prisma.abonnementsvormen.findMany({
             where: {
-              siteID: activeContactId
+              siteID: activeContactId,
+              ...(parkingTypeFilter
+                ? {
+                    OR: [
+                      { bikeparkTypeID: null },
+                      { bikeparkTypeID: parkingTypeFilter }
+                    ]
+                  }
+                : {})
             },
             include: {
               abonnementen: {
@@ -63,12 +75,46 @@ export default async function handle(
                 isActief: 'desc' // Active items first
               },
               {
-                tijdsduur: 'asc' // Then sort by duration (matching ColdFusion order)
+                naam: 'asc'
               }
             ]
           }),
           prisma.fietsenstallingtypen.findMany()
         ]);
+
+        const abonnementIDs = abonnementsvormen.map(av => av.ID);
+        let bikeTypesByAbonnement = new Map<number, string[]>();
+
+        if (abonnementIDs.length > 0) {
+          const abonnementBikeLinks = await prisma.abonnementsvorm_fietstype.findMany({
+            where: { SubscriptiontypeID: { in: abonnementIDs } },
+            select: {
+              SubscriptiontypeID: true,
+              BikeTypeID: true
+            }
+          });
+
+          const bikeTypeIDs = Array.from(new Set(abonnementBikeLinks.map(link => link.BikeTypeID)));
+
+          const bikeTypes = bikeTypeIDs.length > 0
+            ? await prisma.fietstypen.findMany({
+                where: { ID: { in: bikeTypeIDs } },
+                select: { ID: true, Name: true }
+              })
+            : [];
+
+          const bikeTypeNameMap = new Map(bikeTypes.map(bt => [bt.ID, bt.Name || ""]));
+
+          bikeTypesByAbonnement = abonnementBikeLinks.reduce((map, link) => {
+            const existing = map.get(link.SubscriptiontypeID) ?? [];
+            const label = bikeTypeNameMap.get(link.BikeTypeID);
+            if (label) {
+              existing.push(label);
+            }
+            map.set(link.SubscriptiontypeID, existing);
+            return map;
+          }, new Map<number, string[]>());
+        }
 
         // Create a map for quick lookup
         const bikeparkTypeMap = new Map(
@@ -76,17 +122,19 @@ export default async function handle(
         );
 
         // Transform to list format with hasSubscriptions
-        const data: VSAbonnementsvormInLijst[] = abonnementsvormen.map(av => ({
-          ID: av.ID,
-          naam: av.naam,
-          tijdsduur: av.tijdsduur,
-          prijs: av.prijs ? Number(av.prijs) : null,
-          bikeparkTypeName: av.bikeparkTypeID 
-            ? (bikeparkTypeMap.get(av.bikeparkTypeID) || `Stallingtype ${av.bikeparkTypeID}`)
-            : null,
-          isActief: av.isActief,
-          hasSubscriptions: av.abonnementen.length > 0
-        }));
+        const data: VSAbonnementsvormInLijst[] = abonnementsvormen
+          .map(av => ({
+            ID: av.ID,
+            naam: av.naam,
+            tijdsduur: av.tijdsduur,
+            prijs: av.prijs ? Number(av.prijs) : null,
+            bikeparkTypeName: av.bikeparkTypeID 
+              ? (bikeparkTypeMap.get(av.bikeparkTypeID) || `Stallingtype ${av.bikeparkTypeID}`)
+              : null,
+            isActief: av.isActief,
+            hasSubscriptions: av.abonnementen.length > 0,
+            allowedBikeTypes: bikeTypesByAbonnement.get(av.ID) ?? []
+          }));
 
         res.status(200).json({ data });
       } catch (e) {
