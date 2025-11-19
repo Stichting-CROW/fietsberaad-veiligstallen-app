@@ -49,11 +49,19 @@ export default async function handle(
     return;
   }
 
+  // Validate that id is a string of digits (positive integer)
+  if (!/^\d+$/.test(id)) {
+    res.status(400).json({ error: "Ongeldig abonnementsvorm ID" });
+    return;
+  }
+
+  const abonnementsvormId = parseInt(id, 10);
+
   try {
     // Check if abonnementsvorm exists and user has access
     const abonnementsvorm = await prisma.abonnementsvormen.findFirst({
       where: {
-        ID: parseInt(id),
+        ID: abonnementsvormId,
         siteID: activeContactId
       },
       select: {
