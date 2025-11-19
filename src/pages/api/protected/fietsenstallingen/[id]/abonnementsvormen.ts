@@ -6,6 +6,7 @@ import { prisma } from "~/server/db";
 import { z } from "zod";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { validateParkingId } from "~/utils/validation";
 
 const updateSchema = z.object({
   subscriptionTypeIDs: z.array(z.number()).optional()
@@ -21,7 +22,7 @@ export default async function handle(
     return;
   }
 
-  const id = req.query.id as string;
+  const id = validateParkingId(req.query.id);
   if (!id) {
     res.status(400).json({ error: "Geen stalling opgegeven" });
     return;

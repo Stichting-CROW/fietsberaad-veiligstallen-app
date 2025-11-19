@@ -7,6 +7,7 @@ import type { VSAbonnementsvorm } from "~/types/abonnementsvormen";
 import { getRights } from "~/utils/securitycontext";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { z } from "zod";
+import { parsePositiveIntId } from "~/utils/validation";
 
 export type AbonnementsvormResponse = {
   data?: VSAbonnementsvorm;
@@ -67,12 +68,24 @@ export default async function handle(
     return;
   }
 
-  const id = req.query.id as string;
+  const rawIdParam = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+  if (!rawIdParam) {
+    res.status(400).json({ error: "Geen abonnementsvorm opgegeven" });
+    return;
+  }
+
+  const isNewRecord = rawIdParam === "new";
+  const abonnementsvormId = isNewRecord ? null : parsePositiveIntId(rawIdParam);
+
+  if (!isNewRecord && abonnementsvormId === null) {
+    res.status(400).json({ error: "Ongeldig abonnementsvorm ID" });
+    return;
+  }
 
   switch (req.method) {
     case "GET": {
       try {
-        if (id === "new") {
+        if (isNewRecord) {
           // Return default new abonnementsvorm
           const defaultRecord: VSAbonnementsvorm = {
             ID: 0,
@@ -98,7 +111,7 @@ export default async function handle(
 
         const abonnementsvorm = await prisma.abonnementsvormen.findFirst({
           where: {
-            ID: parseInt(id),
+            ID: abonnementsvormId!,
             siteID: activeContactId
           },
           include: {
@@ -261,7 +274,7 @@ export default async function handle(
         // Check if abonnementsvorm exists and user has access
         const existing = await prisma.abonnementsvormen.findFirst({
           where: {
-            ID: parseInt(id),
+            ID: abonnementsvormId!,
             siteID: activeContactId
           }
         });
@@ -292,13 +305,13 @@ export default async function handle(
         if (parsed.paymentAuthorizationID !== undefined) updateData.paymentAuthorizationID = parsed.paymentAuthorizationID;
 
         await prisma.abonnementsvormen.update({
-          where: { ID: parseInt(id) },
+          where: { ID: abonnementsvormId! },
           data: updateData
         });
 
         // Fetch the updated abonnementsvorm with relations
         const updated = await prisma.abonnementsvormen.findFirst({
-          where: { ID: parseInt(id) },
+          where: { ID: abonnementsvormId! },
           include: {
             abonnementen: {
               where: {
@@ -354,7 +367,7 @@ export default async function handle(
         // Check if abonnementsvorm exists and user has access
         const existing = await prisma.abonnementsvormen.findFirst({
           where: {
-            ID: parseInt(id),
+            ID: abonnementsvormId!,
             siteID: activeContactId
           },
           include: {
@@ -386,13 +399,13 @@ export default async function handle(
         // Delete fietstype associations first
         await prisma.abonnementsvorm_fietstype.deleteMany({
           where: {
-            SubscriptiontypeID: parseInt(id)
+            SubscriptiontypeID: abonnementsvormId!
           }
         });
 
         // Delete the abonnementsvorm
         await prisma.abonnementsvormen.delete({
-          where: { ID: parseInt(id) }
+          where: { ID: abonnementsvormId! }
         });
 
         res.status(200).json({});

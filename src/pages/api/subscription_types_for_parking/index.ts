@@ -1,20 +1,23 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
 import type { AbonnementsvormenType } from "~/types/parking";
+import { validateParkingId } from "~/utils/validation";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
-  if (!req.query || !req.query.parkingId || Array.isArray(req.query.parkingId)) {
-    res.json([]);
+  const parkingId = validateParkingId(
+    Array.isArray(req.query.parkingId) ? req.query.parkingId[0] : req.query.parkingId,
+  );
+
+  if (!parkingId) {
+    res.status(400).json({ error: "Ongeldige stalling-ID" });
     return;
   }
 
   try {
-    const parkingId = req.query.parkingId;
-
     const parking = await prisma.fietsenstallingen.findFirst({
       where: { ID: parkingId },
       select: { Type: true }
-    });
+  });
 
     if (!parking) {
       res.json([]);
@@ -25,22 +28,22 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       where: { BikeparkID: parkingId },
       select: {
         abonnementsvormen: {
-          select: {
-            ID: true,
-            naam: true,
-            omschrijving: true,
-            prijs: true,
-            tijdsduur: true,
-            conditions: true,
-            siteID: true,
-            bikeparkTypeID: true,
-            isActief: true,
-            exploitantSiteID: true,
-            idmiddelen: true,
-            contractID: true,
-            paymentAuthorizationID: true,
-            conditionsID: true
-          }
+      select: {
+        ID: true,
+        naam: true,
+        omschrijving: true,
+        prijs: true,
+        tijdsduur: true,
+        conditions: true,
+        siteID: true,
+        bikeparkTypeID: true,
+        isActief: true,
+        exploitantSiteID: true,
+        idmiddelen: true,
+        contractID: true,
+        paymentAuthorizationID: true,
+        conditionsID: true
+      }
         }
       }
     });

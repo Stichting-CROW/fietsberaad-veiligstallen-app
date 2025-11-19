@@ -9,7 +9,6 @@ import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
-import type { VSAbonnementsvormInLijst } from "~/types/abonnementsvormen";
 import {
   getDefaultLocation,
 } from "~/utils/parkings";
@@ -197,11 +196,6 @@ const ParkingEdit = ({
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const [hasAbonnementenModule, setHasAbonnementenModule] = React.useState(false);
-  const [abonnementsvormen, setAbonnementsvormen] = React.useState<VSAbonnementsvormInLijst[]>([]);
-  const [selectedAbonnementsvormen, setSelectedAbonnementsvormen] = React.useState<number[]>([]);
-  const [isLoadingAbonnementsvormen, setIsLoadingAbonnementsvormen] = React.useState(false);
-  const [abonnementsvormenError, setAbonnementsvormenError] = React.useState<string | null>(null);
-  const [isSavingAbonnementsvormen, setIsSavingAbonnementsvormen] = React.useState(false);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const canEditAllFields = hasFietsenstallingenAdmin;
@@ -271,104 +265,6 @@ const ParkingEdit = ({
   }, [siteIdForModules]);
 
   const showAbonnementenTab = (showAbonnementen || hasAbonnementenModule) && parkingdata.ID !== "" && session !== null;
-
-  React.useEffect(() => {
-    if (!showAbonnementenTab) {
-      return;
-    }
-    let cancelled = false;
-
-    const fetchAbonnementData = async () => {
-      setIsLoadingAbonnementsvormen(true);
-      setAbonnementsvormenError(null);
-      try {
-        const parkingTypeParam = parkingdata.Type
-          ? `?parkingType=${encodeURIComponent(parkingdata.Type)}`
-          : "";
-
-        const [listResponse, selectedResponse] = await Promise.all([
-          fetch(`/api/protected/abonnementsvormen${parkingTypeParam}`),
-          fetch(`/api/protected/fietsenstallingen/${parkingdata.ID}/abonnementsvormen`)
-        ]);
-
-        if (!listResponse.ok) {
-          throw new Error('Fout bij het ophalen van abonnementsvormen');
-        }
-
-        const listJson = await listResponse.json();
-        const listData: VSAbonnementsvormInLijst[] = listJson.data || [];
-
-        let selectedIds: number[] = [];
-        if (selectedResponse.ok) {
-          const selectedJson = await selectedResponse.json();
-          selectedIds = selectedJson.data || [];
-        }
-
-        if (!cancelled) {
-          const filtered = listData.filter(item => {
-            if (!item.bikeparkTypeName) {
-              return true;
-            }
-            return item.bikeparkTypeName?.toLowerCase() === (parkingdata.Type || "").toLowerCase();
-          });
-          setAbonnementsvormen(filtered);
-          setSelectedAbonnementsvormen(selectedIds);
-        }
-      } catch (error) {
-        console.error("Error fetching abonnementsvormen:", error);
-        if (!cancelled) {
-          setAbonnementsvormenError(error instanceof Error ? error.message : 'Fout bij het ophalen van abonnementsvormen');
-          setAbonnementsvormen([]);
-          setSelectedAbonnementsvormen([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingAbonnementsvormen(false);
-        }
-      }
-    };
-
-    fetchAbonnementData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showAbonnementenTab, parkingdata.ID, parkingdata.Type]);
-
-  const handleSelectAbonnement = async (abonnementId: number, checked: boolean) => {
-    if (!parkingdata.ID || isSavingAbonnementsvormen) {
-      return;
-    }
-
-    const previousSelection = selectedAbonnementsvormen;
-    const nextSelection = checked
-      ? Array.from(new Set([...previousSelection, abonnementId]))
-      : previousSelection.filter(id => id !== abonnementId);
-
-    setSelectedAbonnementsvormen(nextSelection);
-    setIsSavingAbonnementsvormen(true);
-    setAbonnementsvormenError(null);
-    try {
-      const response = await fetch(`/api/protected/fietsenstallingen/${parkingdata.ID}/abonnementsvormen`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ subscriptionTypeIDs: nextSelection })
-      });
-
-      if (!response.ok) {
-        throw new Error('Fout bij het opslaan van abonnementsvormen');
-      }
-    } catch (error) {
-      console.error('Error updating abonnementsvormen:', error);
-      setAbonnementsvormenError(error instanceof Error ? error.message : 'Fout bij het opslaan van abonnementsvormen');
-      setSelectedAbonnementsvormen(previousSelection);
-      toast.error(error instanceof Error ? error.message : 'Fout bij het opslaan van abonnementsvormen');
-    } finally {
-      setIsSavingAbonnementsvormen(false);
-    }
-  };
 
   const handleChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
@@ -1389,6 +1285,21 @@ const ParkingEdit = ({
     );
   };
 
+  const renderTabAbonnementen = (visible = false) => {
+    return (
+      <div
+        className="mt-10 flex w-full flex-col"
+        style={{ display: visible ? "flex" : "none" }}
+      >
+        <ParkingEditAbonnementen
+          parkingId={parkingdata.ID}
+          parkingType={parkingdata.Type}
+          canEdit={canEditAllFields || hasFietsenstallingenBeperkt}
+        />
+      </div>
+    );
+  };
+
   const renderTabBeheerder = (visible = false) => {
     return (
       <ParkingEditBeheerder
@@ -1520,16 +1431,9 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
-      <ParkingEditAbonnementen
-        visible={showAbonnementenTab && selectedTab === "tab-abonnementen"}
-        available={abonnementsvormen}
-        selectedIDs={selectedAbonnementsvormen}
-        onToggleSelection={handleSelectAbonnement}
-        isSaving={isSavingAbonnementsvormen}
-        isLoading={isLoadingAbonnementsvormen}
-        error={abonnementsvormenError}
-        canEdit={canEditAllFields || hasFietsenstallingenBeperkt}
-      />
+      {renderTabAbonnementen(
+        showAbonnementenTab && selectedTab === "tab-abonnementen",
+      )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}
     </div>
   );

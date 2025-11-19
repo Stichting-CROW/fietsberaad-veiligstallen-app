@@ -2,15 +2,11 @@ import React from "react";
 import SectionBlock from "~/components/SectionBlock";
 import { LoadingSpinner } from "../beheer/common/LoadingSpinner";
 import type { VSAbonnementsvormInLijst } from "~/types/abonnementsvormen";
+import toast from "react-hot-toast";
 
 type ParkingEditAbonnementenProps = {
-  visible: boolean;
-  available: VSAbonnementsvormInLijst[];
-  selectedIDs: number[];
-  onToggleSelection: (id: number, checked: boolean) => void;
-  isSaving: boolean;
-  isLoading: boolean;
-  error: string | null;
+  parkingId: string;
+  parkingType?: string | null;
   canEdit: boolean;
 };
 
@@ -22,20 +18,117 @@ const formatPrice = (price: number | null) => {
 };
 
 const ParkingEditAbonnementen: React.FC<ParkingEditAbonnementenProps> = ({
-  visible,
-  available,
-  selectedIDs,
-  onToggleSelection,
-  isSaving,
-  isLoading,
-  error,
+  parkingId,
+  parkingType,
   canEdit,
 }) => {
+  const [available, setAvailable] = React.useState<VSAbonnementsvormInLijst[]>([]);
+  const [selectedIDs, setSelectedIDs] = React.useState<number[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!parkingId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchAbonnementData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const parkingTypeParam = parkingType
+          ? `?parkingType=${encodeURIComponent(parkingType)}`
+          : "";
+
+        const [listResponse, selectedResponse] = await Promise.all([
+          fetch(`/api/protected/abonnementsvormen${parkingTypeParam}`),
+          fetch(`/api/protected/fietsenstallingen/${parkingId}/abonnementsvormen`),
+        ]);
+
+        if (!listResponse.ok) {
+          throw new Error("Fout bij het ophalen van abonnementsvormen");
+        }
+
+        const listJson = await listResponse.json();
+        const listData: VSAbonnementsvormInLijst[] = listJson.data || [];
+
+        let selectedIds: number[] = [];
+        if (selectedResponse.ok) {
+          const selectedJson = await selectedResponse.json();
+          selectedIds = selectedJson.data || [];
+        }
+
+        if (!cancelled) {
+          setAvailable(listData);
+          setSelectedIDs(selectedIds);
+        }
+      } catch (fetchError) {
+        console.error("Error fetching abonnementsvormen:", fetchError);
+        if (!cancelled) {
+          setError(
+            fetchError instanceof Error
+              ? fetchError.message
+              : "Fout bij het ophalen van abonnementsvormen",
+          );
+          setAvailable([]);
+          setSelectedIDs([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchAbonnementData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [parkingId, parkingType]);
+
+  const handleToggleSelection = async (abonnementId: number, checked: boolean) => {
+    if (!parkingId || isSaving || !canEdit) {
+      return;
+    }
+
+    const previousSelection = selectedIDs;
+    const nextSelection = checked
+      ? Array.from(new Set([...previousSelection, abonnementId]))
+      : previousSelection.filter(id => id !== abonnementId);
+
+    setSelectedIDs(nextSelection);
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/protected/fietsenstallingen/${parkingId}/abonnementsvormen`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ subscriptionTypeIDs: nextSelection }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Fout bij het opslaan van abonnementsvormen");
+      }
+    } catch (saveError) {
+      console.error("Error updating abonnementsvormen:", saveError);
+      setError(
+        saveError instanceof Error ? saveError.message : "Fout bij het opslaan van abonnementsvormen",
+      );
+      setSelectedIDs(previousSelection);
+      toast.error(saveError instanceof Error ? saveError.message : "Fout bij het opslaan van abonnementsvormen");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div
-      className="mt-10 flex w-full flex-col"
-      style={{ display: visible ? "flex" : "none" }}
-    >
+    <>
       <SectionBlock heading="Abonnementen">
         {isLoading ? (
           <div className="py-4">
@@ -63,7 +156,7 @@ const ParkingEditAbonnementen: React.FC<ParkingEditAbonnementenProps> = ({
                       type="checkbox"
                       className="mr-2 inline-block"
                       checked={selectedIDs.includes(option.ID)}
-                      onChange={e => onToggleSelection(option.ID, e.target.checked)}
+                      onChange={e => handleToggleSelection(option.ID, e.target.checked)}
                       disabled={!canEdit || isSaving}
                     />
                     <span className="font-semibold">
@@ -89,7 +182,7 @@ const ParkingEditAbonnementen: React.FC<ParkingEditAbonnementenProps> = ({
           </div>
         )}
       </SectionBlock>
-    </div>
+    </>
   );
 };
 

@@ -17,9 +17,10 @@ type Documenttemplate = {
   name: string | null;
 };
 
+const NO_EXPLOITANT_VALUE = "__VS_NO_EXPLOITANT__";
+
 const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }) => {
   const isNew = id === 'new';
-  const [abonnementsvorm, setAbonnementsvorm] = useState<VSAbonnementsvorm | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -70,7 +71,6 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
         const templatesData = await templatesResponse.json();
         const selectedFietstypenData = await selectedFietstypenResponse.json();
 
-        setAbonnementsvorm(avData.data);
         setFietstypen(fietstypenData.data || []);
         setDocumenttemplates(templatesData.data || []);
 
@@ -80,8 +80,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
           setTijdsduur(avData.data.tijdsduur || '');
           setPrijs(avData.data.prijs || '');
           setBikeparkTypeID(avData.data.bikeparkTypeID || '');
-          // If exploitantSiteID is null, set it to activeContactId (represents "Geen")
-          setExploitantSiteID(avData.data.exploitantSiteID || session?.user?.activeContactId || null);
+          setExploitantSiteID(avData.data.exploitantSiteID ?? null);
           setIdmiddelen(avData.data.idmiddelen === 'ovchipmetcode' ? 'ovchipmetcode' : 'sleutelhanger');
           setIsActief(avData.data.isActief);
           setConditionsID(avData.data.conditionsID);
@@ -142,7 +141,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
       setError('Stallingstype is verplicht');
       return;
     }
-    if (isNew && selectedBiketypeIDs.length === 0) {
+    if (isNew && bikeparkTypeID !== 'fietskluizen' && selectedBiketypeIDs.length === 0) {
       setError('Selecteer minimaal één fietstype');
       return;
     }
@@ -159,8 +158,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
         tijdsduur: Number(tijdsduur),
         prijs: Number(prijs),
         bikeparkTypeID,
-        // If exploitantSiteID equals activeContactId, it means "Geen" was selected, so send the activeContactId
-        exploitantSiteID: exploitantSiteID || session?.user?.activeContactId || null,
+        exploitantSiteID,
         idmiddelen: idmiddelen,
         isActief,
         conditionsID: conditionsID || null,
@@ -260,16 +258,18 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
               <div className="w-full px-3 py-2 border rounded-md bg-red-50 text-red-600">Fout: {exploitantenError}</div>
             ) : (
               <select
-                value={exploitantSiteID || session?.user?.activeContactId || ''}
+                value={exploitantSiteID === null ? NO_EXPLOITANT_VALUE : exploitantSiteID || ''}
                 onChange={(e) => {
                   const selectedValue = e.target.value;
-                  const activeContactId = session?.user?.activeContactId;
-                  // If the selected value is the activeContactId, it means "Geen" was selected
-                  setExploitantSiteID(selectedValue === activeContactId ? activeContactId : selectedValue);
+                  if (selectedValue === NO_EXPLOITANT_VALUE) {
+                    setExploitantSiteID(null);
+                  } else {
+                    setExploitantSiteID(selectedValue || null);
+                  }
                 }}
                 className="w-full px-3 py-2 border rounded-md"
               >
-                <option value={session?.user?.activeContactId || ''}>Huidige Organisatie</option>
+                <option value={NO_EXPLOITANT_VALUE}>Niet ingesteld</option>
                 {exploitanten.map(exploitant => (
                   <option key={exploitant.ID} value={exploitant.ID}>
                     {exploitant.CompanyName}
