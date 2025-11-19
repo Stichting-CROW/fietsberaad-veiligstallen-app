@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
 import type { VSAbonnementsvorm } from "~/types/abonnementsvormen";
-import { userHasRight } from "~/types/utils";
+import { getRights } from "~/utils/securitycontext";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { z } from "zod";
 
@@ -57,12 +57,7 @@ export default async function handle(
     return;
   }
 
-  // Check if user has access rights
-  if (!userHasRight(session.user.securityProfile, VSSecurityTopic.instellingen_dataeigenaar)) {
-    console.error("Unauthorized - no access rights");
-    res.status(403).json({ error: "Geen toegang tot abonnementsvormen" });
-    return;
-  }
+  const rights = getRights(session.user.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
 
   const { activeContactId } = validateUserSessionResult;
 
@@ -153,6 +148,10 @@ export default async function handle(
       break;
     }
     case "POST": {
+        if (!rights.create) {
+          res.status(403).json({ error: "Geen toegang tot abonnementsvormen" });
+          return;
+        }
       try {
         const parseResult = abonnementsvormCreateSchema.safeParse(req.body);
         if (!parseResult.success) {
@@ -245,6 +244,10 @@ export default async function handle(
       break;
     }
     case "PUT": {
+        if (!rights.update) {
+          res.status(403).json({ error: "Geen toegang tot abonnementsvormen" });
+          return;
+        }
       try {
         const parseResult = abonnementsvormUpdateSchema.safeParse(req.body);
         if (!parseResult.success) {
@@ -343,6 +346,10 @@ export default async function handle(
       break;
     }
     case "DELETE": {
+        if (!rights.delete) {
+          res.status(403).json({ error: "Geen toegang tot abonnementsvormen" });
+          return;
+        }
       try {
         // Check if abonnementsvorm exists and user has access
         const existing = await prisma.abonnementsvormen.findFirst({

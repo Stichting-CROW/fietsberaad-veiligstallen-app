@@ -12,13 +12,12 @@ import {
 
 import { type VSUserSecurityProfile, VSSecurityTopic } from '~/types/securityprofile';
 import { VSMenuTopic } from '~/types/';
-import { VSUserRoleValuesNew } from '~/types/users';
-
-import { userHasRight, userHasRole } from '~/types/utils';
+import { userHasRight } from '~/types/utils';
 interface LeftMenuGemeenteProps {
   securityProfile?: VSUserSecurityProfile;
   activecomponent: VSMenuTopic | undefined;
   onSelect: (component: VSMenuTopic) => void;
+  hasAbonnementenModule: boolean;
 }
 
 import { LeftMenuItem } from './LeftMenuCommon';
@@ -27,10 +26,12 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   securityProfile,
   activecomponent,
   onSelect,
+  hasAbonnementenModule,
 }) => {
   const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
   const hasGebruikersDataeigenaarBeperkt = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt);
   const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
+  const hasAbonnementsvormen = userHasRight(securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
   const hasInstellingenSiteContentPages = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_pages);
   const hasInstellingenSiteContentFaq = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_faq);
   const hasInstellingenFietsenstallingenAdmin = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
@@ -82,7 +83,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
-        {hasInstellingenDataeigenaar && (
+        {hasAbonnementsvormen && hasAbonnementenModule && (
           <LeftMenuItem
             component={VSMenuTopic.Abonnementsvormen}
             title={'Abonnementsvormen'}

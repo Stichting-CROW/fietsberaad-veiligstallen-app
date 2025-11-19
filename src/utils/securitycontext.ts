@@ -164,6 +164,7 @@ export const getRoleRights = (
     currentTopics[VSSecurityTopic.exploitanten_beheerrecht] = (isRootAdmin) ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_admin] = isAdmin? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.abonnementsvormen_beheerrecht] = isAdmin ? allowCRUD : (isViewer ? allowRead : allowNone)
     if(isFietsberaad) {
         currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isRootAdmin ? allowCRUD : allowNone
         // FAQ only for fietsberaad editors

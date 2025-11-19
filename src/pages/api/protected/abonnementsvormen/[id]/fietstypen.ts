@@ -4,8 +4,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
 import type { VSFietstype } from "~/types/fietstypen";
-import { userHasRight } from "~/types/utils";
-import { VSSecurityTopic } from "~/types/securityprofile";
 
 export type AbonnementsvormFietstypenResponse = {
   data?: VSFietstype[];
@@ -27,13 +25,6 @@ export default async function handle(
   if ('error' in validateUserSessionResult) {
     console.error("Unauthorized - invalid session", validateUserSessionResult.error);
     res.status(401).json({error: validateUserSessionResult.error});
-    return;
-  }
-
-  // Check if user has access rights
-  if (!userHasRight(session.user.securityProfile, VSSecurityTopic.instellingen_dataeigenaar)) {
-    console.error("Unauthorized - no access rights");
-    res.status(403).json({ error: "Geen toegang tot abonnementsvormen" });
     return;
   }
 

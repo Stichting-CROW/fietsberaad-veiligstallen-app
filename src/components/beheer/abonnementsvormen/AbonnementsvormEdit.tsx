@@ -3,6 +3,7 @@ import Modal from '~/components/Modal';
 import { useSession } from 'next-auth/react';
 import type { VSAbonnementsvorm } from '~/types/abonnementsvormen';
 import type { VSFietstype } from '~/types/fietstypen';
+import type { VSmodules_contacts } from '~/types/modules-contacts';
 import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import { useExploitanten } from '~/hooks/useExploitanten';
 
@@ -44,6 +45,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
   const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError } = useExploitanten(session?.user?.activeContactId || undefined);
   const [fietstypen, setFietstypen] = useState<VSFietstype[]>([]);
   const [documenttemplates, setDocumenttemplates] = useState<Documenttemplate[]>([]);
+  const [hasBuurtstallingenModule, setHasBuurtstallingenModule] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -96,6 +98,29 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
 
     fetchData();
   }, [id]);
+
+  useEffect(() => {
+    const fetchModules = async () => {
+      if (!session?.user?.activeContactId) {
+        setHasBuurtstallingenModule(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/protected/modules_contacts?contactId=${session.user.activeContactId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch modules');
+        }
+        const modules: VSmodules_contacts[] = await response.json();
+        setHasBuurtstallingenModule(modules.some(module => module.ModuleID === 'buurtstallingen'));
+      } catch (err) {
+        console.error('Error fetching modules:', err);
+        setHasBuurtstallingenModule(false);
+      }
+    };
+
+    fetchModules();
+  }, [session?.user?.activeContactId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,6 +208,18 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
 
   const canSave = naam.trim() && tijdsduur && tijdsduur > 0 && prijs !== '' && prijs >= 0 && bikeparkTypeID;
 
+  const selectedFietstypeNames = fietstypen
+    .filter(fietstype => selectedBiketypeIDs.includes(fietstype.ID))
+    .map(fietstype => fietstype.Name)
+    .filter((name): name is string => Boolean(name));
+
+  const isBuurtstallingType = bikeparkTypeID === 'buurtstalling' || bikeparkTypeID === 'fietstrommel';
+  const hasDocumentTemplates = documenttemplates.length > 0;
+  const showBuurtstallingDocuments = hasBuurtstallingenModule && (isNew || isBuurtstallingType) && hasDocumentTemplates;
+  const showContractField = showBuurtstallingDocuments;
+  const showMachtigingField = showBuurtstallingDocuments;
+  const showVoorwaardenField = hasDocumentTemplates;
+
   if (isLoading) {
     return (
       <Modal onClose={() => onClose(false)} title={isNew ? "Nieuwe abonnementsvorm" : "Bewerk abonnementsvorm"}>
@@ -231,7 +268,6 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
                   setExploitantSiteID(selectedValue === activeContactId ? activeContactId : selectedValue);
                 }}
                 className="w-full px-3 py-2 border rounded-md"
-                disabled={!isNew}
               >
                 <option value={session?.user?.activeContactId || ''}>Huidige Organisatie</option>
                 {exploitanten.map(exploitant => (
@@ -250,6 +286,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
               value={bikeparkTypeID}
               onChange={(e) => setBikeparkTypeID(e.target.value)}
               className="w-full px-3 py-2 border rounded-md"
+              disabled={!isNew}
               required
             >
               <option value="">Kies een stallingstype</option>
@@ -297,67 +334,69 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
           {/* ID-middel */}
           <div>
             <label className="block text-sm font-medium mb-1">ID-middel:</label>
-            <div className="flex space-x-4">
-              <label className={`flex items-center ${!isNew && idmiddelen === 'sleutelhanger' ? 'font-semibold text-blue-700' : ''}`}>
-                <input
-                  type="radio"
-                  name="idmiddelen"
-                  value="sleutelhanger"
-                  checked={idmiddelen === 'sleutelhanger'}
-                  onChange={(e) => setIdmiddelen('sleutelhanger')}
-                  disabled={!isNew}
-                  className={`mr-2 ${!isNew && idmiddelen === 'sleutelhanger' ? 'opacity-100' : ''}`}
-                  style={!isNew && idmiddelen === 'sleutelhanger' ? { accentColor: '#1d4ed8' } : {}}
-                />
-                Sleutelhanger
-              </label>
-              <label className={`flex items-center ${!isNew && idmiddelen === 'ovchipmetcode' ? 'font-semibold text-blue-700' : ''}`}>
-                <input
-                  type="radio"
-                  name="idmiddelen"
-                  value="ovchipmetcode"
-                  checked={idmiddelen === 'ovchipmetcode'}
-                  onChange={(e) => setIdmiddelen('ovchipmetcode')}
-                  disabled={!isNew}
-                  className={`mr-2 ${!isNew && idmiddelen === 'ovchipmetcode' ? 'opacity-100' : ''}`}
-                  style={!isNew && idmiddelen === 'ovchipmetcode' ? { accentColor: '#1d4ed8' } : {}}
-                />
-                OV-kaart met code
-              </label>
-            </div>
+            {isNew ? (
+              <div className="flex space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="idmiddelen"
+                    value="sleutelhanger"
+                    checked={idmiddelen === 'sleutelhanger'}
+                    onChange={(e) => setIdmiddelen('sleutelhanger')}
+                    className="mr-2"
+                  />
+                  Sleutelhanger
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="idmiddelen"
+                    value="ovchipmetcode"
+                    checked={idmiddelen === 'ovchipmetcode'}
+                    onChange={(e) => setIdmiddelen('ovchipmetcode')}
+                    className="mr-2"
+                  />
+                  OV-kaart met code
+                </label>
+              </div>
+            ) : (
+              <div className="px-3 py-2 border rounded-md bg-gray-50">
+                {idmiddelen === 'ovchipmetcode' ? 'OV-kaart met code' : 'Sleutelhanger'}
+              </div>
+            )}
           </div>
 
           {/* Fietstype */}
           <div>
-            <label className="block text-sm font-medium mb-1">Fietstype:</label>
-            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-2">
-              {fietstypen.map(fietstype => {
-                const isSelected = selectedBiketypeIDs.includes(fietstype.ID);
-                return (
-                  <label 
-                    key={fietstype.ID} 
-                    className={`flex items-center ${!isNew && isSelected ? 'font-semibold text-blue-700' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleBiketypeToggle(fietstype.ID)}
-                      disabled={!isNew}
-                      className={`mr-2 ${!isNew && isSelected ? 'opacity-100' : ''}`}
-                      style={!isNew && isSelected ? { accentColor: '#1d4ed8' } : {}}
-                    />
-                    {fietstype.Name}
-                  </label>
-                );
-              })}
-            </div>
-            {isNew && (
-              <p className="text-sm text-gray-500 mt-1">Selecteer minimaal één fietstype</p>
-            )}
-            {!isNew && (
-              <div className="mt-2 text-sm text-gray-600">
-                {abonnementsvorm?.biketypes?.map(bt => bt.Name).join(', ') || 'Geen fietstypen geselecteerd'}
-              </div>
+            {isNew  ? (
+              <>
+                <label className="block text-sm font-medium mb-1">Fietstype:</label>
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-2">
+                  {fietstypen.map(fietstype => {
+                    const isSelected = selectedBiketypeIDs.includes(fietstype.ID);
+                    return (
+                      <label key={fietstype.ID} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleBiketypeToggle(fietstype.ID)}
+                          className="mr-2"
+                        />
+                        {fietstype.Name}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">Selecteer minimaal één fietstype</p>
+              </>
+            ) : (
+              selectedFietstypeNames.length > 0 && 
+                <>
+                  <label className="block text-sm font-medium mb-1">Fietstype:</label>
+                  <div className="px-3 py-2 border rounded-md bg-gray-50">
+                      {selectedFietstypeNames.join(', ')}
+                  </div>
+                </> 
             )}
           </div>
 
@@ -374,8 +413,8 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
             </label>
           </div>
 
-          {/* Contract - only visible in edit mode */}
-          {!isNew && (
+          {/* Contract */}
+          {showContractField && (
             <div>
               <label className="block text-sm font-medium mb-1">Contract:</label>
               <select
@@ -393,8 +432,8 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
             </div>
           )}
 
-          {/* Machtiging - only visible in edit mode */}
-          {!isNew && (
+          {/* Machtiging */}
+          {showMachtigingField && (
             <div>
               <label className="block text-sm font-medium mb-1">Machtiging:</label>
               <select
@@ -413,21 +452,23 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
           )}
 
           {/* Voorwaarden */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Voorwaarden:</label>
-            <select
-              value={conditionsID || ''}
-              onChange={(e) => setConditionsID(e.target.value || null)}
-              className="w-full px-3 py-2 border rounded-md"
-            >
-              <option value="">Kies een template</option>
-              {documenttemplates.map(template => (
-                <option key={template.ID} value={template.ID}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {showVoorwaardenField && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Voorwaarden:</label>
+              <select
+                value={conditionsID || ''}
+                onChange={(e) => setConditionsID(e.target.value || null)}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="">Kies een template</option>
+                {documenttemplates.map(template => (
+                  <option key={template.ID} value={template.ID}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end gap-2">

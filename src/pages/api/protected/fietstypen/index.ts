@@ -1,7 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import type { VSFietstype } from "~/types/fietstypen";
 
 export type FietstypenResponse = {
@@ -13,12 +11,7 @@ export default async function handle(
   req: NextApiRequest,
   res: NextApiResponse<FietstypenResponse>
 ) {
-  // For non-GET requests, require authentication
   if (req.method !== "GET") {
-    const session = await getServerSession(req, res, authOptions);
-    if (!session) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
     return res.status(405).json({ error: "Method not allowed" });
   }
 
