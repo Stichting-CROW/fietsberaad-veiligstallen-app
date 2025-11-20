@@ -1,23 +1,42 @@
 # App updates VeiligStallen
 
-## VeiligStallen 2025-XX-XX
+## VeiligStallen 2025-xx-xx
+
+**Abonnementsvormen**
+
+- ✨ Nieuw abonnementsvormenbeheer
+
+## VeiligStallen 2025-11-20
 
 **Beheer**
 
-- Verbeterd ontwerp voor het linkermenu
-- Smallere organisatie-selector in topmenu
+- 🖌️ Verbeterd ontwerp voor het linkermenu
+- 🖌️ Smallere organisatie-selector in topmenu
+
+**Fietsenstallingen**
+
+- ✨ Admin kan fietsenstallingen exporteren naar CSV
+- ✨ Meer instelmogelijkheden voor "fietsenstalling-beheerder"
+- ✨ Nieuw vrij invulveld "Extra diensten" bij fietsenstallingbeheer
+  - Voorbeeldweergave op site
+  - Stel in dat een fietsenstalling wordt beheerd door de eigen organisatie (bijv. de gemeente)
+- Adres/postcode/plaats zijn nu een optioneel velden
 
 **Gebruikersbeheer**
 
-- In gebruikersoverzicht: toon eerst de interne gebruikers (van eigen organisatie) en daarna de externe gebruikers
+- ✨ Sta toe dat een exploitant beheerd wordt door een andere organisatie
+- 🖌️ In gebruikersoverzicht: toon eerst de interne gebruikers (van eigen organisatie) en daarna de externe gebruikers
+- 🖌️ In gebruikersoverzicht: verberg e-mailadres
+- 🖌️ In gebruikersbewerkscherm bij bewerken van exploitanten: verberg e-mailadres
+- 🐛 Fix: nieuwe gebruikers kunnen nu weer inloggen in oude FMS 
+  - Automatische aanmaak van security_users_sites records bij nieuwe gebruikers
+  - Partiele fix: moet nog verder doorgetest worden
 
 **Rapportages**
 
-- Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
-- Gebruiker kan eenvoudig instellen van periode (van datum t/m datum)
-- Verbeterd filterontwerp 
-
-## VeiligStallen 2025-11-13 (acceptance)
+- ✨ Gebruiker kan eenvoudig instellen van periode (van datum t/m datum)
+- 🖌️ Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
+- 🖌️ Verbeterd filterontwerp
 
 **Gemeente-beheer**
 
@@ -45,13 +64,6 @@
 
 - 🖌️ Kaart gebruikt nu zoom-niveau van contact wanneer gemeente in URL wordt opgegeven
   - Betere gebruikerservaring bij directe navigatie naar gemeente
-
-**Gebruikersbeheer**
-
-- 🐛 Fix: nieuwe gebruikers kunnen nu weer inloggen in oude FMS 
-  - Automatische aanmaak van security_users_sites records bij nieuwe gebruikers
-  - Partiele fix: moet nog verder doorgetest worden
-
 
 **Technisch**
 
