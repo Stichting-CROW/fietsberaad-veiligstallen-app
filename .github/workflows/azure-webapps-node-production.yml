@@ -36,7 +36,7 @@ jobs:
           NEXTAUTH_SECRET: ${{vars.PROD_NEXTAUTH_SECRET}}
           NEXTAUTH_URL: ${{vars.PROD_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.PROD_NEXT_PUBLIC_MAPBOX_TOKEN}}
-          LOGINTOKEN_SIGNER_PRIVATE_KEY: "ec5a35e2057bf489dccc6510753455669cd2d7d388a5ddcba93414ee85c982cb"
+          LOGINTOKEN_SIGNER_PRIVATE_KEY: ""
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
