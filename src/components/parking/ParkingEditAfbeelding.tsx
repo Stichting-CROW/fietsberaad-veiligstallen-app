@@ -104,7 +104,7 @@ const ParkingEditAfbeelding = ({ parkingdata, onUpdateAfbeelding }: { parkingdat
       const update = { Image: data.url[0] }
       try {
         const result = await fetch(
-          "/api/fietsenstallingen?id=" + parkingdata.ID,
+          `/api/protected/fietsenstallingen/${parkingdata.ID}`,
           {
             method: "PUT",
             body: JSON.stringify(update),

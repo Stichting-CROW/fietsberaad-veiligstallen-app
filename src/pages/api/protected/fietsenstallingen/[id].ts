@@ -405,6 +405,15 @@ export default async function handle(
 
         const parsed = parseResult.data;
         
+        // Validate Image field length if provided
+        if (parsed.Image !== undefined && parsed.Image !== null) {
+          if (parsed.Image.length > 255) {
+            console.error("Image field exceeds maximum length of 255 characters:", parsed.Image.length);
+            res.status(400).json({error: "Image field exceeds maximum length of 255 characters"});
+            return;
+          }
+        }
+        
         // If user has beperkt rights, filter out restricted fields
         let updateData: any = {};
         
@@ -416,7 +425,7 @@ export default async function handle(
             Title: parsed.Title ?? undefined,
             StallingsIDExtern: parsed.StallingsIDExtern ?? undefined,
             Description: parsed.Description ?? undefined,
-            Image: parsed.Image ?? undefined,
+            Image: parsed.Image !== undefined ? (parsed.Image === null ? null : parsed.Image) : undefined,
             Location: parsed.Location ?? undefined,
             Postcode: parsed.Postcode ?? undefined,
             Plaats: parsed.Plaats ?? undefined,
@@ -473,7 +482,7 @@ export default async function handle(
           // Beperkt users can only update specific fields
           updateData = {
             Title: parsed.Title ?? undefined,
-            Image: parsed.Image ?? undefined,
+            Image: parsed.Image !== undefined ? (parsed.Image === null ? null : parsed.Image) : undefined,
             Description: parsed.Description ?? undefined,
             Location: parsed.Location ?? undefined,
             Postcode: parsed.Postcode ?? undefined,
@@ -549,6 +558,12 @@ export default async function handle(
           }
         }
 
+        // Log update data for debugging
+        console.log("Updating fietsenstalling with data:", JSON.stringify(updateData, null, 2));
+        console.log("Image field value:", updateData.Image);
+        console.log("Image field type:", typeof updateData.Image);
+        console.log("Image field length:", updateData.Image?.length);
+        
         const updatedFietsenstalling = await prisma.fietsenstallingen.update({
           select: selectParkingDetailsType,
           where: { ID: id },
@@ -560,7 +575,14 @@ export default async function handle(
           console.error("Unexpected/missing data error:", e.errors);
           res.status(400).json({error: "Unexpected/missing data error:"});
         } else {
-          res.status(500).json({error: "Error updating fietsenstalling"});
+          console.error("Error updating fietsenstalling:", e);
+          console.error("Error details:", {
+            message: e instanceof Error ? e.message : String(e),
+            stack: e instanceof Error ? e.stack : undefined,
+            body: req.body,
+            id: id
+          });
+          res.status(500).json({error: "Internal server error"});
         }
       }
       break;
