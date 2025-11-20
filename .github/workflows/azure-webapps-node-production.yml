@@ -21,12 +21,12 @@ jobs:
     environment: production
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js version
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
+          node-version: "22.x"
 
       - name: create env file
         env:
@@ -36,7 +36,7 @@ jobs:
           NEXTAUTH_SECRET: ${{vars.PROD_NEXTAUTH_SECRET}}
           NEXTAUTH_URL: ${{vars.PROD_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.PROD_NEXT_PUBLIC_MAPBOX_TOKEN}}
-          LOGINTOKEN_SIGNER_PRIVATE_KEY: "ec5a35e2057bf489dccc6510753455669cd2d7d388a5ddcba93414ee85c982cb"
+          LOGINTOKEN_SIGNER_PRIVATE_KEY: ""
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
@@ -67,7 +67,7 @@ jobs:
 
       - name: "Deploy to Azure Web App"
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.PROD_AZURE_APP_NAME}}
           publish-profile: ${{ vars.PROD_AZUREAPPSERVICE_PUBLISHPROFILE_VEILIGSTALLEN }}

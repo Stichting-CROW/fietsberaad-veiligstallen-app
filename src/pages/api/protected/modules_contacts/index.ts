@@ -88,6 +88,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
     case "POST": {
+      // Only fietsberaad admins can create modules
+      if (session.user.mainContactId !== "1") {
+        console.error("Unauthorized - only fietsberaad admins can create modules");
+        return res.status(403).json({ error: "Alleen fietsberaad beheerders kunnen modules toevoegen" });
+      }
+
       try {
         const data: Prisma.modules_contactsCreateManyInput = req.body;
         
@@ -108,6 +114,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
     case "PUT": {
+      // Only fietsberaad admins can update modules
+      if (session.user.mainContactId !== "1") {
+        console.error("Unauthorized - only fietsberaad admins can update modules");
+        return res.status(403).json({ error: "Alleen fietsberaad beheerders kunnen modules wijzigen" });
+      }
+
       try {
         const { contactId } = req.query;
         const data = req.body;
@@ -160,6 +172,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
     case "DELETE": {
+      // Only fietsberaad admins can delete modules
+      if (session.user.mainContactId !== "1") {
+        console.error("Unauthorized - only fietsberaad admins can delete modules");
+        return res.status(403).json({ error: "Alleen fietsberaad beheerders kunnen modules verwijderen" });
+      }
+
       try {
         const { contactId } = req.query;
         

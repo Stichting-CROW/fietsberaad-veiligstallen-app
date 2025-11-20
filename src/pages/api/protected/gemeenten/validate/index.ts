@@ -79,7 +79,9 @@ export default async function handle(
       }) : undefined;
 
       for(const field of uniqueFields) {
-        const isChanged = oldValues && (oldValues?.[field.field] !== data[field.field]);
+        const isChanged = 
+          data[field.field] !== undefined &&
+          oldValues && (oldValues?.[field.field] !== data[field.field]);
         // check if the field value has changed
         if(isNew || isChanged) {
           const duplicate = await prisma.contacts.findFirst({
@@ -89,6 +91,7 @@ export default async function handle(
           });
 
           if(duplicate) {
+            console.log("validate duplicate", field.field, data[field.field], duplicate);
             res.status(200).json({valid: false, message: field.message});
             return;
           }      

@@ -70,7 +70,6 @@ export default async function handle(
 
         for(const gemeente of gemeenten) {
           const hasUsers = contactIdsWithUsers.has(gemeente.ID);
-          const hasExploitanten = (gemeente.isManagedByContacts?.length || 0) > 0;
           const hasStallingen = gemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts.length > 0;
           
           data.push({
@@ -79,9 +78,11 @@ export default async function handle(
             CompanyLogo: gemeente.CompanyLogo,
             ThemeColor1: gemeente.ThemeColor1,
             ThemeColor2: gemeente.ThemeColor2,
+            Status: gemeente.Status,
             hasStallingen,
             hasUsers,
-            hasExploitanten
+            isManagingContacts: gemeente.isManagingContacts,
+            isManagedByContacts: gemeente.isManagedByContacts
           })
         }
         res.status(200).json({data})

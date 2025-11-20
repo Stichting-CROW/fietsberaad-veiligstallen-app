@@ -1,5 +1,83 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-xx-xx
+
+**Abonnementsvormen**
+
+- ✨ Nieuw abonnementsvormenbeheer
+
+## VeiligStallen 2025-11-20
+
+**Beheer**
+
+- 🖌️ Verbeterd ontwerp voor het linkermenu
+- 🖌️ Smallere organisatie-selector in topmenu
+
+**Fietsenstallingen**
+
+- ✨ Admin kan fietsenstallingen exporteren naar CSV
+- ✨ Meer instelmogelijkheden voor "fietsenstalling-beheerder"
+- ✨ Nieuw vrij invulveld "Extra diensten" bij fietsenstallingbeheer
+  - Voorbeeldweergave op site
+  - Stel in dat een fietsenstalling wordt beheerd door de eigen organisatie (bijv. de gemeente)
+- Adres/postcode/plaats zijn nu een optioneel velden
+
+**Gebruikersbeheer**
+
+- ✨ Sta toe dat een exploitant beheerd wordt door een andere organisatie
+- 🖌️ In gebruikersoverzicht: toon eerst de interne gebruikers (van eigen organisatie) en daarna de externe gebruikers
+- 🖌️ In gebruikersoverzicht: verberg e-mailadres
+- 🖌️ In gebruikersbewerkscherm bij bewerken van exploitanten: verberg e-mailadres
+- 🐛 Fix: nieuwe gebruikers kunnen nu weer inloggen in oude FMS 
+  - Automatische aanmaak van security_users_sites records bij nieuwe gebruikers
+  - Partiele fix: moet nog verder doorgetest worden
+
+**Rapportages**
+
+- ✨ Gebruiker kan eenvoudig instellen van periode (van datum t/m datum)
+- 🖌️ Eenvoudiger wisselen van rapportage middels nieuw 'rapportage-menu' aan de linkerkant
+- 🖌️ Verbeterd filterontwerp
+
+**Gemeente-beheer**
+
+- ✨ Volledige bewerkfunctionaliteit voor gemeenten toegevoegd
+  - Nieuwe kaart-editor component voor het bewerken van gemeentegrenzen
+  - Toegevoegd: registratiedatum veld voor gemeenten
+  - Verbeterde validatie en foutafhandeling bij gemeente-bewerkingen
+  - Contactpersoon beheer toegevoegd aan gemeente API
+
+**Organisatie-archivering**
+
+- ✨ Nieuw: archiveringsfunctionaliteit voor organisaties
+  - Gemeenten, exploitanten en dataproviders kunnen nu worden gearchiveerd
+  - Gearchiveerde organisaties worden uitgesloten van standaard overzichten
+  - Archiveringsstatus is bewerkbaar via beheerschermen
+
+**Beveiliging**
+
+- 🔒 Verbeterde beveiligingsrestricties voor exploitant-organisaties
+  - Exploitanten kunnen geen exploitanten_toegangsrecht meer beheren
+  - Automatische autorisatiecontrole voor exploitant-gemeente koppelingen
+  - Vereenvoudigde component-level checks door verbeterde security profile
+
+**Kaart & Navigatie**
+
+- 🖌️ Kaart gebruikt nu zoom-niveau van contact wanneer gemeente in URL wordt opgegeven
+  - Betere gebruikerservaring bij directe navigatie naar gemeente
+
+**Technisch**
+
+- ✨ Nieuwe API endpoints voor gemeente contactpersoon beheer
+- ✨ Verbeterde modules_contacts API functionaliteit
+- 🗑️ Opgeruimd: verwijderde overbodige component-level security checks
+
+## VeiligStallen 2025-11-06
+
+**Stallingenbeheer**
+
+- 🖌️ Logo gemeente in site-header staat nu verticaal gecentreerd
+- 🐛 Fix: Foto van fietsenstalling kan weer worden opgeslagen
+
 ## VeiligStallen 2025-11-04
 
 **Stallingsbeheer**

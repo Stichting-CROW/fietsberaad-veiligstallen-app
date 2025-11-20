@@ -14,7 +14,7 @@ import { VSSecurityTopic } from '~/types/securityprofile';
 
 type UserComponentProps = { 
   siteID: string | null,
-  contacts: {ID: string, CompanyName: string}[],
+  contacts: {ID: string, CompanyName: string, ItemType?: string}[],
 };
 
 const UsersComponent: React.FC<UserComponentProps> = (props) => {
@@ -30,7 +30,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
   const [organizationFilter, setOrganizationFilter] = useState<string | undefined>(undefined);
   const [archivedUserIds, setArchivedUserIds] = useState<string[]>([]);
   const [archivedFilter, setArchivedFilter] = useState<"Yes" | "No" | "Only">("No");
-  const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
+  const [sortColumn, setSortColumn] = useState<string | undefined>(undefined);
   const [hasFullAdminRight, setHasFullAdminRight] = useState<boolean>(false);
   const [hasLimitedAdminRight, setHasLimitedAdminRight] = useState<boolean>(false);
   const [hasManageExploitantsRights, setHasManageExploitantsRights] = useState<boolean>(false);
@@ -47,7 +47,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
 
   useEffect(() => {
     setHasManageExploitantsRights(
-      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_toegangsrecht)
+      userHasRight(session?.user?.securityProfile, VSSecurityTopic.exploitanten_beheerrecht)
     );
   }, [session?.user]);
 
@@ -234,9 +234,6 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     if (sortColumn === 'Naam') {
       return [...filteredusers].sort((a, b) => (a.DisplayName || "").localeCompare(b.DisplayName || ""));
     }
-    if (sortColumn === 'E-mail') {
-      return [...filteredusers].sort((a, b) => (a.UserName || "").localeCompare(b.UserName || ""));
-    }
     if (sortColumn === 'Organisatie') {
       return [...filteredusers].sort((a, b) => {
         const aOrg = props.contacts.find(contact => contact.ID === a.ownOrganizationID)?.CompanyName || "";
@@ -298,11 +295,6 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
         accessor: 'DisplayName',
       },
       {
-        header: 'E-mail',
-        accessor: 'UserName',
-      },
-      // Only show organization column when no organization filter is set
-      {
         header: 'Organisatie',
         accessor: (user: any) => {
           const organizationName = props.contacts.find(contact => contact.ID === user.ownOrganizationID)?.CompanyName || "Onbekende organisatie";
@@ -351,7 +343,12 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
         accessor: (user) => (
           <div className="whitespace-nowrap">
             {/* <button onClick={() => handleResetPassword(user.UserID)} className="text-blue-500 mx-1 disabled:opacity-40" disabled={true || !user.isOwnOrganization}>🔑</button> */}
-            <button onClick={() => handleEditUser(user.UserID)} className="text-yellow-500 mx-1 disabled:opacity-40">✏️</button>
+            <button 
+              onClick={() => handleEditUser(user.UserID)} 
+              className="text-yellow-500 mx-1 disabled:opacity-40"
+            >
+              ✏️
+            </button>
             {process.env.NODE_ENV === "development" &&
               session?.user?.mainContactId === "1" && (
                 <button 
@@ -503,7 +500,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
           columns={columns}
           data={sortedUsers}
           className="mt-4"
-          sortableColumns={organizationFilter ? ['Naam', 'E-mail', 'Rol'] : ['Naam', 'E-mail', 'Organisatie', 'Rol']}
+          sortableColumns={organizationFilter ? ['Naam', 'Rol'] : ['Naam', 'Organisatie', 'Rol']}
           sortColumn={sortColumn}
           onSort={handleSort}
         />

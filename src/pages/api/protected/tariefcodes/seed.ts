@@ -60,9 +60,6 @@ export default async function handle(
       ON DUPLICATE KEY UPDATE Omschrijving = VALUES(Omschrijving)
     `;
 
-    // Reset auto-increment counter to continue from 6 after inserting 0-5
-    await prisma.$executeRaw`ALTER TABLE tariefcodes AUTO_INCREMENT = 6`;
-
     res.status(200).json({ success: true });
   } catch (error) {
     console.error("Error seeding tariefcodes:", error);

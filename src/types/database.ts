@@ -118,6 +118,9 @@ export const gemeenteSchema = z.object({
     .optional(),
   DateRejected: z.union([z.string().datetime(), z.date(), z.null()])
     .optional(),
+  Status: z.string()
+    .nullable()
+    .optional(),
 });
 
 export const gemeenteCreateSchema = gemeenteSchema.omit({ ID: true });

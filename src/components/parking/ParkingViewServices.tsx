@@ -17,13 +17,30 @@ const ParkingViewServices = ({ parkingdata }: { parkingdata: ParkingDetailsType 
       const json = await response.json() as VSservice[];
       if (!json) return [];
 
-      setAllServices(json);
+      // Add ExtraServices to the list
+      const servicesList = [...json];
+      
+      if (parkingdata.ExtraServices && parkingdata.ExtraServices.trim().length > 0) {
+        const extraServicesList = parkingdata.ExtraServices
+          .split(',')
+          .map(x => x.trim())
+          .filter(x => x.length > 0);
+        
+        extraServicesList.forEach((extraService, index) => {
+          servicesList.push({
+            ID: `extra-${parkingdata.ID}-${index}`,
+            Name: extraService,
+          } as VSservice);
+        });
+      }
+
+      setAllServices(servicesList);
     }
 
     updateServices().catch(err => {
       console.error("get all services error", err);
     });
-  }, []);
+  }, [parkingdata.ExtraServices, parkingdata.ID]);
 
   const serviceIsActive = (ID: string): boolean => {
     for (const x of parkingdata.fietsenstallingen_services) {
@@ -39,32 +56,30 @@ const ParkingViewServices = ({ parkingdata }: { parkingdata: ParkingDetailsType 
     return null
   }
 
-  const activeServices = allServices && allServices.filter((service: any) => serviceIsActive(service.ID)) || [];
-  if (activeServices.length === 0) {
+  // Filter services: regular services that are active, and all extra services
+  const displayedServices = allServices && allServices.filter((service: any) => {
+    // Show regular services if they're active
+    if (!service.ID.startsWith('extra-')) {
+      return serviceIsActive(service.ID);
+    }
+    // Show all extra services
+    return true;
+  }) || [];
+  
+  if (displayedServices.length === 0) {
     // dont show services header if there are none
     return null;
   }
 
-
   return <>
     <SectionBlock heading="Services">
       <div className="flex-1" key={'services' + parkingdata.ID}>
-        {allServices && allServices.map(service => {
-          if (!serviceIsActive(service.ID)) return null;
-          return (
-            <div key={service.ID}>
-              {service.Name}
-            </div>
-          );
-        })}
-      </div>
-      {parkingdata.ExtraServices && <>
-        {parkingdata.ExtraServices.split(',').map(x => {
-          return <div key={x}>
-            {x.trim()}
+        {displayedServices.map(service => (
+          <div key={service.ID}>
+            {service.Name}
           </div>
-        })}
-      </>}
+        ))}
+      </div>
     </SectionBlock>
     <HorizontalDivider className="my-4" />
   </>

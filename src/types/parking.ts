@@ -54,6 +54,7 @@ export type AbonnementsvormenType = {
   contractID: string | null;
   paymentAuthorizationID: string | null;
   conditionsID: string | null;
+  allowedBikeTypes?: string[];
 };
 
 export type ParkingDetailsType = {

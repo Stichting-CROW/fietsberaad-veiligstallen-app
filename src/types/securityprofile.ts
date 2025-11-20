@@ -19,7 +19,7 @@ export enum VSSecurityTopic {
   "fietsberaad_admin" = "fietsberaad_admin",
   "exploitant_superadmin" = "exploitant_superadmin",
   "acceptatie_ontwikkeling" = "acceptatie_ontwikkeling",
-  "exploitanten_toegangsrecht" = "exploitanten_toegangsrecht",
+  "exploitanten_beheerrecht" = "exploitanten_beheerrecht",
   "gebruikers_dataeigenaar_admin" = "gebruikers_dataeigenaar_admin",
   "gebruikers_dataeigenaar_beperkt" = "gebruikers_dataeigenaar_beperkt",
   "instellingen_dataeigenaar" = "instellingen_dataeigenaar",
@@ -27,6 +27,7 @@ export enum VSSecurityTopic {
   "instellingen_site_content_faq" = "instellingen_site_content_faq",
   "instellingen_fietsenstallingen_admin" = "instellingen_fietsenstallingen_admin",
   "instellingen_fietsenstallingen_beperkt" = "instellingen_fietsenstallingen_beperkt",
+  "abonnementsvormen_beheerrecht" = "abonnementsvormen_beheerrecht",
   "rapportages" = "rapportages",
   "fmsservices" = "fmsservices",
   "wachtrij" = "wachtrij",
@@ -104,7 +105,7 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     ].join(",")
   },
   {
-    topic: VSSecurityTopic.exploitanten_toegangsrecht,
+    topic: VSSecurityTopic.exploitanten_beheerrecht,
     name: "Beheer exploitanten bij huidige organisatie (data-eigenaar)",
     description: [
       "Instellingen voor beheer van data-eigenaars tot deze organisatie door een of meer exploitanten"
@@ -143,6 +144,17 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
       "Openingstijden - tijden",
       "Openingstijden - uitzonderingen",
       "Openingstijden - extra info"
+    ].join(",")
+  },
+  {
+    topic: VSSecurityTopic.abonnementsvormen_beheerrecht,
+    name: "Abonnementsvormen beheer",
+    description: [
+      "Overzicht abonnementsvormen bekijken",
+      "Nieuwe abonnementsvormen aanmaken (alleen admin/root)",
+      "Bestaande abonnementsvormen bewerken (alleen admin/root)",
+      "Abonnementsvormen activeren/deactiveren (alleen admin/root)",
+      "Abonnementsvormen verwijderen (alleen admin/root)"
     ].join(",")
   },
   {

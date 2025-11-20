@@ -7,7 +7,7 @@ export type DayPrefix = 'ma' | 'di' | 'wo' | 'do' | 'vr' | 'za' | 'zo';
 
 export enum VSMenuTopic {
     // "Abonnementen" = "abonnementen",
-    // "Abonnementsvormen" = "abonnementsvormen",
+    "Abonnementsvormen" = "abonnementsvormen",
     "Accounts" = "accounts",
     "ApisGekoppeldeLocaties" = "apisgekoppeldelocaties",
     "ApisOverzicht" = "apisoverzicht",
@@ -21,9 +21,9 @@ export enum VSMenuTopic {
     "ContactsExploitanten" = "contactsexploitanten",
     "ContactsGemeenten" = "contactsgemeenten",
     "Database" = "database",
+    "DatabaseExport" = "databaseexport",
     "Development" = "development",
     "Documents" = "documents",
-    "ExploreGemeenten" = "exploregemeenten",
     "ExploreUsers" = "exploreusers",
     "ExploreUsersColdfusion" = "exploreuserscoldfusion",
     "Export" = "export",

@@ -186,7 +186,11 @@ function ParkingFacilityBlock({
                 <span className="mr-2">toilet</span>
                 <span>nog een icoon</span>
                 */}
-                <span>{parking.ExtraServices}</span>
+                {/* {parking.ExtraServices && parking.ExtraServices.split(',').map((service, index) => (
+                  <span key={`extra-${index}-${service.trim()}`} className={index > 0 ? "ml-2" : ""}>
+                    {service.trim()}
+                  </span>
+                ))} */}
               </div>
               <div>
                 <a

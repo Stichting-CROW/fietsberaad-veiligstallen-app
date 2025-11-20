@@ -21,12 +21,12 @@ jobs:
     environment: acceptance
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js version
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
+          node-version: "22.x"
 
       - name: create env file
         env:
@@ -58,24 +58,16 @@ jobs:
           NEXTAUTH_SECRET: ${{vars.ACC_NEXTAUTH_SECRET}}
           NEXTAUTH_URL: ${{vars.ACC_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
+          PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
         run: |
           npm install
-          npx prisma generate
-          echo "DIR ./src"
-          ls -la ./src
-          echo "DIR node_modules"
-          ls -la ./node_modules
-          echo "DIR .prisma"
-          ls -la ./node_modules/.prisma
           npm run build
           mv ./build/static ./build/standalone/build
-          ls -la ./build/standalone
-          ls -la ./build/standalone/build
           mv ./public ./build/standalone
 
       - name: "Deploy to Azure Web App"
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.ACC_AZURE_APP_NAME}}
           publish-profile: ${{ vars.ACC_AZUREAPPSERVICE_PUBLISHPROFILE_VEILIGSTALLEN }}

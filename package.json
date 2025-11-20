@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=18.0.0 <19.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=22.0.0 <23.0.0",
+    "npm": ">=10.0.0"
   },
   "scripts": {
     "build": "next build",
@@ -15,7 +15,6 @@
     "migrate-db": "curl -X POST http://localhost:3000/api/protected/database/migrate",
     "migrate-db:acceptance": "curl -X POST https://vstfb-eu-acc-app01.azurewebsites.net/api/protected/database/migrate",
     "migrate-db:production": "curl -X POST https://beta.veiligstallen.nl/api/protected/database/migrate",
-
     "setup-db-local": "cd mysql-db && bash setup-db.sh && cd .. && prisma db pull --force && prisma generate",
     "start-db-local": "docker start veiligstallen-mysql",
     "start-db": "cd scripts && bash launch-ssh-tunnel.sh && echo 'SSH tunnel started'",
@@ -66,7 +65,7 @@
     "next-auth": "^4.23.1",
     "next-pwa": "^5.6.0",
     "next-redux-wrapper": "^8.1.0",
-    "nodemailer": "^6.9.12",
+    "nodemailer": "^7.0.7",
     "react": "18.2.0",
     "react-apexcharts": "^1.5.0",
     "react-dom": "18.2.0",
@@ -80,13 +79,13 @@
   },
   "devDependencies": {
     "@prisma-korea/prisma-generator-proto": "^2.3.2",
-    "@prisma/client": "^6.8.2",
+    "@prisma/client": "^6.19.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/eslint": "^8.21.3",
     "@types/formidable": "^3.4.3",
     "@types/mime": "^3.0.2",
     "@types/next-pwa": "^5.6.4",
-    "@types/node": "^18.15.5",
+    "@types/node": "^22.0.0",
     "@types/prettier": "^2.7.2",
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
@@ -100,7 +99,7 @@
     "postcss": "^8.4.21",
     "prettier": "^2.8.6",
     "prettier-plugin-tailwindcss": "^0.2.5",
-    "prisma": "^5.22.0",
+    "prisma": "^6.19.0",
     "tailwindcss": "^3.2.7",
     "typescript": "^5.0.2"
   },

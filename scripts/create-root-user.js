@@ -69,6 +69,7 @@ sql.push(`SET @existingUserID = (SELECT UserID FROM security_users WHERE UserNam
 sql.push(`-- If user exists, drop related records`);
 sql.push(`DELETE FROM security_users_sites WHERE UserID = @existingUserID;`);
 sql.push(`DELETE FROM user_contact_role WHERE UserID = @existingUserID;`);
+sql.push(`DELETE FROM user_status WHERE UserID = @existingUserID;`);
 sql.push(`DELETE FROM security_users WHERE UserID = @existingUserID;`);
 
 // 2. Create new user

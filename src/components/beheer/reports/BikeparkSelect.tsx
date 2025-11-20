@@ -18,9 +18,6 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
 
   const isScrollable = bikeparks.length > 20;
 
-  const selectClasses = "min-w-56 border-2 border-gray-300 rounded-md w-full cursor-pointer relative h-10 leading-10 px-2";
-  const buttonClasses = "w-16 h-8 text-sm border-2 border-gray-300 rounded-md";
-
   const toggleSelectAll = () => {
     const validBikeparkIDs = bikeparks.filter(bp => bp.StallingsID!==null).map(bp => bp.StallingsID as string);
     if (selectedBikeparkIDs.length > 0 && selectedBikeparkIDs.length < validBikeparkIDs.length) {
@@ -66,54 +63,47 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
   }, []);
 
   return (
-    <>
-      <div
+    <div className="relative inline-block text-left">
+      <button
         ref={divRef}
-        className={selectClasses}
-        style={{ userSelect: 'none', backgroundColor: 'rgb(239, 239, 239)' }}
+        type="button"
         onClick={() => setIsDropdownOpen((prev) => !prev)}
+        className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 w-full"
       >
-        {getDisplayText()}
-        <button
-          className={buttonClasses}
-          style={{
-            width: '100px',
-            position: 'absolute',
-            right: '10px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            backgroundColor: 'white'
-          }}
+        <span>{getDisplayText()}</span>
+        <svg
+          className={`h-4 w-4 text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180" : "rotate-0"}`}
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
-          Selecteer
-        </button>
-      </div>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
       {isDropdownOpen && (
         <div
           ref={dropdownRef}
-          className={selectClasses}
+          className="absolute left-0 z-30 mt-2 w-full origin-top-left rounded-lg border border-gray-200 bg-white shadow-lg"
           style={{
-            width: 'auto',
-            height: 'auto',
             maxHeight: isScrollable ? '200px' : 'auto',
             overflowY: isScrollable ? 'auto' : 'visible',
             overflowX: 'hidden',
-            border: '1px solid #ccc',
-            position: 'absolute',
-            backgroundColor: 'white',
-            zIndex: 1000,
           }}
         >
-          <button
-            className={buttonClasses}
-            onClick={toggleSelectAll}
-          >
-            ✔️
-          </button>
-          {bikeparks.map((park) => (
-            <div key={park.StallingsID}>
-              <label>
+          <div className="py-1">
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
+            </button>
+            {bikeparks.map((park) => (
+              <label
+                key={park.StallingsID}
+                className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
                 <input
                   type="checkbox"
                   checked={selectedBikeparkIDs.includes(park.StallingsID as string)}
@@ -125,14 +115,15 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
                         : [...prev, park.StallingsID as string]
                     )
                   }
+                  className="mr-2"
                 />
                 {park.Title}
               </label>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

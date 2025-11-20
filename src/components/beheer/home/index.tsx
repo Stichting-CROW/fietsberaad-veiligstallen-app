@@ -1,5 +1,5 @@
 import React from 'react';
-import { VSContactGemeente } from '~/types/contacts';
+import { FiMail } from 'react-icons/fi';
 
 interface HomeInfoComponentProps {
    gemeentenaam: string | undefined;
@@ -8,39 +8,41 @@ interface HomeInfoComponentProps {
 const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) => {
 
   return (
-    <div className="p-6">
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h2 className="text-xl font-semibold mb-4">Welkom</h2>
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white/95 p-8 shadow-sm">
+        <div className="mb-6 flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">
+            Welkom
+          </span>
+          <h1 className="text-3xl font-semibold leading-tight text-slate-900">
+            Beheeromgeving VeiligStallen{gemeentenaam ? ` (${gemeentenaam})` : ""}
+          </h1>
+        </div>
 
-        <p className="text-gray-600 mb-4">
-          Welkom in de beheeromgeving van VeiligStallen{gemeentenaam ? ` (${gemeentenaam})` : "!"}
-        </p>
+        <div className="space-y-4 text-base leading-6 text-slate-600">
+          <p>
+            Dit dashboard geeft je toegang tot alle beheerfunctionaliteiten van VeiligStallen.
+            Hier vind je de rapportagetool en kun je snel schakelen tussen onderdelen zoals gebruikers,
+            fietsenstallingen en contentbeheer.
+          </p>
+          <p>
+            Gebruik het menu aan de linkerkant om direct naar een onderdeel te navigeren. De
+            rapportages worden automatisch bijgewerkt, zodat je altijd beschikt over de meest recente
+            inzichten.
+          </p>
+        </div>
 
-        <p className="text-gray-600 mb-4">
-          Via deze omgeving kun je rapportages inzien via de nieuwe rapportage-tool van VeiligStallen.
-        </p>
-
-        <p className="text-gray-600 mb-4">
-          Heb je feedback? Stuur dan een e-mail aan <a href="mailto:info@veiligstallen.nl" className="underline">info@veiligstallen.nl</a>.
-        </p>
-
-        {/* <p className="text-gray-600 mb-4">
-          Welkom in de beheeromgeving van Veiligstallen{gemeentenaam ? ` (${gemeentenaam})` : ""}. Via deze omgeving kunt u de volgende onderdelen beheren:
-        </p>
-        
-        <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
-          <li>Gebruikers en toegangsrechten</li>
-          <li>Gemeenten en contactpersonen</li>
-          <li>Exploitanten en contactpersonen</li>
-          <li>Dataproviders</li>
-          <li>Pagina's en artikelen</li>
-          <li>Fietsenstallingen</li>
-        </ul>
-
-        <p className="text-gray-600 mt-6">
-          Gebruik het menu aan de linkerkant om naar de verschillende onderdelen te navigeren.
-        </p> */}
-      </div>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-slate-700">Feedback of vragen?</span>
+          <a
+            href="mailto:info@veiligstallen.nl"
+            className="inline-flex items-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2"
+          >
+            <FiMail className="h-4 w-4" />
+            Mail ons op info@veiligstallen.nl
+          </a>
+        </div>
+      </section>
     </div>
   );
 };

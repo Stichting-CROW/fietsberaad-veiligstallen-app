@@ -8,7 +8,7 @@ import FormInput from "~/components/Form/FormInput";
 import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
-import type { ParkingDetailsType, ParkingSections, ParkingStatus } from "~/types/parking";
+import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
 import {
   getDefaultLocation,
 } from "~/utils/parkings";
@@ -18,10 +18,7 @@ import {
 } from "~/utils/municipality";
 import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 
-/* Use nicely formatted items for items that can not be changed yet */
-import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
-
-import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
+import ParkingEditAbonnementen from "~/components/parking/ParkingEditAbonnementen";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import SectiesManagementNew from "~/components/parking/SectiesManagementNew";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
@@ -30,7 +27,6 @@ import ParkingEditOpening, {
 } from "~/components/parking/ParkingEditOpening";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import ParkingViewBeheerder from "./ParkingViewBeheerder";
 import {
   type MunicipalityType,
   getMunicipalityBasedOnLatLng,
@@ -39,8 +35,6 @@ import { geocodeAddress, reverseGeocode, type ReverseGeocodeResult } from "~/uti
 import toast from "react-hot-toast";
 import { type VSservice } from "~/types/services";
 import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
-import { useExploitanten } from "~/hooks/useExploitanten";
-import type { VSContactExploitant } from "~/types/contacts";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
@@ -69,6 +63,7 @@ export type ParkingEditUpdateStructure = {
   Type?: string;
   Tariefcode?: number | null;
   OmschrijvingTarieven?: string | null;
+  ExtraServices?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -187,6 +182,10 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  const [newExtraServices, setNewExtraServices] = React.useState<
+    string | undefined
+  >(undefined);
+
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
   >(undefined);
@@ -196,6 +195,7 @@ const ParkingEdit = ({
   // Check user rights for field-level access control
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
+  const [hasAbonnementenModule, setHasAbonnementenModule] = React.useState(false);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const canEditAllFields = hasFietsenstallingenAdmin;
@@ -203,9 +203,6 @@ const ParkingEdit = ({
 
   // Use the hook for fietsenstallingtypen
   const { fietsenstallingtypen: allTypes, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError } = useFietsenstallingtypen();
-
-  // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
 
   // Set 'allServices' variable in local state
   React.useEffect(() => {
@@ -225,6 +222,49 @@ const ParkingEdit = ({
   React.useEffect(() => {
     updateSiteID();
   }, [parkingdata.Location, newCoordinaten]);
+
+  const siteIdForModules = parkingdata.SiteID || session?.user?.activeContactId || "";
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const fetchModules = async () => {
+      if (!siteIdForModules) {
+        setHasAbonnementenModule(false);
+        return;
+      }
+
+      if (siteIdForModules === "1") {
+        setHasAbonnementenModule(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/protected/modules_contacts?contactId=${siteIdForModules}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch modules");
+        }
+        const modules = await response.json();
+        if (!cancelled) {
+          const hasModule = Array.isArray(modules) && modules.some((module: { ModuleID?: string }) => module.ModuleID === "abonnementen");
+          setHasAbonnementenModule(hasModule);
+        }
+      } catch (error) {
+        console.error("Error fetching modules for contact:", error);
+        if (!cancelled) {
+          setHasAbonnementenModule(false);
+        }
+      }
+    };
+
+    fetchModules();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [siteIdForModules]);
+
+  const showAbonnementenTab = (showAbonnementen || hasAbonnementenModule) && parkingdata.ID !== "" && session !== null;
 
   const handleChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
@@ -301,21 +341,9 @@ const ParkingEdit = ({
     const checks: checkInfo[] = [
       {
         type: "string",
-        text: "invoer van de titel",
+        text: "invoer van de naam van de stalling",
         value: parkingdata.Title,
         newvalue: newTitle,
-      },
-      {
-        type: "string",
-        text: "invoer van de straat en huisnummer",
-        value: parkingdata.Location,
-        newvalue: newLocation,
-      },
-      {
-        type: "string",
-        text: "invoer van de plaats",
-        value: parkingdata.Plaats,
-        newvalue: newPlaats,
       },
       {
         type: "string",
@@ -330,6 +358,8 @@ const ParkingEdit = ({
         newvalue: newCoordinaten,
       },
     ];
+    // parkingdata.Locatie is optional
+    // parkingdata.Plaats is optional
     // parkingdata.Postcode is optional
 
     // Only validate beheerder fields if user has admin rights
@@ -456,6 +486,12 @@ const ParkingEdit = ({
     if (newOmschrijvingTarieven !== undefined) {
       if (newOmschrijvingTarieven !== parkingdata.OmschrijvingTarieven) {
         update.OmschrijvingTarieven = newOmschrijvingTarieven;
+      }
+    }
+
+    if (newExtraServices !== undefined) {
+      if (newExtraServices !== parkingdata.ExtraServices) {
+        update.ExtraServices = newExtraServices;
       }
     }
 
@@ -863,9 +899,9 @@ const ParkingEdit = ({
             <div className="mt-4 w-full">
               <FormInput
                 key="i-title"
-                label="Titel"
+                label="Naam stalling"
                 className="mb-1 w-full border-2 border-black"
-                placeholder="titel"
+                placeholder="Naam van de stalling"
                 onChange={e => {
                   setNewTitle(e.target.value);
                 }}
@@ -966,6 +1002,24 @@ const ParkingEdit = ({
               </div>
             </div>
           </SectionBlock>
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlockEdit>
+            <div className="mt-4 w-full">
+              <FormInput
+                key="i-extraservices"
+                label="Extra services (komma gescheiden)"
+                className="mb-1 w-full border-2 border-black"
+                placeholder="extra services"
+                onChange={e => {
+                  setNewExtraServices(e.target.value);
+                }}
+                value={newExtraServices !== undefined ? newExtraServices : (parkingdata.ExtraServices || "")}
+                disabled={!canEditAllFields && !canEditLimitedFields}
+              />
+            </div>
+          </SectionBlockEdit>
 
           <HorizontalDivider className="my-4" />
 
@@ -1234,10 +1288,14 @@ const ParkingEdit = ({
   const renderTabAbonnementen = (visible = false) => {
     return (
       <div
-        className="mt-10 flex w-full justify-between"
+        className="mt-10 flex w-full flex-col"
         style={{ display: visible ? "flex" : "none" }}
       >
-        <ParkingViewAbonnementen parkingdata={parkingdata} />
+        <ParkingEditAbonnementen
+          parkingId={parkingdata.ID}
+          parkingType={parkingdata.Type}
+          canEdit={canEditAllFields || hasFietsenstallingenBeperkt}
+        />
       </div>
     );
   };
@@ -1246,9 +1304,6 @@ const ParkingEdit = ({
     return (
       <ParkingEditBeheerder
         visible={visible}
-        isLoadingExploitanten={isLoadingExploitanten}
-        exploitanten={exploitanten}
-        errorExploitanten={errorExploitanten}
         newExploitantID={newExploitantID}
         setNewExploitantID={setNewExploitantID}
         parkingdata={parkingdata}
@@ -1363,7 +1418,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
-        {showAbonnementen && hasID && isLoggedIn && (
+        {showAbonnementenTab && (
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
@@ -1376,8 +1431,8 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
-      {showAbonnementen && renderTabAbonnementen(
-        selectedTab === "tab-abonnementen" && hasID && isLoggedIn,
+      {renderTabAbonnementen(
+        showAbonnementenTab && selectedTab === "tab-abonnementen",
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}
     </div>

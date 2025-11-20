@@ -21,19 +21,20 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
 export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
   switch (reportGrouping) {
     case 'per_hour': {
-      return value.toString() + ":00";
+      // Value is a timestamp in milliseconds, convert to hour format "HH:00"
+      return moment(parseFloat(value)).format('HH:00');
     }
     case 'per_weekday': {
       return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
     }
     case 'per_day': {
-      return moment(value).format('YYYY-DDD');
+      return moment(value).format('YYYY-MM-DD');
     }
     case 'per_month': {
       return moment(value).format('YYYY-M');
     }
     case 'per_week': {
-      return moment(value).format('YYYY-W');
+      return moment(value).format('YYYY-\\wW');
     }
     case 'per_quarter': {
       return moment(value).format('YYYY-Q');

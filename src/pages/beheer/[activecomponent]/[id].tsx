@@ -13,6 +13,7 @@ const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExp
 import TopBar from "~/components/beheer/TopBar";
 
 // import AbonnementenComponent from '~/components/beheer/abonnementen';
+import AbonnementsvormenComponent from '~/components/beheer/abonnementsvormen';
 import AccountsComponent from '~/components/beheer/accounts';
 import ApisComponent from '~/components/beheer/apis';
 import ArticlesComponent from '~/components/beheer/articles';
@@ -33,6 +34,7 @@ import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
 import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
+import DatabaseExport from '~/components/beheer/database/DatabaseExport';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
@@ -40,6 +42,7 @@ import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorCompo
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { userHasRight } from "~/types/utils";
+import type { VSmodules_contacts } from "~/types/modules-contacts";
 
 // import Styles from "~/pages/content.module.css";
 import { useSession } from "next-auth/react";
@@ -156,6 +159,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const { fietsenstallingtypen, isLoading: fietsenstallingtypenLoading, error: fietsenstallingtypenError, reloadFietsenstallingtypen } = useFietsenstallingtypen();
 
   const showAbonnementenRapporten = true;
+  const [hasAbonnementenModule, setHasAbonnementenModule] = useState(false);
 
   const firstDate = new Date("2018-03-01");
 
@@ -237,10 +241,48 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const exploitantnaam = exploitanten?.find(exploitant => exploitant.ID === selectedContactID)?.CompanyName || "";
 
   const contacts = [
-    { ID: "1", CompanyName: "Fietsberaad" },
-    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID})),
-    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID}))
+    { ID: "1", CompanyName: "Fietsberaad", ItemType: "admin" },
+    ...gemeenten.map(gemeente => ({ID: gemeente.ID, CompanyName: gemeente.CompanyName || "Gemeente " + gemeente.ID, ItemType: "organizations"})),
+    ...exploitanten.map(exploitant => ({ID: exploitant.ID, CompanyName: exploitant.CompanyName || "Exploitant " + exploitant.ID, ItemType: "exploitant"}))
   ];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureModuleState = async () => {
+      if (!selectedContactID) {
+        setHasAbonnementenModule(false);
+        return;
+      }
+
+      if (selectedContactID === "1") {
+        setHasAbonnementenModule(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch modules for ${selectedContactID}`);
+        }
+        const modules: VSmodules_contacts[] = await response.json();
+        if (!cancelled) {
+          setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching modules for contact:", error);
+          setHasAbonnementenModule(false);
+        }
+      }
+    };
+
+    ensureModuleState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedContactID]);
 
   const renderComponent = () => {
     try {
@@ -250,6 +292,8 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
       const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
       const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
+      const hasAbonnementsvormenRights = userHasRight(session?.user?.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
+      const hasAbonnementsvormenAccess = hasAbonnementsvormenRights && hasAbonnementenModule;
       
       switch (activecomponent) {
         case VSMenuTopic.Home:
@@ -312,6 +356,16 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             selectedComponent = <TariefcodesTableComponent />;
           }
           break;
+        case VSMenuTopic.DatabaseExport:
+          // Check if user has fietsberaad_admin or fietsberaad_superadmin rights
+          const hasDatabaseExportFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasDatabaseExportFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasDatabaseExportFietsberaadAdmin && !hasDatabaseExportFietsberaadSuperadmin) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <DatabaseExport />;
+          }
+          break;
         case VSMenuTopic.Export:
           // Check if user has access to reports (export is report-related)
           const hasExportRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
@@ -347,9 +401,6 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         // case VSMenuTopic.ExploreUsersColdfusion:
         //   selectedComponent = <ExploreUsersComponentColdfusion />;
         //   break;
-        case VSMenuTopic.ExploreGemeenten:
-          selectedComponent = <ExploreGemeenteComponent />;
-          break;
         case VSMenuTopic.Wachtrij:
           selectedComponent = <WachtrijMonitorComponent />;
           break;
@@ -404,14 +455,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.Settings:
           selectedComponent = <SettingsComponent />;
           break;
-        case VSMenuTopic.SettingsGemeente:
+        case VSMenuTopic.SettingsGemeente: {
+          const handleGemeenteSettingsClose = (confirmClose: boolean) => {
+            if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
+              return;
+            }
+            queryRouter.push('/beheer/home');
+          };
           selectedComponent =           
             <GemeenteEdit 
               fietsenstallingtypen={fietsenstallingtypen || []}
               id={selectedContactID} 
-              onClose={undefined} 
+              onClose={handleGemeenteSettingsClose} 
             />
           break;
+        }
         case VSMenuTopic.SettingsExploitant:
           selectedComponent =           
             <ExploitantEdit 
@@ -422,9 +480,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             // case VSMenuTopic.Abonnementen:
         //   selectedComponent = <AbonnementenComponent type="abonnementen" />;
         //   break;
-        // case VSMenuTopic.Abonnementsvormen:
-        //   selectedComponent = <AbonnementenComponent type="abonnementsvormen" />;
-        //   break;
+        case VSMenuTopic.Abonnementsvormen:
+          selectedComponent = hasAbonnementsvormenAccess ? <AbonnementsvormenComponent /> : <AccessDenied />;
+          break;
         case VSMenuTopic.Accounts:
           selectedComponent = <AccountsComponent />;
           break;
@@ -467,6 +525,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         securityProfile={session?.user?.securityProfile}
         activecomponent={activecomponent}
         onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
+        hasAbonnementenModule={hasAbonnementenModule}
       />
     }
     else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {
@@ -478,12 +537,20 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
     // By default: render empty left menu
     else {
-      return <ul id="leftMenu" className="shadow w-64 h-[calc(100vh-64px)] overflow-y-auto p-4" />
+      return (
+        <nav
+          id="leftMenu"
+          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+          aria-label="Hoofdmenu"
+        >
+          <ul className="space-y-1" />
+        </nav>
+      );
     }
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-y-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
       <TopBar
         gemeenten={gemeenten}
         exploitanten={exploitanten}
@@ -496,7 +563,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
-        <div className={`flex-1 p-4 overflow-auto`} style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
           {renderComponent()}
         </div>
       </div>
