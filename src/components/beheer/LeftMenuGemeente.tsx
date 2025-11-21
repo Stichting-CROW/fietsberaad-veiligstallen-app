@@ -83,7 +83,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
-        {false && hasAbonnementsvormen && hasAbonnementenModule && (
+        {hasAbonnementsvormen && hasAbonnementenModule && (
           <LeftMenuItem
             component={VSMenuTopic.Abonnementsvormen}
             title={'Abonnementsvormen'}
