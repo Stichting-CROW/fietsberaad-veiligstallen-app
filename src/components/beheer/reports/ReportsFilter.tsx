@@ -526,7 +526,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalHour = ["bezetting"].includes(reportType) === true;
     const showIntervalBucket = isStallingsduurReport;
 
-    const showBikeparkSelect = reportCategories !== "per_stalling";
+    const showBikeparkSelect = true;//reportCategories !== "per_stalling";
 
     // Build available X-axis options
     const xAxisOptions: Array<{ value: ReportGrouping; label: string }> = [];
@@ -689,52 +689,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         </select>
       </div>)
   }
-
-  // const renderFilterStatus = (): React.ReactNode => {
-  //   let startDT: Date | undefined = undefined;
-  //   let endDT: Date | undefined = undefined;
-
-  //   if (undefined !== timerange) {
-  //     const range = timerange;
-  //     startDT = range.startDT;
-  //     endDT = range.endDT;
-  //   }
-
-  //   return (
-  //     <div className="flex flex-col space-y-2">
-  //       <table className="border-2 border-gray-300 rounded-md">
-  //         <thead>
-  //           <tr>
-  //             <th className="text-left">Variabele</th>
-  //             <th className="text-left">Waarde</th>
-  //           </tr>
-  //         </thead>
-  //         <tbody>
-  //           <tr>
-  //             <td>Rapportage</td>
-  //             <td>{reportType}</td>
-  //           </tr>
-  //           <tr>
-  //             <td>Tijdsperiode</td>
-  //             <td>{reportRangeUnit}</td>
-  //           </tr>
-  //           <tr>
-  //             <td>Aantal Stallingen</td>
-  //             <td>{bikeparks.length}</td>
-  //           </tr>
-  //           <tr>
-  //             <td>Start datum/tijd</td>
-  //             <td>{startDT !== undefined ? startDT.toLocaleString() : "-"}</td>
-  //           </tr>
-  //           <tr>
-  //             <td>eind datum/tijd</td>
-  //             <td>{endDT !== undefined ? endDT.toLocaleString() : "-"}</td>
-  //           </tr>
-  //         </tbody>
-  //       </table>
-  //     </div>
-  //   )
-  // }
 
   const renderVolmeldingenSelect = (): React.ReactNode => {
     return (
