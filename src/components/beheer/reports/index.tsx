@@ -246,8 +246,6 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     );
   }
 
-  const showReportParams = false; // used for debugging / testing
-
   const handleReportTypeClick = (reportId: ReportType) => {
     if (reportId === selectedReportType) {
       return;
@@ -256,12 +254,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   };
 
   return (
-    <div className="noPrint w-full h-full flex flex-col" id="ReportComponent">
+    <div className="noPrint w-full h-full flex flex-col container mx-auto" id="ReportComponent">
       <div className="flex w-full mb-4">
         {selectedReportType && (
           <div className="flex-1 mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">
-              {availableReports.find(r => r.id === selectedReportType)?.title || selectedReportType}
+              Rapportage {gemeenteInfo?.CompanyName || ''}
             </h2>
           </div>
         )}
