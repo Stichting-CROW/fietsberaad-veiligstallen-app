@@ -11,7 +11,7 @@ export interface ReportSeriesData {
 }
 
 export interface ReportData {
-  title: string;
+  title?: string;
   options: {
     xaxis: {
       type?: string;
@@ -267,7 +267,7 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
     const series = await convertToTimegroupSeries(results, params, keyToLabelMap);
 
     return {
-      title: getReportTitle(params.reportType),
+      // title: getReportTitle(params.reportType),
       options: {
         xaxis: {
           type: ['per_bucket', 'per_weekday'].includes(params.reportGrouping) || true ? 'categories' : 'datetime',

@@ -123,7 +123,9 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
   }, [resolvedRange.start, resolvedRange.end]);
 
   const buttonLabel = activePresetLabel
-    ? `${activePresetLabel} · ${dateRangeLabel}`
+    ? <>
+      <span className="font-bold">{activePresetLabel}</span> · {dateRangeLabel}
+    </>
     : dateRangeLabel;
 
   const handlePresetClick = (preset: PeriodPreset) => {
@@ -157,7 +159,7 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
         onClick={() => setIsOpen((prev) => !prev)}
         className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        <span className="hidden md:inline">{buttonLabel}</span>
+        🗓️ <span className="hidden md:inline">{buttonLabel}</span>
         <span className="md:hidden">{activePresetLabel ?? "Periode"}</span>
         <svg
           className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? "rotate-180" : "rotate-0"}`}
