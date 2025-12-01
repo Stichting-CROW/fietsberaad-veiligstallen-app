@@ -256,7 +256,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   };
 
   return (
-    <div className="noPrint w-full h-full" id="ReportComponent">
+    <div className="noPrint w-full h-full flex flex-col" id="ReportComponent">
       <div className="flex w-full mb-4">
         {selectedReportType && (
           <div className="flex-1 mb-4">
@@ -275,7 +275,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           />
         </div>
       </div>
-      <div className="flex h-full w-full flex-col md:flex-row">
+      <div className="flex w-full flex-1 flex-col md:flex-row">
         <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:md:mr-6 md:py-6">
           <nav className="flex flex-col gap-1">
             {availableReports.map((report) => {
