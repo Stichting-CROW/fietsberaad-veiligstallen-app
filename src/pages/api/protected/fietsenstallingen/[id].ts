@@ -236,17 +236,17 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       titel: 'sectie 1',
       isactief: true,
       externalId: externalId,
-      omschrijving: null,
-      capaciteit: null,
+      omschrijving: "",
+      capaciteit: 0,
       CapaciteitBromfiets: null,
-      kleur: "",
+      kleur: "00FF00",
       isKluis: isKluis,
       reserveringskostenPerDag: null,
       urlwebservice: null,
       Reservable: false,
       NotaVerwijssysteem: null,
       Bezetting: 0,
-      qualificatie: null
+      qualificatie: "NONE"
     }
 
     await prisma.fietsenstalling_sectie.create({ data: sectiedata });

@@ -1237,7 +1237,7 @@ model tariefregels {
   tijdsspanne          Float?
   kosten               Decimal? @db.Decimal(8, 2)
   truncatedStallingsID String?  @map("__stallingsID") @db.VarChar(8)
-  StallingsID          String?  @db.VarChar(35)
+  stallingsID          String?  @db.VarChar(35)
   truncatedSectieID    String?  @map("__sectieID") @db.VarChar(13)
   sectieID             Int?
   sectionBikeTypeID    Int?
