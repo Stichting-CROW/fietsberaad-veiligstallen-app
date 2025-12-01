@@ -384,7 +384,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                   options={{
                     chart: {
                       id: `line-chart-${Math.random()}`,//https://github.com/apexcharts/react-apexcharts/issues/349#issuecomment-966461811
-                      stacked: filterState?.reportType === 'stallingsduur' ? true : false,
+                      stacked: false,
                       zoom: {
                         enabled: false
                       },
