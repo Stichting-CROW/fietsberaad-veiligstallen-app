@@ -9,6 +9,7 @@ import {
   getSingleYearRange
 } from "./ReportsDateFunctions";
 import BikeparkDataSourceSelect, { type BikeparkWithDataSource } from "./BikeparkDataSourceSelect";
+import WeekdaySelect, { type SeriesLabel } from "./WeekdaySelect";
 import { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
 export type ReportType = "transacties_voltooid" | "inkomsten" | "abonnementen" | "abonnementen_lopend" | "bezetting" | "stallingsduur" | "volmeldingen" | "gelijktijdig_vol" | "downloads"
@@ -63,6 +64,8 @@ const DEFAULT_RANGE_START = new Date(DEFAULT_RANGE_END);
 DEFAULT_RANGE_START.setDate(DEFAULT_RANGE_START.getDate() - 29);
 DEFAULT_RANGE_START.setHours(0, 0, 0, 0);
 
+const DEFAULT_SERIES: SeriesLabel[] = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+
 export const defaultReportState: ReportState = {
   reportType: "transacties_voltooid",
   reportCategories: "per_stalling",
@@ -74,7 +77,8 @@ export const defaultReportState: ReportState = {
   bikeparkDataSources: [],
   customStartDate: DEFAULT_RANGE_START.toISOString(),
   customEndDate: DEFAULT_RANGE_END.toISOString(),
-  activePreset: "afgelopen_30_dagen"
+  activePreset: "afgelopen_30_dagen",
+  selectedSeries: DEFAULT_SERIES
 }
 
 interface ReportsFilterComponentProps {
@@ -128,6 +132,7 @@ export type ReportState = {
   customStartDate?: string;
   customEndDate?: string;
   activePreset?: PeriodPreset;
+  selectedSeries?: SeriesLabel[];
 };
 
 export interface ReportsFilterHandle {
@@ -225,7 +230,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           selectedBikeparkDataSources: parsed.bikeparkDataSources || parsed.selectedBikeparkDataSources || defaultReportState.bikeparkDataSources,
           customStartDate: parsed.customStartDate || legacyRange.customStartDate || defaultReportState.customStartDate,
           customEndDate: parsed.customEndDate || legacyRange.customEndDate || defaultReportState.customEndDate,
-          activePreset: parsed.activePreset as PeriodPreset | undefined ?? defaultReportState.activePreset
+          activePreset: parsed.activePreset as PeriodPreset | undefined ?? defaultReportState.activePreset,
+          selectedSeries: parsed.selectedSeries || defaultReportState.selectedSeries || DEFAULT_SERIES
         };
       } catch (e) {
         console.warn('Failed to parse saved filter state:', e);
@@ -248,6 +254,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(initialState?.activePreset ?? defaultReportState.activePreset);
   const [fillups, setFillups] = useState(initialState?.fillups ?? defaultReportState.fillups);
   const [grouped, setGrouped] = useState(initialState?.grouped ?? defaultReportState.grouped);
+  const [selectedSeries, setSelectedSeries] = useState<SeriesLabel[]>(initialState?.selectedSeries ?? defaultReportState.selectedSeries ?? DEFAULT_SERIES);
   const [percBusy, setPercBusy] = useState("");
   const [percQuiet, setPercQuiet] = useState("");
   const [errorState, setErrorState] = useState<string | undefined>(undefined);
@@ -266,7 +273,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     bikeparkDataSources: selectedBikeparkDataSources,
     customStartDate,
     customEndDate,
-    activePreset
+    activePreset,
+    selectedSeries
   };
 
   const normalizeDate = (date: Date) => {
@@ -417,6 +425,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     customStartDate,
     customEndDate,
     activePreset,
+    selectedSeries,
     onStateChange,
     bikeparks
   ]);
@@ -657,19 +666,24 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         </div>
 
         {showBikeparkSelect && bikeparks.length > 1 &&
-            <BikeparkSelect
-              bikeparks={bikeparks}
-              selectedBikeparkIDs={selectedBikeparkIDs}
-              setSelectedBikeparkIDs={setSelectedBikeparkIDs}
-            />
+          <BikeparkSelect
+            bikeparks={bikeparks}
+            selectedBikeparkIDs={selectedBikeparkIDs}
+            setSelectedBikeparkIDs={setSelectedBikeparkIDs}
+          />
+        }
+        {showBikeparkSelect && reportType === 'bezetting' &&
+          <WeekdaySelect
+            availableSeries={DEFAULT_SERIES}
+            selectedSeries={selectedSeries}
+            setSelectedSeries={setSelectedSeries}
+          />
         }
         {showBikeparkSelect && reportType === 'bezetting' && bikeparks.length > 1 &&
-          // <FormLabel title="Databron per stalling">
-            <BikeparkDataSourceSelect
-              bikeparks={bikeparks}
-              onSelectionChange={setSelectedBikeparkDataSources}
-            />
-          // </FormLabel>
+          <BikeparkDataSourceSelect
+            bikeparks={bikeparks}
+            onSelectionChange={setSelectedBikeparkDataSources}
+          />
         }
       </div>
     );
@@ -723,7 +737,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       grouped,
       customStartDate,
       customEndDate,
-      activePreset
+      activePreset,
+      selectedSeries
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [
@@ -737,7 +752,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     grouped,
     customStartDate,
     customEndDate,
-    activePreset
+    activePreset,
+    selectedSeries
   ]);
 
   return (

@@ -8,6 +8,7 @@ import ReportsFilterComponent, {
   type ReportsFilterHandle,
   getAvailableReports
 } from "./ReportsFilter";
+import { type SeriesLabel } from "./WeekdaySelect";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import { getStartEndDT } from "./ReportsDateFunctions";
@@ -479,10 +480,18 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                       // }
                     }
                   }}
-                  series={reportData.series.map(series => ({
-                    ...series,
-                    color: getColorForSeriesName(series.name)
-                  }))}
+                  series={reportData.series
+                    .filter(series => {
+                      // For bezetting reports, filter by selectedSeries
+                      if (filterState?.reportType === 'bezetting' && filterState?.selectedSeries) {
+                        return filterState.selectedSeries.includes(series.name as SeriesLabel);
+                      }
+                      return true;
+                    })
+                    .map(series => ({
+                      ...series,
+                      color: getColorForSeriesName(series.name)
+                    }))}
                 />
               </div>
             ) : (
