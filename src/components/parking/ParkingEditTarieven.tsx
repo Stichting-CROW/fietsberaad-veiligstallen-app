@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTariefcodes } from "~/hooks/useTariefcodes";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import Modal from "~/components/Modal";
@@ -31,7 +32,7 @@ const ParkingEditTarieven = ({
   setNewOmschrijvingTarieven,
   canEdit,
 }: ParkingEditTarievenProps) => {
-  // const { tariefcodes, isLoading: isLoadingTariefcodes } = useTariefcodes();
+  const { tariefcodes, isLoading: isLoadingTariefcodes } = useTariefcodes();
   const [tarievenVersion, setTarievenVersion] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
 
@@ -44,6 +45,7 @@ const ParkingEditTarieven = ({
 
   const tariefcodeOptions: { value: string; label: string }[] = [
     { value: "null", label: "niet tonen" },
+    ...tariefcodes.map((tariefcode) => ({ value: tariefcode.ID.toString(), label: tariefcode.Omschrijving })),
   ];
 
   const dropdownValue =
