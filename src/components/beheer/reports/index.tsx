@@ -22,6 +22,48 @@ import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
 import { getXAxisFormatter } from "~/backend/services/reports/ReportAxisFunctions";
 
+// Color palette for chart series - using a diverse set of colors
+const CHART_COLORS = [
+  '#008FFB', // Blue
+  '#00E396', // Green
+  '#FEB019', // Orange
+  '#FF4560', // Red
+  '#775DD0', // Purple
+  '#3F51B5', // Indigo
+  '#03A9F4', // Light Blue
+  '#4CAF50', // Green
+  '#FF9800', // Orange
+  '#9C27B0', // Purple
+  '#E91E63', // Pink
+  '#00BCD4', // Cyan
+  '#8BC34A', // Light Green
+  '#FFC107', // Amber
+  '#795548', // Brown
+  '#607D8B', // Blue Grey
+  '#9E9E9E', // Grey
+  '#F44336', // Red
+  '#2196F3', // Blue
+  '#009688', // Teal
+];
+
+/**
+ * Generates a consistent color for a series name using a hash function
+ * This ensures the same series name always gets the same color
+ */
+const getColorForSeriesName = (name: string): string => {
+  // Simple hash function to convert string to number
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    const char = name.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Use absolute value and modulo to get index in color array
+  const colorIndex = Math.abs(hash) % CHART_COLORS.length;
+  return CHART_COLORS[colorIndex] ?? CHART_COLORS[0]!;
+};
+
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
   firstDate: Date;
@@ -377,6 +419,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                         enabled: false
                       }
                     },
+                    colors: reportData.series.map(series => getColorForSeriesName(series.name)),
                     responsive: [{
                       breakpoint: undefined,
                       options: {},
@@ -436,7 +479,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                       // }
                     }
                   }}
-                  series={reportData.series}
+                  series={reportData.series.map(series => ({
+                    ...series,
+                    color: getColorForSeriesName(series.name)
+                  }))}
                 />
               </div>
             ) : (
