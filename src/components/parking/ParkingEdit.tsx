@@ -102,8 +102,7 @@ const ParkingEdit = ({
   onChange,
   showAbonnementen = false,
 }: ParkingEditProps) => {
-  // const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
-  const [selectedTab, setSelectedTab] = React.useState<string>("tab-tarieven");
+  const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
   // const [waarschuwing, setWaarschuwing] = React.useState<string>('');
   // const [allowSave, setAllowSave] = React.useState<boolean>(true);
   const allowSave = true;
