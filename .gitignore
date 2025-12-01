@@ -60,6 +60,9 @@ mysql-db/export-db.zip
 #uploads
 /public/uploads*
 
+#checkpoints
+/data/checkpoints*
+
 #auto generated test scripts
 scripts/*.sql
 

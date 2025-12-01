@@ -7,7 +7,6 @@ import PagesFaqUpdateComponent from './PagesFaqUpdate';
 import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
 import OrphanedSectionsCleanup from './OrphanedSectionsCleanup';
-// import OrphanedTarievenCleanup from './OrphanedTarievenCleanup';
 
 interface DatabaseComponentProps {
   firstDate: Date;
@@ -52,7 +51,6 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
       <CacheUpdateComponent />
       <PagesFaqUpdateComponent />
       <OrphanedSectionsCleanup />
-      {/* <OrphanedTarievenCleanup /> */}
       <UserStatusTableComponent />
       <UserContactRoleTableComponent />
       <CacheTableComponent

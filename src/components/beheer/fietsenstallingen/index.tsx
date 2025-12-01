@@ -194,7 +194,8 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Weet je zeker dat je deze stalling wilt verwijderen?')) {
+    const stallingName = fietsenstallingen.find(x => x.ID === id)?.Title || '';
+    if (confirm(`Weet je zeker dat je deze stalling ${stallingName} wilt verwijderen?`)) {
       try {
         const response = await fetch(`/api/protected/fietsenstallingen/${id}`, {
           method: 'DELETE',
