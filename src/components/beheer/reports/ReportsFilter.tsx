@@ -595,8 +595,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             type="button"
             className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
           >
-            <span>X-as</span>
-            {/* <span>{getXAxisLabel(reportGrouping)}</span> */}
+            <span>X-as: {xAxisOptions.length === 1 ? xAxisOptions[0]?.label ?? reportGrouping : (xAxisOptions.find(opt => opt.value === reportGrouping)?.label ?? reportGrouping)}</span>
             <svg
               className="h-4 w-4 text-gray-500"
               xmlns="http://www.w3.org/2000/svg"
@@ -629,8 +628,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             type="button"
             className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
           >
-            {/* <span>{getLegendaLabel(reportCategories)}</span> */}
-            <span>Legenda</span>
+            <span>Legenda: {legendaOptions.length === 1 ? legendaOptions[0]?.label ?? reportCategories : (legendaOptions.find(opt => opt.value === reportCategories)?.label ?? reportCategories)}</span>
             <svg
               className="h-4 w-4 text-gray-500"
               xmlns="http://www.w3.org/2000/svg"
