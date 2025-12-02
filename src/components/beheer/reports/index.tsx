@@ -197,6 +197,17 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     // Only check waht bikeparks have data if a start and end time are set
     if (!filterState) return;
 
+    // Skip API call for report types that don't support availableDataPerBikepark
+    // getSQLPerBikepark only supports: "inkomsten", "stallingsduur", "transacties_voltooid", "bezetting"
+    // "absolute_bezetting" uses bikeparks directly (see line 370), so it doesn't need this API call
+    const supportedReportTypes = ["inkomsten", "stallingsduur", "transacties_voltooid", "bezetting"];
+    if (filterState.reportType && !supportedReportTypes.includes(filterState.reportType)) {
+      // For unsupported types, use all bikeparks directly
+      setBikeparksWithData(bikeparks);
+      setErrorState(""); // Clear any previous error
+      return;
+    }
+
     // Get start date and end date from filterState
     const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
 
@@ -206,11 +217,6 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       if (undefined === filterState) {
         return;
       }
-
-      // Only fetch bikeparks with data if the report type is 'bezetting'
-      // if (filterState.reportType !== 'bezetting') {
-      //   return;
-      // }
 
       try {
         const apiEndpoint = "/api/protected/database/availableDataPerBikepark";
@@ -234,8 +240,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         const data = await response.json() as AvailableDataDetailedResult[] | false;
         if (data) {
           setBikeparksWithData(bikeparks.filter(bp => data.map(d => d.locationID).includes(bp.StallingsID||"")));
+          setErrorState(""); // Clear error on success
         } else {
-          setErrorState("Unable to fetch list of bikeparks with data");
+          // API returned false - this is expected for unsupported report types
+          // Don't set error, just use all bikeparks
+          setBikeparksWithData(bikeparks);
+          setErrorState("");
         }
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
