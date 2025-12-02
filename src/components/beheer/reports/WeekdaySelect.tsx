@@ -20,10 +20,10 @@ const WeekdaySelect: React.FC<WeekdaySelectProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const toggleSelectAll = () => {
-    if (selectedSeries.length > 0 && selectedSeries.length < availableSeries.length) {
-      setSelectedSeries([...availableSeries]);
-    } else {
+    if (selectedSeries.length === availableSeries.length) {
       setSelectedSeries([]);
+    } else {
+      setSelectedSeries([...availableSeries]);
     }
   };
 

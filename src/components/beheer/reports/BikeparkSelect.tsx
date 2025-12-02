@@ -5,16 +5,18 @@ interface BikeparkSelectProps {
   bikeparks: VSFietsenstallingLijst[];
   selectedBikeparkIDs: string[];
   setSelectedBikeparkIDs: React.Dispatch<React.SetStateAction<string[]>>;
+  singleSelection?: boolean; // If true, use radio buttons (single selection). If false, use checkboxes (multiple selection).
 }
 
 const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
   bikeparks,
   selectedBikeparkIDs,
   setSelectedBikeparkIDs,
+  singleSelection = false,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const divRef = useRef<HTMLDivElement>(null);
+  const divRef = useRef<HTMLButtonElement>(null);
 
   const isScrollable = bikeparks.length > 20;
 
@@ -35,7 +37,7 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
 
   const getDisplayText = () => {
     if (selectedBikeparkIDs.length === 0) {
-      return "Geen stallingen";
+      return singleSelection ? "Geen stalling" : "Geen stallingen";
     } else if (selectedBikeparkIDs.length === 1) {
       return bikeparks.find(park => park.StallingsID === selectedBikeparkIDs[0])?.Title?.trim() || "";
     } else if (selectedBikeparkIDs.length < bikeparks.length) {
@@ -92,34 +94,51 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
           }}
         >
           <div className="py-1">
-            <button
-              type="button"
-              onClick={toggleSelectAll}
-              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
-            </button>
-            {bikeparks.map((park) => (
-              <label
-                key={park.StallingsID}
-                className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+            {!singleSelection && (
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <input
-                  type="checkbox"
-                  checked={selectedBikeparkIDs.includes(park.StallingsID as string)}
-                  value={park.StallingsID as string}
-                  onChange={() =>
-                    setSelectedBikeparkIDs((prev) =>
-                      prev.includes(park.StallingsID as string)
-                        ? prev.filter((id) => id !== park.StallingsID as string)
-                        : [...prev, park.StallingsID as string]
-                    )
-                  }
-                  className="mr-2"
-                />
-                {park.Title}
-              </label>
-            ))}
+                {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
+              </button>
+            )}
+            {[...bikeparks]
+              .slice()
+              .sort((a, b) => (a.Title || "").localeCompare(b.Title || ""))
+              .map((park) => {
+              const parkId = park.StallingsID as string;
+              const isSelected = selectedBikeparkIDs.includes(parkId);
+              
+              return (
+                <label
+                  key={park.StallingsID}
+                  className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type={singleSelection ? "radio" : "checkbox"}
+                    name={singleSelection ? "bikepark-select" : undefined}
+                    checked={isSelected}
+                    value={parkId}
+                    onChange={() => {
+                      if (singleSelection) {
+                        // Radio mode: replace selection with just this one
+                        setSelectedBikeparkIDs([parkId]);
+                      } else {
+                        // Checkbox mode: toggle selection
+                        setSelectedBikeparkIDs((prev) =>
+                          prev.includes(parkId)
+                            ? prev.filter((id) => id !== parkId)
+                            : [...prev, parkId]
+                        );
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  {park.Title}
+                </label>
+              );
+            })}
           </div>
         </div>
       )}

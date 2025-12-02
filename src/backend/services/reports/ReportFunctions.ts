@@ -168,6 +168,7 @@ export const getReportTitle = (reportType: ReportType) => {
   if (reportType === "transacties_voltooid") return "Transacties per periode";
   if (reportType === "inkomsten") return "Inkomsten per periode";
   if (reportType === "bezetting") return "Gemiddelde procentuele bezetting";
+  if (reportType === "absolute_bezetting") return "Absolute bezetting";
   return "";
 }
 
@@ -184,18 +185,10 @@ export const debugLog = (message: string, truncate = false) => {
 export const interpolateSQL = (sql: string, params: string[]): string => {
   console.log('params', params);
   let interpolatedSQL = sql;
-  if (params.length > 0) {
-    interpolatedSQL = interpolatedSQL.replace('?', `"${params[0]||""}"`);
-  }
-  if (params.length > 1) {
-    interpolatedSQL = interpolatedSQL.replace('?', `"${params[1]||""}"`);
-  }
-  if (params.length > 2) {
-    interpolatedSQL = interpolatedSQL.replace('?', `${params[2]||""}`);
-  }
-  if (params.length > 3) {
-    interpolatedSQL = interpolatedSQL.replace('?', `${params[3]||""}`);
-  }
+  // Replace all ? placeholders with quoted parameters
+  params.forEach((param) => {
+    interpolatedSQL = interpolatedSQL.replace('?', `"${param || ""}"`);
+  });
   return interpolatedSQL;
 }
 
@@ -205,6 +198,14 @@ interface ReportCategory {
 }
 
 export const getCategoryNames = async (params: ReportParams): Promise<ReportCategory[] | false> => {
+
+  // Special categories for absolute_bezetting: two fixed lines
+  if (params.reportType === "absolute_bezetting") {
+    return [
+      { id: "capacity", name: "Capaciteit" },
+      { id: "occupation", name: "Bezetting" }
+    ];
+  }
 
   const idString = params.bikeparkIDs.length > 0 ? params.bikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
 

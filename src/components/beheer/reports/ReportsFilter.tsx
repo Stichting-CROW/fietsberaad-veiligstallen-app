@@ -12,8 +12,29 @@ import BikeparkDataSourceSelect, { type BikeparkWithDataSource } from "./Bikepar
 import WeekdaySelect, { type SeriesLabel } from "./WeekdaySelect";
 import { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
-export type ReportType = "transacties_voltooid" | "inkomsten" | "abonnementen" | "abonnementen_lopend" | "bezetting" | "stallingsduur" | "volmeldingen" | "gelijktijdig_vol" | "downloads"
-export const reportTypeValues: [string, ...string[]] = ["transacties_voltooid", "inkomsten", "abonnementen", "abonnementen_lopend", "bezetting", "stallingsduur", "volmeldingen", "gelijktijdig_vol", "downloads"]
+export type ReportType =
+  | "transacties_voltooid"
+  | "inkomsten"
+  | "abonnementen"
+  | "abonnementen_lopend"
+  | "bezetting"
+  | "absolute_bezetting"
+  | "stallingsduur"
+  | "volmeldingen"
+  | "gelijktijdig_vol"
+  | "downloads";
+export const reportTypeValues: [string, ...string[]] = [
+  "transacties_voltooid",
+  "inkomsten",
+  "abonnementen",
+  "abonnementen_lopend",
+  "bezetting",
+  "absolute_bezetting",
+  "stallingsduur",
+  "volmeldingen",
+  "gelijktijdig_vol",
+  "downloads"
+];
 
 export type ReportDatatype = "bezettingsdata" | "ruwedata"
 export const reportDatatypeValues = ["bezettingsdata", "ruwedata"]
@@ -100,23 +121,13 @@ export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
   //     availableReports.push({ id: "abonnementen_lopend", title: "Lopende abonnementen" });
   // }
   availableReports.push({ id: "bezetting", title: "Procentuele bezetting" });
+  availableReports.push({ id: "absolute_bezetting", title: "Absolute bezetting" });
   availableReports.push({ id: "stallingsduur", title: "Stallingsduur" });
   // availableReports.push({ id: "volmeldingen", title: "Drukke en rustige momenten" });
   // availableReports.push({ id: "gelijktijdig_vol", title: "Gelijktijdig vol" });
   // availableReports.push({ id: "downloads", title: "Download data" });
 
   return availableReports;
-}
-
-const FormLabel = ({ title, children }: { title: string, children: React.ReactNode }) => {
-  return <div>
-    <label className="col-xs-3 col-sm-2 col-form-label font-bold mr-5">
-      {title}
-    </label>
-    <div>
-      {children}
-    </div>
-  </div>
 }
 
 // TODO: fase out ReportState in favor of filterState
@@ -220,7 +231,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         const legacyRange = (!parsed.customStartDate || !parsed.customEndDate) ? deriveLegacyRange(parsed) : {};
 
         return {
-          reportType: parsed.reportType || defaultReportState.reportType,
+          reportType: (parsed.reportType && reportTypeValues.includes(parsed.reportType))
+            ? parsed.reportType as ReportType
+            : defaultReportState.reportType,
           reportGrouping: parsed.reportGrouping || defaultReportState.reportGrouping,
           reportCategories: parsed.reportCategories || defaultReportState.reportCategories,
           reportRangeUnit: parsed.reportRangeUnit || defaultReportState.reportRangeUnit,
@@ -356,7 +369,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     // If state has changed:
     if (null === previousStateRef.current || JSON.stringify(newState) !== JSON.stringify(previousStateRef.current)) {
 
-      // Auto set defaults for 'bezetting' report type
+      // Auto set defaults for report types
       if (newState.reportType !== previousStateRef.current?.reportType) {
         switch (newState.reportType) {
           case "transacties_voltooid":
@@ -366,6 +379,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           case "bezetting":
             setReportGrouping("per_hour");
             setReportCategories("per_weekday");
+            break;
+          case "absolute_bezetting":
+            // Same defaults as transacties_voltooid
+            setReportGrouping("per_week");
+            setReportCategories("per_stalling");
             break;
           case "stallingsduur":
             setReportGrouping("per_bucket");
@@ -535,7 +553,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalHour = ["bezetting"].includes(reportType) === true;
     const showIntervalBucket = isStallingsduurReport;
 
-    const showBikeparkSelect = true;//reportCategories !== "per_stalling";
+    // Show the generic BikeparkSelect for all reports, including absolute_bezetting
+    const showBikeparkSelect = true;
 
     // Build available X-axis options
     const xAxisOptions: Array<{ value: ReportGrouping; label: string }> = [];
@@ -632,46 +651,92 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           </select>
         </div>
 
-        <div className="relative inline-block text-left">
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
-          >
-            <span>Legenda: {legendaOptions.length === 1 ? legendaOptions[0]?.label ?? reportCategories : (legendaOptions.find(opt => opt.value === reportCategories)?.label ?? reportCategories)}</span>
-            <svg
-              className="h-4 w-4 text-gray-500"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+        {reportType !== "absolute_bezetting" && (
+          <div className="relative inline-block text-left">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <select
-            ref={legendaSelectRef}
-            value={reportCategories}
-            onChange={(e) => setReportCategories(e.target.value as ReportCategories)}
-            name="reportCategories"
-            id="reportCategories"
-            className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
-            required
-          >
-            {legendaOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+              <span>Legenda: {legendaOptions.length === 1 ? legendaOptions[0]?.label ?? reportCategories : (legendaOptions.find(opt => opt.value === reportCategories)?.label ?? reportCategories)}</span>
+              <svg
+                className="h-4 w-4 text-gray-500"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <select
+              ref={legendaSelectRef}
+              value={reportCategories}
+              onChange={(e) => setReportCategories(e.target.value as ReportCategories)}
+              name="reportCategories"
+              id="reportCategories"
+              className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
+              required
+            >
+              {legendaOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {showBikeparkSelect && bikeparks.length > 1 &&
           <BikeparkSelect
             bikeparks={bikeparks}
             selectedBikeparkIDs={selectedBikeparkIDs}
             setSelectedBikeparkIDs={setSelectedBikeparkIDs}
+            singleSelection={reportType === "absolute_bezetting"}
           />
         }
+        {reportType === "absolute_bezetting" && bikeparks.length > 0 && selectedBikeparkIDs.length !== 1 && (
+          <div className="w-full mt-2">
+            <div className="text-sm font-semibold text-gray-700 mb-1">
+              Kies 1 stalling
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {bikeparks
+                .filter(park => park.StallingsID !== null)
+                .slice()
+                .sort((a, b) => (a.Title || "").localeCompare(b.Title || ""))
+                .map((park) => {
+                  const id = park.StallingsID as string;
+                  const isActive = selectedBikeparkIDs.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSelectedBikeparkIDs([id])}
+                      className={`whitespace-nowrap text-ellipsis overflow-hidden flex flex-col items-start rounded-md border px-3 py-2 text-left text-sm transition ${
+                        isActive
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <span className="font-medium truncate" title={park.Title || id}>
+                        {park.Title || id}
+                      </span>
+                      {park.Plaats && (
+                        <span className="text-xs text-gray-500">
+                          {park.Plaats}
+                        </span>
+                      )}
+                      {park.Capacity !== null && (
+                        <span className="mt-1 text-xs text-gray-500">
+                          Capaciteit: {park.Capacity}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
         {showBikeparkSelect && reportType === 'bezetting' &&
           <WeekdaySelect
             availableSeries={DEFAULT_SERIES}
