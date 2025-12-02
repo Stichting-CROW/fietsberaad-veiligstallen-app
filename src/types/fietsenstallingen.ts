@@ -72,7 +72,7 @@ export const getDefaultNewFietsenstalling = (name: string): ParkingDetailsType =
   MaxStallingsduur: 0,
   HeeftExterneBezettingsdata: false,
   ExploitantID: null,
-  hasUniSectionPrices: true,
+  hasUniSectionPrices: false,
   hasUniBikeTypePrices: false,
   shadowBikeparkID: null,
   BronBezettingsdata: "FMS",

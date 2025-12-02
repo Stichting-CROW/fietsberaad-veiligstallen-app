@@ -1,5 +1,32 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-12-xx
+
+**Stalling-beheer / Tarieven**
+
+- Nieuw: Volledige tariefbewerkingsfunctionaliteit toegevoegd
+- Nieuwe API endpoints voor tariefbeheer:
+  - `GET/PUT /api/protected/fietsenstallingen/[id]/tarieven` - Ophalen en bijwerken van tarieven
+  - Volledige CRUD operaties met validatie en transactie ondersteuning
+- Nieuwe service laag `src/server/services/tarieven.ts`:
+  - Functies voor ophalen, groeperen en opslaan van tariefregels
+  - Ondersteuning voor verschillende scope types (stalling, sectie, fietstype)
+  - Automatische migratie en consolidatie van tarieven bij wijziging van uniformiteit flags
+- Automatische bijwerking van `EditorModified` en `DateModified` bij tariefwijzigingen
+- Fix: Automatische bijwerking van parent `fietsenstallingen` record bij tariefwijzigingen (editorModified, dateModified)
+
+**Beheer / Database**
+
+- Verwijderd: "Incorrecte Tarieven Opruimen" component uit database beheer + bijbehorende api endpoints
+- Nieuw: Database diff testing tool (development only)
+
+**Technisch**
+
+- Nieuwe hooks:
+  - `useBikeTypes` - Voor ophalen van fietstypen
+  - `useSectiesByFietsenstalling` - Voor ophalen van secties per stalling
+- Verwijderd: Deprecated `fietsenstallingen-service.ts` backend service
+
 ## VeiligStallen 2025-xx-xx
 
 **Abonnementsvormen**

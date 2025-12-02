@@ -7,6 +7,12 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import { validateUserSession } from "~/utils/server/database-tools";
 import { selectSectieDetailsType, type SectieDetailsType, type SectiesResponse } from "~/types/secties";
 import { z } from "zod";
+import {
+  syncTariefregelsForNewSection,
+  cleanupTariefregelsForDeletedSection,
+  syncTariefregelsForNewBikeType,
+  cleanupTariefregelsForDeletedBikeType,
+} from "~/server/services/tarieven";
 
 /**
  * Calculate total capacity for a fietsenstalling from all its sections
@@ -200,15 +206,13 @@ export default async function handle(
       const nextIndex = highestIndex + 1;
       const externalId = `${fietsenstalling.StallingsID}_${nextIndex.toString().padStart(3, '0')}`;
       
-      console.log(`Creating section with externalId: ${externalId} (next index: ${nextIndex})`);
-
       // Create section
       const newSection = await prisma.fietsenstalling_sectie.create({
         data: {
           externalId,
           titel: data.titel || "Nieuwe sectie",
-          omschrijving: data.omschrijving || null,
-          capaciteit: data.capaciteit || null,
+          omschrijving: data.omschrijving || "",
+          capaciteit: data.capaciteit !== undefined ? data.capaciteit : 0,
           kleur: data.kleur || "00FF00",
           fietsenstallingsId: data.fietsenstallingsId,
           qualificatie: data.qualificatie || "NONE",
@@ -238,8 +242,21 @@ export default async function handle(
         select: selectSectieDetailsType
       });
 
+      // Sync tariff records for the new section
+      await syncTariefregelsForNewSection(newSection.sectieId, data.fietsenstallingsId);
+
       // Update the fietsenstalling Capacity field
       await updateFietsenstallingCapacity(data.fietsenstallingsId);
+
+      // Update editorModified and dateModified on the fietsenstalling record
+      const userName = session.user?.name || session.user?.email || 'unknown';
+      await prisma.fietsenstallingen.update({
+        where: { ID: data.fietsenstallingsId },
+        data: {
+          EditorModified: userName,
+          DateModified: new Date(),
+        },
+      });
 
       res.status(201).json({ data: createdSection as SectieDetailsType });
       break;
@@ -270,8 +287,8 @@ export default async function handle(
         where: { sectieId: sectionIdNum },
         data: {
           titel: req.body.titel,
-          omschrijving: req.body.omschrijving || null,
-          capaciteit: req.body.capaciteit || null,
+          omschrijving: req.body.omschrijving ?? null,
+          capaciteit: req.body.capaciteit !== undefined ? req.body.capaciteit : null,
           kleur: req.body.kleur || "00FF00",
           qualificatie: req.body.qualificatie || "NONE",
           isactief: req.body.isactief !== undefined ? req.body.isactief : true,
@@ -281,28 +298,87 @@ export default async function handle(
 
       // Update sectie_fietstype entries if provided
       if (req.body.secties_fietstype && Array.isArray(req.body.secties_fietstype)) {
+        // Get existing bike types before update
+        const existingBikeTypes = await prisma.sectie_fietstype.findMany({
+          where: { sectieID: sectionIdNum },
+          select: { SectionBiketypeID: true, Toegestaan: true },
+        });
+
+        const existingBikeTypeIds = new Set(
+          existingBikeTypes.map((bt) => bt.SectionBiketypeID)
+        );
+
         for (const bikeTypeData of req.body.secties_fietstype) {
+          const existingBikeType = existingBikeTypes.find(
+            (bt) => bt.SectionBiketypeID === bikeTypeData.SectionBiketypeID
+          );
+
+          const wasAllowed = existingBikeType?.Toegestaan ?? false;
+          const isNowAllowed = bikeTypeData.Toegestaan ?? true;
+
           await prisma.sectie_fietstype.updateMany({
             where: {
               sectieID: sectionIdNum,
-              BikeTypeID: bikeTypeData.BikeTypeID
+              BikeTypeID: bikeTypeData.BikeTypeID,
             },
             data: {
               Capaciteit: bikeTypeData.Capaciteit ?? 0,
-              Toegestaan: bikeTypeData.Toegestaan ?? true
-            }
+              Toegestaan: bikeTypeData.Toegestaan ?? true,
+            },
           });
+
+          // Handle tariff sync when bike type is added/removed
+          if (existingSection.fietsenstallingsId) {
+            if (!wasAllowed && isNowAllowed) {
+              // Bike type was just enabled - create tariffs if needed
+              const sft = await prisma.sectie_fietstype.findFirst({
+                where: {
+                  sectieID: sectionIdNum,
+                  BikeTypeID: bikeTypeData.BikeTypeID,
+                },
+                select: { SectionBiketypeID: true },
+              });
+              if (sft) {
+                await syncTariefregelsForNewBikeType(
+                  sft.SectionBiketypeID,
+                  existingSection.fietsenstallingsId
+                );
+              }
+            } else if (wasAllowed && !isNowAllowed) {
+              // Bike type was just disabled - cleanup tariffs
+              const sft = await prisma.sectie_fietstype.findFirst({
+                where: {
+                  sectieID: sectionIdNum,
+                  BikeTypeID: bikeTypeData.BikeTypeID,
+                },
+                select: { SectionBiketypeID: true },
+              });
+              if (sft) {
+                await cleanupTariefregelsForDeletedBikeType(sft.SectionBiketypeID);
+              }
+            }
+          }
         }
 
         // Fetch updated section with all relations
         const sectionWithRelations = await prisma.fietsenstalling_sectie.findFirst({
           where: { sectieId: sectionIdNum },
-          select: selectSectieDetailsType
+          select: selectSectieDetailsType,
         });
 
         // Update the fietsenstalling Capacity field
         if (existingSection.fietsenstallingsId) {
           await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
+          
+          // Update editorModified and dateModified on the fietsenstalling record
+          const userName = session.user?.name || session.user?.email || 'unknown';
+          await prisma.fietsenstallingen.update({
+            where: { ID: existingSection.fietsenstallingsId },
+            data: {
+              EditorModified: userName,
+              DateModified: new Date(),
+            },
+          });
         }
 
         res.status(200).json({ data: sectionWithRelations as SectieDetailsType });
@@ -310,6 +386,16 @@ export default async function handle(
         // Update the fietsenstalling Capacity field (even if only section metadata changed)
         if (existingSection.fietsenstallingsId) {
           await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
+          
+          // Update editorModified and dateModified on the fietsenstalling record
+          const userName = session.user?.name || session.user?.email || 'unknown';
+          await prisma.fietsenstallingen.update({
+            where: { ID: existingSection.fietsenstallingsId },
+            data: {
+              EditorModified: userName,
+              DateModified: new Date(),
+            },
+          });
         }
         res.status(200).json({ data: updatedSection as SectieDetailsType });
       }
@@ -350,6 +436,9 @@ export default async function handle(
         }
       }
 
+      // Clean up tariff records for the deleted section
+      await cleanupTariefregelsForDeletedSection(sectionIdNum);
+
       // First, delete all sectie_fietstype records linked to this section
       await prisma.sectie_fietstype.deleteMany({
         where: { sectieID: sectionIdNum }
@@ -363,6 +452,16 @@ export default async function handle(
       // Update the fietsenstalling Capacity field
       if (existingSection.fietsenstallingsId) {
         await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
+        
+        // Update editorModified and dateModified on the fietsenstalling record
+        const userName = session.user?.name || session.user?.email || 'unknown';
+        await prisma.fietsenstallingen.update({
+          where: { ID: existingSection.fietsenstallingsId },
+          data: {
+            EditorModified: userName,
+            DateModified: new Date(),
+          },
+        });
       }
 
       res.status(200).json({ data: undefined });

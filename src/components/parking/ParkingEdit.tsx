@@ -5,7 +5,6 @@ import PageTitle from "~/components/PageTitle";
 import HorizontalDivider from "~/components/HorizontalDivider";
 import { Button } from "~/components/Button";
 import FormInput from "~/components/Form/FormInput";
-import FormSelect from "~/components/Form/FormSelect";
 import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
@@ -38,8 +37,7 @@ import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
-import { useTariefcodes } from "~/hooks/useTariefcodes";
-import RichTextEditor from "~/components/common/RichTextEditor";
+import ParkingEditTarieven from "~/components/parking/ParkingEditTarieven";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -265,6 +263,8 @@ const ParkingEdit = ({
   }, [siteIdForModules]);
 
   const showAbonnementenTab = (showAbonnementen || hasAbonnementenModule) && parkingdata.ID !== "" && session !== null;
+  const showTarievenTab = (canEditAllFields || canEditLimitedFields) && parkingdata.ID !== "" && session !== null;
+
 
   const handleChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
@@ -1190,83 +1190,23 @@ const ParkingEdit = ({
   };
 
   const renderTabTarieven = (visible = false) => {
-    const { tariefcodes, isLoading: isLoadingTariefcodes, getTariefcodeText } = useTariefcodes();
-    
-    // Get current tariefcode value (use new value if set, otherwise use existing)
-    const currentTariefcode = newTariefcode !== undefined 
-      ? newTariefcode 
-      : (parkingdata.Tariefcode !== null && parkingdata.Tariefcode !== undefined ? parkingdata.Tariefcode : null);
-
-    // Prepare options for FormSelect
-    const tariefcodeOptions: { value: string; label: string }[] = [];
-    
-    // Add single option for "niet tonen" (handles both null and 0)
-    tariefcodeOptions.push({ value: "null", label: "niet tonen" });
-    
-    // Add other tariefcodes (excluding 0 since it's handled by "niet tonen")
-    if (!isLoadingTariefcodes && tariefcodes) {
-      tariefcodes
-        .filter(tc => tc.ID !== 0) // Exclude 0 as it's handled by "niet tonen"
-        .forEach(tc => {
-          tariefcodeOptions.push({
-            value: tc.ID.toString(),
-            label: tc.Omschrijving || `Tariefcode ${tc.ID}`
-          });
-        });
+    if(!visible) {
+      return null;
     }
-
-    // Determine the value to show in dropdown
-    // Map both null and 0 to "null" (niet tonen)
-    const dropdownValue = currentTariefcode === null || currentTariefcode === undefined || currentTariefcode === 0
-      ? "null"
-      : currentTariefcode.toString();
 
     return (
       <div
         className="mt-10 flex flex-col w-full"
         style={{ display: visible ? "flex" : "none" }}
       >
-        <SectionBlockEdit>
-          <div className="mt-4">
-            <FormSelect
-              key="i-tariefcode"
-              label="Tarief (Compacte weergave)"
-              className="mb-1 border-2 border-black"
-              style={{ width: 'auto', minWidth: '200px' }}
-              value={dropdownValue}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === "null") {
-                  // Set to null for "niet tonen" (handles both null and 0 cases)
-                  setNewTariefcode(null);
-                } else {
-                  setNewTariefcode(parseInt(value, 10));
-                }
-              }}
-              disabled={!canEditAllFields && !canEditLimitedFields}
-              options={tariefcodeOptions}
-            />
-            <FormHelperText>
-              Deze tekst wordt getoond in de compacte weergaven van stallingen.
-            </FormHelperText>
-          </div>
-        </SectionBlockEdit>
-        <HorizontalDivider className="my-4" />
-        <SectionBlock
-          heading="Omschrijving Tarieven"
-          contentClasses="w-full">
-          <RichTextEditor
-            value={undefined === newOmschrijvingTarieven ? (parkingdata.OmschrijvingTarieven || '') : newOmschrijvingTarieven}
-            onChange={(value: string) => {
-              if (value === parkingdata.OmschrijvingTarieven) {
-                setNewOmschrijvingTarieven(undefined);
-              } else {
-                setNewOmschrijvingTarieven(value);
-              }
-            }}
-            className="w-full"
-          />
-        </SectionBlock>
+        <ParkingEditTarieven
+          parkingdata={parkingdata}
+          newTariefcode={newTariefcode}
+          setNewTariefcode={setNewTariefcode}
+          newOmschrijvingTarieven={newOmschrijvingTarieven}
+          setNewOmschrijvingTarieven={setNewOmschrijvingTarieven}
+          canEdit={canEditAllFields||canEditLimitedFields}
+        />
       </div>
     );
   };
@@ -1413,10 +1353,12 @@ const ParkingEdit = ({
       >
         <Tab label="Algemeen" value="tab-algemeen" />
         {hasID && <Tab label="Afbeelding" value="tab-afbeelding" />}
-        <Tab label="Openingstijden" value="tab-openingstijden" />
-        <Tab label="Tarieven" value="tab-tarieven" />
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
+        )}
+        <Tab label="Openingstijden" value="tab-openingstijden" />
+        {showTarievenTab && (
+          <Tab label="Tarieven" value="tab-tarieven" />
         )}
         {showAbonnementenTab && (
           <Tab label="Abonnementen" value="tab-abonnementen" />
@@ -1426,10 +1368,12 @@ const ParkingEdit = ({
 
       {renderTabAlgemeen(selectedTab === "tab-algemeen")}
       {renderTabAfbeelding(selectedTab === "tab-afbeelding" && hasID)}
-      {renderTabOpeningstijden(selectedTab === "tab-openingstijden")}
-      {renderTabTarieven(selectedTab === "tab-tarieven")}
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
+      )}
+      {renderTabOpeningstijden(selectedTab === "tab-openingstijden")}
+      {renderTabTarieven(
+        showTarievenTab && selectedTab === "tab-tarieven"
       )}
       {renderTabAbonnementen(
         showAbonnementenTab && selectedTab === "tab-abonnementen",
