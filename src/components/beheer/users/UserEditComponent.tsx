@@ -411,7 +411,7 @@ ${session?.user?.email}`;
             value={displayName} 
             onChange={(e) => setDisplayName(e.target.value)} 
             required 
-            disabled={! hasLimitedAdminRight || !activeuser?.isOwnOrganization}
+            disabled={! hasLimitedAdminRight}
             autoComplete="off"
             innerRef={nameInputRef}
           />
@@ -431,7 +431,7 @@ ${session?.user?.email}`;
             onChange={(e) => setUserName(e.target.value)} 
             required 
             type="email"
-            disabled={! hasLimitedAdminRight || !activeuser?.isOwnOrganization}
+            disabled={! hasLimitedAdminRight}
             autoComplete="new-email"
           />
           <br />
@@ -508,7 +508,7 @@ ${session?.user?.email}`;
                 type="button"
                 onClick={handleChangePassword}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                disabled={!hasLimitedAdminRight || !activeuser?.isOwnOrganization}
+                disabled={!hasLimitedAdminRight}
               >
                 Wachtwoord wijzigen
               </button>
@@ -523,7 +523,7 @@ ${session?.user?.email}`;
                 value="1" 
                 checked={status} 
                 onChange={() => setStatus(true)} 
-                disabled={! hasLimitedAdminRight || !activeuser?.isOwnOrganization}
+                disabled={! hasLimitedAdminRight}
                 className="mr-2"
               />
               Actief
@@ -535,7 +535,7 @@ ${session?.user?.email}`;
                 value="0" 
                 checked={!status} 
                 onChange={() => setStatus(false)} 
-                disabled={! hasLimitedAdminRight || !activeuser?.isOwnOrganization}
+                disabled={! hasLimitedAdminRight}
                 className="mr-2"
               />
               Niet Actief
