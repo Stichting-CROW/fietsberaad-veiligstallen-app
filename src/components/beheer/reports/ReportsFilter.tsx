@@ -152,6 +152,7 @@ export interface ReportsFilterHandle {
 }
 
 const STORAGE_KEY = 'VS_reports_filterState';
+const ABSOLUTE_BEZETTING_LAST_PARKING_KEY = 'VS_absolute_bezetting_last_parking';
 
 const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
@@ -359,9 +360,23 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
   const previousStateRef = useRef<ReportState | null>(null);
 
+  // Load last selected parking for absolute_bezetting when switching to that report type
   useEffect(() => {
-    setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
-  }, [bikeparks]);
+    if (reportType === "absolute_bezetting") {
+      const savedParkingID = localStorage.getItem(ABSOLUTE_BEZETTING_LAST_PARKING_KEY);
+      if (savedParkingID) {
+        // Check if the saved parking exists in the current bikeparks list
+        const parkingExists = bikeparks.some(bp => bp.StallingsID === savedParkingID);
+        if (parkingExists) {
+          setSelectedBikeparkIDs([savedParkingID]);
+        }
+        // If parking doesn't exist, don't auto-select (grid will show all)
+      }
+    } else {
+      // For other report types, use default behavior
+      setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
+    }
+  }, [bikeparks, reportType]);
 
   useEffect(() => {
     const newState: ReportState = currentReportState;
@@ -447,6 +462,13 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     onStateChange,
     bikeparks
   ]);
+
+  // Save last selected parking for absolute_bezetting
+  useEffect(() => {
+    if (reportType === "absolute_bezetting" && selectedBikeparkIDs.length === 1) {
+      localStorage.setItem(ABSOLUTE_BEZETTING_LAST_PARKING_KEY, selectedBikeparkIDs[0]!);
+    }
+  }, [reportType, selectedBikeparkIDs]);
 
   useEffect(() => {
     checkInput();
