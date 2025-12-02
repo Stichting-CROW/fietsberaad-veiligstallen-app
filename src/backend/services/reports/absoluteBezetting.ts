@@ -54,7 +54,7 @@ export const getSQL = (params: ReportParams, useCache = false): string | false =
   statementItems.push("SELECT");
   statementItems.push(`  'capacity' AS CATEGORY,`);
   statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
-  statementItems.push(`  MAX(b.capacity) AS value`);
+  statementItems.push(`  CAST(MAX(b.capacity) AS UNSIGNED) AS value`);
   statementItems.push(`FROM bezettingsdata b`);
   statementItems.push(`WHERE`);
   statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
@@ -73,7 +73,7 @@ export const getSQL = (params: ReportParams, useCache = false): string | false =
   statementItems.push(`SELECT`);
   statementItems.push(`  'occupation' AS CATEGORY,`);
   statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
-  statementItems.push(`  AVG(b.occupation) AS value`);
+  statementItems.push(`  ROUND(AVG(b.occupation), 0) AS value`);
   statementItems.push(`FROM bezettingsdata b`);
   statementItems.push(`WHERE`);
   statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
@@ -100,6 +100,8 @@ export const getSQL = (params: ReportParams, useCache = false): string | false =
   ];
 
   const sqlfilledin = interpolateSQL(sql, queryParams);
+  console.log('sqlfilledin', sqlfilledin);
+
   return sqlfilledin;
 };
 

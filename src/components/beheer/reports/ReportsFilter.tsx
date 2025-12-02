@@ -121,7 +121,7 @@ export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
   //     availableReports.push({ id: "abonnementen_lopend", title: "Lopende abonnementen" });
   // }
   availableReports.push({ id: "bezetting", title: "Procentuele bezetting" });
-  // availableReports.push({ id: "absolute_bezetting", title: "Absolute bezetting" });
+  availableReports.push({ id: "absolute_bezetting", title: "Absolute bezetting" });
   availableReports.push({ id: "stallingsduur", title: "Stallingsduur" });
   // availableReports.push({ id: "volmeldingen", title: "Drukke en rustige momenten" });
   // availableReports.push({ id: "gelijktijdig_vol", title: "Gelijktijdig vol" });
