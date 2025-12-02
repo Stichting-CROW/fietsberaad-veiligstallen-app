@@ -146,6 +146,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               startDT,
               endDT,
               fillups: filterState.fillups,
+              source: filterState.source,
               dayBeginsAt: gemeenteInfo?.DayBeginsAt
             }
           }),

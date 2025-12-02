@@ -144,6 +144,7 @@ export type ReportState = {
   customEndDate?: string;
   activePreset?: PeriodPreset;
   selectedSeries?: SeriesLabel[];
+  source?: string;
 };
 
 export interface ReportsFilterHandle {
@@ -245,7 +246,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           customStartDate: parsed.customStartDate || legacyRange.customStartDate || defaultReportState.customStartDate,
           customEndDate: parsed.customEndDate || legacyRange.customEndDate || defaultReportState.customEndDate,
           activePreset: parsed.activePreset as PeriodPreset | undefined ?? defaultReportState.activePreset,
-          selectedSeries: parsed.selectedSeries || defaultReportState.selectedSeries || DEFAULT_SERIES
+          selectedSeries: parsed.selectedSeries || defaultReportState.selectedSeries || DEFAULT_SERIES,
+          source: parsed.source || undefined
         };
       } catch (e) {
         console.warn('Failed to parse saved filter state:', e);
@@ -269,6 +271,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   const [fillups, setFillups] = useState(initialState?.fillups ?? defaultReportState.fillups);
   const [grouped, setGrouped] = useState(initialState?.grouped ?? defaultReportState.grouped);
   const [selectedSeries, setSelectedSeries] = useState<SeriesLabel[]>(initialState?.selectedSeries ?? defaultReportState.selectedSeries ?? DEFAULT_SERIES);
+  const [source, setSource] = useState<string | undefined>(initialState?.source ?? undefined);
   const [percBusy, setPercBusy] = useState("");
   const [percQuiet, setPercQuiet] = useState("");
   const [errorState, setErrorState] = useState<string | undefined>(undefined);
@@ -288,7 +291,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     customStartDate,
     customEndDate,
     activePreset,
-    selectedSeries
+    selectedSeries,
+    source
   };
 
   const normalizeDate = (date: Date) => {
@@ -459,6 +463,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     customEndDate,
     activePreset,
     selectedSeries,
+    source,
     onStateChange,
     bikeparks
   ]);
@@ -772,6 +777,36 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             onSelectionChange={setSelectedBikeparkDataSources}
           />
         }
+        {reportType === 'absolute_bezetting' && (
+          <div className="relative inline-block text-left">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
+            >
+              <span>Databron: {source || 'Alle'}</span>
+              <svg
+                className="h-4 w-4 text-gray-500"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <select
+              value={source || ''}
+              onChange={(e) => setSource(e.target.value || undefined)}
+              name="source"
+              id="source"
+              className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
+            >
+              <option value="">Alle</option>
+              <option value="FMS">FMS</option>
+              <option value="Lumiguide">Lumiguide</option>
+            </select>
+          </div>
+        )}
       </div>
     );
   };
@@ -825,7 +860,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       customStartDate,
       customEndDate,
       activePreset,
-      selectedSeries
+      selectedSeries,
+      source
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [
@@ -840,7 +876,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     customStartDate,
     customEndDate,
     activePreset,
-    selectedSeries
+    selectedSeries,
+    source
   ]);
 
   return (
