@@ -281,7 +281,7 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
         },
         yaxis: {
           title: {
-            text: getReportTitle(params.reportType)
+            text: ''//getReportTitle(params.reportType)
           }
         }
       },
