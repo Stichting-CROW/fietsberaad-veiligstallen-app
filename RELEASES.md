@@ -5,6 +5,20 @@
 **Abonnementsvormen**
 
 - ✨ Nieuw abonnementsvormenbeheer
+  - First implementation of abonnementsvormen
+  - Link to module, add conditions for field display, fixes (work in progress)
+  - Add Abonnementen tab to parkingedit
+
+**Rapportage**
+
+- ✨ Bij grafiek 'procentuele bezetting' is er de nieuwe filteroptie "Weekdagen"
+- ✨ Bij elke grafiek kun je nu de getoonde stallingen filteren
+- 🖌️ Grafiek heeft nu maximale breedte
+- 🖌️ Grafiek is nu maximaal zo hoog als het kan, waardoor x-as altijd zichtbaar is
+- 🖌️ Duidelijker periodeselectiebalk door toegevoegd icoon en vetgedrukte tekst
+- 🖌️ Grafiektitel en paginatitels zijn duidelijker
+- 🖌️ In de filters bovenin staat nu duidelijk de gekozen selectieoptie
+- 🖌️ Balkgrafiek stallingsduur heeft nu kolombalken in plaats van samengestelde balk
 
 ## VeiligStallen 2025-11-20
 
@@ -20,7 +34,7 @@
 - ✨ Nieuw vrij invulveld "Extra diensten" bij fietsenstallingbeheer
   - Voorbeeldweergave op site
   - Stel in dat een fietsenstalling wordt beheerd door de eigen organisatie (bijv. de gemeente)
-- Adres/postcode/plaats zijn nu een optioneel velden
+- Adres/postcode/plaats zijn nu optionele velden
 
 **Gebruikersbeheer**
 
