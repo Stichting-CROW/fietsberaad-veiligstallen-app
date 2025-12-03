@@ -5,6 +5,7 @@ import FormInput from "~/components/Form/FormInput";
 import { useExploitanten } from "~/hooks/useExploitanten";
 import { useGemeente } from "~/hooks/useGemeente";
 import { getSectionBlockBeheerder } from "./ParkingViewBeheerder";
+import { FiAlertTriangle } from "react-icons/fi";
 
 interface ParkingEditBeheerderProps {
   visible?: boolean;
@@ -103,8 +104,13 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
     currentBeheerderName = currentExploitant?.CompanyName || "";
     currentBeheerderContact = currentExploitant?.Helpdesk ? currentExploitant.Helpdesk : '';
   } else {
-    currentBeheerderName = newBeheerder || "";
-    currentBeheerderContact = newBeheerderContact || "";
+    // For "anders", use new values if set, otherwise fall back to parkingdata values
+    currentBeheerderName = newBeheerder !== undefined
+      ? newBeheerder
+      : parkingdata.Beheerder || "";
+    currentBeheerderContact = newBeheerderContact !== undefined
+      ? newBeheerderContact
+      : parkingdata.BeheerderContact || "";
   }
 
 
@@ -127,7 +133,10 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
                     className="w-full border border-gray-300"
                     placeholder="Selecteer exploitant"
                     onChange={(e: any) => {
-                      setNewExploitantID(e.target.value);
+                      const value = e.target.value;
+                      // Always set the value explicitly, including "anders"
+                      const newValue = value === "" ? undefined : value;
+                      setNewExploitantID(newValue);
                     }}
                     value={selectedExploitantID}
                     options={exploitantOptions}
@@ -135,6 +144,16 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
                   />
                 </div>
             </div>
+            {selectedExploitantID === parkingdata.SiteID && !currentBeheerderContact && (
+              <div className="px-3 mt-2">
+                <div className="flex items-center gap-1 text-amber-600" title="Let op, er is geen helpdesk email adres ingesteld voor deze organisatie">
+                  <FiAlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">
+                    Let op, er is geen helpdesk email adres ingesteld voor deze organisatie
+                  </span>
+                </div>
+              </div>
+            )}
             {/* Row 2: Naam beheerder label + input */}
             {showBeheerderInput && (
                 <div className="flex items-center">

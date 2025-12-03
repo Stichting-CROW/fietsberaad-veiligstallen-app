@@ -199,7 +199,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? 0,
       MaxStallingsduur: parsed.MaxStallingsduur ?? 0,
       HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? false,
-      ExploitantID: parsed.ExploitantID ?? undefined,
+      ExploitantID: parsed.ExploitantID !== undefined ? (parsed.ExploitantID === null ? null : parsed.ExploitantID) : undefined,
       hasUniSectionPrices: parsed.hasUniSectionPrices ?? true,
       hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? false,
       shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
@@ -469,7 +469,7 @@ export default async function handle(
             AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? undefined,
             MaxStallingsduur: parsed.MaxStallingsduur ?? undefined,
             HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? undefined,
-            ExploitantID: parsed.ExploitantID ?? undefined,
+            ExploitantID: parsed.ExploitantID !== undefined ? (parsed.ExploitantID === null ? null : parsed.ExploitantID) : undefined,
             hasUniSectionPrices: parsed.hasUniSectionPrices ?? undefined,
             hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? undefined,
             shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
@@ -557,12 +557,6 @@ export default async function handle(
             console.log(`Type not changed: "${currentFietsenstalling?.Type}" (no update needed)`);
           }
         }
-
-        // Log update data for debugging
-        console.log("Updating fietsenstalling with data:", JSON.stringify(updateData, null, 2));
-        console.log("Image field value:", updateData.Image);
-        console.log("Image field type:", typeof updateData.Image);
-        console.log("Image field length:", updateData.Image?.length);
         
         const updatedFietsenstalling = await prisma.fietsenstallingen.update({
           select: selectParkingDetailsType,
