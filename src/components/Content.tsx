@@ -39,6 +39,7 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
 
   const [currentStallingId, setCurrentStallingId] = useState<string | undefined>(undefined);
   const [pageContent, setPageContent] = useState<Record<string, any> | undefined | false>(undefined); // TODO: type -> generic JSON object, make more specific later
+  const [municipalityLookupFailed, setMunicipalityLookupFailed] = useState<boolean>(false);
 
   // const { fietsenstallingen: allparkingdata } = useAllFietsenstallingen();
   const { fietsenstallingen: allparkingdata } = useFietsenstallingen(activeMunicipalityInfo?.ID||"");
@@ -46,6 +47,10 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
 
   // Do things is municipality if municipality is given by URL
   useEffect(() => {
+    // Reset state when municipality changes
+    setMunicipalityLookupFailed(false);
+    setPageContent(undefined);
+    
     // Get municipality based on urlName
     (async () => {
       if(!props.url_municipality) return;
@@ -53,6 +58,12 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
       const municipality = await getMunicipalityBasedOnUrlName(props.url_municipality);
       // Set municipality info in redux
       dispatch(setActiveMunicipalityInfo(municipality));
+      // Track if municipality lookup failed
+      if (!municipality) {
+        setMunicipalityLookupFailed(true);
+      } else {
+        setMunicipalityLookupFailed(false);
+      }
     })();
   }, [
     props.url_municipality
@@ -67,6 +78,11 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
     // if (!pathName) return;
     if (!activeMunicipalityInfo || !activeMunicipalityInfo.ID) {
       console.debug("===> Content - no active municipality ID available");
+      // If municipality lookup has failed, set pageContent to false to show error
+      if (municipalityLookupFailed) {
+        setPageContent(false);
+        setFilteredstallingen([]);
+      }
       return;
     }
 
@@ -119,7 +135,8 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
     activeMunicipalityInfo,
     allparkingdata,
     props.url_municipalitypage,
-    props.url_municipality
+    props.url_municipality,
+    municipalityLookupFailed
   ]);
 
   const renderParkings = () => {
