@@ -1,33 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import type { ControleSummary } from '~/types/sync-summary';
 import SynchronisatieTable from '~/components/sync-summary/SynchronisatieTable';
-import ControleTable from '~/components/sync-summary/ControleTable';
+import SyncEventsModal from '~/components/sync-summary/SyncEventsModal';
 
 const SyncSummaryPage: React.FC = () => {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<'synchronisatie' | 'controle'>('synchronisatie');
   const [syncData, setSyncData] = useState<ControleSummary[]>([]);
-  const [controleData, setControleData] = useState<ControleSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Pagination state
-  const [syncPagination, setSyncPagination] = useState({
-    page: 1,
-    pageSize: 20
-  });
-  const [controlePagination, setControlePagination] = useState({
-    page: 1,
-    pageSize: 20
-  });
+  const [selectedSummary, setSelectedSummary] = useState<ControleSummary | null>(null);
+  const [onlyActive, setOnlyActive] = useState(true);
 
   // Fetch sync summary data
-  const fetchSyncData = async () => {
+  const fetchSyncData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/protected/sync-summary/controle-summary`);
+      const url = `/api/protected/sync-summary/controle-summary?onlyActive=${onlyActive}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -41,59 +32,19 @@ const SyncSummaryPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onlyActive]);
 
-  // Fetch controle overview data
-  const fetchControleData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/protected/sync-summary/controle-overview`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      const data = await response.json();
-      console.log('[sync-summary] Controle API response:', data);
-      console.log('[sync-summary] Controle data count:', data.data?.length || 0);
-      setControleData(data.data || []);
-    } catch (err) {
-      console.error('Error fetching controle overview:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
+  // Handle summary row click - open modal
+  const handleSummaryRowClick = (summary: ControleSummary) => {
+    if (summary.stallingId) {
+      setSelectedSummary(summary);
     }
   };
 
-  // Handle summary row click (no-op for now)
-  const handleSummaryRowClick = (summary: ControleSummary) => {
-    // Can be implemented later for drill-down
-  };
-
-  // Calculate paginated sync data
-  const syncTotal = syncData.length;
-  const syncTotalPages = Math.ceil(syncTotal / syncPagination.pageSize);
-  const syncStartIndex = (syncPagination.page - 1) * syncPagination.pageSize;
-  const syncEndIndex = syncStartIndex + syncPagination.pageSize;
-  const paginatedSyncData = syncData.slice(syncStartIndex, syncEndIndex);
-
-  // Calculate paginated controle data
-  const controleTotal = controleData.length;
-  const controleTotalPages = Math.ceil(controleTotal / controlePagination.pageSize);
-  const controleStartIndex = (controlePagination.page - 1) * controlePagination.pageSize;
-  const controleEndIndex = controleStartIndex + controlePagination.pageSize;
-  const paginatedControleData = controleData.slice(controleStartIndex, controleEndIndex);
-
-  // Fetch sync data on mount
+  // Fetch sync data on mount and when filter changes
   useEffect(() => {
     fetchSyncData();
-  }, []);
-
-  // Fetch controle data when controle tab is activated
-  useEffect(() => {
-    if (activeTab === 'controle' && controleData.length === 0) {
-      fetchControleData();
-    }
-  }, [activeTab]);
+  }, [fetchSyncData]);
 
   if (!session) {
     return (
@@ -109,35 +60,19 @@ const SyncSummaryPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Synchronisatie en Controle overzicht
+          Synchronisatie overzicht
         </h1>
-      </div>
-
-      {/* Tabs */}
-      <div className="mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('synchronisatie')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'synchronisatie'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Synchronisatie
-            </button>
-            <button
-              onClick={() => setActiveTab('controle')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'controle'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Controle
-            </button>
-          </nav>
+        <div className="mt-4 flex items-center">
+          <input
+            type="checkbox"
+            id="onlyActive"
+            checked={onlyActive}
+            onChange={(e) => setOnlyActive(e.target.checked)}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label htmlFor="onlyActive" className="ml-2 text-sm text-gray-700">
+            Alleen actieve fietsenstallingen
+          </label>
         </div>
       </div>
 
@@ -156,51 +91,28 @@ const SyncSummaryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content */}
-      {activeTab === 'synchronisatie' && (
-        <div>
-          <p className="text-gray-600 mb-4">
-            Overzicht van laatste synchronisatie per fietsenstalling
-          </p>
-          <SynchronisatieTable
-            data={paginatedSyncData}
-            pagination={{
-              page: syncPagination.page,
-              pageSize: syncPagination.pageSize,
-              total: syncTotal,
-              totalPages: syncTotalPages
-            }}
-            onRowClick={handleSummaryRowClick}
-            onPageChange={(page) => setSyncPagination({ ...syncPagination, page })}
-            onPageSizeChange={(pageSize) => setSyncPagination({ ...syncPagination, pageSize, page: 1 })}
-            loading={loading}
-          />
-        </div>
-      )}
+      <div>
+        <p className="text-gray-600 mb-4">
+          Overzicht van laatste synchronisatie per fietsenstalling
+        </p>
+        <SynchronisatieTable
+          data={syncData}
+          onRowClick={handleSummaryRowClick}
+          loading={loading}
+        />
+      </div>
 
-      {activeTab === 'controle' && (
-        <div>
-          <p className="text-gray-600 mb-4">
-            Overzicht van laatste synchronisatie en controle per fietsenstalling
-          </p>
-          <ControleTable
-            data={paginatedControleData}
-            pagination={{
-              page: controlePagination.page,
-              pageSize: controlePagination.pageSize,
-              total: controleTotal,
-              totalPages: controleTotalPages
-            }}
-            onRowClick={handleSummaryRowClick}
-            onPageChange={(page) => setControlePagination({ ...controlePagination, page })}
-            onPageSizeChange={(pageSize) => setControlePagination({ ...controlePagination, pageSize, page: 1 })}
-            loading={loading}
-          />
-        </div>
+      {selectedSummary && selectedSummary.stallingId && (
+        <SyncEventsModal
+          isOpen={true}
+          onClose={() => setSelectedSummary(null)}
+          stallingId={selectedSummary.stallingId}
+          dataOwnerName={selectedSummary.dataOwnerName}
+          stallingName={selectedSummary.fietsenstallingName}
+        />
       )}
     </div>
   );
 };
 
 export default SyncSummaryPage;
-

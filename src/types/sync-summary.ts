@@ -2,6 +2,7 @@ export interface ControleSummary {
   aggregationLevel: 'fietsenstalling' | 'data-owner' | 'fietsberaad';
   aggregationId: string;
   aggregationName: string;
+  stallingId?: string;
   // Fields for table display
   dataOwnerName: string | null;
   fietsenstallingName: string;

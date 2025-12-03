@@ -4,7 +4,8 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { prisma } from "~/server/db";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { userHasRight } from "~/types/utils";
-import { validateUserSession } from "~/utils/server/database-tools";
+import { validateUserSession, getOrganisationTypeByID } from "~/utils/server/database-tools";
+import { VSContactItemType } from "~/types/contacts";
 import type { ControleSummaryResponse, ControleSummary } from "~/types/sync-summary";
 
 export default async function handler(
@@ -37,25 +38,43 @@ export default async function handler(
       return res.status(validation.status).json({ error: validation.error });
     }
 
-    const { sites } = validation;
+    const { sites, activeContactId } = validation;
     console.log("[controle-summary] User accessible sites:", sites.length, sites.slice(0, 5));
+    console.log("[controle-summary] Active contact ID:", activeContactId);
+
+    // Check if active organization is Fietsberaad
+    const isFietsberaad = activeContactId === "1";
+
+    // Check if active organization is an exploitant
+    const activeContactItemType = activeContactId ? await getOrganisationTypeByID(activeContactId) : null;
+    const isExploitant = activeContactItemType === VSContactItemType.Exploitant;
 
     // Build WHERE clause for site filtering with proper escaping
     let siteFilter = "";
     
-    if (sites.length > 0) {
-      // Escape site IDs for SQL IN clause
-      const escapedSites = sites.map(site => {
-        // Escape single quotes and wrap in quotes
-        return `'${String(site).replace(/'/g, "''")}'`;
-      }).join(",");
-      siteFilter = `AND f.SiteID IN (${escapedSites})`;
+    if (isFietsberaad) {
+      // Fietsberaad: show all stallingen (no site filter)
+      siteFilter = "";
+    } else if (isExploitant && activeContactId) {
+      // Exploitant: show all stallingen managed by this exploitant
+      const escapedExploitant = `'${String(activeContactId).replace(/'/g, "''")}'`;
+      siteFilter = `AND f.ExploitantID = ${escapedExploitant}`;
+    } else {
+      // Other organizations (gemeenten): only show stallingen from active organization
+      if (activeContactId) {
+        const escapedSite = `'${String(activeContactId).replace(/'/g, "''")}'`;
+        siteFilter = `AND f.SiteID = ${escapedSite}`;
+      }
     }
+
+    // Get status filter from query parameter (default: true/checked)
+    const onlyActive = req.query.onlyActive !== 'false';
 
     // Build SQL query (no pagination - returns all results)
     const sqlQuery = `
       SELECT 
         c.CompanyName, 
+        f.ID,
         f.Title, 
         f.Plaats, 
         MAX(ws.transactionDate) AS LaatsteSync
@@ -64,10 +83,10 @@ export default async function handler(
         JOIN fietsenstallingen f ON (c.ID = f.SiteID)
         LEFT JOIN wachtrij_sync ws ON (ws.bikeparkID = f.StallingsID)
       WHERE 
-        f.Status = '1'
+        ${onlyActive ? "f.Status = '1'" : "1=1"}
         ${siteFilter}
       GROUP BY
-        c.CompanyName, f.Title, f.Plaats
+        c.CompanyName, f.ID, f.Title, f.Plaats
       HAVING
         MAX(ws.transactionDate) IS NOT NULL
       ORDER BY 
@@ -79,6 +98,7 @@ export default async function handler(
     // Execute query (returns all results)
     const rawResults = await prisma.$queryRawUnsafe<Array<{
       CompanyName: string | null;
+      ID: string;
       Title: string | null;
       Plaats: string | null;
       LaatsteSync: Date | null;
@@ -100,6 +120,7 @@ export default async function handler(
         aggregationLevel: "fietsenstalling" as const,
         aggregationId: `${row.CompanyName || ''}-${row.Title || ''}-${index}`,
         aggregationName: row.Title || '',
+        stallingId: row.ID,
         dataOwnerName: row.CompanyName,
         fietsenstallingName: row.Title || '',
         plaats: row.Plaats,
