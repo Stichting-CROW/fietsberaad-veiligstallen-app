@@ -79,7 +79,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   ];
 
   exploitantOptions.push({
-    label: `Eigen organisatie`,
+    label: gemeente?.CompanyName || `Eigen organisatie`,
     value: parkingdata.SiteID,
   });
 
@@ -120,17 +120,17 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
         <SectionBlockEdit>
           <div className="mt-4 w-full">
             {/* Row 1: Exploitant/beheerder label + select */}
-              <div className="flex items-center">
-                <div className="w-1/3 p-3">
-                  <label className="block text-sm font-bold text-gray-700">
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <div className="p-3 overflow-hidden">
+                  <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
                     Exploitant/beheerder:
                   </label>
                 </div>
-                <div className="w-2/3 px-3">
+                <div className="col-span-2 px-3 min-w-0 overflow-hidden">
                   <FormSelect
                     key="i-exploitant"
                     label=""
-                    className="w-full border border-gray-300"
+                    className="w-full border border-gray-300 max-w-full"
                     placeholder="Selecteer exploitant"
                     onChange={(e: any) => {
                       const value = e.target.value;
