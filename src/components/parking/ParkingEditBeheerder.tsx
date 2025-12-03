@@ -5,6 +5,7 @@ import FormInput from "~/components/Form/FormInput";
 import { useExploitanten } from "~/hooks/useExploitanten";
 import { useGemeente } from "~/hooks/useGemeente";
 import { getSectionBlockBeheerder } from "./ParkingViewBeheerder";
+import { FiAlertTriangle } from "react-icons/fi";
 
 interface ParkingEditBeheerderProps {
   visible?: boolean;
@@ -78,7 +79,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   ];
 
   exploitantOptions.push({
-    label: `Eigen organisatie`,
+    label: gemeente?.CompanyName || `Eigen organisatie`,
     value: parkingdata.SiteID,
   });
 
@@ -103,8 +104,13 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
     currentBeheerderName = currentExploitant?.CompanyName || "";
     currentBeheerderContact = currentExploitant?.Helpdesk ? currentExploitant.Helpdesk : '';
   } else {
-    currentBeheerderName = newBeheerder || "";
-    currentBeheerderContact = newBeheerderContact || "";
+    // For "anders", use new values if set, otherwise fall back to parkingdata values
+    currentBeheerderName = newBeheerder !== undefined
+      ? newBeheerder
+      : parkingdata.Beheerder || "";
+    currentBeheerderContact = newBeheerderContact !== undefined
+      ? newBeheerderContact
+      : parkingdata.BeheerderContact || "";
   }
 
 
@@ -114,20 +120,23 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
         <SectionBlockEdit>
           <div className="mt-4 w-full">
             {/* Row 1: Exploitant/beheerder label + select */}
-              <div className="flex items-center">
-                <div className="w-1/3 p-3">
-                  <label className="block text-sm font-bold text-gray-700">
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <div className="p-3 overflow-hidden">
+                  <label className="block text-sm font-bold text-gray-700 whitespace-nowrap">
                     Exploitant/beheerder:
                   </label>
                 </div>
-                <div className="w-2/3 px-3">
+                <div className="col-span-2 px-3 min-w-0 overflow-hidden">
                   <FormSelect
                     key="i-exploitant"
                     label=""
-                    className="w-full border border-gray-300"
+                    className="w-full border border-gray-300 max-w-full"
                     placeholder="Selecteer exploitant"
                     onChange={(e: any) => {
-                      setNewExploitantID(e.target.value);
+                      const value = e.target.value;
+                      // Always set the value explicitly, including "anders"
+                      const newValue = value === "" ? undefined : value;
+                      setNewExploitantID(newValue);
                     }}
                     value={selectedExploitantID}
                     options={exploitantOptions}
@@ -135,6 +144,16 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
                   />
                 </div>
             </div>
+            {selectedExploitantID === parkingdata.SiteID && !currentBeheerderContact && (
+              <div className="px-3 mt-2">
+                <div className="flex items-center gap-1 text-amber-600" title="Let op, er is geen helpdesk email adres ingesteld voor deze organisatie">
+                  <FiAlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">
+                    Let op, er is geen helpdesk email adres ingesteld voor deze organisatie
+                  </span>
+                </div>
+              </div>
+            )}
             {/* Row 2: Naam beheerder label + input */}
             {showBeheerderInput && (
                 <div className="flex items-center">
