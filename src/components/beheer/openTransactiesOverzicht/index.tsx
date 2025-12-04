@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useExploitanten } from '~/hooks/useExploitanten';
-import type { ParkingDetailsType } from '~/types/parking';
 import Chart from '~/components/beheer/reports/Chart';
 import TransactionFilters from '~/components/beheer/reports/TransactionFilters';
 
@@ -48,8 +47,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   const [selectedContactID, setSelectedContactID] = useState<string | null>(null);
   const [selectedLocationID, setSelectedLocationID] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [filteredParkingLocations, setFilteredParkingLocations] = useState<ParkingDetailsType[]>([]);
-  const [contacts, setContacts] = useState<Array<{ ID: string; CompanyName: string }>>([]);
   const [transactionData, setTransactionData] = useState<AggregatedTransactionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +54,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [aggregationProgress, setAggregationProgress] = useState<number | null>(null);
   const [hideRecentCheckins, setHideRecentCheckins] = useState<boolean>(true);
+  const [showControles, setShowControles] = useState<boolean>(true);
+  const [controleRecords, setControleRecords] = useState<Array<{ checkindate: Date | string }>>([]);
   
   // Checkintype and checkouttype filters
   const allCheckTypes: CheckType[] = ['user', 'controle', 'system', 'sync', 'reservation', 'unknown'];
@@ -89,6 +88,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
         if (parsed.selectedYear) setSelectedYear(parsed.selectedYear);
         if (parsed.selectedCheckinTypes) setSelectedCheckinTypes(new Set(parsed.selectedCheckinTypes));
         if (parsed.selectedCheckoutTypes) setSelectedCheckoutTypes(new Set(parsed.selectedCheckoutTypes));
+        if (parsed.showControles !== undefined) setShowControles(parsed.showControles);
       } catch (e) {
         console.warn('Failed to parse saved filter state:', e);
       }
@@ -344,10 +344,89 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       selectedLocationID,
       selectedYear,
       selectedCheckinTypes: Array.from(selectedCheckinTypes),
-      selectedCheckoutTypes: Array.from(selectedCheckoutTypes)
+      selectedCheckoutTypes: Array.from(selectedCheckoutTypes),
+      showControles
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [selectedContactID, selectedLocationID, selectedYear, selectedCheckinTypes, selectedCheckoutTypes]);
+  }, [selectedContactID, selectedLocationID, selectedYear, selectedCheckinTypes, selectedCheckoutTypes, showControles]);
+
+  // Pre-process synchronisatie records: convert dates to strings and deduplicate by date
+  // Use the same date formatting as chart categories to avoid timezone mismatches
+  const processedControleDates = useMemo(() => {
+    if (!controleRecords || controleRecords.length === 0) {
+      return new Set<string>();
+    }
+    
+    const dateSet = new Set<string>();
+    for (let i = 0; i < controleRecords.length; i++) {
+      const record = controleRecords[i];
+      if (!record || !record.checkindate) continue;
+      
+      // Parse the date (could be Date object or ISO string from API)
+      const controleDate = typeof record.checkindate === 'string' 
+        ? new Date(record.checkindate) 
+        : new Date(record.checkindate);
+      
+      // Check if date is valid
+      if (isNaN(controleDate.getTime())) continue;
+      
+      // Format date the same way as chart categories to avoid timezone mismatches
+      // Chart categories use: new Date(year, month, day) in local time, then toISOString()
+      // We need to extract the local date components and format the same way
+      const year = controleDate.getFullYear();
+      const month = controleDate.getMonth();
+      const day = controleDate.getDate();
+      
+      // Create a new date in local time (matching chart category generation)
+      const localDate = new Date(year, month, day);
+      localDate.setHours(0, 0, 0, 0);
+      const dateStr = localDate.toISOString().split('T')[0];
+      
+      if (dateStr) {
+        dateSet.add(dateStr);
+      }
+    }
+    
+    return dateSet;
+  }, [controleRecords]);
+
+  // Fetch synchronisatie records when locationID or year changes
+  useEffect(() => {
+    const fetchControles = async () => {
+      if (!selectedLocationID || !selectedYear) {
+        setControleRecords([]);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/reports/controles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            locationID: selectedLocationID,
+            year: selectedYear
+          })
+        });
+
+        if (!response.ok) {
+          console.error('[controles] Failed to fetch synchronisatie records:', response.statusText);
+          setControleRecords([]);
+          return;
+        }
+
+        const data = await response.json();
+        setControleRecords(data);
+        console.log('[controles] Fetched', data.length, 'synchronisatie records');
+      } catch (error) {
+        console.error('[controles] Error fetching synchronisatie records:', error);
+        setControleRecords([]);
+      }
+    };
+
+    fetchControles();
+  }, [selectedLocationID, selectedYear]);
 
   // Clear cache when filters that affect the query change (but not on initial load)
   useEffect(() => {
@@ -451,10 +530,13 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
     if (savedCache) {
       try {
         const parsed = JSON.parse(savedCache);
-        if (parsed.cachedRawData && parsed.cacheKey === currentCacheKey) {
+        // Check if cache key matches and we have either raw data or aggregated data
+        if (parsed.cacheKey === currentCacheKey && (parsed.cachedRawData || parsed.cachedAggregatedData)) {
+          if (parsed.cachedRawData) {
           console.log('[open_transacties] [CLIENT] Using cached data from localStorage');
           // Use cached data from localStorage
           setCachedRawData(parsed.cachedRawData);
+          }
           setCacheKey(parsed.cacheKey);
           
           // If we have cached aggregated data, use it; otherwise aggregate once
@@ -472,7 +554,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
             const processedData = processData(filteredData);
             console.log('[open_transacties] [CLIENT] Processed data:', processedData.length, 'records');
             setTransactionData(processedData);
-          } else {
+          } else if (parsed.cachedRawData) {
             // Need to aggregate (shouldn't happen if cache is complete, but handle it)
             console.log('[open_transacties] [CLIENT] Aggregating cached raw data (aggregated data missing)...');
             setAggregationProgress(0);
@@ -495,13 +577,32 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
             
             // Update localStorage with aggregated data
             try {
-              localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
+              const updateCacheData = {
                 cachedRawData: parsed.cachedRawData,
                 cachedAggregatedData: aggregated,
                 cacheKey: parsed.cacheKey
-              }));
+              };
+              const updateCacheString = JSON.stringify(updateCacheData);
+              const updateCacheSizeMB = updateCacheString.length / (1024 * 1024);
+              
+              if (updateCacheSizeMB > 4) {
+                console.warn('[open_transacties] [CLIENT] Updated cache size too large (' + updateCacheSizeMB.toFixed(2) + 'MB), saving aggregated data only');
+                // Save only aggregated data
+                const aggregatedOnly = {
+                  cachedAggregatedData: aggregated,
+                  cacheKey: parsed.cacheKey
+                };
+                localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(aggregatedOnly));
+              } else {
+                localStorage.setItem(CACHE_STORAGE_KEY, updateCacheString);
+              }
             } catch (e) {
+              const errorMessage = e instanceof Error ? e.message : String(e);
+              if (errorMessage.includes('QuotaExceededError') || errorMessage.includes('quota')) {
+                console.warn('[open_transacties] [CLIENT] localStorage quota exceeded when updating cache');
+              } else {
               console.warn('[open_transacties] [CLIENT] Failed to update cache with aggregated data:', e);
+              }
             }
           }
           return;
@@ -589,14 +690,45 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       // Save to localStorage with both raw and aggregated data
       try {
         const saveStart = Date.now();
-        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify({
+        const cacheData = {
           cachedRawData: rawData,
           cachedAggregatedData: aggregated,
           cacheKey: currentCacheKey
-        }));
-        console.log('[open_transacties] [CLIENT] Saved to localStorage in', Date.now() - saveStart, 'ms');
+        };
+        const cacheString = JSON.stringify(cacheData);
+        const cacheSizeMB = cacheString.length / (1024 * 1024);
+        
+        // Check size before saving (localStorage limit is typically 5-10MB)
+        if (cacheSizeMB > 4) {
+          console.warn('[open_transacties] [CLIENT] Cache size too large (' + cacheSizeMB.toFixed(2) + 'MB), skipping localStorage save to avoid quota exceeded error');
+          // Try saving only aggregated data (usually much smaller)
+          try {
+            const aggregatedOnly = {
+              cachedAggregatedData: aggregated,
+              cacheKey: currentCacheKey
+            };
+            const aggregatedString = JSON.stringify(aggregatedOnly);
+            const aggregatedSizeMB = aggregatedString.length / (1024 * 1024);
+            if (aggregatedSizeMB <= 4) {
+              localStorage.setItem(CACHE_STORAGE_KEY, aggregatedString);
+              console.log('[open_transacties] [CLIENT] Saved aggregated data only to localStorage (' + aggregatedSizeMB.toFixed(2) + 'MB)');
+            } else {
+              console.warn('[open_transacties] [CLIENT] Even aggregated data is too large (' + aggregatedSizeMB.toFixed(2) + 'MB), skipping save');
+            }
+          } catch (e2) {
+            console.warn('[open_transacties] [CLIENT] Failed to save aggregated data to localStorage:', e2);
+          }
+        } else {
+          localStorage.setItem(CACHE_STORAGE_KEY, cacheString);
+          console.log('[open_transacties] [CLIENT] Saved to localStorage in', Date.now() - saveStart, 'ms (' + cacheSizeMB.toFixed(2) + 'MB)');
+        }
       } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        if (errorMessage.includes('QuotaExceededError') || errorMessage.includes('quota')) {
+          console.warn('[open_transacties] [CLIENT] localStorage quota exceeded. Try clearing old cache data or use a smaller dataset.');
+        } else {
         console.warn('[open_transacties] [CLIENT] Failed to save cache to localStorage:', e);
+        }
       }
     } catch (err) {
       console.error('Error fetching transaction data:', err);
@@ -691,14 +823,148 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
     const maxOpenForDay = Math.max(...openTransactionsForDay, 1);
     const maxTotalOpen = Math.max(...totalOpenTransactions, 1);
 
+    // Prepare synchronisatie annotations (vertical lines) if showControles is enabled
+    // Use pre-processed synchronisatie dates Set for O(1) lookup
+    const controleAnnotations: Array<{ x: string }> = [];
+    if (showControles && processedControleDates.size > 0 && categories.length > 0) {
+      // Convert categories to Set for fast lookup
+      const categoriesSet = new Set(categories);
+      
+      // Only add annotations for dates that exist in both synchronisatie dates and categories
+      processedControleDates.forEach(dateStr => {
+        if (categoriesSet.has(dateStr)) {
+          controleAnnotations.push({ x: dateStr });
+        }
+      });
+    }
+
     return {
       categories,
       openTransactionsForDay,
       totalOpenTransactions,
       maxOpenForDay: Math.ceil(maxOpenForDay * 1.1), // Add 10% padding
-      maxTotalOpen: Math.ceil(maxTotalOpen * 1.1) // Add 10% padding
+      maxTotalOpen: Math.ceil(maxTotalOpen * 1.1), // Add 10% padding
+      controleAnnotations
     };
-  }, [cachedAggregatedData, selectedCheckinTypes, selectedCheckoutTypes, hideRecentCheckins, aggregateByDate]);
+  }, [cachedAggregatedData, selectedCheckinTypes, selectedCheckoutTypes, hideRecentCheckins, aggregateByDate, showControles, processedControleDates]);
+
+  // Memoize chart options to ensure ApexCharts updates when showControles changes
+  const chartOptions = useMemo(() => {
+    if (!chartData) return null;
+    
+    return {
+      chart: {
+        id: 'open-transactions-chart',
+        zoom: {
+          enabled: false
+        },
+        toolbar: {
+          show: true,
+          tools: {
+            download: true,
+            selection: true,
+            zoom: true,
+            zoomin: true,
+            zoomout: true,
+            pan: true,
+            reset: true
+          },
+          autoSelected: 'zoom'
+        },
+        animations: {
+          enabled: false
+        }
+      },
+      dataLabels: {
+        enabled: false
+      },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: '55%',
+          dataLabels: {
+            position: 'top'
+          }
+        }
+      },
+      title: {
+        text: 'Open transacties overzicht vs Datum',
+        align: 'left'
+      },
+      grid: {
+        borderColor: '#e7e7e7',
+        row: {
+          colors: ['#f3f3f3', 'transparent'],
+          opacity: 0.5
+        }
+      },
+      xaxis: {
+        type: 'category',
+        categories: chartData.categories,
+        title: {
+          text: 'Datum',
+          align: 'left'
+        },
+        labels: {
+          rotate: -45,
+          rotateAlways: false,
+          maxHeight: 100
+        },
+        tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
+      },
+      yaxis: [
+        {
+          // Left y-axis for open transactions for day
+          title: {
+            text: 'Open transacties voor dag'
+          },
+          min: 0,
+          max: chartData.maxOpenForDay,
+          opposite: false
+        },
+        {
+          // Right y-axis for total open transactions
+          title: {
+            text: 'Aantal open transacties'
+          },
+          min: 0,
+          max: chartData.maxTotalOpen,
+          opposite: true
+        }
+      ],
+      tooltip: {
+        enabled: true,
+        shared: true,
+        intersect: false,
+        followCursor: true
+      },
+      colors: ['#3b82f6', '#22c55e'], // blue for open for day, green for total
+      legend: {
+        show: true,
+        position: 'top'
+      },
+      annotations: {
+        xaxis: showControles && chartData.controleAnnotations && chartData.controleAnnotations.length > 0 
+          ? chartData.controleAnnotations.map(annotation => ({
+              x: annotation.x,
+              strokeDashArray: 0,
+              borderColor: '#ef4444', // red color
+              borderWidth: 2,
+              label: {
+                borderColor: '#ef4444',
+                style: {
+                  color: '#fff',
+                  background: '#ef4444',
+                  fontSize: '10px'
+                },
+                text: 'Synchronisatie',
+                orientation: 'vertical'
+              }
+            }))
+          : []
+      }
+    };
+  }, [chartData, showControles]);
 
   // Toggle checkintype filter
   const toggleCheckinType = (type: CheckType) => {
@@ -735,8 +1001,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       'Datum',
       'Check-in Type',
       'Check-out Type',
-      'Open transacties voor dag',
-      'Aantal open transacties'
+      'Aantal transacties (op deze dag)',
+      'Aantal transacties (tot en met dag)'
     ];
 
     const rows = sortedData.map(row => [
@@ -784,10 +1050,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
         }}
         onLocationChange={setSelectedLocationID}
         yearFirst={true}
-        onFilteredDataChange={(data) => {
-          setContacts(data.contacts);
-          setFilteredParkingLocations(data.filteredParkingLocations);
-        }}
       />
 
       <div className="mb-6 space-y-4">
@@ -845,6 +1107,20 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           </label>
         </div>
 
+        {/* Show Synchronisatie Checkbox */}
+        <div className="flex items-center gap-2 mt-4">
+          <input
+            type="checkbox"
+            id="showControles"
+            checked={showControles}
+            onChange={(e) => setShowControles(e.target.checked)}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="showControles" className="text-sm font-medium text-gray-700 cursor-pointer">
+            Toon synchronisatie
+          </label>
+        </div>
+
       </div>
 
       {/* Data Section */}
@@ -879,98 +1155,27 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
         )}
 
         {/* Chart for overview section */}
-        {transactionData.length > 0 && chartData && (
+        {transactionData.length > 0 && chartData && chartOptions && (
           <div className="mb-6">
             <div className="bg-white p-4 border border-gray-300 rounded">
+              {/* Chart descriptions */}
+              <div className="mb-4 text-xs text-gray-600 space-y-1">
+                <p>
+                  Aantal transacties (op deze dag) geeft het aantal transacties weer dat op die specifieke dag is ingecheckt.
+                </p>
+                <p>
+                  Aantal transacties (tot en met dag) geeft het totaal aantal nog openstaande transacties weer tot en met die dag (transacties die zijn ingecheckt maar nog niet zijn uitgecheckt).
+                </p>
+                <p>
+                  De aantallen tot aan deze dag worden berekend vanaf de eerste dag in de grafiek.
+                </p>
+                <p>
+                  De checkboxes voor Check-in Type en Check-out Type filteren welke transacties worden getoond in de grafiek en tabel. Alleen transacties met de geselecteerde types worden meegenomen in de berekeningen.
+                </p>
+              </div>
               <Chart
-                type="line"
-                options={{
-                  chart: {
-                    id: `open-transactions-${Math.random()}`,
-                    zoom: {
-                      enabled: false
-                    },
-                    toolbar: {
-                      show: true,
-                      tools: {
-                        download: true,
-                        selection: true,
-                        zoom: true,
-                        zoomin: true,
-                        zoomout: true,
-                        pan: true,
-                        reset: true
-                      },
-                      autoSelected: 'zoom'
-                    },
-                    animations: {
-                      enabled: false
-                    }
-                  },
-                  dataLabels: {
-                    enabled: false
-                  },
-                  stroke: {
-                    curve: 'straight',
-                    width: 3
-                  },
-                  title: {
-                    text: 'Open transacties overzicht vs Datum',
-                    align: 'left'
-                  },
-                  grid: {
-                    borderColor: '#e7e7e7',
-                    row: {
-                      colors: ['#f3f3f3', 'transparent'],
-                      opacity: 0.5
-                    }
-                  },
-                  xaxis: {
-                    type: 'categories',
-                    categories: chartData.categories,
-                    title: {
-                      text: 'Datum',
-                      align: 'left'
-                    },
-                    labels: {
-                      rotate: -45,
-                      rotateAlways: false,
-                      maxHeight: 100
-                    },
-                    tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
-                  },
-                  yaxis: [
-                    {
-                      // Left y-axis for open transactions for day
-                      title: {
-                        text: 'Open transacties voor dag'
-                      },
-                      min: 0,
-                      max: chartData.maxOpenForDay,
-                      opposite: false
-                    },
-                    {
-                      // Right y-axis for total open transactions
-                      title: {
-                        text: 'Aantal open transacties'
-                      },
-                      min: 0,
-                      max: chartData.maxTotalOpen,
-                      opposite: true
-                    }
-                  ],
-                  tooltip: {
-                    enabled: true,
-                    shared: true,
-                    intersect: false,
-                    followCursor: true
-                  },
-                  colors: ['#3b82f6', '#22c55e'], // blue for open for day, green for total
-                  legend: {
-                    show: true,
-                    position: 'top'
-                  }
-                }}
+                type="bar"
+                options={chartOptions}
                 series={[
                   {
                     name: 'Aantal transacties (op deze dag)',
@@ -988,6 +1193,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
             </div>
           </div>
         )}
+
 
         {transactionData.length > 0 && (
           <div className="overflow-x-auto">
@@ -1017,13 +1223,13 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
                       className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
                       onClick={() => handleSort('openTransactionsForDay')}
                     >
-                      Open transacties voor dag {sortColumn === 'openTransactionsForDay' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      Aantal transacties (op deze dag) {sortColumn === 'openTransactionsForDay' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th 
                       className="border border-gray-300 px-4 py-2 text-right cursor-pointer hover:bg-gray-200 select-none bg-gray-100"
                       onClick={() => handleSort('totalOpenTransactions')}
                     >
-                      Aantal open transacties {sortColumn === 'totalOpenTransactions' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      Aantal transacties (tot en met dag) {sortColumn === 'totalOpenTransactions' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                   </tr>
                 </thead>

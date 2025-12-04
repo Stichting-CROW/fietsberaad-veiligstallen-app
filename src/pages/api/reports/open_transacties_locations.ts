@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { prisma } from "~/server/db";
+import { validateUserSession, getOrganisationTypeByID } from "~/utils/server/database-tools";
+import { VSContactItemType } from "~/types/contacts";
 
 interface Settings {
   year?: number; // Optional, ignored for performance
@@ -45,6 +47,42 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const settings: Settings = req.body;
     console.log('[open_transacties_locations] Processing request (year parameter ignored for performance)');
 
+    // Validate user session and get accessible sites
+    const validation = await validateUserSession(session);
+    if ("error" in validation) {
+      console.log('[open_transacties_locations] Validation error:', validation.error);
+      return res.status(validation.status).json({ error: validation.error });
+    }
+
+    const { sites, activeContactId } = validation;
+    console.log('[open_transacties_locations] User accessible sites:', sites.length, sites.slice(0, 5));
+    console.log('[open_transacties_locations] Active contact ID:', activeContactId);
+
+    // Check if active organization is Fietsberaad
+    const isFietsberaad = activeContactId === "1";
+
+    // Check if active organization is an exploitant
+    const activeContactItemType = activeContactId ? await getOrganisationTypeByID(activeContactId) : null;
+    const isExploitant = activeContactItemType === VSContactItemType.Exploitant;
+
+    // Build WHERE clause for site filtering with proper escaping
+    let siteFilter = "";
+    
+    if (isFietsberaad) {
+      // Fietsberaad: show all stallingen (no site filter)
+      siteFilter = "";
+    } else if (isExploitant && activeContactId) {
+      // Exploitant: show all stallingen managed by this exploitant
+      const escapedExploitant = `'${String(activeContactId).replace(/'/g, "''")}'`;
+      siteFilter = `AND f.ExploitantID = ${escapedExploitant}`;
+    } else {
+      // Other organizations (gemeenten): only show stallingen from active organization
+      if (activeContactId) {
+        const escapedSite = `'${String(activeContactId).replace(/'/g, "''")}'`;
+        siteFilter = `AND f.SiteID = ${escapedSite}`;
+      }
+    }
+
     // Build SQL query to get distinct locations with data (ignoring year for speed)
     const sqlQueryStart = Date.now();
     
@@ -65,6 +103,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       INNER JOIN fietsenstallingen f ON lwd.locationid = f.StallingsID
       LEFT JOIN contacts c_site ON f.SiteID = c_site.ID
       LEFT JOIN contacts c_exploitant ON f.ExploitantID = c_exploitant.ID
+      WHERE 1=1 ${siteFilter}
       ORDER BY contactName, f.Title
     `;
 

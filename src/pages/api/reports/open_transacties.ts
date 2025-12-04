@@ -4,6 +4,8 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { prisma } from "~/server/db";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import { validateUserSession, getOrganisationTypeByID } from "~/utils/server/database-tools";
+import { VSContactItemType } from "~/types/contacts";
 
 interface Settings {
   contactID?: string | null;
@@ -64,7 +66,18 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       return;
     }
 
-    // Get parking location to validate it exists
+    // Validate user session and get accessible sites
+    const validation = await validateUserSession(session);
+    if ("error" in validation) {
+      console.log('[open_transacties] Validation error:', validation.error);
+      return res.status(validation.status).json({ error: validation.error });
+    }
+
+    const { sites, activeContactId } = validation;
+    console.log('[open_transacties] User accessible sites:', sites.length, sites.slice(0, 5));
+    console.log('[open_transacties] Active contact ID:', activeContactId);
+
+    // Get parking location to validate it exists and user has access
     const parkingQueryStart = Date.now();
     const parking = await prisma.fietsenstallingen.findFirst({
       where: {
@@ -76,6 +89,29 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     if (!parking) {
       console.log('[open_transacties] Parking location not found:', settings.locationID);
       res.status(404).json({ error: "Parking location not found" });
+      return;
+    }
+
+    // Check if user has access to this parking location
+    const isFietsberaad = activeContactId === "1";
+    const activeContactItemType = activeContactId ? await getOrganisationTypeByID(activeContactId) : null;
+    const isExploitant = activeContactItemType === VSContactItemType.Exploitant;
+
+    let hasAccess = false;
+    if (isFietsberaad) {
+      // Fietsberaad: access to all stallingen
+      hasAccess = true;
+    } else if (isExploitant && activeContactId) {
+      // Exploitant: access to stallingen managed by this exploitant
+      hasAccess = parking.ExploitantID === activeContactId;
+    } else {
+      // Other organizations (gemeenten): access to stallingen from active organization
+      hasAccess = parking.SiteID === activeContactId;
+    }
+
+    if (!hasAccess) {
+      console.log('[open_transacties] User does not have access to parking location:', settings.locationID);
+      res.status(403).json({ error: "Geen toegang tot deze fietsenstalling" });
       return;
     }
 
