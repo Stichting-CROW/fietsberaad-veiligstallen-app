@@ -36,7 +36,6 @@ import DatabaseComponent from '~/components/beheer/database';
 import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
 import DatabaseExport from '~/components/beheer/database/DatabaseExport';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
-import ExploreGemeenteComponent from '~/components/ExploreGemeenteComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 
 import { VSMenuTopic } from "~/types/index";

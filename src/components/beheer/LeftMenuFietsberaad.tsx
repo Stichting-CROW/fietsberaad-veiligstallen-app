@@ -202,6 +202,8 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                   icon={FiClock}
                 />
               )}
+              {/* <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
+              {/* <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
             </>
           </LeftMenuItem>
         )}
