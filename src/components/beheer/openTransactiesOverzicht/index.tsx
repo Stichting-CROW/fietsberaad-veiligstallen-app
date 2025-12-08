@@ -110,7 +110,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           // Also load aggregated data if available
           if (parsed.cachedAggregatedData) {
             setCachedAggregatedData(parsed.cachedAggregatedData);
-            console.log('[open_transacties] [CLIENT] Loaded cached aggregated data:', parsed.cachedAggregatedData.length, 'records');
           }
         }
       } catch (e) {
@@ -123,10 +122,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   // Made async to allow React to update UI during aggregation
   const aggregateRawDataAsync = async (rawData: RawTransactionData[], onProgress?: (progress: number) => void): Promise<AggregatedTransactionData[]> => {
       const aggregationStart = Date.now();
-      console.log('[open_transacties] [CLIENT] Starting aggregation of', rawData.length, 'raw transactions');
       
       if (!rawData || rawData.length === 0) {
-        console.log('[open_transacties] [CLIENT] No data to aggregate');
         if (onProgress) onProgress(100);
         return [];
       }
@@ -136,7 +133,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
 
       // Pre-process transactions: normalize dates and group by type
       const preprocessStart = Date.now();
-      console.log('[open_transacties] [CLIENT] Pre-processing transactions...');
       const processedTxs = rawData.map(tx => {
         const checkinDate = new Date(tx.checkindate);
         checkinDate.setHours(0, 0, 0, 0);
@@ -152,7 +148,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           checkinDateStr: checkinDate.toISOString().split('T')[0] || ''
         };
       });
-      console.log('[open_transacties] [CLIENT] Pre-processing completed in', Date.now() - preprocessStart, 'ms');
 
       // Get all unique groups (checkintype, checkouttype combinations)
       const groups = new Map<string, { checkintype: string | null; checkouttype: string | null }>();
@@ -193,6 +188,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       for (let dateIdx = 0; dateIdx < dates.length; dateIdx++) {
         const date = dates[dateIdx];
         const dateObj = dateObjs[dateIdx];
+        if (!date || !dateObj) continue; // Skip if undefined (shouldn't happen, but TypeScript safety)
         const dateEnd = new Date(dateObj);
         dateEnd.setHours(23, 59, 59, 999);
 
@@ -232,10 +228,10 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           // Only add if there are transactions
           if (openTransactionsForDay > 0 || totalOpenTransactions > 0) {
             results.push({
-              date,
-              locationid,
-              checkintype,
-              checkouttype,
+              date: date || '',
+              locationid: locationid || '',
+              checkintype: checkintype || '',
+              checkouttype: checkouttype || null,
               openTransactionsForDay,
               totalOpenTransactions
             });
@@ -467,7 +463,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
 
 
   // Helper function to process data (filter future dates and optionally recent checkins)
-  const processData = (data: AggregatedTransactionData[]): AggregatedTransactionData[] => {
+  // Accepts any data type with a date property
+  const processData = <T extends { date: string }>(data: T[]): T[] => {
     // Filter out future dates
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -480,7 +477,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       cutoffDate.setTime(0); // No cutoff if not hiding recent
     }
     
-    return data.filter((row: AggregatedTransactionData) => {
+    return data.filter((row: T) => {
       const rowDate = new Date(row.date);
       rowDate.setHours(0, 0, 0, 0);
       
@@ -515,13 +512,12 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       const filteredData = cachedAggregatedData.filter(record => {
         const checkinType = (record.checkintype || 'unknown') as CheckType;
         const checkoutType = (record.checkouttype || 'unknown') as CheckType;
-        const checkinMatch = selectedCheckinTypes.has(checkinType);
-        const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
-        return checkinMatch && checkoutMatch;
-      });
-      const processedData = processData(filteredData);
-      console.log('[open_transacties] [CLIENT] Processed data:', processedData.length, 'records');
-      setTransactionData(processedData);
+      const checkinMatch = selectedCheckinTypes.has(checkinType);
+      const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
+      return checkinMatch && checkoutMatch;
+    });
+    const processedData = processData<AggregatedTransactionData>(filteredData);
+    setTransactionData(processedData);
       return;
     }
 
@@ -533,7 +529,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
         // Check if cache key matches and we have either raw data or aggregated data
         if (parsed.cacheKey === currentCacheKey && (parsed.cachedRawData || parsed.cachedAggregatedData)) {
           if (parsed.cachedRawData) {
-          console.log('[open_transacties] [CLIENT] Using cached data from localStorage');
           // Use cached data from localStorage
           setCachedRawData(parsed.cachedRawData);
           }
@@ -551,12 +546,10 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
               const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
               return checkinMatch && checkoutMatch;
             });
-            const processedData = processData(filteredData);
-            console.log('[open_transacties] [CLIENT] Processed data:', processedData.length, 'records');
+            const processedData = processData<AggregatedTransactionData>(filteredData);
             setTransactionData(processedData);
           } else if (parsed.cachedRawData) {
             // Need to aggregate (shouldn't happen if cache is complete, but handle it)
-            console.log('[open_transacties] [CLIENT] Aggregating cached raw data (aggregated data missing)...');
             setAggregationProgress(0);
             const aggregated = await aggregateRawDataAsync(parsed.cachedRawData, (progress) => {
               setAggregationProgress(progress);
@@ -571,8 +564,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
               const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
               return checkinMatch && checkoutMatch;
             });
-            const processedData = processData(filteredData);
-            console.log('[open_transacties] [CLIENT] Processed data:', processedData.length, 'records');
+            const processedData = processData<AggregatedTransactionData>(filteredData);
             setTransactionData(processedData);
             
             // Update localStorage with aggregated data
@@ -613,7 +605,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
     }
 
     // Cache is invalid or missing, fetch new data
-    console.log('[open_transacties] [CLIENT] Fetching data from API...');
     const fetchStart = Date.now();
     setLoading(true);
     setError(null);
@@ -638,9 +629,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       }
 
       const fetchTime = Date.now() - fetchStart;
-      console.log('[open_transacties] [CLIENT] Fetch completed in', fetchTime, 'ms');
-      console.log('[open_transacties] [CLIENT] Parsing JSON response...');
-      
       const parseStart = Date.now();
       const rawData: RawTransactionData[] = await response.json();
       const parseTime = Date.now() - parseStart;
@@ -648,9 +636,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       // Calculate approximate size
       const dataSize = JSON.stringify(rawData).length;
       const dataSizeMB = parseFloat((dataSize / (1024 * 1024)).toFixed(2));
-      console.log('[open_transacties] [CLIENT] JSON parsed in', parseTime, 'ms');
-      console.log('[open_transacties] [CLIENT] Received', rawData.length, 'transaction records');
-      console.log('[open_transacties] [CLIENT] Approximate data size:', dataSizeMB, 'MB');
       
       if (dataSizeMB > 4) {
         console.warn('[open_transacties] [CLIENT] ⚠️ Response size exceeds Next.js 4MB limit. Consider implementing pagination or data compression.');
@@ -683,8 +668,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       // Process and set the data
       const processStart = Date.now();
       const processedData = processData(filteredData);
-      console.log('[open_transacties] [CLIENT] Data processing completed in', Date.now() - processStart, 'ms');
-      console.log('[open_transacties] [CLIENT] Final processed data:', processedData.length, 'records');
       setTransactionData(processedData);
       
       // Save to localStorage with both raw and aggregated data
@@ -711,16 +694,12 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
             const aggregatedSizeMB = aggregatedString.length / (1024 * 1024);
             if (aggregatedSizeMB <= 4) {
               localStorage.setItem(CACHE_STORAGE_KEY, aggregatedString);
-              console.log('[open_transacties] [CLIENT] Saved aggregated data only to localStorage (' + aggregatedSizeMB.toFixed(2) + 'MB)');
-            } else {
-              console.warn('[open_transacties] [CLIENT] Even aggregated data is too large (' + aggregatedSizeMB.toFixed(2) + 'MB), skipping save');
             }
           } catch (e2) {
             console.warn('[open_transacties] [CLIENT] Failed to save aggregated data to localStorage:', e2);
           }
         } else {
           localStorage.setItem(CACHE_STORAGE_KEY, cacheString);
-          console.log('[open_transacties] [CLIENT] Saved to localStorage in', Date.now() - saveStart, 'ms (' + cacheSizeMB.toFixed(2) + 'MB)');
         }
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : String(e);
@@ -1031,15 +1010,15 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Transacties Detail Overzicht</h1>
+      <h1 className="text-2xl font-bold mb-4">Transacties Overzicht</h1>
 
       <TransactionFilters
         selectedYear={selectedYear}
         selectedContactID={selectedContactID}
         selectedLocationID={selectedLocationID}
         years={years}
-        gemeenten={gemeenten}
-        exploitanten={exploitanten}
+        gemeenten={gemeenten?.map(g => ({ ...g, CompanyName: g.CompanyName ?? undefined }))}
+        exploitanten={exploitanten?.map(e => ({ ...e, CompanyName: e.CompanyName ?? undefined }))}
         isFietsberaad={isFietsberaad}
         onYearChange={(year) => {
           setSelectedYear(year);
