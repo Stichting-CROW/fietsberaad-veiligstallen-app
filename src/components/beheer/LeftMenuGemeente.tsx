@@ -9,6 +9,7 @@ import {
   FiSettings,
   FiUsers,
 } from 'react-icons/fi';
+import { useRouter } from 'next/router';
 
 import { type VSUserSecurityProfile, VSSecurityTopic } from '~/types/securityprofile';
 import { VSMenuTopic } from '~/types/';
@@ -28,6 +29,10 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   onSelect,
   hasAbonnementenModule,
 }) => {
+  const router = useRouter();
+  const isOnReportPage = router.pathname.startsWith('/beheer/report');
+  const currentChartType = router.query.chartType as string | undefined;
+
   const hasGebruikersDataeigenaarAdmin = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin);
   const hasGebruikersDataeigenaarBeperkt = userHasRight(securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_beperkt);
   const hasInstellingenDataeigenaar = userHasRight(securityProfile, VSSecurityTopic.instellingen_dataeigenaar);
@@ -37,6 +42,17 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasInstellingenFietsenstallingenAdmin = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
+
+  const handleReportClick = () => {
+    router.push('/beheer/report/afgeronde-transacties');
+  };
+
+  const reportTypes = [
+    { slug: 'afgeronde-transacties', title: 'Afgeronde transacties' },
+    { slug: 'procentuele-bezetting', title: 'Procentuele bezetting' },
+    { slug: 'absolute-bezetting', title: 'Absolute bezetting' },
+    { slug: 'stallingsduur', title: 'Stallingsduur' },
+  ];
 
   return (
     <nav
@@ -123,8 +139,32 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
               compact={true}
               activecomponent={activecomponent}
               onSelect={onSelect}
+              onClick={handleReportClick}
               icon={FiBarChart2}
-            />
+            >
+              {isOnReportPage && (
+                <ul className="ml-4 mt-1 space-y-1">
+                  {reportTypes.map((report) => {
+                    const isActive = currentChartType === report.slug;
+                    return (
+                      <li key={report.slug}>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/beheer/report/${report.slug}`)}
+                          className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                            isActive
+                              ? "bg-sky-50 text-sky-700 shadow-inner border border-sky-100"
+                              : "text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          <span className="truncate">{report.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </LeftMenuItem>
             <LeftMenuItem
               component={VSMenuTopic.Export}
               title={'Export'}

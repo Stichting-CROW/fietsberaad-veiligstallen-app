@@ -374,28 +374,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           />
         </div>
       </div>
-      <div className="flex w-full flex-1 flex-col md:flex-row">
-        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:md:mr-6 md:py-6">
-          <nav className="flex flex-col gap-1">
-            {availableReports.map((report) => {
-              const isActive = report.id === selectedReportType;
-              return (
-                <button
-                  key={report.id}
-                  type="button"
-                  onClick={() => handleReportTypeClick(report.id as ReportType)}
-                  className={`rounded-md px-4 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700 font-semibold"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {report.title}
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+      <div className="flex w-full flex-1 flex-col">
         <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-white rounded-md border border-gray-300">
           <div className="flex flex-col space-y-2 h-full">
 
