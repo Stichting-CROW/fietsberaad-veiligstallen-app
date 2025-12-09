@@ -400,120 +400,128 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 {reportData ? (
                   <div className="w-full h-full">
                     {filterState?.reportType === "absolute_bezetting" && (filterState?.selectedBikeparkIDs?.length ?? 0) !== 1 ? null : (
-                    <Chart
-                      type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
-                      options={{
-                        chart: {
-                          id: `line-chart-${Math.random()}`,//https://github.com/apexcharts/react-apexcharts/issues/349#issuecomment-966461811
-                          stacked: false,
-                          zoom: {
-                            enabled: false
-                          },
-                          // toolbar: {
-                          //   show: true
-                          // },
-                          toolbar: {
-                            show: true,
-                            tools: {
-                              download: '<img src="https://dashboarddeelmobiliteit.nl/components/StatsPage/icon-download-to-csv.svg" class="ico-download" width="20">',
-                              selection: true,
-                              zoom: true,
-                              zoomin: true,
-                              zoomout: true,
-                              pan: true,
-                              reset: '<img src="/static/icons/reset.png" width="20">',
-                              customIcons: []
-                            },
-                            export: {
-                              csv: {
-                                filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                      (() => {
+                        const filteredSeries = reportData.series
+                          .filter(series => {
+                            // For bezetting reports, filter by selectedSeries
+                            if (filterState?.reportType === 'bezetting' && filterState?.selectedSeries) {
+                              return filterState.selectedSeries.includes(series.name as SeriesLabel);
+                            }
+                            return true;
+                          })
+                          .map(series => ({
+                            ...series,
+                            color: getColorForSeriesName(series.name)
+                          }));
+
+                        return (
+                          <Chart
+                            type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
+                            options={{
+                              chart: {
+                                id: `line-chart-${Math.random()}`,//https://github.com/apexcharts/react-apexcharts/issues/349#issuecomment-966461811
+                                stacked: false,
+                                zoom: {
+                                  enabled: false
+                                },
+                                // toolbar: {
+                                //   show: true
+                                // },
+                                toolbar: {
+                                  show: true,
+                                  tools: {
+                                    download: '<img src="https://dashboarddeelmobiliteit.nl/components/StatsPage/icon-download-to-csv.svg" class="ico-download" width="20">',
+                                    selection: true,
+                                    zoom: true,
+                                    zoomin: true,
+                                    zoomout: true,
+                                    pan: true,
+                                    reset: '<img src="/static/icons/reset.png" width="20">',
+                                    customIcons: []
+                                  },
+                                  export: {
+                                    csv: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    },
+                                    svg: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    },
+                                    png: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    }
+                                  },
+                                  autoSelected: 'zoom'
+                                },
+                                animations: {
+                                  enabled: false
+                                }
                               },
-                              svg: {
-                                filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                              colors: reportData.series.map(series => getColorForSeriesName(series.name)),
+                              responsive: [{
+                                breakpoint: undefined,
+                                options: {},
+                              }],
+                              dataLabels: {
+                                enabled: false,
                               },
-                              png: {
-                                filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                              stroke: {
+                                curve: 'straight',
+                                width: 3,
+                                // Make capacity line dashed; default solid
+                                dashArray: filteredSeries.map(series => series.name === 'Capaciteit' ? 6 : 0),
+                              },
+                              title: {
+                                text: reportData.title || '',
+                                align: 'left'
+                              },
+                              grid: {
+                                borderColor: '#e7e7e7',
+                                row: {
+                                  colors: ['#f3f3f3', 'transparent'],
+                                  opacity: 0.5
+                                },
+                              },
+                              markers: {
+                              },
+                              xaxis: {
+                                type: 'categories',
+                                labels: {
+                                  formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
+                                  datetimeUTC: false
+                                },
+                                title: {
+                                  text: reportData.options?.xaxis?.title?.text || 'Time',
+                                  align: 'left'
+                                }
+                              },
+                              yaxis: reportData.options?.yaxis || {
+                                title: {
+                                  text: 'Aantal afgeronde transacties'
+                                },
+                              },
+                              legend: {
+                                position: 'top',
+                                horizontalAlign: 'center',
+                                floating: false,
+                                // offsetY: 25,
+                              },
+                              tooltip: {
+                                enabled: true,
+                                shared: true,
+                                intersect: false,
+                                followCursor: true,
+                                // x: {
+                                //   format: 'dd MMM yyyy HH:mm'
+                                // },
+                                // y: {
+                                //   formatter: (value: number) => value.toFixed(2)
+                                // }
                               }
-                            },
-                            autoSelected: 'zoom'
-                          },
-                          animations: {
-                            enabled: false
-                          }
-                        },
-                        colors: reportData.series.map(series => getColorForSeriesName(series.name)),
-                        responsive: [{
-                          breakpoint: undefined,
-                          options: {},
-                        }],
-                        dataLabels: {
-                          enabled: false,
-                        },
-                        stroke: {
-                          curve: 'straight',
-                          width: 3,
-                        },
-                        title: {
-                          text: reportData.title || '',
-                          align: 'left'
-                        },
-                        grid: {
-                          borderColor: '#e7e7e7',
-                          row: {
-                            colors: ['#f3f3f3', 'transparent'],
-                            opacity: 0.5
-                          },
-                        },
-                        markers: {
-                        },
-                        xaxis: {
-                          type: 'categories',
-                          labels: {
-                            formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
-                            datetimeUTC: false
-                          },
-                          title: {
-                            text: reportData.options?.xaxis?.title?.text || 'Time',
-                            align: 'left'
-                          }
-                        },
-                        yaxis: reportData.options?.yaxis || {
-                          title: {
-                            text: 'Aantal afgeronde transacties'
-                          },
-                        },
-                        legend: {
-                          position: 'top',
-                          horizontalAlign: 'center',
-                          floating: false,
-                          // offsetY: 25,
-                        },
-                        tooltip: {
-                          enabled: true,
-                          shared: true,
-                          intersect: false,
-                          followCursor: true,
-                          // x: {
-                          //   format: 'dd MMM yyyy HH:mm'
-                          // },
-                          // y: {
-                          //   formatter: (value: number) => value.toFixed(2)
-                          // }
-                        }
-                      }}
-                      series={reportData.series
-                        .filter(series => {
-                          // For bezetting reports, filter by selectedSeries
-                          if (filterState?.reportType === 'bezetting' && filterState?.selectedSeries) {
-                            return filterState.selectedSeries.includes(series.name as SeriesLabel);
-                          }
-                          return true;
-                        })
-                        .map(series => ({
-                          ...series,
-                          color: getColorForSeriesName(series.name)
-                        }))}
-                    />
+                            }}
+                            series={filteredSeries}
+                          />
+                        );
+                      })()
                     )}
                   </div>
                 ) : (
