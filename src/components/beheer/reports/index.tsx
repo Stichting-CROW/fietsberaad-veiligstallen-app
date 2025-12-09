@@ -504,6 +504,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               },
                               xaxis: {
                                 type: 'categories',
+                                categories: reportData.options?.xaxis?.categories,
                                 labels: {
                                   formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                                   datetimeUTC: false
