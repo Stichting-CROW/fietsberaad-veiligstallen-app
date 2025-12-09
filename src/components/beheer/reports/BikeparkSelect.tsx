@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 
 interface BikeparkSelectProps {
@@ -15,10 +15,13 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
   singleSelection = false,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const divRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isScrollable = bikeparks.length > 20;
+  const hasMultipleBikeparks = bikeparks.length > 1;
 
   const toggleSelectAll = () => {
     const validBikeparkIDs = bikeparks.filter(bp => bp.StallingsID!==null).map(bp => bp.StallingsID as string);
@@ -28,7 +31,28 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
       const newSelection = bikeparks.filter((park => selectedBikeparkIDs.includes(park.StallingsID as string) === false)).map(park => park.StallingsID as string);
       setSelectedBikeparkIDs(newSelection);
     }
+    // Focus search input when "Selecteer alles" is clicked
+    if (hasMultipleBikeparks) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 0);
+      });
+    }
   };
+
+  // Filter bikeparks based on search query (case-insensitive)
+  const filteredBikeparks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return bikeparks;
+    }
+    const query = searchQuery.toLowerCase();
+    return bikeparks.filter(park => 
+      park.Title?.toLowerCase().includes(query) ||
+      park.Plaats?.toLowerCase().includes(query) ||
+      park.StallingsID?.toLowerCase().includes(query)
+    );
+  }, [bikeparks, searchQuery]);
 
   // const handleOk = () => {
   //   setSelectedBikeparkIDs(selectedBikeparkIDs);
@@ -63,6 +87,25 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Reset search query when dropdown closes
+  useEffect(() => {
+    if (!isDropdownOpen) {
+      setSearchQuery("");
+    }
+  }, [isDropdownOpen]);
+
+  // Auto-focus search input when dropdown opens (if there are multiple bikeparks)
+  useEffect(() => {
+    if (isDropdownOpen && hasMultipleBikeparks) {
+      // Use requestAnimationFrame to ensure the input is rendered before focusing
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 0);
+      });
+    }
+  }, [isDropdownOpen, hasMultipleBikeparks]);
 
   return (
     <div className="relative inline-block text-left">
@@ -103,7 +146,19 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
                 {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
               </button>
             )}
-            {[...bikeparks]
+            {hasMultipleBikeparks && (
+              <div className="px-3 py-2 border-b border-gray-200">
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Zoek stallingen..."
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+            {[...filteredBikeparks]
               .slice()
               .sort((a, b) => (a.Title || "").localeCompare(b.Title || ""))
               .map((park) => {
