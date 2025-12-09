@@ -526,8 +526,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               },
                               tooltip: {
                                 enabled: true,
-                                shared: false,
-                                intersect: true,
+                                shared: filteredSeries.length <= 5,
+                                intersect: filteredSeries.length > 5,
                                 followCursor: true,
                                 x: {
                                   formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
