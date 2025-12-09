@@ -128,7 +128,8 @@ export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[],
       const sqlfilledin = interpolateSQL(sql, queryParams);
       return sqlfilledin;
     }
-    case "bezetting": {
+    case "bezetting":
+    case "absolute_bezetting": {
       const sql =
         `SELECT ` +
         `bikeparkID as locationID,` +

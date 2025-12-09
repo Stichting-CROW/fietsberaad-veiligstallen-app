@@ -231,9 +231,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     if (!filterState) return;
 
     // Skip API call for report types that don't support availableDataPerBikepark
-    // getSQLPerBikepark only supports: "inkomsten", "stallingsduur", "transacties_voltooid", "bezetting"
-    // "absolute_bezetting" uses bikeparks directly (see line 370), so it doesn't need this API call
-    const supportedReportTypes = ["inkomsten", "stallingsduur", "transacties_voltooid", "bezetting"];
+    // getSQLPerBikepark only supports: "inkomsten", "stallingsduur", "transacties_voltooid", "bezetting", "absolute_bezetting"
+    const supportedReportTypes = ["inkomsten", "stallingsduur", "transacties_voltooid", "bezetting", "absolute_bezetting"];
     if (filterState.reportType && !supportedReportTypes.includes(filterState.reportType)) {
       // For unsupported types, use all bikeparks directly
       setBikeparksWithData(bikeparks);
@@ -395,7 +394,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 showAbonnementenRapporten={showAbonnementenRapporten}
                 firstDate={firstDate}
                 lastDate={lastDate}
-                bikeparks={filterState?.reportType === "absolute_bezetting" ? bikeparks : bikeparksWithData}
+                bikeparks={bikeparksWithData}
                 activeReportType={selectedReportType}
                 onStateChange={handleFilterChange}
               />
