@@ -456,6 +456,39 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         }
       }
 
+      // Auto-switch grouping for absolute_bezetting when period >= 14 days and "Uur" or "Kwartier" is selected
+      if (newState.reportType === "absolute_bezetting" && newState.customStartDate && newState.customEndDate) {
+        const startDT = new Date(newState.customStartDate);
+        const endDT = new Date(newState.customEndDate);
+        const DAY_IN_MS = 24 * 60 * 60 * 1000;
+        const isValidPeriod = endDT >= startDT;
+        const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+        
+        // Check if period changed and grouping is now invalid
+        const prevStartDT = previousStateRef.current?.customStartDate ? new Date(previousStateRef.current.customStartDate) : null;
+        const prevEndDT = previousStateRef.current?.customEndDate ? new Date(previousStateRef.current.customEndDate) : null;
+        const periodChanged = !prevStartDT || !prevEndDT || 
+          prevStartDT.getTime() !== startDT.getTime() || 
+          prevEndDT.getTime() !== endDT.getTime();
+        
+        if (periodChanged && isValidPeriod && periodInDays >= 14 && (newState.reportGrouping === "per_hour_time" || newState.reportGrouping === "per_quarter_hour")) {
+          // Switch to a valid grouping (prefer "per_day" if available, otherwise "per_week")
+          if (periodInDays <= 90) {
+            setReportGrouping("per_day");
+            return;
+          } else if (periodInDays <= 366) {
+            setReportGrouping("per_week");
+            return;
+          } else if (periodInDays <= 732) {
+            setReportGrouping("per_month");
+            return;
+          } else {
+            setReportGrouping("per_month");
+            return;
+          }
+        }
+      }
+
       previousStateRef.current = newState; // Update the previous state
       onStateChange(newState);
     }
@@ -584,22 +617,34 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
     const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
     const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
-    const showIntervalHour = isAbsoluteBezettingReport && isValidPeriod ? periodInDays < 14 : false;
-    const showIntervalQuarterHour = isAbsoluteBezettingReport && isValidPeriod ? periodInDays < 14 : false;
+    // For absolute_bezetting, always show "Uur" and "Kwartier" but disable if period >= 14 days
+    const isHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
+    const isQuarterHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
     const showIntervalBucket = isStallingsduurReport;
 
     // Show the generic BikeparkSelect for all reports, including absolute_bezetting
     const showBikeparkSelect = true;
 
     // Build available X-axis options
-    const xAxisOptions: Array<{ value: ReportGrouping; label: string }> = [];
+    const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
     if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
     if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
     if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
     if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
     if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-    if (showIntervalHour) xAxisOptions.push({ value: "per_hour_time", label: "Uur" });
-    if (showIntervalQuarterHour) xAxisOptions.push({ value: "per_quarter_hour", label: "Kwartier" });
+    // Always show "Uur" and "Kwartier" for absolute_bezetting, but disable if period >= 14 days
+    if (isAbsoluteBezettingReport) {
+      xAxisOptions.push({ 
+        value: "per_hour_time", 
+        label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
+        disabled: isHourDisabled
+      });
+      xAxisOptions.push({ 
+        value: "per_quarter_hour", 
+        label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
+        disabled: isQuarterHourDisabled
+      });
+    }
     if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
     if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
 
@@ -681,7 +726,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             required
           >
             {xAxisOptions.map((option) => (
-              <option key={option.value} value={option.value}>
+              <option key={option.value} value={option.value} disabled={option.disabled}>
                 {option.label}
               </option>
             ))}
