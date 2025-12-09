@@ -497,6 +497,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 },
                               },
                               markers: {
+                                size: 4,
+                                hover: {
+                                  size: 6
+                                }
                               },
                               xaxis: {
                                 type: 'categories',
@@ -522,8 +526,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               },
                               tooltip: {
                                 enabled: true,
-                                shared: true,
-                                intersect: false,
+                                shared: false,
+                                intersect: true,
                                 followCursor: true,
                                 x: {
                                   formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
