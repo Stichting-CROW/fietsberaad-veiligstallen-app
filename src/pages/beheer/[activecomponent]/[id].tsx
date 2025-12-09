@@ -283,6 +283,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     };
   }, [selectedContactID]);
 
+  // Handle redirect for old report route
+  useEffect(() => {
+    if (activecomponent === VSMenuTopic.Report) {
+      queryRouter.replace('/beheer/report/afgeronde-transacties');
+    }
+  }, [activecomponent, queryRouter]);
+
   const renderComponent = () => {
     try {
       let selectedComponent = undefined;
@@ -299,24 +306,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <HomeInfoComponent gemeentenaam={gemeentenaam||exploitantnaam} />;
           break;
         case VSMenuTopic.Report:
-          // Check if user has access to reports
-          const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
-          if (!hasRapportages) {
-            selectedComponent = <AccessDenied />;
-          } else {
-            selectedContactID !== "" ? (
-              selectedComponent = <ReportComponent
-                showAbonnementenRapporten={showAbonnementenRapporten}
-                firstDate={firstDate}
-                lastDate={lastDate}
-                bikeparks={bikeparks || []}
-                // gemeenten={gemeenten || []}
-                // users={users || []}
-              />
-            ) : (
-              selectedComponent = <div className="text-center text-gray-500 mt-10 text-xl" >Selecteer een gemeente om rapportages te bekijken</div>
-            )
-          }
+          // This route is now handled by /beheer/report/[chartType].tsx
+          // Show loading while redirecting
+          selectedComponent = <div className="flex items-center justify-center h-full">Redirecting...</div>;
           break;
         case VSMenuTopic.ArticlesPages:
           // Check if user has access to site content

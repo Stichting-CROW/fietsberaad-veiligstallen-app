@@ -21,7 +21,8 @@ import type { VSContactGemeente } from "~/types/contacts";
 import Chart from './Chart';
 import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
-import { getXAxisFormatter } from "~/backend/services/reports/ReportAxisFunctions";
+import { getXAxisFormatter, getTooltipFormatter } from "~/backend/services/reports/ReportAxisFunctions";
+import { useRouter } from "next/router";
 
 // Color palette for chart series - using a diverse set of colors
 const CHART_COLORS = [
@@ -65,6 +66,27 @@ const getColorForSeriesName = (name: string): string => {
   return CHART_COLORS[colorIndex] ?? CHART_COLORS[0]!;
 };
 
+// Mapping between URL slugs and report types
+export const CHART_TYPE_MAP: Record<string, ReportType> = {
+  'afgeronde-transacties': 'transacties_voltooid',
+  'procentuele-bezetting': 'bezetting',
+  'absolute-bezetting': 'absolute_bezetting',
+  'stallingsduur': 'stallingsduur',
+};
+
+export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
+  'transacties_voltooid': 'afgeronde-transacties',
+  'bezetting': 'procentuele-bezetting',
+  'absolute_bezetting': 'absolute-bezetting',
+  'stallingsduur': 'stallingsduur',
+  'inkomsten': 'inkomsten',
+  'abonnementen': 'abonnementen',
+  'abonnementen_lopend': 'abonnementen_lopend',
+  'volmeldingen': 'volmeldingen',
+  'gelijktijdig_vol': 'gelijktijdig_vol',
+  'downloads': 'downloads',
+};
+
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
   firstDate: Date;
@@ -73,6 +95,7 @@ interface ReportComponentProps {
   error?: string;
   warning?: string;
   onDataLoaded?: (hasReportData: boolean) => void;
+  initialReportType?: ReportType;
 }
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
@@ -83,8 +106,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   error,
   warning,
   onDataLoaded,
+  initialReportType,
 }) => {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const [errorState, setErrorState] = useState(error);
   const [warningState, setWarningState] = useState(warning);
@@ -101,8 +126,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     () => getAvailableReports(showAbonnementenRapporten),
     [showAbonnementenRapporten]
   );
-  const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(undefined);
+  const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+
+  // Update selectedReportType when initialReportType changes (e.g., from URL)
+  useEffect(() => {
+    if (initialReportType) {
+      setSelectedReportType(initialReportType);
+    }
+  }, [initialReportType]);
 
   const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
     filterComponentRef.current?.applyPreset(preset);
@@ -314,6 +346,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       return;
     }
     setSelectedReportType(reportId);
+    
+    // Navigate to the new URL path
+    const chartTypeSlug = REVERSE_CHART_TYPE_MAP[reportId];
+    if (chartTypeSlug) {
+      router.push(`/beheer/report/${chartTypeSlug}`);
+    }
   };
 
   return (
@@ -510,9 +548,9 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 shared: true,
                                 intersect: false,
                                 followCursor: true,
-                                // x: {
-                                //   format: 'dd MMM yyyy HH:mm'
-                                // },
+                                x: {
+                                  formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
+                                },
                                 // y: {
                                 //   formatter: (value: number) => value.toFixed(2)
                                 // }

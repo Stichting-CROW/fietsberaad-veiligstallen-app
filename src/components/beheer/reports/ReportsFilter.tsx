@@ -279,7 +279,10 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
   const initialState = loadInitialState();
 
-  const [reportType, setReportType] = useState<ReportType>(initialState?.reportType ?? defaultReportState.reportType);
+  // Use activeReportType if provided, otherwise use initialState or default
+  const [reportType, setReportType] = useState<ReportType>(
+    activeReportType ?? initialState?.reportType ?? defaultReportState.reportType
+  );
   const [reportGrouping, setReportGrouping] = useState<ReportGrouping>(initialState?.reportGrouping ?? defaultReportState.reportGrouping);
   const [reportCategories, setReportCategories] = useState<ReportCategories>(initialState?.reportCategories ?? defaultReportState.reportCategories);
   const [reportRangeUnit, setReportRangeUnit] = useState<ReportRangeUnit>(initialState?.reportRangeUnit ?? defaultReportState.reportRangeUnit);
