@@ -208,12 +208,25 @@ interface ReportCategory {
 
 export const getCategoryNames = async (params: ReportParams): Promise<ReportCategory[] | false> => {
 
-  // Special categories for absolute_bezetting: two fixed lines
+  // Special categories for absolute_bezetting: capacity and occupation for each selected stalling
   if (params.reportType === "absolute_bezetting") {
-    return [
-      { id: "capacity", name: "Capaciteit" },
-      { id: "occupation", name: "Bezetting" }
-    ];
+    if (params.bikeparkIDs.length === 0) {
+      return false;
+    }
+
+    const idString = params.bikeparkIDs.map(bp => `'${bp}'`).join(',');
+    const sql = `SELECT StallingsID, Title FROM fietsenstallingen WHERE StallingsID IN (${idString})`;
+    const results = await prisma.$queryRawUnsafe<{ StallingsID: string, Title: string }[]>(sql);
+    
+    const categories: ReportCategory[] = [];
+    for (const stalling of results) {
+      categories.push(
+        { id: `${stalling.StallingsID}_capacity`, name: `${stalling.Title} - Capaciteit` },
+        { id: `${stalling.StallingsID}_occupation`, name: `${stalling.Title} - Bezetting` }
+      );
+    }
+    
+    return categories;
   }
 
   const idString = params.bikeparkIDs.length > 0 ? params.bikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';

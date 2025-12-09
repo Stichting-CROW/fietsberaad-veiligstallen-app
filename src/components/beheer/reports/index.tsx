@@ -416,8 +416,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               <div className="flex-grow min-h-0">
                 {reportData ? (
                   <div className="w-full h-full">
-                    {filterState?.reportType === "absolute_bezetting" && (filterState?.selectedBikeparkIDs?.length ?? 0) !== 1 ? null : (
-                      (() => {
+                    {(() => {
                         const filteredSeries = reportData.series
                           .filter(series => {
                             // For bezetting reports, filter by selectedSeries
@@ -485,7 +484,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 curve: 'straight',
                                 width: 3,
                                 // Make capacity line dashed; default solid
-                                dashArray: filteredSeries.map(series => series.name === 'Capaciteit' ? 6 : 0),
+                                dashArray: filteredSeries.map(series => series.name.endsWith(' - Capaciteit') ? 6 : 0),
                               },
                               title: {
                                 text: reportData.title || '',
@@ -538,8 +537,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                             series={filteredSeries}
                           />
                         );
-                      })()
-                    )}
+                      })()}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full">

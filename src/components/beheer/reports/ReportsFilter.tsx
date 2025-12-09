@@ -174,7 +174,6 @@ export interface ReportsFilterHandle {
 }
 
 const STORAGE_KEY = 'VS_reports_filterState';
-const ABSOLUTE_BEZETTING_LAST_PARKING_KEY = 'VS_absolute_bezetting_last_parking';
 
 const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
@@ -388,23 +387,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
   const previousStateRef = useRef<ReportState | null>(null);
 
-  // Load last selected parking for absolute_bezetting when switching to that report type
+  // Load initial bikepark selection when bikeparks change
   useEffect(() => {
-    if (reportType === "absolute_bezetting") {
-      const savedParkingID = localStorage.getItem(ABSOLUTE_BEZETTING_LAST_PARKING_KEY);
-      if (savedParkingID) {
-        // Check if the saved parking exists in the current bikeparks list
-        const parkingExists = bikeparks.some(bp => bp.StallingsID === savedParkingID);
-        if (parkingExists) {
-          setSelectedBikeparkIDs([savedParkingID]);
-        }
-        // If parking doesn't exist, don't auto-select (grid will show all)
-      }
-    } else {
-      // For other report types, use default behavior
-      setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
-    }
-  }, [bikeparks, reportType]);
+    // For all report types, use default behavior (select all)
+    setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
+  }, [bikeparks]);
 
   useEffect(() => {
     const newState: ReportState = currentReportState;
@@ -492,12 +479,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     bikeparks
   ]);
 
-  // Save last selected parking for absolute_bezetting
-  useEffect(() => {
-    if (reportType === "absolute_bezetting" && selectedBikeparkIDs.length === 1) {
-      localStorage.setItem(ABSOLUTE_BEZETTING_LAST_PARKING_KEY, selectedBikeparkIDs[0]!);
-    }
-  }, [reportType, selectedBikeparkIDs]);
 
   useEffect(() => {
     checkInput();
@@ -747,52 +728,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             bikeparks={bikeparks}
             selectedBikeparkIDs={selectedBikeparkIDs}
             setSelectedBikeparkIDs={setSelectedBikeparkIDs}
-            singleSelection={reportType === "absolute_bezetting"}
+            singleSelection={false}
           />
         }
-        {reportType === "absolute_bezetting" && bikeparks.length > 0 && selectedBikeparkIDs.length !== 1 && (
-          <div className="w-full mt-2">
-            <div className="text-sm font-semibold text-gray-700 mb-1">
-              Kies 1 stalling
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {bikeparks
-                .filter(park => park.StallingsID !== null)
-                .slice()
-                .sort((a, b) => (a.Title || "").localeCompare(b.Title || ""))
-                .map((park) => {
-                  const id = park.StallingsID as string;
-                  const isActive = selectedBikeparkIDs.includes(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setSelectedBikeparkIDs([id])}
-                      className={`whitespace-nowrap text-ellipsis overflow-hidden flex flex-col items-start rounded-md border px-3 py-2 text-left text-sm transition ${
-                        isActive
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="font-medium truncate" title={park.Title || id}>
-                        {park.Title || id}
-                      </span>
-                      {park.Plaats && (
-                        <span className="text-xs text-gray-500">
-                          {park.Plaats}
-                        </span>
-                      )}
-                      {park.Capacity !== null && (
-                        <span className="mt-1 text-xs text-gray-500">
-                          Capaciteit: {park.Capacity}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
         {showBikeparkSelect && reportType === 'bezetting' &&
           <WeekdaySelect
             availableSeries={DEFAULT_SERIES}

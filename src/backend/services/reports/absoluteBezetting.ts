@@ -35,69 +35,83 @@ export const getSQL = (params: ReportParams, useCache = false): string | false =
     throw new Error("Start, end date or time interval is undefined");
   }
 
-  // Guard: API/UI should already enforce exactly 1 stalling, but make sure
-  if (!bikeparkIDs || bikeparkIDs.length !== 1) {
+  // Guard: require at least one stalling
+  if (!bikeparkIDs || bikeparkIDs.length === 0) {
     // No valid stalling selection – return SQL that yields no rows
     return `SELECT 'capacity' AS CATEGORY, '0' AS TIMEGROUP, 0 AS value WHERE 1=0`;
   }
-
-  const bikeparkID = bikeparkIDs[0]!;
 
   const timegroupExpr = getFunctionForPeriod(reportGrouping, timeIntervalInMinutes, "b.timestamp", useCache);
   if (!timegroupExpr) {
     throw new Error("Function for period is undefined");
   }
 
+  // Build IN clause for bikeparkIDs
+  const bikeparkIDList = bikeparkIDs.map(id => `'${id}'`).join(',');
+
   const statementItems: string[] = [];
 
-  // Capacity series
-  statementItems.push("SELECT");
-  statementItems.push(`  'capacity' AS CATEGORY,`);
-  statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
-  statementItems.push(`  CAST(MAX(b.capacity) AS UNSIGNED) AS value`);
-  statementItems.push(`FROM bezettingsdata b`);
-  statementItems.push(`WHERE`);
-  statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
-  statementItems.push(`  AND b.timestamp BETWEEN ? AND ?`);
-  if (fillups) {
-    statementItems.push(`  AND b.fillup = 0`);
-  }
-  if (source) {
-    statementItems.push(`  AND b.source = '${source}'`);
-  }
-  statementItems.push(`  AND b.interval = 15`);
-  statementItems.push(`GROUP BY CATEGORY, TIMEGROUP`);
+  // For each bikepark, create capacity and occupation series
+  // Category format: "bikeparkID_capacity" and "bikeparkID_occupation"
+  for (let i = 0; i < bikeparkIDs.length; i++) {
+    const bikeparkID = bikeparkIDs[i]!;
+    
+    if (i > 0) {
+      statementItems.push(`UNION ALL`);
+    }
 
-  // Union with occupation series
-  statementItems.push(`UNION ALL`);
-  statementItems.push(`SELECT`);
-  statementItems.push(`  'occupation' AS CATEGORY,`);
-  statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
-  statementItems.push(`  ROUND(AVG(b.occupation), 0) AS value`);
-  statementItems.push(`FROM bezettingsdata b`);
-  statementItems.push(`WHERE`);
-  statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
-  statementItems.push(`  AND b.timestamp BETWEEN ? AND ?`);
-  if (fillups) {
-    statementItems.push(`  AND b.fillup = 0`);
+    // Capacity series for this bikepark
+    statementItems.push("SELECT");
+    statementItems.push(`  CONCAT('${bikeparkID}', '_capacity') AS CATEGORY,`);
+    statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
+    statementItems.push(`  CAST(MAX(b.capacity) AS UNSIGNED) AS value`);
+    statementItems.push(`FROM bezettingsdata b`);
+    statementItems.push(`WHERE`);
+    statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
+    statementItems.push(`  AND b.timestamp BETWEEN ? AND ?`);
+    if (fillups) {
+      statementItems.push(`  AND b.fillup = 0`);
+    }
+    if (source) {
+      statementItems.push(`  AND b.source = '${source}'`);
+    }
+    statementItems.push(`  AND b.interval = 15`);
+    statementItems.push(`GROUP BY CATEGORY, TIMEGROUP`);
+
+    statementItems.push(`UNION ALL`);
+
+    // Occupation series for this bikepark
+    statementItems.push(`SELECT`);
+    statementItems.push(`  CONCAT('${bikeparkID}', '_occupation') AS CATEGORY,`);
+    statementItems.push(`  ${timegroupExpr} AS TIMEGROUP,`);
+    statementItems.push(`  ROUND(AVG(b.occupation), 0) AS value`);
+    statementItems.push(`FROM bezettingsdata b`);
+    statementItems.push(`WHERE`);
+    statementItems.push(`  b.bikeparkID = '${bikeparkID}'`);
+    statementItems.push(`  AND b.timestamp BETWEEN ? AND ?`);
+    if (fillups) {
+      statementItems.push(`  AND b.fillup = 0`);
+    }
+    if (source) {
+      statementItems.push(`  AND b.source = '${source}'`);
+    }
+    statementItems.push(`  AND b.interval = 15`);
+    statementItems.push(`GROUP BY CATEGORY, TIMEGROUP`);
   }
-  if (source) {
-    statementItems.push(`  AND b.source = '${source}'`);
-  }
-  statementItems.push(`  AND b.interval = 15`);
-  statementItems.push(`GROUP BY CATEGORY, TIMEGROUP`);
 
   statementItems.push(`ORDER BY TIMEGROUP ASC`);
 
   const sql = statementItems.join("\n");
 
   // Prepare parameters for the query
-  const queryParams: string[] = [
-    adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"),
-    adjustedEndDate.format("YYYY-MM-DD HH:mm:ss"),
-    adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"),
-    adjustedEndDate.format("YYYY-MM-DD HH:mm:ss")
-  ];
+  // Each bikepark has 2 queries (capacity + occupation), each needing 2 date parameters
+  const queryParams: string[] = [];
+  for (let i = 0; i < bikeparkIDs.length; i++) {
+    queryParams.push(adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"));
+    queryParams.push(adjustedEndDate.format("YYYY-MM-DD HH:mm:ss"));
+    queryParams.push(adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"));
+    queryParams.push(adjustedEndDate.format("YYYY-MM-DD HH:mm:ss"));
+  }
 
   const sqlfilledin = interpolateSQL(sql, queryParams);
   console.log('sqlfilledin', sqlfilledin);
