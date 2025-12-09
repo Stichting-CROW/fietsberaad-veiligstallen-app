@@ -83,6 +83,10 @@ export const convertToTimegroupSeries = async (
         let timestamp;
         if (params.reportGrouping === 'per_hour') {
           timestamp = moment().hour(parseInt(timegroup)).valueOf();
+        } else if (params.reportGrouping === 'per_hour_time') {
+          timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
+        } else if (params.reportGrouping === 'per_quarter_hour') {
+          timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
         } else if (params.reportGrouping === 'per_weekday') {
           timestamp = moment().day(parseInt(timegroup)).valueOf();
         } else if (params.reportGrouping === 'per_day') {
@@ -142,8 +146,11 @@ export const getFunctionForPeriod = (
   useCache = true
 ) => {
   const shiftedField = `DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)`;
+  const activeField = useCache === false ? shiftedField : fieldname;
 
   if (useCache === false) {
+    if (reportGrouping === "per_hour_time") return `DATE_FORMAT(${activeField}, '%Y-%m-%d %H:00')`;
+    if (reportGrouping === "per_quarter_hour") return `CONCAT(DATE_FORMAT(${activeField}, '%Y-%m-%d %H:'), LPAD(FLOOR(MINUTE(${activeField})/15)*15, 2, '0'))`;
     if (reportGrouping === "per_year") return `YEAR(${shiftedField})`;
     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${shiftedField}), '-', QUARTER(${shiftedField}))`;
     if (reportGrouping === "per_month") return `CONCAT(YEAR(${shiftedField}), '-', MONTH(${shiftedField}))`;
@@ -153,6 +160,8 @@ export const getFunctionForPeriod = (
     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
     if (reportGrouping === "per_bucket") return `bucket`;
   } else {
+    if (reportGrouping === "per_hour_time") return `DATE_FORMAT(${activeField}, '%Y-%m-%d %H:00')`;
+    if (reportGrouping === "per_quarter_hour") return `CONCAT(DATE_FORMAT(${activeField}, '%Y-%m-%d %H:'), LPAD(FLOOR(MINUTE(${activeField})/15)*15, 2, '0'))`;
     if (reportGrouping === "per_year") return `YEAR(${fieldname})`;
     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(${fieldname}))`;
     if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(${fieldname}))`;

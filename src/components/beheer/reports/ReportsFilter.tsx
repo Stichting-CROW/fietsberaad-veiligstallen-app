@@ -42,8 +42,29 @@ export const reportDatatypeValues = ["bezettingsdata", "ruwedata"]
 export type ReportCategories = "none" | "per_stalling" | "per_weekday" | "per_section" | "per_type_klant"
 export const reportCategoriesValues = ["none", "per_stalling", "per_weekday", "per_section", "per_type_klant"]
 
-export type ReportGrouping = "per_hour" | "per_day" | "per_weekday" | "per_week" | "per_month" | "per_quarter" | "per_year" | "per_bucket"
-export const reportGroupingValues = ["per_hour", "per_day", "per_weekday", "per_week", "per_month", "per_quarter", "per_year", "per_bucket"]
+export type ReportGrouping =
+  | "per_hour"
+  | "per_hour_time"
+  | "per_quarter_hour"
+  | "per_day"
+  | "per_weekday"
+  | "per_week"
+  | "per_month"
+  | "per_quarter"
+  | "per_year"
+  | "per_bucket"
+export const reportGroupingValues = [
+  "per_hour",
+  "per_hour_time",
+  "per_quarter_hour",
+  "per_day",
+  "per_weekday",
+  "per_week",
+  "per_month",
+  "per_quarter",
+  "per_year",
+  "per_bucket"
+]
 
 export type ReportRangeUnit = "range_all" | "range_year" | "range_month" | "range_quarter" | "range_week" | "range_custom"
 export const reportRangeUnitValues = ["range_all", "range_year", "range_month", "range_quarter", "range_week", "range_custom"]
@@ -566,6 +587,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     const isStallingsduurReport = ["stallingsduur"].includes(reportType);
     const isBezettingReport = ["bezetting"].includes(reportType);
+    const isAbsoluteBezettingReport = ["absolute_bezetting"].includes(reportType);
     const showIntervalPeriods = !isStallingsduurReport && !isBezettingReport;
 
     const showCategorySection = ["bezetting"].includes(reportType);
@@ -577,7 +599,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
     const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
     const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
-    const showIntervalHour = ["bezetting"].includes(reportType) === true;
+    const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
+    const showIntervalHour = isAbsoluteBezettingReport && isValidPeriod ? periodInDays < 14 : false;
+    const showIntervalQuarterHour = isAbsoluteBezettingReport && isValidPeriod ? periodInDays < 14 : false;
     const showIntervalBucket = isStallingsduurReport;
 
     // Show the generic BikeparkSelect for all reports, including absolute_bezetting
@@ -590,7 +614,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
     if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
     if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-    if (showIntervalHour) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+    if (showIntervalHour) xAxisOptions.push({ value: "per_hour_time", label: "Uur" });
+    if (showIntervalQuarterHour) xAxisOptions.push({ value: "per_quarter_hour", label: "Kwartier" });
+    if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
     if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
 
     // Build available Legenda options

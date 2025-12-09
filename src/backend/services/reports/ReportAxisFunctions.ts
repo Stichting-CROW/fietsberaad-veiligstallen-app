@@ -6,6 +6,8 @@ export type XAxisLabelMap = Record<string, string>;
 
 export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
   switch (reportGrouping) {
+    case 'per_hour_time': return 'Uur';
+    case 'per_quarter_hour': return 'Kwartier';
     case 'per_hour': return 'Uur';
     case 'per_week': return 'Week';
     case 'per_weekday': return 'Dag van de week';
@@ -20,6 +22,12 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
 
 export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
   switch (reportGrouping) {
+    case 'per_hour_time': {
+      return moment(value).format('DD MMM HH:00');
+    }
+    case 'per_quarter_hour': {
+      return moment(value).format('DD MMM HH:mm');
+    }
     case 'per_hour': {
       // Value is a timestamp in milliseconds, convert to hour format "HH:00"
       return moment(parseFloat(value)).format('HH:00');
@@ -64,6 +72,20 @@ export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: str
 
 export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: Date, endDate: Date): XAxisLabelMap => {
   switch (reportGrouping) {
+    case 'per_hour_time': {
+      const labelMap: XAxisLabelMap = {};
+      for (let date = moment(startDate); date.isSameOrBefore(endDate); date.add(1, 'hour')) {
+        labelMap[date.format('YYYY-MM-DD HH:00')] = date.format('DD MMM HH:00');
+      }
+      return labelMap;
+    }
+    case 'per_quarter_hour': {
+      const labelMap: XAxisLabelMap = {};
+      for (let date = moment(startDate); date.isSameOrBefore(endDate); date.add(15, 'minutes')) {
+        labelMap[date.format('YYYY-MM-DD HH:mm')] = date.format('DD MMM HH:mm');
+      }
+      return labelMap;
+    }
     case 'per_hour': {
       const labelMap: XAxisLabelMap = {};
       Array.from({ length: 24 }, (_, i) => (labelMap[i.toString()] = i.toString() + ":00"));
