@@ -498,8 +498,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               stroke: {
                                 curve: 'straight',
                                 width: 3,
-                                // Make capacity line dashed; default solid
-                                dashArray: filteredSeries.map(series => series.name.endsWith(' - Capaciteit') ? 6 : 0),
+                                dashArray: 0
                               },
                               title: {
                                 text: reportData.title || '',
