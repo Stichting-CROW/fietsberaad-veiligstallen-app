@@ -66,6 +66,16 @@ const getColorForSeriesName = (name: string): string => {
   return CHART_COLORS[colorIndex] ?? CHART_COLORS[0]!;
 };
 
+// Normalize series name to a "color key" so related series can share a color
+const getColorKeyForSeries = (name: string, reportType?: ReportType): string => {
+  if (reportType === 'absolute_bezetting') {
+    // For absolute_bezetting we have "<Title> - Capaciteit" and "<Title> - Bezetting"
+    // -> strip the suffix so both series for the same stalling share the same color
+    return name.replace(/ - (Capaciteit|Bezetting)$/i, '');
+  }
+  return name;
+};
+
 // Mapping between URL slugs and report types
 export const CHART_TYPE_MAP: Record<string, ReportType> = {
   'afgeronde-transacties': 'transacties_voltooid',
@@ -426,7 +436,9 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                           })
                           .map(series => ({
                             ...series,
-                            color: getColorForSeriesName(series.name)
+                            color: getColorForSeriesName(
+                              getColorKeyForSeries(series.name, filterState?.reportType)
+                            )
                           }));
 
                         return (
@@ -471,7 +483,11 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                   enabled: false
                                 }
                               },
-                              colors: reportData.series.map(series => getColorForSeriesName(series.name)),
+                              colors: reportData.series.map(series =>
+                                getColorForSeriesName(
+                                  getColorKeyForSeries(series.name, filterState?.reportType)
+                                )
+                              ),
                               responsive: [{
                                 breakpoint: undefined,
                                 options: {},
