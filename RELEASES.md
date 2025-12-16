@@ -27,8 +27,6 @@
   - `useSectiesByFietsenstalling` - Voor ophalen van secties per stalling
 - Verwijderd: Deprecated `fietsenstallingen-service.ts` backend service
 
-## VeiligStallen 2025-xx-xx
-
 **Abonnementsvormen**
 
 - ✨ Nieuw abonnementsvormenbeheer
@@ -38,6 +36,7 @@
 
 **Rapportage**
 
+- ✨ Nieuwe grafiek: absolute bezetting
 - ✨ Bij grafiek 'procentuele bezetting' is er de nieuwe filteroptie "Weekdagen"
 - ✨ Bij elke grafiek kun je nu de getoonde stallingen filteren
 - 🖌️ Grafiek heeft nu maximale breedte
@@ -46,6 +45,7 @@
 - 🖌️ Grafiektitel en paginatitels zijn duidelijker
 - 🖌️ In de filters bovenin staat nu duidelijk de gekozen selectieoptie
 - 🖌️ Balkgrafiek stallingsduur heeft nu kolombalken in plaats van samengestelde balk
+- 🖌️ Diverse andere gebruikerservaringsverbeteringen voor Rapportage-grafieken
 
 ## VeiligStallen 2025-11-20
 
