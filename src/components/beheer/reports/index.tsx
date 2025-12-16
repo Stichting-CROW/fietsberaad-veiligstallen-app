@@ -176,6 +176,21 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         return;
       }
 
+      if (filterState.reportType === "absolute_bezetting") {
+        const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
+        const DAY_IN_MS = 24 * 60 * 60 * 1000;
+        const isValidPeriod = endDT >= startDT;
+        const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+        const MAX_DAYS_ABSOLUTE_BEZETTING = 14;
+
+        if (!isValidPeriod || periodInDays > MAX_DAYS_ABSOLUTE_BEZETTING) {
+          setReportData(undefined);
+          setWarningState(`Absolute bezetting is alleen beschikbaar als je maximaal ${MAX_DAYS_ABSOLUTE_BEZETTING} dagen selecteert.`);
+          onDataLoaded && onDataLoaded(false);
+          return;
+        }
+      }
+
       setLoading(true);
       try {
         const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
@@ -219,6 +234,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
         setReportData(data);
         setErrorState("");
+        setWarningState("");
         
         const hasReportData = data.series.some((series: any) => Array.isArray(series.data) && series.data.length > 0);
         onDataLoaded && onDataLoaded(hasReportData);
@@ -435,6 +451,24 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 {reportData ? (
                   <div className="w-full h-full">
                     {(() => {
+                        const shouldRenderAbsoluteBezettingChart = (() => {
+                          if (filterState?.reportType !== "absolute_bezetting") return true;
+                          const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
+                          const DAY_IN_MS = 24 * 60 * 60 * 1000;
+                          const isValidPeriod = endDT >= startDT;
+                          const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+                          const MAX_DAYS_ABSOLUTE_BEZETTING = 14;
+                          return isValidPeriod && periodInDays <= MAX_DAYS_ABSOLUTE_BEZETTING;
+                        })();
+
+                        if (!shouldRenderAbsoluteBezettingChart) {
+                          return (
+                            <div className="p-4 border border-orange-300 bg-orange-50 text-orange-800 rounded">
+                              De absolute bezetting grafiek wordt alleen getoond als je maximaal 14 dagen selecteert.
+                            </div>
+                          );
+                        }
+
                         const filteredSeries = reportData.series
                           .filter(series => {
                             // For bezetting reports, filter by selectedSeries
