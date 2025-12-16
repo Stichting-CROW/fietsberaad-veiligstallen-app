@@ -627,26 +627,27 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     // Build available X-axis options
     const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
-    if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
-    if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
-    if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
-    if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
-    if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-    // Always show "Uur" and "Kwartier" for absolute_bezetting, but disable if period >= 14 days
     if (isAbsoluteBezettingReport) {
-      xAxisOptions.push({ 
-        value: "per_hour_time", 
+      // For absolute_bezetting we only allow "Uur" and "Kwartier"
+      xAxisOptions.push({
+        value: "per_hour_time",
         label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
-        disabled: isHourDisabled
+        disabled: isHourDisabled,
       });
-      xAxisOptions.push({ 
-        value: "per_quarter_hour", 
+      xAxisOptions.push({
+        value: "per_quarter_hour",
         label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
-        disabled: isQuarterHourDisabled
+        disabled: isQuarterHourDisabled,
       });
+    } else {
+      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
+      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
+      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
+      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
+      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
     }
-    if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
-    if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
 
     // Build available Legenda options
     const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];
