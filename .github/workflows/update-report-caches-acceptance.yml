@@ -66,9 +66,9 @@ jobs:
           fi
           
           # Persist the full JSON response for debugging
-          echo "response<<EOF" >> "$GITHUB_OUTPUT"
+          echo "response<<RESPONSE_EOF" >> "$GITHUB_OUTPUT"
           cat "$RESP" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "RESPONSE_EOF" >> "$GITHUB_OUTPUT"
           
         env:
           ACC_CACHE_UPDATE_BEARER_TOKEN: ${{ secrets.ACC_CACHE_UPDATE_BEARER_TOKEN }}
