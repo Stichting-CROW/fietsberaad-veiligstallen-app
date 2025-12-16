@@ -53,6 +53,7 @@ export type ParkingEditUpdateStructure = {
   Beheerder?: string;
   BeheerderContact?: string;
   ExploitantID?: string | null;
+  HelpdeskHandmatigIngesteld?: boolean;
   FMS?: boolean;
   StallingsID?: string;
 
@@ -138,8 +139,12 @@ const ParkingEdit = ({
     string | undefined
   >(undefined);
 
+  const [newHelpdeskHandmatigIngesteld, setNewHelpdeskHandmatigIngesteld] = React.useState<
+    boolean | undefined
+  >(undefined);
+
   // exploitant selection
-  const [newExploitantID, setNewExploitantID] = React.useState<string | undefined>(
+  const [newExploitantID, setNewExploitantID] = React.useState<string | null | undefined>(
     undefined,
   );
 
@@ -438,7 +443,11 @@ const ParkingEdit = ({
     }
 
     if (newExploitantID !== undefined) {
-      update.ExploitantID = newExploitantID === 'anders' ? null : newExploitantID;
+      update.ExploitantID = newExploitantID;
+    }
+
+    if (newHelpdeskHandmatigIngesteld !== undefined) {
+      update.HelpdeskHandmatigIngesteld = newHelpdeskHandmatigIngesteld;
     }
 
     if (newFMS !== undefined) {
@@ -1252,6 +1261,8 @@ const ParkingEdit = ({
         setNewBeheerder={setNewBeheerder}
         newBeheerderContact={newBeheerderContact}
         setNewBeheerderContact={setNewBeheerderContact}
+        newHelpdeskHandmatigIngesteld={newHelpdeskHandmatigIngesteld}
+        setNewHelpdeskHandmatigIngesteld={setNewHelpdeskHandmatigIngesteld}
       />
     );
   };

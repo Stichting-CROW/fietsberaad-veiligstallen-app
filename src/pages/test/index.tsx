@@ -62,6 +62,16 @@ const TestIndexPage: React.FC = () => {
           >
             Transacties overzicht
           </Button>
+          
+          <Button
+            onClick={() => window.open('/test/helpdesk', '_blank')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Fietsenstalling Helpdesk Overzicht
+          </Button>
         </div>
       </div>
     </div>

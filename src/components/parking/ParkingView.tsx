@@ -13,10 +13,11 @@ import ParkingViewOpening from "~/components/parking/ParkingViewOpening";
 import ParkingViewTarief from "~/components/parking/ParkingViewTarief";
 import ParkingViewCapaciteit from "~/components/parking/ParkingViewCapaciteit";
 import ParkingViewAbonnementen from "~/components/parking/ParkingViewAbonnementen";
-import ParkingViewBeheerder from "~/components/parking/ParkingViewBeheerder";
+import { getHelpdeskElement } from "~/components/parking/ParkingEditBeheerder";
 import ParkingViewServices from "~/components/parking/ParkingViewServices";
 
 import { type ParkingDetailsType } from "~/types/parking";
+import { getBeheerderContactNew, formatBeheerderContactLink } from "~/utils/parkings-beheerder";
 
 import { getMunicipalities } from "~/utils/municipality";
 import { useDispatch, useSelector } from "react-redux";
@@ -231,9 +232,50 @@ const ParkingView = ({
               </div>
             </SectionBlock>
 
-            <HorizontalDivider className="my-4" />
+            {(() => {
+              const beheerderInfo = getBeheerderContactNew(
+                parkingdata.ExploitantID,
+                parkingdata.Beheerder,
+                parkingdata.BeheerderContact,
+                parkingdata.HelpdeskHandmatigIngesteld,
+                parkingdata.contacts_fietsenstallingen_ExploitantIDTocontacts?.CompanyName,
+                parkingdata.contacts_fietsenstallingen_ExploitantIDTocontacts?.Helpdesk,
+                parkingdata.contacts_fietsenstallingen_SiteIDTocontacts?.CompanyName,
+                parkingdata.contacts_fietsenstallingen_SiteIDTocontacts?.Helpdesk
+              );
+              if (!beheerderInfo.visible) {
+                return null;
+              }
+              
+              const contactLink = formatBeheerderContactLink(beheerderInfo.beheerdercontact);
+              const displayName = beheerderInfo.beheerder || contactLink.displayText || "";
+              
+              return (
+                <>
+                  <HorizontalDivider className="my-4" />
+                  <SectionBlock heading="Beheerder">
+                    {contactLink.href ? (
+                      <a 
+                        href={contactLink.href}
+                        style={{
+                          textDecoration: 'underline',
+                          color: '#2563eb',
+                          cursor: 'pointer'
+                        }}
+                        className="hover:text-blue-700 hover:underline"
+                        title={contactLink.href}
+                      >
+                        {displayName}
+                      </a>
+                    ) : displayName ? (
+                      <span>{displayName}</span>
+                    ) : null}
+                  </SectionBlock>
+                </>
+              );
+            })()}
 
-            <ParkingViewBeheerder parkingdata={parkingdata} />
+            {/* <ParkingViewBeheerder parkingdata={parkingdata} /> */}
 
             {isLoggedIn && status !== '' ?
               <>

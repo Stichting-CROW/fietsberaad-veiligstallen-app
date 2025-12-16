@@ -82,8 +82,8 @@ export const getDefaultNewFietsenstalling = (name: string): ParkingDetailsType =
   fietsenstalling_secties: [],
   uitzonderingenopeningstijden: [],
   abonnementsvorm_fietsenstalling: [],
-  exploitant: undefined,
   fietsenstallingen_services: [],  
+  HelpdeskHandmatigIngesteld: false,
 });
 
 export const fietsenstallingLijstSelect = {
@@ -164,6 +164,7 @@ export const fietsenstallingSchema = z.object({
   reservationCostPerDay: z.number().nullable(),
   // wachtlijst_Id: z.bigint().nullable(),
   thirdPartyReservationsUrl: z.string().max(255).nullable(),
+  HelpdeskHandmatigIngesteld: z.boolean(),
 });
 
 export const fietsenstallingCreateSchema = fietsenstallingSchema
