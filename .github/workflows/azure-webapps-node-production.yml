@@ -37,6 +37,7 @@ jobs:
           NEXTAUTH_URL: ${{vars.PROD_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.PROD_NEXT_PUBLIC_MAPBOX_TOKEN}}
           LOGINTOKEN_SIGNER_PRIVATE_KEY: ""
+          UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.PROD_CACHE_UPDATE_BEARER_TOKEN }}
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
@@ -47,6 +48,7 @@ jobs:
           echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env
           echo "NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN" >> .env
           echo "LOGINTOKEN_SIGNER_PRIVATE_KEY=$LOGINTOKEN_SIGNER_PRIVATE_KEY" >> .env
+          echo "UPDATE_CACHE_BEARER_TOKEN=$UPDATE_CACHE_BEARER_TOKEN" >> .env
 
       - name: print env file
         run: cat .env
@@ -59,6 +61,7 @@ jobs:
           NEXTAUTH_SECRET: ${{vars.PROD_NEXTAUTH_SECRET}}
           NEXTAUTH_URL: ${{vars.PROD_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.PROD_NEXT_PUBLIC_MAPBOX_TOKEN}}
+          UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.PROD_CACHE_UPDATE_BEARER_TOKEN }}
         run: |
           npm install
           npm run build

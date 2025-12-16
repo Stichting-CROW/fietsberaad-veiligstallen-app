@@ -4,6 +4,11 @@ import moment from "moment";
 import { getTransactionCacheStatus } from "~/backend/services/database/TransactionsCacheActions";
 import { getBezettingCacheStatus } from "~/backend/services/database/BezettingCacheActions";
 import { getStallingsduurCacheStatus } from "~/backend/services/database/StallingsduurCacheActions";
+import { validateBearerToken } from "~/utils/bearer-token-tools";
+import { getServerSession } from "next-auth";
+import { authOptions } from "~/pages/api/auth/[...nextauth]";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 export interface CacheUpdateLogEntry {
   date: Date;
@@ -111,20 +116,37 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   try {
     console.log("*** Update report caches started");
     
-    // TODO: Uncomment when bearer token authentication is implemented
-    // const authHeader = req.headers.authorization;
-    // if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    //   res.status(401).json({ error: "Bearer token required" });
-    //   return;
-    // }
+    // Authentication: Check for bearer token OR session with superadmin rights
+    const authHeader = req.headers.authorization;
+    const hasBearerToken = authHeader?.startsWith('Bearer ') && 
+      validateBearerToken(authHeader.substring(7));
+    
+    const session = await getServerSession(req, res, authOptions);
+    const hasSession = session?.user && 
+      userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    
+    if (!hasBearerToken && !hasSession) {
+      console.error("*** Update report caches - unauthorized access attempt");
+      res.status(401).json({ 
+        error: "Bearer token or authenticated session with superadmin rights required" 
+      });
+      return;
+    }
+    
+    // Log which authentication method was used (without logging tokens)
+    if (hasBearerToken) {
+      console.log("*** Update report caches - authenticated via bearer token");
+    } else if (hasSession) {
+      console.log(`*** Update report caches - authenticated via session (user: ${session.user.id})`);
+    }
     
     const { from } = req.query;
 
-    // if to is not provided, set it to tomorrow
+    // if from is not provided, default to 30 days ago
     let startDateParam = from;
     if (!startDateParam) {
-      startDateParam = moment().toISOString();
-      console.log("*** startDateParam", startDateParam);
+      startDateParam = moment().subtract(30, 'days').toISOString();
+      console.log("*** startDateParam (defaulted to 30 days ago)", startDateParam);
     }
     
     if (!startDateParam) {
