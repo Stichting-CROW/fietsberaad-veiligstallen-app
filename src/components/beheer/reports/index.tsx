@@ -139,6 +139,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
 
+  const selectedReportTitle = React.useMemo(() => {
+    if (!selectedReportType) return '';
+    return (
+      availableReports.find(r => r.id === selectedReportType)?.title ||
+      reportData?.title ||
+      ''
+    );
+  }, [availableReports, selectedReportType, reportData?.title]);
+
   // Update selectedReportType when initialReportType changes (e.g., from URL)
   useEffect(() => {
     if (initialReportType) {
@@ -369,7 +378,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         {selectedReportType && (
           <div className="flex-1 mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">
-              Rapportage {gemeenteInfo?.CompanyName || ''}
+              {selectedReportTitle}
             </h2>
           </div>
         )}
