@@ -7,6 +7,7 @@ interface ModalProps {
   title?: string;
   modalStyle?: object;
   modalBodyStyle?: object;
+  modalWrapperClassName?: string;
   clickOutsideClosesDialog?: boolean;
 }
 
@@ -16,6 +17,7 @@ const Modal: React.FC<ModalProps> = ({
   title,
   modalStyle,
   modalBodyStyle,
+  modalWrapperClassName,
   clickOutsideClosesDialog = false,
 }) => {
   const modalWrapperRef = useRef<HTMLDivElement>(null);
@@ -77,9 +79,7 @@ const Modal: React.FC<ModalProps> = ({
   const modalContent = (
     <div className="modal-overlay relative z-20">
       <div className="modal-background absolute top-0 right-0 bottom-0 left-0" onClick={handleCloseClick} />
-      <div ref={modalWrapperRef} className="
-        modal-wrapper
-      ">
+      <div ref={modalWrapperRef} className={`modal-wrapper ${modalWrapperClassName || ''}`}>
         <div className={`
           modal
           pl-5 pr-5 pb-5 pt-5 sm:pl-10 sm:pr-10 sm:pt-10 sm:pb-10

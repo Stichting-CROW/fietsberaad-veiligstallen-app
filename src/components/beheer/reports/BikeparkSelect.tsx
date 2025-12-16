@@ -1,22 +1,27 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { type VSFietsenstallingLijst } from '~/types/fietsenstallingen';
 
 interface BikeparkSelectProps {
   bikeparks: VSFietsenstallingLijst[];
   selectedBikeparkIDs: string[];
   setSelectedBikeparkIDs: React.Dispatch<React.SetStateAction<string[]>>;
+  singleSelection?: boolean; // If true, use radio buttons (single selection). If false, use checkboxes (multiple selection).
 }
 
 const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
   bikeparks,
   selectedBikeparkIDs,
   setSelectedBikeparkIDs,
+  singleSelection = false,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const divRef = useRef<HTMLDivElement>(null);
+  const divRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isScrollable = bikeparks.length > 20;
+  const hasMultipleBikeparks = bikeparks.length > 1;
 
   const toggleSelectAll = () => {
     const validBikeparkIDs = bikeparks.filter(bp => bp.StallingsID!==null).map(bp => bp.StallingsID as string);
@@ -26,7 +31,28 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
       const newSelection = bikeparks.filter((park => selectedBikeparkIDs.includes(park.StallingsID as string) === false)).map(park => park.StallingsID as string);
       setSelectedBikeparkIDs(newSelection);
     }
+    // Focus search input when "Selecteer alles" is clicked
+    if (hasMultipleBikeparks) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 0);
+      });
+    }
   };
+
+  // Filter bikeparks based on search query (case-insensitive)
+  const filteredBikeparks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return bikeparks;
+    }
+    const query = searchQuery.toLowerCase();
+    return bikeparks.filter(park => 
+      park.Title?.toLowerCase().includes(query) ||
+      park.Plaats?.toLowerCase().includes(query) ||
+      park.StallingsID?.toLowerCase().includes(query)
+    );
+  }, [bikeparks, searchQuery]);
 
   // const handleOk = () => {
   //   setSelectedBikeparkIDs(selectedBikeparkIDs);
@@ -35,7 +61,7 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
 
   const getDisplayText = () => {
     if (selectedBikeparkIDs.length === 0) {
-      return "Geen stallingen";
+      return singleSelection ? "Geen stalling" : "Geen stallingen";
     } else if (selectedBikeparkIDs.length === 1) {
       return bikeparks.find(park => park.StallingsID === selectedBikeparkIDs[0])?.Title?.trim() || "";
     } else if (selectedBikeparkIDs.length < bikeparks.length) {
@@ -61,6 +87,25 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Reset search query when dropdown closes
+  useEffect(() => {
+    if (!isDropdownOpen) {
+      setSearchQuery("");
+    }
+  }, [isDropdownOpen]);
+
+  // Auto-focus search input when dropdown opens (if there are multiple bikeparks)
+  useEffect(() => {
+    if (isDropdownOpen && hasMultipleBikeparks) {
+      // Use requestAnimationFrame to ensure the input is rendered before focusing
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 0);
+      });
+    }
+  }, [isDropdownOpen, hasMultipleBikeparks]);
 
   return (
     <div className="relative inline-block text-left">
@@ -92,34 +137,63 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
           }}
         >
           <div className="py-1">
-            <button
-              type="button"
-              onClick={toggleSelectAll}
-              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
-            </button>
-            {bikeparks.map((park) => (
-              <label
-                key={park.StallingsID}
-                className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+            {!singleSelection && (
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                {selectedBikeparkIDs.length === bikeparks.length ? 'Deselecteer alles' : 'Selecteer alles'}
+              </button>
+            )}
+            {hasMultipleBikeparks && (
+              <div className="px-3 py-2 border-b border-gray-200">
                 <input
-                  type="checkbox"
-                  checked={selectedBikeparkIDs.includes(park.StallingsID as string)}
-                  value={park.StallingsID as string}
-                  onChange={() =>
-                    setSelectedBikeparkIDs((prev) =>
-                      prev.includes(park.StallingsID as string)
-                        ? prev.filter((id) => id !== park.StallingsID as string)
-                        : [...prev, park.StallingsID as string]
-                    )
-                  }
-                  className="mr-2"
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Zoek stallingen..."
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {park.Title}
-              </label>
-            ))}
+              </div>
+            )}
+            {[...filteredBikeparks]
+              .slice()
+              .sort((a, b) => (a.Title || "").localeCompare(b.Title || ""))
+              .map((park) => {
+              const parkId = park.StallingsID as string;
+              const isSelected = selectedBikeparkIDs.includes(parkId);
+              
+              return (
+                <label
+                  key={park.StallingsID}
+                  className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type={singleSelection ? "radio" : "checkbox"}
+                    name={singleSelection ? "bikepark-select" : undefined}
+                    checked={isSelected}
+                    value={parkId}
+                    onChange={() => {
+                      if (singleSelection) {
+                        // Radio mode: replace selection with just this one
+                        setSelectedBikeparkIDs([parkId]);
+                      } else {
+                        // Checkbox mode: toggle selection
+                        setSelectedBikeparkIDs((prev) =>
+                          prev.includes(parkId)
+                            ? prev.filter((id) => id !== parkId)
+                            : [...prev, parkId]
+                        );
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  {park.Title}
+                </label>
+              );
+            })}
           </div>
         </div>
       )}

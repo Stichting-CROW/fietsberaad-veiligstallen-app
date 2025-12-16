@@ -199,7 +199,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? 0,
       MaxStallingsduur: parsed.MaxStallingsduur ?? 0,
       HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? false,
-      ExploitantID: parsed.ExploitantID ?? undefined,
+      ExploitantID: parsed.ExploitantID !== undefined ? (parsed.ExploitantID === null ? null : parsed.ExploitantID) : undefined,
       hasUniSectionPrices: parsed.hasUniSectionPrices ?? true,
       hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? false,
       shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
@@ -207,6 +207,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
       // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
       thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
+      HelpdeskHandmatigIngesteld: parsed.HelpdeskHandmatigIngesteld ?? false,
     }
 
     const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
@@ -236,17 +237,17 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       titel: 'sectie 1',
       isactief: true,
       externalId: externalId,
-      omschrijving: null,
-      capaciteit: null,
+      omschrijving: "",
+      capaciteit: 0,
       CapaciteitBromfiets: null,
-      kleur: "",
+      kleur: "00FF00",
       isKluis: isKluis,
       reserveringskostenPerDag: null,
       urlwebservice: null,
       Reservable: false,
       NotaVerwijssysteem: null,
       Bezetting: 0,
-      qualificatie: null
+      qualificatie: "NONE"
     }
 
     await prisma.fietsenstalling_sectie.create({ data: sectiedata });
@@ -469,7 +470,7 @@ export default async function handle(
             AantalReserveerbareKluizen: parsed.AantalReserveerbareKluizen ?? undefined,
             MaxStallingsduur: parsed.MaxStallingsduur ?? undefined,
             HeeftExterneBezettingsdata: parsed.HeeftExterneBezettingsdata ?? undefined,
-            ExploitantID: parsed.ExploitantID ?? undefined,
+            ExploitantID: parsed.ExploitantID !== undefined ? (parsed.ExploitantID === null ? null : parsed.ExploitantID) : undefined,
             hasUniSectionPrices: parsed.hasUniSectionPrices ?? undefined,
             hasUniBikeTypePrices: parsed.hasUniBikeTypePrices ?? undefined,
             shadowBikeparkID: parsed.shadowBikeparkID ?? undefined,
@@ -477,6 +478,7 @@ export default async function handle(
             reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
             // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
             thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
+            HelpdeskHandmatigIngesteld: parsed.HelpdeskHandmatigIngesteld ?? undefined,
           };
         } else {
           // Beperkt users can only update specific fields
@@ -557,12 +559,6 @@ export default async function handle(
             console.log(`Type not changed: "${currentFietsenstalling?.Type}" (no update needed)`);
           }
         }
-
-        // Log update data for debugging
-        console.log("Updating fietsenstalling with data:", JSON.stringify(updateData, null, 2));
-        console.log("Image field value:", updateData.Image);
-        console.log("Image field type:", typeof updateData.Image);
-        console.log("Image field length:", updateData.Image?.length);
         
         const updatedFietsenstalling = await prisma.fietsenstallingen.update({
           select: selectParkingDetailsType,

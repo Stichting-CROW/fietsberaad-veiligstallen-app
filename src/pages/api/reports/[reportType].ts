@@ -54,6 +54,17 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         res.json(data);
         break;
       }
+      case "absolute_bezetting": {
+        const reportParams = req.body.reportParams;
+
+        if (undefined === reportParams) {
+          res.status(405).end(); // Method Not Allowed
+        }
+
+        data = await ReportService.getAbsoluteBezettingData(reportParams);
+        res.json(data);
+        break;
+      }
       case "stallingsduur": {
         const reportParams = req.body.reportParams;
 

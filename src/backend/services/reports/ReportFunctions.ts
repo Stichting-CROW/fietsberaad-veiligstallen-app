@@ -11,7 +11,7 @@ export interface ReportSeriesData {
 }
 
 export interface ReportData {
-  title: string;
+  title?: string;
   options: {
     xaxis: {
       type?: string;
@@ -83,6 +83,10 @@ export const convertToTimegroupSeries = async (
         let timestamp;
         if (params.reportGrouping === 'per_hour') {
           timestamp = moment().hour(parseInt(timegroup)).valueOf();
+        } else if (params.reportGrouping === 'per_hour_time') {
+          timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
+        } else if (params.reportGrouping === 'per_quarter_hour') {
+          timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
         } else if (params.reportGrouping === 'per_weekday') {
           timestamp = moment().day(parseInt(timegroup)).valueOf();
         } else if (params.reportGrouping === 'per_day') {
@@ -142,8 +146,11 @@ export const getFunctionForPeriod = (
   useCache = true
 ) => {
   const shiftedField = `DATE_ADD(${fieldname}, INTERVAL -${timeIntervalInMinutes} MINUTE)`;
+  const activeField = useCache === false ? shiftedField : fieldname;
 
   if (useCache === false) {
+    if (reportGrouping === "per_hour_time") return `DATE_FORMAT(${activeField}, '%Y-%m-%d %H:00')`;
+    if (reportGrouping === "per_quarter_hour") return `CONCAT(DATE_FORMAT(${activeField}, '%Y-%m-%d %H:'), LPAD(FLOOR(MINUTE(${activeField})/15)*15, 2, '0'))`;
     if (reportGrouping === "per_year") return `YEAR(${shiftedField})`;
     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${shiftedField}), '-', QUARTER(${shiftedField}))`;
     if (reportGrouping === "per_month") return `CONCAT(YEAR(${shiftedField}), '-', MONTH(${shiftedField}))`;
@@ -153,6 +160,8 @@ export const getFunctionForPeriod = (
     if (reportGrouping === "per_hour") return `HOUR(${fieldname})`;
     if (reportGrouping === "per_bucket") return `bucket`;
   } else {
+    if (reportGrouping === "per_hour_time") return `DATE_FORMAT(${activeField}, '%Y-%m-%d %H:00')`;
+    if (reportGrouping === "per_quarter_hour") return `CONCAT(DATE_FORMAT(${activeField}, '%Y-%m-%d %H:'), LPAD(FLOOR(MINUTE(${activeField})/15)*15, 2, '0'))`;
     if (reportGrouping === "per_year") return `YEAR(${fieldname})`;
     if (reportGrouping === "per_quarter") return `CONCAT(YEAR(${fieldname}), '-', QUARTER(${fieldname}))`;
     if (reportGrouping === "per_month") return `CONCAT(YEAR(${fieldname}), '-', MONTH(${fieldname}))`;
@@ -168,6 +177,7 @@ export const getReportTitle = (reportType: ReportType) => {
   if (reportType === "transacties_voltooid") return "Transacties per periode";
   if (reportType === "inkomsten") return "Inkomsten per periode";
   if (reportType === "bezetting") return "Gemiddelde procentuele bezetting";
+  if (reportType === "absolute_bezetting") return "Absolute bezetting";
   return "";
 }
 
@@ -184,18 +194,10 @@ export const debugLog = (message: string, truncate = false) => {
 export const interpolateSQL = (sql: string, params: string[]): string => {
   console.log('params', params);
   let interpolatedSQL = sql;
-  if (params.length > 0) {
-    interpolatedSQL = interpolatedSQL.replace('?', `"${params[0]||""}"`);
-  }
-  if (params.length > 1) {
-    interpolatedSQL = interpolatedSQL.replace('?', `"${params[1]||""}"`);
-  }
-  if (params.length > 2) {
-    interpolatedSQL = interpolatedSQL.replace('?', `${params[2]||""}`);
-  }
-  if (params.length > 3) {
-    interpolatedSQL = interpolatedSQL.replace('?', `${params[3]||""}`);
-  }
+  // Replace all ? placeholders with quoted parameters
+  params.forEach((param) => {
+    interpolatedSQL = interpolatedSQL.replace('?', `"${param || ""}"`);
+  });
   return interpolatedSQL;
 }
 
@@ -205,6 +207,27 @@ interface ReportCategory {
 }
 
 export const getCategoryNames = async (params: ReportParams): Promise<ReportCategory[] | false> => {
+
+  // Special categories for absolute_bezetting: capacity and occupation for each selected stalling
+  if (params.reportType === "absolute_bezetting") {
+    if (params.bikeparkIDs.length === 0) {
+      return false;
+    }
+
+    const idString = params.bikeparkIDs.map(bp => `'${bp}'`).join(',');
+    const sql = `SELECT StallingsID, Title FROM fietsenstallingen WHERE StallingsID IN (${idString})`;
+    const results = await prisma.$queryRawUnsafe<{ StallingsID: string, Title: string }[]>(sql);
+    
+    const categories: ReportCategory[] = [];
+    for (const stalling of results) {
+      categories.push(
+        { id: `${stalling.StallingsID}_capacity`, name: `${stalling.Title} - Capaciteit` },
+        { id: `${stalling.StallingsID}_occupation`, name: `${stalling.Title} - Bezetting` }
+      );
+    }
+    
+    return categories;
+  }
 
   const idString = params.bikeparkIDs.length > 0 ? params.bikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
 
@@ -267,7 +290,7 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
     const series = await convertToTimegroupSeries(results, params, keyToLabelMap);
 
     return {
-      title: getReportTitle(params.reportType),
+      // title: getReportTitle(params.reportType),
       options: {
         xaxis: {
           type: ['per_bucket', 'per_weekday'].includes(params.reportGrouping) || true ? 'categories' : 'datetime',
@@ -280,7 +303,7 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
         },
         yaxis: {
           title: {
-            text: getReportTitle(params.reportType)
+            text: ''//getReportTitle(params.reportType)
           }
         }
       },

@@ -138,6 +138,28 @@ class MainDocument extends Document {
             rel="apple-touch-startup-image"
           />
 
+          {/* Matomo website analytics - only in production */}
+          {process.env.NODE_ENV === 'production' && (
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  var _paq = window._paq = window._paq || [];
+                  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+                  _paq.push(["setDoNotTrack", true]);
+                  _paq.push(['trackPageView']);
+                  _paq.push(['enableLinkTracking']);
+                  (function() {
+                    var u="https://${process.env.PROD_MATOMO_URL}/";
+                    _paq.push(['setTrackerUrl', u+'matomo.php']);
+                    _paq.push(['setSiteId', '1']);
+                    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+                    g.async=true; g.src='https://cdn.matomo.cloud/${process.env.PROD_MATOMO_URL}/matomo.js'; s.parentNode.insertBefore(g,s);
+                  })();
+                `,
+              }}
+            />
+          )}
+
           {/* <!-- apple splash screen images -->
           <link rel='apple-touch-startup-image' href='/images/apple_splash_2048.png' sizes='2048x2732' />
           <link rel='apple-touch-startup-image' href='/images/apple_splash_1668.png' sizes='1668x2224' />

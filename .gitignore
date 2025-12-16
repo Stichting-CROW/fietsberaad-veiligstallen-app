@@ -60,6 +60,9 @@ mysql-db/export-db.zip
 #uploads
 /public/uploads*
 
+#checkpoints
+/data/checkpoints*
+
 #auto generated test scripts
 scripts/*.sql
 
@@ -69,6 +72,8 @@ debug.log
 
 #temporary files
 TESTQUERIES.sql
+sql/*.sql
+logs/*
 
 #for now, do not check in prisma generated files
 /src/generated/prisma-client/**/*

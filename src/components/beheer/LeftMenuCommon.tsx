@@ -8,7 +8,9 @@ export const LeftMenuItem = ({
   children,
   activecomponent,
   onSelect,
+  onClick,
   icon,
+  isActive,
 }: {
   component: VSMenuTopic | false,
   title: string,
@@ -16,9 +18,11 @@ export const LeftMenuItem = ({
   children?: React.ReactNode,
   activecomponent: VSMenuTopic | undefined,
   onSelect: (component: VSMenuTopic) => void,
+  onClick?: () => void,
   icon?: IconType,
+  isActive?: boolean,
 }) => {
-  const isSelected = component === activecomponent;
+  const isSelected = component === activecomponent || isActive;
   const Icon = icon;
 
   if (!component) {
@@ -40,11 +44,19 @@ export const LeftMenuItem = ({
     ${isSelected ? "bg-sky-50 text-sky-700 shadow-inner border border-sky-100" : "text-gray-700 hover:bg-gray-100"}
   `;
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      onSelect(component);
+    }
+  };
+
   return (
     <li>
       <button
         type="button"
-        onClick={() => onSelect(component)}
+        onClick={handleClick}
         className={baseClasses}
       >
         <span

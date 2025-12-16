@@ -467,7 +467,6 @@ model contacts {
   presentations                                              presentations[]
   presentations_ticker                                       presentations_ticker[]
 
-  fietsenstallingen fietsenstallingen[]
   modules_contacts  modules_contacts[]
 
   isManagingContacts  contact_contact[] @relation("isManagingContacts")
@@ -698,6 +697,7 @@ model fietsenstallingen {
   Toegangscontrole                                  Int?
   Beheerder                                         String?                      @db.VarChar(100)
   BeheerderContact                                  String?                      @db.VarChar(255)
+  HelpdeskHandmatigIngesteld                        Boolean?                     @db.Bit(1)
   Url                                               String?                      @db.Text
   ExtraServices                                     String?                      @db.Text
   dia                                               String?                      @db.Text
@@ -713,8 +713,9 @@ model fietsenstallingen {
   reservationCostPerDay                             Decimal?                     @db.Decimal(8, 2)
   wachtlijst_Id                                     BigInt?
   thirdPartyReservationsUrl                         String?                      @db.VarChar(255)
-  contacts_fietsenstallingen_SiteIDTocontacts       contacts?                    @relation("fietsenstallingen_SiteIDTocontacts", fields: [SiteID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FK10w2mep03sjwvk4vd4gla321c")
-  contacts_fietsenstallingen_ExploitantIDTocontacts contacts?                    @relation("fietsenstallingen_ExploitantIDTocontacts", fields: [ExploitantID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "FKF4836A5566279D18")
+  
+  contacts_fietsenstallingen_SiteIDTocontacts       contacts?                    @relation("fietsenstallingen_SiteIDTocontacts", fields: [SiteID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FK10w2mep03sjwvk4vd4gla321c")
+  contacts_fietsenstallingen_ExploitantIDTocontacts contacts?                    @relation("fietsenstallingen_ExploitantIDTocontacts", fields: [ExploitantID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKF4836A5566279D18")
   fietsenstallingen_services                        fietsenstallingen_services[]
 
   transacties_archief             transacties_archief[]
@@ -722,7 +723,6 @@ model fietsenstallingen {
   fietsenstalling_type            fietsenstallingtypen?             @relation(fields: [Type], references: [id])
   fietsenstalling_secties         fietsenstalling_sectie[]
   abonnementsvorm_fietsenstalling abonnementsvorm_fietsenstalling[]
-  exploitant                      contacts?                         @relation(fields: [ExploitantID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKCC75C0BE66279D19")
   uitzonderingenopeningstijden    uitzonderingenopeningstijden[]
 
   @@index([ExploitantID], map: "ExploitantID")
@@ -1237,7 +1237,7 @@ model tariefregels {
   tijdsspanne          Float?
   kosten               Decimal? @db.Decimal(8, 2)
   truncatedStallingsID String?  @map("__stallingsID") @db.VarChar(8)
-  StallingsID          String?  @db.VarChar(35)
+  stallingsID          String?  @db.VarChar(35)
   truncatedSectieID    String?  @map("__sectieID") @db.VarChar(13)
   sectieID             Int?
   sectionBikeTypeID    Int?

@@ -194,7 +194,8 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Weet je zeker dat je deze stalling wilt verwijderen?')) {
+    const stallingName = fietsenstallingen.find(x => x.ID === id)?.Title || '';
+    if (confirm(`Weet je zeker dat je deze stalling ${stallingName} wilt verwijderen?`)) {
       try {
         const response = await fetch(`/api/protected/fietsenstallingen/${id}`, {
           method: 'DELETE',
@@ -424,7 +425,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
               {
                 header: 'Acties',
                 accessor: (parking: ParkingDetailsType) => (
-                  <div className="whitespace-nowrap">
+                  <div className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleEdit(parking.ID)}
                       className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -449,6 +450,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={handleSort}
+            onRowClick={(parking) => handleEdit(parking.ID)}
           />
         </div>
       </div>

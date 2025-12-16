@@ -1,10 +1,104 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-12-16
+
+- op verschillende plekken verbeterde opmaak
+
+**Stalling-beheer / Tarieven**
+
+- Nieuw: Volledige tariefbewerkingsfunctionaliteit toegevoegd
+- Nieuwe API endpoints voor tariefbeheer:
+  - `GET/PUT /api/protected/fietsenstallingen/[id]/tarieven` - Ophalen en bijwerken van tarieven
+  - Volledige CRUD operaties met validatie en transactie ondersteuning
+- Nieuwe service laag `src/server/services/tarieven.ts`:
+  - Functies voor ophalen, groeperen en opslaan van tariefregels
+  - Ondersteuning voor verschillende scope types (stalling, sectie, fietstype)
+  - Automatische migratie en consolidatie van tarieven bij wijziging van uniformiteit flags
+- Automatische bijwerking van `EditorModified` en `DateModified` bij tariefwijzigingen
+- Fix: Automatische bijwerking van parent `fietsenstallingen` record bij tariefwijzigingen (editorModified, dateModified)
+
+**Beheer / Database**
+
+- Verwijderd: "Incorrecte Tarieven Opruimen" component uit database beheer + bijbehorende api endpoints
+- Nieuw: Database diff testing tool (development only)
+
+**Technisch**
+
+- Nieuwe hooks:
+  - `useBikeTypes` - Voor ophalen van fietstypen
+  - `useSectiesByFietsenstalling` - Voor ophalen van secties per stalling
+- Verwijderd: Deprecated `fietsenstallingen-service.ts` backend service
+
 ## VeiligStallen 2025-xx-xx
 
 **Abonnementsvormen**
 
 - ✨ Nieuw abonnementsvormenbeheer
+  - First implementation of abonnementsvormen
+  - Link to module, add conditions for field display, fixes (work in progress)
+  - Add Abonnementen tab to parkingedit
+
+**Rapportage**
+- **Absolute Bezetting Grafiek**
+  - Nieuw grafiektype voor absolute bezetting visualisatie
+  - Databron selector toegevoegd
+  - Floating point problemen opgelost (retourneert nu integers)
+  - Onthoudt laatst geselecteerde stalling
+  - "No bikeparks found" fout opgelost
+  - Toon alleen stallingen met transactiedata voor absolute bezetting grafiek
+  - Meerdere stallingen selecteren mogelijk
+  - 'Kwartier' en 'uur' opties toegevoegd
+  - 'Capaciteit' als gestippelde lijn weergegeven
+  - Altijd "Uur" en "Kwartier" opties tonen voor absolute bezetting
+  - Gedeelde tooltip voor <= 5 series
+  - Eén kleur voor 2 lijnen van dezelfde stalling
+  - Geen gestippelde lijn voor "Capaciteit" serie
+
+- **Aanvullende Grafiek Verbeteringen** (niet gedocumenteerd in RELEASES.md)
+  - URL voor elk grafiektype
+  - Weekdag toevoegen aan uur/dag x-as
+  - Zoekbalk toegevoegd aan BikeparkSelect
+  - Grafiektypen als submenu van "Rapportage" in linkermenu
+  - Tooltip titels van Stallingsduur grafiek gefixt
+
+- ✨ Bij grafiek 'procentuele bezetting' is er de nieuwe filteroptie "Weekdagen"
+- ✨ Bij elke grafiek kun je nu de getoonde stallingen filteren
+- 🖌️ Grafiek heeft nu maximale breedte
+- 🖌️ Grafiek is nu maximaal zo hoog als het kan, waardoor x-as altijd zichtbaar is
+- 🖌️ Duidelijker periodeselectiebalk door toegevoegd icoon en vetgedrukte tekst
+- 🖌️ Grafiektitel en paginatitels zijn duidelijker
+- 🖌️ In de filters bovenin staat nu duidelijk de gekozen selectieoptie
+- 🖌️ Balkgrafiek stallingsduur heeft nu kolombalken in plaats van samengestelde balk
+
+- **Overzichten tbv testen**
+  - **Transacties overzicht**
+    - Nieuw overzicht dat transactie overzicht functionaliteit
+
+  - **Synchronisatie overzicht**
+    - Nieuw overzicht dat controles (systeemchecks/validaties) toont
+
+  - **Fietsenstalling Helpdesk Overzicht**
+    - nieuw overzicht dat de beheerder tekst en link toont voor fietsenstallingen
+
+## 🎨 UI/UX Verbeteringen
+
+### Content & Formulieren
+- Verbeterde content component
+- Verbeterde form input component
+
+### Tracking
+- **Matomo site tracking code**
+  - Matomo analytics tracking toegevoegd
+
+## 🗄️ Database & Schema
+
+### Prisma Schema
+- Bijgewerkt Prisma schema (inclusief `HelpdeskHandmatigIngesteld` veld)
+- Een aantal relaties opgeschoond / aangescherpt
+
+### Configuratie Bestanden
+- Bijgewerkt environment voorbeeld bestand
+- Bijgewerkt gitignore
 
 ## VeiligStallen 2025-11-20
 
@@ -20,7 +114,7 @@
 - ✨ Nieuw vrij invulveld "Extra diensten" bij fietsenstallingbeheer
   - Voorbeeldweergave op site
   - Stel in dat een fietsenstalling wordt beheerd door de eigen organisatie (bijv. de gemeente)
-- Adres/postcode/plaats zijn nu een optioneel velden
+- Adres/postcode/plaats zijn nu optionele velden
 
 **Gebruikersbeheer**
 

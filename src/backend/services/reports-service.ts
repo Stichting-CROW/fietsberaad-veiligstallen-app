@@ -1,5 +1,6 @@
 import { getSQL as getTransactionsByPeriodSQL } from "~/backend/services/reports/transactionsByPeriod";
 import { getSQL as getBezettingsdataSQL } from "~/backend/services/reports/bezettingsdataByPeriod";
+import { getSQL as getAbsoluteBezettingSQL } from "~/backend/services/reports/absoluteBezetting";
 import { getSQL as getStallingsduurSQL } from "~/backend/services/reports/stallingsduur";
 import { type ReportParams, type ReportType } from "~/components/beheer/reports/ReportsFilter";
 import { getData } from "~/backend/services/reports/ReportFunctions";
@@ -41,6 +42,22 @@ const ReportService = {
       const sql = getBezettingsdataSQL(params); // , queryParams
       if (!sql) {
         console.error("No result from getBezettingsdataSQL");
+        return false;
+      }
+      const data = await getData(sql, params);
+
+      return data;
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+  },
+
+  getAbsoluteBezettingData: async (params: ReportParams) => {
+    try {
+      const sql = getAbsoluteBezettingSQL(params); // , queryParams
+      if (!sql) {
+        console.error("No result from getAbsoluteBezettingSQL");
         return false;
       }
       const data = await getData(sql, params);

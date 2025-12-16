@@ -6,8 +6,8 @@ import CacheUpdateComponent from './CacheUpdate';
 import PagesFaqUpdateComponent from './PagesFaqUpdate';
 import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
+import HelpdeskHandmatigIngesteldTableComponent from './HelpdeskHandmatigIngesteldTable';
 import OrphanedSectionsCleanup from './OrphanedSectionsCleanup';
-// import OrphanedTarievenCleanup from './OrphanedTarievenCleanup';
 
 interface DatabaseComponentProps {
   firstDate: Date;
@@ -52,8 +52,8 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
       <CacheUpdateComponent />
       <PagesFaqUpdateComponent />
       <OrphanedSectionsCleanup />
-      {/* <OrphanedTarievenCleanup /> */}
       <UserStatusTableComponent />
+      <HelpdeskHandmatigIngesteldTableComponent />
       <UserContactRoleTableComponent />
       <CacheTableComponent
         title="Transactie cache tabel"

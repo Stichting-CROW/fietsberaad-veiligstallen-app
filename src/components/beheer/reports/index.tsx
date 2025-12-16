@@ -8,6 +8,7 @@ import ReportsFilterComponent, {
   type ReportsFilterHandle,
   getAvailableReports
 } from "./ReportsFilter";
+import { type SeriesLabel } from "./WeekdaySelect";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import { getStartEndDT } from "./ReportsDateFunctions";
@@ -20,7 +21,81 @@ import type { VSContactGemeente } from "~/types/contacts";
 import Chart from './Chart';
 import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
-import { getXAxisFormatter } from "~/backend/services/reports/ReportAxisFunctions";
+import { getXAxisFormatter, getTooltipFormatter } from "~/backend/services/reports/ReportAxisFunctions";
+import { useRouter } from "next/router";
+
+// Color palette for chart series - using a diverse set of colors
+const CHART_COLORS = [
+  '#008FFB', // Blue
+  '#00E396', // Green
+  '#FEB019', // Orange
+  '#FF4560', // Red
+  '#775DD0', // Purple
+  '#3F51B5', // Indigo
+  '#03A9F4', // Light Blue
+  '#4CAF50', // Green
+  '#FF9800', // Orange
+  '#9C27B0', // Purple
+  '#E91E63', // Pink
+  '#00BCD4', // Cyan
+  '#8BC34A', // Light Green
+  '#FFC107', // Amber
+  '#795548', // Brown
+  '#607D8B', // Blue Grey
+  '#9E9E9E', // Grey
+  '#F44336', // Red
+  '#2196F3', // Blue
+  '#009688', // Teal
+];
+
+/**
+ * Generates a consistent color for a series name using a hash function
+ * This ensures the same series name always gets the same color
+ */
+const getColorForSeriesName = (name: string): string => {
+  // Simple hash function to convert string to number
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    const char = name.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Use absolute value and modulo to get index in color array
+  const colorIndex = Math.abs(hash) % CHART_COLORS.length;
+  return CHART_COLORS[colorIndex] ?? CHART_COLORS[0]!;
+};
+
+// Normalize series name to a "color key" so related series can share a color
+const getColorKeyForSeries = (name: string, reportType?: ReportType): string => {
+  if (reportType === 'absolute_bezetting') {
+    // For absolute_bezetting we have "<Title> - Capaciteit" and "<Title> - Bezetting"
+    // -> strip the suffix so both series for the same stalling share the same color
+    return name.replace(/ - (Capaciteit|Bezetting)$/i, '');
+  }
+  return name;
+};
+
+// Mapping between URL slugs and report types
+export const CHART_TYPE_MAP: Record<string, ReportType> = {
+  'afgeronde-transacties': 'transacties_voltooid',
+  'procentuele-bezetting': 'bezetting',
+  'absolute-bezetting': 'absolute_bezetting',
+  'stallingsduur': 'stallingsduur',
+};
+
+export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
+  'transacties_voltooid': 'afgeronde-transacties',
+  'bezetting': 'procentuele-bezetting',
+  'absolute_bezetting': 'absolute-bezetting',
+  'stallingsduur': 'stallingsduur',
+  'inkomsten': 'inkomsten',
+  'abonnementen': 'abonnementen',
+  'abonnementen_lopend': 'abonnementen_lopend',
+  'volmeldingen': 'volmeldingen',
+  'gelijktijdig_vol': 'gelijktijdig_vol',
+  'downloads': 'downloads',
+};
 
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
@@ -30,6 +105,7 @@ interface ReportComponentProps {
   error?: string;
   warning?: string;
   onDataLoaded?: (hasReportData: boolean) => void;
+  initialReportType?: ReportType;
 }
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
@@ -40,8 +116,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   error,
   warning,
   onDataLoaded,
+  initialReportType,
 }) => {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const [errorState, setErrorState] = useState(error);
   const [warningState, setWarningState] = useState(warning);
@@ -58,8 +136,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     () => getAvailableReports(showAbonnementenRapporten),
     [showAbonnementenRapporten]
   );
-  const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(undefined);
+  const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+
+  // Update selectedReportType when initialReportType changes (e.g., from URL)
+  useEffect(() => {
+    if (initialReportType) {
+      setSelectedReportType(initialReportType);
+    }
+  }, [initialReportType]);
 
   const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
     filterComponentRef.current?.applyPreset(preset);
@@ -103,6 +188,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               startDT,
               endDT,
               fillups: filterState.fillups,
+              source: filterState.source,
               dayBeginsAt: gemeenteInfo?.DayBeginsAt
             }
           }),
@@ -113,10 +199,19 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           throw new Error(`Error: ${response.statusText}`);
         }
         const data = await response.json();
+
+        // Validate shape before using it
+        if (!data || !Array.isArray(data.series)) {
+          setReportData(undefined);
+          setErrorState("Geen geldige rapportdata ontvangen");
+          onDataLoaded && onDataLoaded(false);
+          return;
+        }
+
         setReportData(data);
         setErrorState("");
         
-        const hasReportData = data.series.some((series: any) => series.data.length > 0);
+        const hasReportData = data.series.some((series: any) => Array.isArray(series.data) && series.data.length > 0);
         onDataLoaded && onDataLoaded(hasReportData);
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
@@ -145,6 +240,16 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     // Only check waht bikeparks have data if a start and end time are set
     if (!filterState) return;
 
+    // Skip API call for report types that don't support availableDataPerBikepark
+    // getSQLPerBikepark only supports: "inkomsten", "stallingsduur", "transacties_voltooid", "bezetting", "absolute_bezetting"
+    const supportedReportTypes = ["inkomsten", "stallingsduur", "transacties_voltooid", "bezetting", "absolute_bezetting"];
+    if (filterState.reportType && !supportedReportTypes.includes(filterState.reportType)) {
+      // For unsupported types, use all bikeparks directly
+      setBikeparksWithData(bikeparks);
+      setErrorState(""); // Clear any previous error
+      return;
+    }
+
     // Get start date and end date from filterState
     const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
 
@@ -154,11 +259,6 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       if (undefined === filterState) {
         return;
       }
-
-      // Only fetch bikeparks with data if the report type is 'bezetting'
-      // if (filterState.reportType !== 'bezetting') {
-      //   return;
-      // }
 
       try {
         const apiEndpoint = "/api/protected/database/availableDataPerBikepark";
@@ -182,8 +282,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         const data = await response.json() as AvailableDataDetailedResult[] | false;
         if (data) {
           setBikeparksWithData(bikeparks.filter(bp => data.map(d => d.locationID).includes(bp.StallingsID||"")));
+          setErrorState(""); // Clear error on success
         } else {
-          setErrorState("Unable to fetch list of bikeparks with data");
+          // API returned false - this is expected for unsupported report types
+          // Don't set error, just use all bikeparks
+          setBikeparksWithData(bikeparks);
+          setErrorState("");
         }
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
@@ -246,22 +350,26 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     );
   }
 
-  const showReportParams = false; // used for debugging / testing
-
   const handleReportTypeClick = (reportId: ReportType) => {
     if (reportId === selectedReportType) {
       return;
     }
     setSelectedReportType(reportId);
+    
+    // Navigate to the new URL path
+    const chartTypeSlug = REVERSE_CHART_TYPE_MAP[reportId];
+    if (chartTypeSlug) {
+      router.push(`/beheer/report/${chartTypeSlug}`);
+    }
   };
 
   return (
-    <div className="noPrint w-full h-full" id="ReportComponent">
+    <div className="noPrint w-full h-full flex flex-col container mx-auto" id="ReportComponent">
       <div className="flex w-full mb-4">
         {selectedReportType && (
           <div className="flex-1 mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">
-              {availableReports.find(r => r.id === selectedReportType)?.title || selectedReportType}
+              Rapportage {gemeenteInfo?.CompanyName || ''}
             </h2>
           </div>
         )}
@@ -275,179 +383,188 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           />
         </div>
       </div>
-      <div className="flex h-full w-full flex-col md:flex-row">
-        <aside className="hidden md:flex md:w-64 md:flex-col md:gap-4 md:md:mr-6 md:py-6">
-          <nav className="flex flex-col gap-1">
-            {availableReports.map((report) => {
-              const isActive = report.id === selectedReportType;
-              return (
-                <button
-                  key={report.id}
-                  type="button"
-                  onClick={() => handleReportTypeClick(report.id as ReportType)}
-                  className={`rounded-md px-4 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700 font-semibold"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {report.title}
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+      <div className="flex w-full flex-1 flex-col">
         <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-white rounded-md border border-gray-300">
           <div className="flex flex-col space-y-2 h-full">
 
-        {/* <div className="flex-none">
-          <GemeenteFilter
-            gemeenten={gemeenten}
-            users={users}
-            onFilterChange={setFilteredGemeenten}
-            showStallingenFilter={true}
-            showUsersFilter={true}
-            showExploitantenFilter={true}
-          />
-        </div> */}
+            {/* <div className="flex-none">
+              <GemeenteFilter
+                gemeenten={gemeenten}
+                users={users}
+                onFilterChange={setFilteredGemeenten}
+                showStallingenFilter={true}
+                showUsersFilter={true}
+                showExploitantenFilter={true}
+              />
+            </div> */}
 
-        <div className="flex-none">
-          <ReportsFilterComponent
-            ref={filterComponentRef}
-            showAbonnementenRapporten={showAbonnementenRapporten}
-            firstDate={firstDate}
-            lastDate={lastDate}
-            bikeparks={bikeparksWithData}
-            activeReportType={selectedReportType}
-            onStateChange={handleFilterChange}
-          />
-        </div>
-
-        <div className="flex-none flex flex-col space-y-2">
-          {errorState && <div style={{ color: "red", fontWeight: "bold" }}>{errorState}</div>}
-          {warningState && <div style={{ color: "orange", fontWeight: "bold" }}>{warningState}</div>}
-        </div>
-
-        {loading ? (
-          <div className="flex-grow flex items-center justify-center">
-            <div className="spinner">
-              <div className="loader"></div>
+            <div className="flex-none">
+              <ReportsFilterComponent
+                ref={filterComponentRef}
+                showAbonnementenRapporten={showAbonnementenRapporten}
+                firstDate={firstDate}
+                lastDate={lastDate}
+                bikeparks={bikeparksWithData}
+                activeReportType={selectedReportType}
+                onStateChange={handleFilterChange}
+              />
             </div>
-          </div>
-        ) : (
-          <div className="flex-grow min-h-0">
-            {reportData ? (
-              <div className="w-full h-full">
-                <Chart
-                  type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
-                  options={{
-                    chart: {
-                      id: `line-chart-${Math.random()}`,//https://github.com/apexcharts/react-apexcharts/issues/349#issuecomment-966461811
-                      stacked: filterState?.reportType === 'stallingsduur' ? true : false,
-                      zoom: {
-                        enabled: false
-                      },
-                      // toolbar: {
-                      //   show: true
-                      // },
-                      toolbar: {
-                        show: true,
-                        tools: {
-                          download: '<img src="https://dashboarddeelmobiliteit.nl/components/StatsPage/icon-download-to-csv.svg" class="ico-download" width="20">',
-                          selection: true,
-                          zoom: true,
-                          zoomin: true,
-                          zoomout: true,
-                          pan: true,
-                          reset: '<img src="/static/icons/reset.png" width="20">',
-                          customIcons: []
-                        },
-                        export: {
-                          csv: {
-                            filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
-                          },
-                          svg: {
-                            filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
-                          },
-                          png: {
-                            filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
-                          }
-                        },
-                        autoSelected: 'zoom'
-                      },
-                      animations: {
-                        enabled: false
-                      }
-                    },
-                    responsive: [{
-                      breakpoint: undefined,
-                      options: {},
-                    }],
-                    dataLabels: {
-                      enabled: false,
-                    },
-                    stroke: {
-                      curve: 'straight',
-                      width: 3,
-                    },
-                    title: {
-                      text: reportData.title || '',
-                      align: 'left'
-                    },
-                    grid: {
-                      borderColor: '#e7e7e7',
-                      row: {
-                        colors: ['#f3f3f3', 'transparent'],
-                        opacity: 0.5
-                      },
-                    },
-                    markers: {
-                    },
-                    xaxis: {
-                      type: 'categories',
-                      labels: {
-                        formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
-                        datetimeUTC: false
-                      },
-                      title: {
-                        text: reportData.options?.xaxis?.title?.text || 'Time',
-                        align: 'left'
-                      }
-                    },
-                    yaxis: reportData.options?.yaxis || {
-                      title: {
-                        text: 'Aantal afgeronde transacties'
-                      },
-                    },
-                    legend: {
-                      position: 'top',
-                      horizontalAlign: 'center',
-                      floating: false,
-                      // offsetY: 25,
-                    },
-                    tooltip: {
-                      enabled: true,
-                      shared: true,
-                      intersect: false,
-                      followCursor: true,
-                      // x: {
-                      //   format: 'dd MMM yyyy HH:mm'
-                      // },
-                      // y: {
-                      //   formatter: (value: number) => value.toFixed(2)
-                      // }
-                    }
-                  }}
-                  series={reportData.series}
-                />
+
+            <div className="flex-none flex flex-col space-y-2">
+              {errorState && <div style={{ color: "red", fontWeight: "bold" }}>{errorState}</div>}
+              {warningState && <div style={{ color: "orange", fontWeight: "bold" }}>{warningState}</div>}
+            </div>
+
+            {loading ? (
+              <div className="flex-grow flex items-center justify-center">
+                <div className="spinner">
+                  <div className="loader"></div>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
-                No data available yet
+              <div className="flex-grow min-h-0">
+                {reportData ? (
+                  <div className="w-full h-full">
+                    {(() => {
+                        const filteredSeries = reportData.series
+                          .filter(series => {
+                            // For bezetting reports, filter by selectedSeries
+                            if (filterState?.reportType === 'bezetting' && filterState?.selectedSeries) {
+                              return filterState.selectedSeries.includes(series.name as SeriesLabel);
+                            }
+                            return true;
+                          })
+                          .map(series => ({
+                            ...series,
+                            color: getColorForSeriesName(
+                              getColorKeyForSeries(series.name, filterState?.reportType)
+                            )
+                          }));
+
+                        return (
+                          <Chart
+                            type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
+                            options={{
+                              chart: {
+                                id: `line-chart-${Math.random()}`,//https://github.com/apexcharts/react-apexcharts/issues/349#issuecomment-966461811
+                                stacked: false,
+                                zoom: {
+                                  enabled: false
+                                },
+                                // toolbar: {
+                                //   show: true
+                                // },
+                                toolbar: {
+                                  show: true,
+                                  tools: {
+                                    download: '<img src="https://dashboarddeelmobiliteit.nl/components/StatsPage/icon-download-to-csv.svg" class="ico-download" width="20">',
+                                    selection: true,
+                                    zoom: true,
+                                    zoomin: true,
+                                    zoomout: true,
+                                    pan: true,
+                                    reset: '<img src="/static/icons/reset.png" width="20">',
+                                    customIcons: []
+                                  },
+                                  export: {
+                                    csv: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    },
+                                    svg: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    },
+                                    png: {
+                                      filename: `${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`,
+                                    }
+                                  },
+                                  autoSelected: 'zoom'
+                                },
+                                animations: {
+                                  enabled: false
+                                }
+                              },
+                              colors: reportData.series.map(series =>
+                                getColorForSeriesName(
+                                  getColorKeyForSeries(series.name, filterState?.reportType)
+                                )
+                              ),
+                              responsive: [{
+                                breakpoint: undefined,
+                                options: {},
+                              }],
+                              dataLabels: {
+                                enabled: false,
+                              },
+                              stroke: {
+                                curve: 'straight',
+                                width: 3,
+                                dashArray: 0
+                              },
+                              title: {
+                                text: reportData.title || '',
+                                align: 'left'
+                              },
+                              grid: {
+                                borderColor: '#e7e7e7',
+                                row: {
+                                  colors: ['#f3f3f3', 'transparent'],
+                                  opacity: 0.5
+                                },
+                              },
+                              markers: {
+                                size: 4,
+                                hover: {
+                                  size: 6
+                                }
+                              },
+                              xaxis: {
+                                type: 'categories',
+                                categories: reportData.options?.xaxis?.categories,
+                                labels: {
+                                  formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
+                                  datetimeUTC: false
+                                },
+                                title: {
+                                  text: reportData.options?.xaxis?.title?.text || 'Time',
+                                  align: 'left'
+                                }
+                              },
+                              yaxis: reportData.options?.yaxis || {
+                                title: {
+                                  text: 'Aantal afgeronde transacties'
+                                },
+                              },
+                              legend: {
+                                position: 'top',
+                                horizontalAlign: 'center',
+                                floating: false,
+                                // offsetY: 25,
+                              },
+                              tooltip: {
+                                enabled: true,
+                                shared: filteredSeries.length <= 5,
+                                intersect: filteredSeries.length > 5,
+                                followCursor: true,
+                                x: {
+                                  formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
+                                },
+                                // y: {
+                                //   formatter: (value: number) => value.toFixed(2)
+                                // }
+                              }
+                            }}
+                            series={filteredSeries}
+                          />
+                        );
+                      })()}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    Geen data beschikbaar
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
           </div>
         </div>
       </div>
