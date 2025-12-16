@@ -518,8 +518,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 }
                               },
                               xaxis: {
-                                type: 'categories',
-                                // categories: reportData.options?.xaxis?.categories,
+                                // Respect backend-provided axis type/categories; fallback to categories.
+                                ...(reportData.options?.xaxis || { type: 'categories' }),
                                 labels: {
                                   formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                                   datetimeUTC: false
