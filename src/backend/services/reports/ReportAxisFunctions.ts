@@ -20,35 +20,39 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
   }
 }
 
-export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
+export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (val: string | number) => {
+  const value = String(val);
+  const ms = Number(value);
+
   switch (reportGrouping) {
     case 'per_hour_time': {
-      return moment(value).format('DD MMM HH:00');
+      return moment(ms).format('DD MMM HH:00');
     }
     case 'per_quarter_hour': {
-      return moment(value).format('DD MMM HH:mm');
+      return moment(ms).format('DD MMM HH:mm');
     }
     case 'per_hour': {
       // Value is a timestamp in milliseconds, convert to hour format "HH:00"
-      return moment(parseFloat(value)).format('HH:00');
+      return moment(ms).format('HH:00');
     }
     case 'per_weekday': {
       return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
     }
     case 'per_day': {
-      return moment(value).format('YYYY-MM-DD');
+      return moment(ms).format('YYYY-MM-DD');
     }
     case 'per_month': {
-      return moment(value).format('YYYY-M');
+      return moment(ms).format('YYYY-M');
     }
     case 'per_week': {
-      return moment(value).format('YYYY-\\wW');
+      // Format as "2025-W02"
+      return moment(ms).format('YYYY-[W]WW');
     }
     case 'per_quarter': {
-      return moment(value).format('YYYY-Q');
+      return moment(ms).format('YYYY-Q');
     }
     case 'per_year': {
-      return moment(value).format('YYYY');
+      return moment(ms).format('YYYY');
     }
     case 'per_bucket': {
       //   const buckets = [
@@ -207,6 +211,7 @@ export const getCategoriesForXAxis = (labels: XAxisLabelMap): string[] => {
  * Get tooltip formatter for chart tooltips
  * Adds day of week (in Dutch) for quarter hours, hours, and days
  */
+// THIS IS WORKING -> Apply to getXAxisFormatter to get the correct formatter for the x-axis
 export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
   // Dutch day abbreviations
   const dayAbbreviations = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
