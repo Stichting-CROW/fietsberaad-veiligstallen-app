@@ -174,6 +174,7 @@ export const getNewStallingDefaultRecord = async (
     DateCreated: new Date(),
     DateModified: new Date(),
     ExploitantID: "1",
+    HelpdeskHandmatigIngesteld: false,
   }
 
   return data

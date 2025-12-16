@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import DatabaseService, { type CacheParams, type UserContactRoleParams, type UserStatusParams } from "~/backend/services/database-service";
+import DatabaseService, { type CacheParams, type UserContactRoleParams, type UserStatusParams, type HelpdeskHandmatigIngesteldParams } from "~/backend/services/database-service";
 import ReportService from "~/backend/services/reports-service";
 import { type ReportType, reportTypeValues } from "~/components/beheer/reports/ReportsFilter";
 import { z } from "zod";
@@ -12,6 +12,12 @@ const dateSchema = z.string().datetime();
 const UserStatusParamsSchema = z.object({
   databaseParams: z.object({
     action: z.enum(['clear', 'rebuild', 'status', 'createtable', 'droptable', 'update']),
+  }),
+});
+
+const HelpdeskHandmatigIngesteldParamsSchema = z.object({
+  databaseParams: z.object({
+    action: z.enum(['status', 'createtable', 'droptable', 'update']),
   }),
 });
 
@@ -75,6 +81,25 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
           const params = parseResult.data.databaseParams as unknown as UserStatusParams;
           const result = await DatabaseService.manageUserStatusTable(params);
+          return res.json(result);
+        }
+        case "helpdeskhandmatigingesteld": {
+          if (!hasDatabase) {
+            console.error("Access denied - insufficient permissions for database operations");
+            res.status(403).json({error: "Access denied - insufficient permissions"}); // Forbidden
+            return;
+          }
+
+          const parseResult = HelpdeskHandmatigIngesteldParamsSchema.safeParse(req.body);
+          if (!parseResult.success) {
+            return res.status(400).json({
+              error: "Invalid parameters",
+              details: parseResult.error.errors
+            });
+          }
+
+          const params = parseResult.data.databaseParams as unknown as HelpdeskHandmatigIngesteldParams;
+          const result = await DatabaseService.manageHelpdeskHandmatigIngesteldField(params);
           return res.json(result);
         }
         case "usercontactrole": {
