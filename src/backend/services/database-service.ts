@@ -3,10 +3,12 @@ import { getBezettingCacheStatus, updateBezettingCache, clearBezettingCache, cre
 import { getStallingsduurCacheStatus, updateStallingsduurCache, clearStallingsduurCache, createStallingsduurCacheTable, dropStallingsduurCacheTable, createStallingsduurParentIndices, dropStallingsduurParentIndices } from "~/backend/services/database/StallingsduurCacheActions";
 import { getUserContactRoleTableStatus, updateUserContactRoleTable, clearUserContactRoleTable, createUserContactRoleTable, checkUserContactRoleTable,dropUserContactRoleTable } from "~/backend/services/database/UserContactTableActions";
 import { getUserStatusTableStatus, updateUserStatusTable, clearUserStatusTable, createUserStatusTable, dropUserStatusTable } from "~/backend/services/database/UserStatusTableActions";
+import { getHelpdeskHandmatigIngesteldStatus, updateHelpdeskHandmatigIngesteldField, createHelpdeskHandmatigIngesteldField, dropHelpdeskHandmatigIngesteldField } from "~/backend/services/database/HelpdeskHandmatigIngesteldTableActions";
 
 export type CacheActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status' | 'createparentindices' | 'dropparentindices';
 export type UserContactRoleActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status' | 'checktable';
 export type UserStatusActions = 'update' | 'clear' | 'createtable' | 'droptable' | 'status';
+export type HelpdeskHandmatigIngesteldActions = 'update' | 'createtable' | 'droptable' | 'status';
 
 export interface CacheResult {
   success: boolean;
@@ -63,6 +65,21 @@ export interface UserStatusResult {
 }
 
 export interface UserStatusStatus {
+  status: 'missing' | 'available' | 'error';
+  size: number | undefined;
+}
+
+export interface HelpdeskHandmatigIngesteldParams {
+  action: HelpdeskHandmatigIngesteldActions;
+}
+
+export interface HelpdeskHandmatigIngesteldResult {
+  success: boolean;
+  message: string;
+  status?: HelpdeskHandmatigIngesteldStatus | false;
+}
+
+export interface HelpdeskHandmatigIngesteldStatus {
   status: 'missing' | 'available' | 'error';
   size: number | undefined;
 }
@@ -223,6 +240,28 @@ const DatabaseService = {
       }
       case 'droptable': {
         const status = await dropUserStatusTable(params);
+        return { success: status!==undefined, message: "", status };
+      }
+      default: {
+        return { success: false, message: "Invalid action" };
+      }
+    }
+  },
+  manageHelpdeskHandmatigIngesteldField: async (params: HelpdeskHandmatigIngesteldParams): Promise<HelpdeskHandmatigIngesteldResult> => {
+    switch (params.action) {
+      case 'status':
+        const status = await getHelpdeskHandmatigIngesteldStatus(params);
+        return { success: status!==undefined, message: "", status };
+      case 'update': {
+        const status = await updateHelpdeskHandmatigIngesteldField(params);
+        return { success: status!==undefined, message: "", status };
+      }
+      case 'createtable': {  
+        const status = await createHelpdeskHandmatigIngesteldField(params);
+        return { success: status!==undefined, message: "", status };
+      }
+      case 'droptable': {
+        const status = await dropHelpdeskHandmatigIngesteldField(params);
         return { success: status!==undefined, message: "", status };
       }
       default: {

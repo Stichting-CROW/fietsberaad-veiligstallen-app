@@ -1,6 +1,8 @@
 # App updates VeiligStallen
 
-## VeiligStallen 2025-12-xx
+## VeiligStallen 2025-12-16
+
+- op verschillende plekken verbeterde opmaak
 
 **Stalling-beheer / Tarieven**
 
@@ -35,6 +37,27 @@
   - Add Abonnementen tab to parkingedit
 
 **Rapportage**
+- **Absolute Bezetting Grafiek**
+  - Nieuw grafiektype voor absolute bezetting visualisatie
+  - Databron selector toegevoegd
+  - Floating point problemen opgelost (retourneert nu integers)
+  - Onthoudt laatst geselecteerde stalling
+  - "No bikeparks found" fout opgelost
+  - Toon alleen stallingen met transactiedata voor absolute bezetting grafiek
+  - Meerdere stallingen selecteren mogelijk
+  - 'Kwartier' en 'uur' opties toegevoegd
+  - 'Capaciteit' als gestippelde lijn weergegeven
+  - Altijd "Uur" en "Kwartier" opties tonen voor absolute bezetting
+  - Gedeelde tooltip voor <= 5 series
+  - Eén kleur voor 2 lijnen van dezelfde stalling
+  - Geen gestippelde lijn voor "Capaciteit" serie
+
+- **Aanvullende Grafiek Verbeteringen** (niet gedocumenteerd in RELEASES.md)
+  - URL voor elk grafiektype
+  - Weekdag toevoegen aan uur/dag x-as
+  - Zoekbalk toegevoegd aan BikeparkSelect
+  - Grafiektypen als submenu van "Rapportage" in linkermenu
+  - Tooltip titels van Stallingsduur grafiek gefixt
 
 - ✨ Nieuwe grafiek: absolute bezetting
 - ✨ Bij grafiek 'procentuele bezetting' is er de nieuwe filteroptie "Weekdagen"
@@ -46,6 +69,36 @@
 - 🖌️ In de filters bovenin staat nu duidelijk de gekozen selectieoptie
 - 🖌️ Balkgrafiek stallingsduur heeft nu kolombalken in plaats van samengestelde balk
 - 🖌️ Diverse andere gebruikerservaringsverbeteringen voor Rapportage-grafieken
+
+- **Overzichten tbv testen**
+  - **Transacties overzicht**
+    - Nieuw overzicht dat transactie overzicht functionaliteit
+
+  - **Synchronisatie overzicht**
+    - Nieuw overzicht dat controles (systeemchecks/validaties) toont
+
+  - **Fietsenstalling Helpdesk Overzicht**
+    - nieuw overzicht dat de beheerder tekst en link toont voor fietsenstallingen
+
+## 🎨 UI/UX Verbeteringen
+
+### Content & Formulieren
+- Verbeterde content component
+- Verbeterde form input component
+
+### Tracking
+- **Matomo site tracking code**
+  - Matomo analytics tracking toegevoegd
+
+## 🗄️ Database & Schema
+
+### Prisma Schema
+- Bijgewerkt Prisma schema (inclusief `HelpdeskHandmatigIngesteld` veld)
+- Een aantal relaties opgeschoond / aangescherpt
+
+### Configuratie Bestanden
+- Bijgewerkt environment voorbeeld bestand
+- Bijgewerkt gitignore
 
 ## VeiligStallen 2025-11-20
 

@@ -97,6 +97,7 @@ export type ParkingDetailsType = {
     FMS: boolean | null; // Check if/how this is still used
     Beheerder: string | null,
     BeheerderContact: string | null,
+    HelpdeskHandmatigIngesteld: boolean | null,
     OmschrijvingTarieven: string | null;
     IsStationsstalling: boolean; // not used in the app
     IsPopup: boolean; // not used in the app
@@ -150,7 +151,12 @@ export type ParkingDetailsType = {
     //     conditionsID: string
     // }[]
     // },
-    exploitant?: {
+    contacts_fietsenstallingen_SiteIDTocontacts?: {
+      ID: string,
+      Helpdesk: string,
+      CompanyName: string,
+    },
+    contacts_fietsenstallingen_ExploitantIDTocontacts?: {
         ID: string,
         Helpdesk: string,
         CompanyName: string,
@@ -204,6 +210,7 @@ export const selectParkingDetailsType = {
   FMS: true, // Check if/how this is still used
   Beheerder: true,
   BeheerderContact: true,
+  HelpdeskHandmatigIngesteld: true,
   OmschrijvingTarieven: true,
   IsStationsstalling: true,
   IsPopup: true,
@@ -275,7 +282,14 @@ export const selectParkingDetailsType = {
         // }
       }
     },
-    exploitant: {
+    contacts_fietsenstallingen_SiteIDTocontacts: {
+      select: {
+        ID: true,
+        CompanyName: true,
+        Helpdesk: true,
+      }
+    },
+    contacts_fietsenstallingen_ExploitantIDTocontacts: {
       select: {
         ID: true,
         Helpdesk: true,

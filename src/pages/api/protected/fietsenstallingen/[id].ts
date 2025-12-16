@@ -207,6 +207,7 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
       reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
       // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
       thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
+      HelpdeskHandmatigIngesteld: parsed.HelpdeskHandmatigIngesteld ?? false,
     }
 
     const newFietsenstalling = await prisma.fietsenstallingen.create({data: newData, select: selectParkingDetailsType}) as unknown as ParkingDetailsType;
@@ -477,6 +478,7 @@ export default async function handle(
             reservationCostPerDay: parsed.reservationCostPerDay ?? undefined,
             // wachtlijst_Id: parsed.wachtlijst_Id ?? undefined,
             thirdPartyReservationsUrl: parsed.thirdPartyReservationsUrl ?? undefined,
+            HelpdeskHandmatigIngesteld: parsed.HelpdeskHandmatigIngesteld ?? undefined,
           };
         } else {
           // Beperkt users can only update specific fields
