@@ -2,8 +2,8 @@ name: Daily cache update (Production)
 
 on:
   # schedule:
-  #   # Run daily at 03:30 UTC (30 minutes after acceptance for safety)
-  #   - cron: "30 3 * * *"
+  #   # Run daily at 03:00 UTC
+    - cron: "0 3 * * *"
   # Allow manual triggering from GitHub Actions UI
   workflow_dispatch:
     inputs:
