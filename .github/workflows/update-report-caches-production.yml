@@ -65,10 +65,13 @@ jobs:
             echo "success=$SUCCESS" >> "$GITHUB_OUTPUT"
           fi
           
-          # Persist the full JSON response for debugging
-          echo "response<<RESPONSE_EOF" >> "$GITHUB_OUTPUT"
-          cat "$RESP" >> "$GITHUB_OUTPUT"
-          echo "RESPONSE_EOF" >> "$GITHUB_OUTPUT"
+          # Persist the full JSON response for debugging (base64 encoded to avoid delimiter issues)
+          if [ -s "$RESP" ]; then
+            RESPONSE_B64=$(base64 -w 0 < "$RESP" || base64 < "$RESP")
+            echo "response_b64=$RESPONSE_B64" >> "$GITHUB_OUTPUT"
+          else
+            echo "response_b64=" >> "$GITHUB_OUTPUT"
+          fi
           
         env:
           PROD_CACHE_UPDATE_BEARER_TOKEN: ${{ secrets.PROD_CACHE_UPDATE_BEARER_TOKEN }}
@@ -116,6 +119,11 @@ jobs:
         run: |
           echo "## Full API Response" >> "$GITHUB_STEP_SUMMARY"
           echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
-          echo '${{ steps.call.outputs.response }}' >> "$GITHUB_STEP_SUMMARY"
+          RESPONSE_B64="${{ steps.call.outputs.response_b64 }}"
+          if [ -n "$RESPONSE_B64" ]; then
+            echo "$RESPONSE_B64" | base64 -d >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "Failed to decode response" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No response available" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 
