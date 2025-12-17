@@ -614,9 +614,13 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                   // Map index -> label using the known categories to keep tooltip titles correct.
                                   formatter: (value: string | number, opts?: any) => {
                                     const cats = reportData.options?.xaxis?.categories ?? [];
-                                    if (typeof value === 'number' && cats[value] !== undefined) {
-                                      return String(cats[value]);
-                                    }
+                                      const idx = opts?.dataPointIndex ?? opts?.index;
+                                      if (typeof idx === 'number' && cats[idx] !== undefined) {
+                                        return String(cats[idx]);
+                                      }
+                                      if (typeof value === 'number' && cats[value] !== undefined) {
+                                        return String(cats[value]);
+                                      }
                                     return getTooltipFormatter(filterState?.reportGrouping || 'per_hour')(value, opts);
                                   }
                                 },
