@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { signIn } from "next-auth/react";
 
 type ValidateResponse =
   | { ok: true; user: { name: string; email: string } }
@@ -19,6 +20,7 @@ export default function WachtwoordInstellenPage() {
   const [userEmail, setUserEmail] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -78,6 +80,21 @@ export default function WachtwoordInstellenPage() {
         setError((json as any).error ?? "Wachtwoord instellen mislukt.");
         return;
       }
+
+      // Immediately log the user in with the new password.
+      setIsSigningIn(true);
+      const loginResult = await signIn("credentials", {
+        email: userEmail,
+        password,
+        redirect: false,
+      });
+      setIsSigningIn(false);
+
+      if (!loginResult?.ok) {
+        setError("Je wachtwoord is ingesteld, maar inloggen is mislukt. Probeer handmatig in te loggen.");
+        return;
+      }
+
       setSuccess(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Wachtwoord instellen mislukt.");
@@ -96,7 +113,15 @@ export default function WachtwoordInstellenPage() {
         </div>
       ) : success ? (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded" role="alert">
-          Je wachtwoord is ingesteld. Je kunt nu inloggen.
+          <div>Je wachtwoord is ingesteld. Je bent nu ingelogd.</div>
+          <div className="mt-4">
+            <a
+              href="/"
+              className="inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Verder naar VeiligStallen
+            </a>
+          </div>
         </div>
       ) : (
         <>
@@ -138,8 +163,9 @@ export default function WachtwoordInstellenPage() {
             <button
               type="submit"
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              disabled={isSigningIn}
             >
-              Wachtwoord instellen
+              {isSigningIn ? "Bezig met inloggen…" : "Wachtwoord instellen"}
             </button>
           </form>
         </>

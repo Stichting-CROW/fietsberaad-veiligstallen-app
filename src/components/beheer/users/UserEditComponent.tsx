@@ -57,6 +57,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const nameInputRef = useRef<HTMLInputElement>(null);
 
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
+    const [passwordSetupCooldown, setPasswordSetupCooldown] = useState(false);
 
     const roleOptions = Object.values(VSUserRoleValuesNew).map(role => ({
       label: getNewRoleLabel(role),
@@ -300,6 +301,10 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
     const handleSendPasswordSetupEmail = async () => {
+      if (passwordSetupCooldown) return;
+      setPasswordSetupCooldown(true);
+      window.setTimeout(() => setPasswordSetupCooldown(false), 5000);
+
       setErrorMessage(null);
       const response = await makeClientApiCall<{ ok: boolean; error?: string }>(
         `/api/protected/security_users/${id}/password-setup`,
@@ -540,7 +545,7 @@ ${session?.user?.email}`;
                 type="button"
                 onClick={handleSendPasswordSetupEmail}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                disabled={!hasLimitedAdminRight}
+                disabled={!hasLimitedAdminRight || passwordSetupCooldown}
               >
                 Laat gebruiker het wachtwoord kiezen
               </button>

@@ -19,6 +19,18 @@ const bodySchema = z.object({
   to: z.string().email().optional(),
 });
 
+function getBaseUrl(req: NextApiRequest) {
+  const proto =
+    (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() ??
+    (env.NEXTAUTH_URL.startsWith("https://") ? "https" : "http");
+  const host =
+    (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim() ??
+    req.headers.host ??
+    "";
+  if (!host) return env.NEXTAUTH_URL.replace(/\/$/, "");
+  return `${proto}://${host}`;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<PasswordSetupRequestResponse>,
@@ -75,7 +87,7 @@ export default async function handler(
     60 * 60 * 24,
   );
 
-  const setupUrl = `${env.NEXTAUTH_URL.replace(/\/$/, "")}/wachtwoord-instellen?token=${encodeURIComponent(token)}`;
+  const setupUrl = `${getBaseUrl(req)}/wachtwoord-instellen?token=${encodeURIComponent(token)}`;
 
   const subject = "Stel je wachtwoord in voor VeiligStallen";
   const initiatorName = session.user.name ?? "";
