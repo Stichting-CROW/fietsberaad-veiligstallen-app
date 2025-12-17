@@ -610,7 +610,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 intersect: filteredSeries.length > 5,
                                 followCursor: true,
                                 x: {
-                                  formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
+                                  // Note: ApexCharts can pass the category *index* as `value` in category mode.
+                                  // Map index -> label using the known categories to keep tooltip titles correct.
+                                  formatter: (value: string | number, opts?: any) => {
+                                    const cats = reportData.options?.xaxis?.categories ?? [];
+                                    if (typeof value === 'number' && cats[value] !== undefined) {
+                                      return String(cats[value]);
+                                    }
+                                    return getTooltipFormatter(filterState?.reportGrouping || 'per_hour')(value, opts);
+                                  }
                                 },
                                 // y: {
                                 //   formatter: (value: number) => value.toFixed(2)

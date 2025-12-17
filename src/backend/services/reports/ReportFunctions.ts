@@ -7,7 +7,8 @@ import moment from "moment";
 
 export interface ReportSeriesData {
   name: string;
-  data: [number, number][];
+  // ApexCharts supports multiple shapes; for category-mode we return y-values aligned to xaxis.categories
+  data: number[];
 }
 
 export interface ReportData {
@@ -44,14 +45,14 @@ interface SingleResult {
 export const convertToTimegroupSeries = async (
   results: SingleResult[],
   params: ReportParams,
-  _keyToLabelMap: XAxisLabelMap
+  keyToLabelMap: XAxisLabelMap
 ): Promise<ReportSeriesData[]> => {
   let series: ReportSeriesData[] = [];
 
   const categoryNames = await getCategoryNames(params);
 
-  // Get all unique timegroups
-  const allTimegroups = [...new Set(results.map(tx => tx.TIMEGROUP.toString()))];
+  // Use x-axis keys as the canonical ordering (this also makes "fillups" deterministic)
+  const xKeys = Object.keys(keyToLabelMap);
 
   const groupedByCategory = results.reduce((
     acc: Record<string, { name: string; data: Record<string, number> }>, tx: SingleResult) => {
@@ -63,9 +64,9 @@ export const convertToTimegroupSeries = async (
         data: {}
       };
       
-      // Initialize all timegroups with zero
+      // Initialize all timegroups with zero (fillups)
       const categoryData = acc[category].data;
-      allTimegroups.forEach(tg => {
+      xKeys.forEach(tg => {
         categoryData[tg] = 0;
       });
     }
@@ -76,49 +77,13 @@ export const convertToTimegroupSeries = async (
 
   // Convert to series format
   series = Object.values(groupedByCategory).map((stalling: { name: string; data: Record<string, number> }) => {
-    const dataPoints: [number, number][] = Object.entries(stalling.data).map(([timegroup, value]) => {
-      // Convert timegroup to timestamp based on the grouping type
-      let timestamp;
-      if (params.reportGrouping === 'per_hour') {
-        timestamp = moment().hour(parseInt(timegroup)).valueOf();
-      } else if (params.reportGrouping === 'per_hour_time') {
-        timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
-      } else if (params.reportGrouping === 'per_quarter_hour') {
-        timestamp = moment(timegroup, 'YYYY-MM-DD HH:mm').valueOf();
-      } else if (params.reportGrouping === 'per_weekday') {
-        timestamp = moment().day(parseInt(timegroup)).valueOf();
-      } else if (params.reportGrouping === 'per_day') {
-        timestamp = moment(timegroup, 'YYYY-DDD').valueOf();
-      } else if (params.reportGrouping === 'per_month') {
-        timestamp = moment(timegroup, 'YYYY-M').valueOf();
-      } else if (params.reportGrouping === 'per_week') {
-        // TIMEGROUP comes from DATE_FORMAT(..., '%x-%v') => "YYYY-WW"
-        timestamp = moment(timegroup, 'YYYY-WW').valueOf();
-      } else if (params.reportGrouping === 'per_quarter') {
-        timestamp = moment(timegroup, 'YYYY-Q').valueOf();
-      } else if (params.reportGrouping === 'per_year') {
-        timestamp = moment(timegroup, 'YYYY').valueOf();
-      } else if (params.reportGrouping === 'per_bucket') {
-        timestamp = parseInt(timegroup);
-      } else {
-        timestamp = moment(timegroup).valueOf();
-      }
-
-      if (timestamp === null) {
-        console.warn("++++++ convertToTimegroupSeries - timestamp is null ++++++", timestamp, timegroup);
-      }
-
-      return [Number(timestamp), Number(value)];
-    });
-
-    // IMPORTANT: ensure the line connects left->right chronologically
-    dataPoints.sort((a, b) => a[0] - b[0]);
+    // Category mode: return y-values in the same order as xaxis.categories
+    const dataPoints: number[] = xKeys.map((timegroup) => Number(stalling.data[timegroup] ?? 0));
 
     return {
       name: categoryNames ? categoryNames.find(c => c.id === stalling.name)?.name || stalling.name : stalling.name,
-      data: dataPoints,
-      groups: Object.keys(stalling.data)
-    }
+      data: dataPoints
+    };
   });
 
   return series;
@@ -299,13 +264,15 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
       // title: getReportTitle(params.reportType),
       options: {
         xaxis: {
-          type: ['per_bucket', 'per_weekday'].includes(params.reportGrouping) ? 'categories' : 'datetime',
-          categories: Object.values(keyToLabelMap),
+          // Always use category mode so labels come from categories and don't repeat due to datetime tick generation
+          type: 'category',
+          // Use display labels in order; series are aligned to the same key order
+          categories: Object.keys(keyToLabelMap).map((k) => keyToLabelMap[k] ?? k),
           title: {
             text: getXAxisTitle(params.reportGrouping),
             align: 'left'
           },
-          tickAmount: Object.keys(keyToLabelMap).length > 25 ? 25 : Object.keys(keyToLabelMap).length
+          // tickAmount: Object.keys(keyToLabelMap).length > 25 ? 25 : Object.keys(keyToLabelMap).length
         },
         yaxis: {
           title: {
