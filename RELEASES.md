@@ -1,8 +1,23 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-12-17
+
+**Rapportage**
+
+Rapportage: Absolute bezetting grafiek
+
+- Twee lijnen van dezelfde stalling hebben nu dezelfde kleur
+- Geen gestippelde lijn meer voor "Capaciteit"
+
+- Rapportage: Algemeen
+
+- Titel boven de grafiek is nu 'Type grafiek' in plaats van 'Data-eigenaar'
+- X-as toont juiste waardes
+- Elke nacht worden geaggregeerde datasets automatisch gegenereerd ('cache'), voor snel laden van de grafieken
+
 ## VeiligStallen 2025-12-16
 
-- op verschillende plekken verbeterde opmaak
+- Op verschillende plekken verbeterde opmaak
 
 **Stalling-beheer / Tarieven**
 
@@ -28,8 +43,6 @@
   - `useBikeTypes` - Voor ophalen van fietstypen
   - `useSectiesByFietsenstalling` - Voor ophalen van secties per stalling
 - Verwijderd: Deprecated `fietsenstallingen-service.ts` backend service
-
-## VeiligStallen 2025-xx-xx
 
 **Abonnementsvormen**
 
@@ -61,6 +74,7 @@
   - Grafiektypen als submenu van "Rapportage" in linkermenu
   - Tooltip titels van Stallingsduur grafiek gefixt
 
+- ✨ Nieuwe grafiek: absolute bezetting
 - ✨ Bij grafiek 'procentuele bezetting' is er de nieuwe filteroptie "Weekdagen"
 - ✨ Bij elke grafiek kun je nu de getoonde stallingen filteren
 - 🖌️ Grafiek heeft nu maximale breedte
@@ -69,6 +83,7 @@
 - 🖌️ Grafiektitel en paginatitels zijn duidelijker
 - 🖌️ In de filters bovenin staat nu duidelijk de gekozen selectieoptie
 - 🖌️ Balkgrafiek stallingsduur heeft nu kolombalken in plaats van samengestelde balk
+- 🖌️ Diverse andere gebruikerservaringsverbeteringen voor Rapportage-grafieken
 
 - **Overzichten tbv testen**
   - **Transacties overzicht**

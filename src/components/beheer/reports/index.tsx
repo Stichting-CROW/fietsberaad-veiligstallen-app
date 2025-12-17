@@ -139,6 +139,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
 
+  const selectedReportTitle = React.useMemo(() => {
+    if (!selectedReportType) return '';
+    return (
+      availableReports.find(r => r.id === selectedReportType)?.title ||
+      reportData?.title ||
+      ''
+    );
+  }, [availableReports, selectedReportType, reportData?.title]);
+
   // Update selectedReportType when initialReportType changes (e.g., from URL)
   useEffect(() => {
     if (initialReportType) {
@@ -165,6 +174,21 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     const fetchReportData = async () => {
       if (undefined === filterState) {
         return;
+      }
+
+      if (filterState.reportType === "absolute_bezetting") {
+        const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
+        const DAY_IN_MS = 24 * 60 * 60 * 1000;
+        const isValidPeriod = endDT >= startDT;
+        const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+        const MAX_DAYS_ABSOLUTE_BEZETTING = 14;
+
+        if (!isValidPeriod || periodInDays > MAX_DAYS_ABSOLUTE_BEZETTING) {
+          setReportData(undefined);
+          setWarningState(`Absolute bezetting is alleen beschikbaar als je maximaal ${MAX_DAYS_ABSOLUTE_BEZETTING} dagen selecteert.`);
+          onDataLoaded && onDataLoaded(false);
+          return;
+        }
       }
 
       setLoading(true);
@@ -210,6 +234,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
         setReportData(data);
         setErrorState("");
+        setWarningState("");
         
         const hasReportData = data.series.some((series: any) => Array.isArray(series.data) && series.data.length > 0);
         onDataLoaded && onDataLoaded(hasReportData);
@@ -369,7 +394,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         {selectedReportType && (
           <div className="flex-1 mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">
-              Rapportage {gemeenteInfo?.CompanyName || ''}
+              {selectedReportTitle}
             </h2>
           </div>
         )}
@@ -426,6 +451,24 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 {reportData ? (
                   <div className="w-full h-full">
                     {(() => {
+                        const shouldRenderAbsoluteBezettingChart = (() => {
+                          if (filterState?.reportType !== "absolute_bezetting") return true;
+                          const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
+                          const DAY_IN_MS = 24 * 60 * 60 * 1000;
+                          const isValidPeriod = endDT >= startDT;
+                          const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+                          const MAX_DAYS_ABSOLUTE_BEZETTING = 14;
+                          return isValidPeriod && periodInDays <= MAX_DAYS_ABSOLUTE_BEZETTING;
+                        })();
+
+                        if (!shouldRenderAbsoluteBezettingChart) {
+                          return (
+                            <div className="p-4 border border-orange-300 bg-orange-50 text-orange-800 rounded">
+                              De absolute bezetting grafiek wordt alleen getoond als je maximaal 14 dagen selecteert.
+                            </div>
+                          );
+                        }
+
                         const filteredSeries = reportData.series
                           .filter(series => {
                             // For bezetting reports, filter by selectedSeries
@@ -517,12 +560,31 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                   size: 6
                                 }
                               },
+                              // Cap x-axis ticks to keep labels readable, especially for long ranges.
+                              // (ApexCharts will skip labels; data is unaffected.)
                               xaxis: {
-                                type: 'categories',
-                                categories: reportData.options?.xaxis?.categories,
+                                // Responsive-ish tick cap based on viewport width. This runs only on the client.
+                                ...(typeof window !== 'undefined'
+                                  ? {
+                                      tickAmount: Math.min(
+                                        reportData.options?.xaxis?.categories?.length ?? 0,
+                                        window.innerWidth < 768 ? 10 : 30
+                                      )
+                                    }
+                                  : {}),
+                                // Respect backend-provided axis type/categories; fallback to categories.
+                                ...(reportData.options?.xaxis || { type: 'categories' }),
                                 labels: {
-                                  formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
-                                  datetimeUTC: false
+                                  // In category mode the label is already the category string; don't treat it as a timestamp.
+                                  formatter:
+                                    (reportData.options?.xaxis?.type === 'category' ||
+                                      reportData.options?.xaxis?.type === 'categories')
+                                      ? ((v: string | number) => String(v))
+                                      : getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
+                                  datetimeUTC: false,
+                                  rotate: -45,
+                                  trim: true,
+                                  hideOverlappingLabels: true
                                 },
                                 title: {
                                   text: reportData.options?.xaxis?.title?.text || 'Time',
@@ -546,7 +608,19 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 intersect: filteredSeries.length > 5,
                                 followCursor: true,
                                 x: {
-                                  formatter: getTooltipFormatter(filterState?.reportGrouping || 'per_hour')
+                                  // Note: ApexCharts can pass the category *index* as `value` in category mode.
+                                  // Map index -> label using the known categories to keep tooltip titles correct.
+                                  formatter: (value: string | number, opts?: any) => {
+                                    const cats = reportData.options?.xaxis?.categories ?? [];
+                                      const idx = opts?.dataPointIndex ?? opts?.index;
+                                      if (typeof idx === 'number' && cats[idx] !== undefined) {
+                                        return String(cats[idx]);
+                                      }
+                                      if (typeof value === 'number' && cats[value] !== undefined) {
+                                        return String(cats[value]);
+                                      }
+                                    return getTooltipFormatter(filterState?.reportGrouping || 'per_hour')(value, opts);
+                                  }
                                 },
                                 // y: {
                                 //   formatter: (value: number) => value.toFixed(2)

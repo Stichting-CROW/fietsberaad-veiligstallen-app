@@ -38,6 +38,7 @@ jobs:
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
           LOGINTOKEN_SIGNER_PRIVATE_KEY: "ec5a35e2057bf489dccc6510753455669cd2d7d388a5ddcba93414ee85c982cb"
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.ACC_CACHE_UPDATE_BEARER_TOKEN }}
+          MATOMO_URL: ${{ vars.ACC_MATOMO_URL }}
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
@@ -49,6 +50,7 @@ jobs:
           echo "NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN" >> .env
           echo "LOGINTOKEN_SIGNER_PRIVATE_KEY=$LOGINTOKEN_SIGNER_PRIVATE_KEY" >> .env
           echo "UPDATE_CACHE_BEARER_TOKEN=$UPDATE_CACHE_BEARER_TOKEN" >> .env
+          echo "MATOMO_URL=$MATOMO_URL" >> .env
       - name: print env file
         run: cat .env
 
@@ -61,6 +63,7 @@ jobs:
           NEXTAUTH_URL: ${{vars.ACC_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.ACC_CACHE_UPDATE_BEARER_TOKEN }}
+          MATOMO_URL: ${{ vars.ACC_MATOMO_URL }}
           PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
         run: |
           npm install

@@ -411,8 +411,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setReportCategories("per_weekday");
             break;
           case "absolute_bezetting":
-            // Same defaults as transacties_voltooid
-            setReportGrouping("per_week");
+            // Default to "Per uur" for absolute_bezetting
+            setReportGrouping("per_hour_time");
             setReportCategories("per_stalling");
             break;
           case "stallingsduur":
@@ -424,6 +424,12 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setReportCategories("per_stalling");
             break;
         }
+      }
+
+      // Ensure absolute_bezetting never ends up with an invalid grouping (e.g. from localStorage)
+      if (newState.reportType === "absolute_bezetting" && newState.reportGrouping !== "per_hour_time" && newState.reportGrouping !== "per_quarter_hour") {
+        setReportGrouping("per_hour_time");
+        return;
       }
 
       if (null === previousStateRef.current || newState.reportRangeUnit !== previousStateRef.current.reportRangeUnit) {
@@ -471,21 +477,10 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           prevStartDT.getTime() !== startDT.getTime() || 
           prevEndDT.getTime() !== endDT.getTime();
         
-        if (periodChanged && isValidPeriod && periodInDays >= 14 && (newState.reportGrouping === "per_hour_time" || newState.reportGrouping === "per_quarter_hour")) {
-          // Switch to a valid grouping (prefer "per_day" if available, otherwise "per_week")
-          if (periodInDays <= 90) {
-            setReportGrouping("per_day");
-            return;
-          } else if (periodInDays <= 366) {
-            setReportGrouping("per_week");
-            return;
-          } else if (periodInDays <= 732) {
-            setReportGrouping("per_month");
-            return;
-          } else {
-            setReportGrouping("per_month");
-            return;
-          }
+        if (periodChanged && isValidPeriod && periodInDays >= 14 && newState.reportGrouping === "per_quarter_hour") {
+          // Prefer "Per uur" as the fallback when the period gets too large for kwartier
+          setReportGrouping("per_hour_time");
+          return;
         }
       }
 
@@ -627,26 +622,27 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     // Build available X-axis options
     const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
-    if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
-    if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
-    if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
-    if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
-    if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-    // Always show "Uur" and "Kwartier" for absolute_bezetting, but disable if period >= 14 days
     if (isAbsoluteBezettingReport) {
-      xAxisOptions.push({ 
-        value: "per_hour_time", 
+      // For absolute_bezetting we only allow "Uur" and "Kwartier"
+      xAxisOptions.push({
+        value: "per_hour_time",
         label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
-        disabled: isHourDisabled
+        disabled: isHourDisabled,
       });
-      xAxisOptions.push({ 
-        value: "per_quarter_hour", 
+      xAxisOptions.push({
+        value: "per_quarter_hour",
         label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
-        disabled: isQuarterHourDisabled
+        disabled: isQuarterHourDisabled,
       });
+    } else {
+      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
+      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
+      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
+      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
+      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
     }
-    if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
-    if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
 
     // Build available Legenda options
     const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];

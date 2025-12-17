@@ -20,35 +20,39 @@ export const getXAxisTitle = (reportGrouping: ReportGrouping) => {
   }
 }
 
-export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (value: string) => {
+export const getXAxisFormatter = (reportGrouping: ReportGrouping) => (val: string | number) => {
+  const value = String(val);
+  const ms = Number(value);
+
   switch (reportGrouping) {
     case 'per_hour_time': {
-      return moment(value).format('DD MMM HH:00');
+      return moment(ms).format('DD MMM HH:00');
     }
     case 'per_quarter_hour': {
-      return moment(value).format('DD MMM HH:mm');
+      return moment(ms).format('DD MMM HH:mm');
     }
     case 'per_hour': {
       // Value is a timestamp in milliseconds, convert to hour format "HH:00"
-      return moment(parseFloat(value)).format('HH:00');
+      return moment(ms).format('HH:00');
     }
     case 'per_weekday': {
       return ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'][parseInt(value)];
     }
     case 'per_day': {
-      return moment(value).format('YYYY-MM-DD');
+      return moment(ms).format('YYYY-MM-DD');
     }
     case 'per_month': {
-      return moment(value).format('YYYY-M');
+      return moment(ms).format('YYYY-M');
     }
     case 'per_week': {
-      return moment(value).format('YYYY-\\wW');
+      // Format as "2025-W02"
+      return moment(ms).format('YYYY-[W]WW');
     }
     case 'per_quarter': {
-      return moment(value).format('YYYY-Q');
+      return moment(ms).format('YYYY-Q');
     }
     case 'per_year': {
-      return moment(value).format('YYYY');
+      return moment(ms).format('YYYY');
     }
     case 'per_bucket': {
       //   const buckets = [
@@ -207,11 +211,20 @@ export const getCategoriesForXAxis = (labels: XAxisLabelMap): string[] => {
  * Get tooltip formatter for chart tooltips
  * Adds day of week (in Dutch) for quarter hours, hours, and days
  */
+// THIS IS WORKING -> Apply to getXAxisFormatter to get the correct formatter for the x-axis
 export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
   // Dutch day abbreviations
   const dayAbbreviations = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
   
   return (value: string | number, opts?: any) => {
+    const xaxisType = opts?.w?.config?.xaxis?.type;
+    const isDatetimeAxis = xaxisType === 'datetime';
+
+    const categories =
+      opts?.w?.config?.xaxis?.categories ??
+      opts?.w?.globals?.categoryLabels ??
+      opts?.w?.globals?.labels;
+
     // Get the category label from the chart's categories array
     // For category-based charts, ApexCharts stores categories in multiple possible locations
     const categoryLabel = (() => {
@@ -221,12 +234,6 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
         opts?.w?.globals?.dataPointIndex ??
         0;
       
-      // Try multiple paths to find the categories array
-      const categories =
-        opts?.w?.config?.xaxis?.categories ??
-        opts?.w?.globals?.categoryLabels ??
-        opts?.w?.globals?.labels;
-      
       if (categories && Array.isArray(categories) && categories[dataPointIndex] !== undefined) {
         return categories[dataPointIndex];
       }
@@ -234,13 +241,26 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
       return undefined;
     })();
 
+    // In category mode, ApexCharts sometimes passes the category index as `value` (e.g. 29, 30, 31...).
+    // Map index -> categories[index] to keep tooltip titles meaningful.
+    const normalizedValue =
+      !isDatetimeAxis &&
+      typeof value === 'number' &&
+      categories &&
+      Array.isArray(categories) &&
+      categories[value] !== undefined
+        ? categories[value]
+        : value;
+
     // For quarter hours, hours, and days, add day of week
     if (reportGrouping === 'per_quarter_hour' || reportGrouping === 'per_hour_time' || reportGrouping === 'per_day') {
       let date: moment.Moment | null = null;
       
       // First, try to get the actual timestamp from the data point
       // ApexCharts provides the timestamp in opts.w.globals.seriesX
-      if (opts && opts.w && opts.w.globals && opts.w.globals.seriesX && opts.w.globals.seriesX.length > 0) {
+      // Only do this on datetime axes; in category mode seriesX often contains indices (0..n),
+      // which would incorrectly format as 1 Jan 1970.
+      if (isDatetimeAxis && opts && opts.w && opts.w.globals && opts.w.globals.seriesX && opts.w.globals.seriesX.length > 0) {
         const seriesIndex = opts.seriesIndex ?? 0;
         const dataPointIndex = opts.dataPointIndex ?? opts.index ?? 0;
         const seriesX = opts.w.globals.seriesX[seriesIndex];
@@ -254,7 +274,7 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
       
       // If we couldn't get timestamp from opts, try to parse the value
       if (!date || !date.isValid()) {
-        if (typeof value === 'number') {
+        if (typeof value === 'number' && isDatetimeAxis) {
           // Value is a timestamp in milliseconds
           date = moment(value);
         } else if (typeof value === 'string') {
@@ -315,7 +335,7 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
       }
       
       if (!date || !date.isValid()) {
-        return categoryLabel ?? value;
+        return categoryLabel ?? normalizedValue;
       }
       
       const dayOfWeek = dayAbbreviations[date.day()] || '';
@@ -337,8 +357,8 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
       return categoryLabel;
     }
 
-    if (typeof value === 'number') {
-      const date = moment(value);
+    if (typeof normalizedValue === 'number') {
+      const date = moment(normalizedValue);
       if (date.isValid()) {
         if (reportGrouping === 'per_week') {
           return date.format('GGGG-[W]WW');
@@ -355,7 +375,7 @@ export const getTooltipFormatter = (reportGrouping: ReportGrouping) => {
       }
     }
 
-    return value;
+    return normalizedValue;
   };
 }
 

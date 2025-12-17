@@ -889,7 +889,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           rotateAlways: false,
           maxHeight: 100
         },
-        tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
+        // tickAmount: chartData.categories.length > 25 ? 25 : chartData.categories.length
       },
       yaxis: [
         {
