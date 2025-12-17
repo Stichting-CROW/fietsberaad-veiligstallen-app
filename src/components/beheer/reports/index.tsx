@@ -484,6 +484,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                             )
                           }));
 
+                        console.log('reportData.options?.xaxis', reportData.options?.xaxis)
+
                         return (
                           <Chart
                             type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
@@ -564,7 +566,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                 // Respect backend-provided axis type/categories; fallback to categories.
                                 ...(reportData.options?.xaxis || { type: 'categories' }),
                                 labels: {
-                                  formatter: getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
+                                  // In category mode the label is already the category string; don't treat it as a timestamp.
+                                  formatter:
+                                    (reportData.options?.xaxis?.type === 'category' ||
+                                      reportData.options?.xaxis?.type === 'categories')
+                                      ? ((v: string | number) => String(v))
+                                      : getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                                   datetimeUTC: false
                                 },
                                 title: {
