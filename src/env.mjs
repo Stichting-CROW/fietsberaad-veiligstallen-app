@@ -10,6 +10,12 @@ const server = z.object({
   NEXTAUTH_SECRET: z.string().min(1),
   NEXTAUTH_URL: z.string().url(),
   NEXT_PUBLIC_MAPBOX_TOKEN: z.string().min(1),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_SECURE: z.coerce.boolean().optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  SMTP_FROM: z.string().min(1).optional(),
 });
 
 /**
@@ -24,7 +30,7 @@ const client = z.object({
  * You can't destruct `process.env` as a regular object in the Next.js edge runtimes (e.g.
  * middlewares) or client-side so we need to destruct manually.
  *
- * @type {Record<keyof z.infer<typeof server> | keyof z.infer<typeof client>, string | undefined>}
+ * @type {Record<keyof z.infer<typeof server> | keyof z.infer<typeof client>, unknown>}
  */
 const processEnv = {
   DATABASE_URL: process.env.DATABASE_URL,
@@ -32,6 +38,12 @@ const processEnv = {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
   NODE_ENV: process.env.NODE_ENV,
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_SECURE: process.env.SMTP_SECURE,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  SMTP_FROM: process.env.SMTP_FROM,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 
@@ -44,7 +56,7 @@ const merged = server.merge(client);
 /** @typedef {z.infer<typeof merged>} MergedOutput */
 /** @typedef {z.SafeParseReturnType<MergedInput, MergedOutput>} MergedSafeParseReturn */
 
-let env = /** @type {MergedOutput} */ (process.env);
+let env = /** @type {MergedOutput} */ (/** @type {unknown} */ (process.env));
 
 if (!!process.env.SKIP_ENV_VALIDATION == false) {
   const isServer = typeof window === "undefined";
@@ -63,7 +75,8 @@ if (!!process.env.SKIP_ENV_VALIDATION == false) {
     // throw new Error("Invalid environment variables");
   }
 
-  env = new Proxy(parsed.data, {
+  const proxyTarget = parsed.success ? parsed.data : /** @type {any} */ (processEnv);
+  env = new Proxy(proxyTarget, {
     get(target, prop) {
       if (typeof prop !== "string") return undefined;
       // Throw a descriptive error if a server-side env var is accessed on the client
