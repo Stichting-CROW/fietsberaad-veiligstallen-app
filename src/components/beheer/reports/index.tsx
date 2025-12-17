@@ -562,7 +562,18 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                   size: 6
                                 }
                               },
+                              // Cap x-axis ticks to keep labels readable, especially for long ranges.
+                              // (ApexCharts will skip labels; data is unaffected.)
                               xaxis: {
+                                // Responsive-ish tick cap based on viewport width. This runs only on the client.
+                                ...(typeof window !== 'undefined'
+                                  ? {
+                                      tickAmount: Math.min(
+                                        reportData.options?.xaxis?.categories?.length ?? 0,
+                                        window.innerWidth < 768 ? 10 : 30
+                                      )
+                                    }
+                                  : {}),
                                 // Respect backend-provided axis type/categories; fallback to categories.
                                 ...(reportData.options?.xaxis || { type: 'categories' }),
                                 labels: {
@@ -572,7 +583,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                       reportData.options?.xaxis?.type === 'categories')
                                       ? ((v: string | number) => String(v))
                                       : getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
-                                  datetimeUTC: false
+                                  datetimeUTC: false,
+                                  rotate: -45,
+                                  trim: true,
+                                  hideOverlappingLabels: true
                                 },
                                 title: {
                                   text: reportData.options?.xaxis?.title?.text || 'Time',
