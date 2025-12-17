@@ -1,8 +1,23 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2025-12-17
+
+**Rapportage**
+
+Rapportage: Absolute bezetting grafiek
+
+- Twee lijnen van dezelfde stalling hebben nu dezelfde kleur
+- Geen gestippelde lijn meer voor "Capaciteit"
+
+- Rapportage: Algemeen
+
+- Titel boven de grafiek is nu 'Type grafiek' in plaats van 'Data-eigenaar'
+- X-as toont juiste waardes
+- Elke nacht worden geaggregeerde datasets automatisch gegenereerd ('cache'), voor snel laden van de grafieken
+
 ## VeiligStallen 2025-12-16
 
-- op verschillende plekken verbeterde opmaak
+- Op verschillende plekken verbeterde opmaak
 
 **Stalling-beheer / Tarieven**
 

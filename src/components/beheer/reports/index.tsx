@@ -484,8 +484,6 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                             )
                           }));
 
-                        console.log('reportData.options?.xaxis', reportData.options?.xaxis)
-
                         return (
                           <Chart
                             type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
