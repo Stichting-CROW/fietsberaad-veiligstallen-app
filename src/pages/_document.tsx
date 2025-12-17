@@ -139,7 +139,7 @@ class MainDocument extends Document {
           />
 
           {/* Matomo website analytics - only in production */}
-          {process.env.NODE_ENV === 'production' && (
+          {process.env.NODE_ENV === 'production' && process.env.MATOMO_URL && (
             <script
               dangerouslySetInnerHTML={{
                 __html: `
@@ -149,11 +149,11 @@ class MainDocument extends Document {
                   _paq.push(['trackPageView']);
                   _paq.push(['enableLinkTracking']);
                   (function() {
-                    var u="https://${process.env.PROD_MATOMO_URL}/";
+                    var u="https://${process.env.MATOMO_URL}/";
                     _paq.push(['setTrackerUrl', u+'matomo.php']);
                     _paq.push(['setSiteId', '1']);
                     var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
-                    g.async=true; g.src='https://cdn.matomo.cloud/${process.env.PROD_MATOMO_URL}/matomo.js'; s.parentNode.insertBefore(g,s);
+                    g.async=true; g.src='https://cdn.matomo.cloud/${process.env.MATOMO_URL}/matomo.js'; s.parentNode.insertBefore(g,s);
                   })();
                 `,
               }}
