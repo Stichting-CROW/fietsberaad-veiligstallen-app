@@ -306,12 +306,12 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
 
-    const sendEmail = (isNew: boolean) => {
+    const sendEmail = async (isNew: boolean) => {
       const to = userName;
       const subject = isNew ? 'Welkom bij de beheeromgeving van VeiligStallen!' : 'VeiligStallen: Wachtwoord gewijzigd';
       const currentPassword = isChangingPassword ? newPassword : password;
       
-      const bodyNew = ` Beste ${displayName},
+      const bodyNew = `Beste ${displayName},
 
 Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl: https://veiligstallen.nl
 
@@ -328,7 +328,7 @@ Als je nog vragen hebt, hoor ik het graag.
 ${session?.user?.name}
 ${session?.user?.email}`;
 
-const bodyPassword = ` Beste ${displayName},
+const bodyPassword = `Beste ${displayName},
 
 Het wachtwoord van jouw account voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl is gewijzigd.
  
@@ -341,11 +341,24 @@ Als je nog vragen hebt, hoor ik het graag.
 ${session?.user?.name}
 ${session?.user?.email}`;
 
-      // Create mailto URL with encoded parameters
-      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(isNew ? bodyNew : bodyPassword)}`;
-      
-      // Open the default email client
-      window.open(mailtoUrl, '_blank');
+      try {
+        const response = await fetch('/api/mail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to,
+            subject,
+            text: isNew ? bodyNew : bodyPassword,
+          }),
+        });
+
+        const json = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !json.ok) {
+          setError(json.error ?? 'E-mail versturen mislukt.');
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'E-mail versturen mislukt.');
+      }
     };
 
     const handleEmailDialog = (shouldEmail: boolean, isNew: boolean) => {
@@ -477,7 +490,7 @@ ${session?.user?.email}`;
                     onChange={handleNewPasswordChange}
                     disabled={!hasLimitedAdminRight}
                     autoComplete="new-password"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className={`flex-1 px-5 py-2 border rounded-full my-2 ${!hasLimitedAdminRight ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}`}
                   />
                   <button
                     type="button"
