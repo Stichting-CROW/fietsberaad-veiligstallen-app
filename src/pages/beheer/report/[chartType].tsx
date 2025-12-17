@@ -82,6 +82,19 @@ const ReportPage: React.FC<ReportPageProps> = () => {
     setActiveMunicipalityInfoInRedux(selectedContactID);
   }, [selectedContactID, dispatch]);
 
+  const handleSelectComponent = (componentKey: VSMenuTopic) => {
+    try {
+      // If navigating to fietsenstallingen, clear any existing parking ID from the URL
+      if (componentKey === VSMenuTopic.Fietsenstallingen) {
+        queryRouter.push(`/beheer/${componentKey}`);
+      } else {
+        queryRouter.push(`/beheer/${componentKey}`);
+      }
+    } catch (error) {
+      console.error("Error in handleSelectComponent:", error);
+    }
+  };
+
   const handleSelectGemeente = async (organisatieID: string) => {
     try {
       if (!session) return;
@@ -129,7 +142,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
       return <LeftMenuGemeente
         securityProfile={session?.user?.securityProfile}
         activecomponent={VSMenuTopic.Report}
-        onSelect={() => {}}
+        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
         hasAbonnementenModule={true}
       />
     }
