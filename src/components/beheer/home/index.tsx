@@ -14,7 +14,7 @@ const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) =
   const sendTestMail = async () => {
     try {
       setTestMailStatus({ state: 'sending' });
-      const resp = await fetch('/api/protected/test-mail', { method: 'POST' });
+      const resp = await fetch('/api/mail', { method: 'POST' });
       const data = (await resp.json()) as { ok?: boolean; error?: string; messageId?: string | null };
       if (!resp.ok || !data?.ok) {
         setTestMailStatus({ state: 'error', message: data?.error ?? 'Failed to send test email' });

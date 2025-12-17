@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { env } from "~/env.mjs";
 
-type TestMailResponse =
+type MailResponse =
   | { ok: true; messageId: string | null; accepted: string[]; rejected: string[] }
   | { ok: false; error: string };
 
@@ -26,7 +26,7 @@ function requireSmtpConfig() {
   return { ok: true as const, host, port, user, pass, from };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<TestMailResponse>) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse<MailResponse>) {
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     res.status(401).json({ ok: false, error: "Unauthorized" });
@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const info = await transporter.sendMail({
     from: cfg.from,
-    to: "bart@tuxion.nl",
+    to: "user@example.com",
     subject: "VeiligStallen test mail",
     text: `This is a test email sent from the VeiligStallen beheer page.\n\nTime: ${new Date().toISOString()}`,
   });
