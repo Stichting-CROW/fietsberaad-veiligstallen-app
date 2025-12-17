@@ -11,6 +11,7 @@ import { useUser } from '~/hooks/useUser';
 import { makeClientApiCall } from '~/utils/client/api-tools';
 import { useSession } from 'next-auth/react';
 import { VSSecurityTopic } from '~/types/securityprofile';
+import { notifySuccess } from '~/utils/client/notifications';
 
 import type { SecurityUserValidateResponse } from '~/pages/api/protected/security_users/validate';
 import { type securityUserCreateSchema, type SecurityUserResponse, type securityUserUpdateSchema } from '~/pages/api/protected/security_users/[id]';
@@ -298,6 +299,24 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
       setShowPassword(false);
     };
 
+    const handleSendPasswordSetupEmail = async () => {
+      setErrorMessage(null);
+      const response = await makeClientApiCall<{ ok: boolean; error?: string }>(
+        `/api/protected/security_users/${id}/password-setup`,
+        "POST",
+        {},
+      );
+      if (!response.success) {
+        setErrorMessage(`E-mail versturen mislukt: (${response.error})`);
+        return;
+      }
+      if (!response.result?.ok) {
+        setErrorMessage(response.result?.error ?? "E-mail versturen mislukt.");
+        return;
+      }
+      notifySuccess("E-mail verstuurd");
+    };
+
     // Auto-save password changes when user types
     const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -516,14 +535,22 @@ ${session?.user?.email}`;
             </>
           ) : (
             // Existing user - show change password button
-            <div className="mb-4">
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSendPasswordSetupEmail}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                disabled={!hasLimitedAdminRight}
+              >
+                Laat gebruiker het wachtwoord kiezen
+              </button>
               <button
                 type="button"
                 onClick={handleChangePassword}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                 disabled={!hasLimitedAdminRight}
               >
-                Wachtwoord wijzigen
+                Stel wachtwoord in
               </button>
             </div>
           )}
