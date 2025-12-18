@@ -16,6 +16,7 @@ const server = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASS: z.string().min(1).optional(),
   SMTP_FROM: z.string().min(1).optional(),
+  NSCONNECTOR_SUBSCRIPTION_KEY: z.string().optional(),
 });
 
 /**
@@ -37,6 +38,7 @@ const processEnv = {
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
   NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
+  NSCONNECTOR_SUBSCRIPTION_KEY: process.env.NSCONNECTOR_SUBSCRIPTION_KEY,
   NODE_ENV: process.env.NODE_ENV,
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: process.env.SMTP_PORT,
