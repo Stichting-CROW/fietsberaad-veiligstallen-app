@@ -33,5 +33,3 @@ export function createMailer(cfg: { host: string; port: number; user: string; pa
     auth: { user: cfg.user, pass: cfg.pass },
   });
 }
-
-

@@ -39,6 +39,11 @@ jobs:
           LOGINTOKEN_SIGNER_PRIVATE_KEY: ""
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.PROD_CACHE_UPDATE_BEARER_TOKEN }}
           MATOMO_URL: ${{ vars.PROD_MATOMO_URL }}
+          SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.PROD_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.PROD_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.PROD_SMTP_FROM }}
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
@@ -51,6 +56,11 @@ jobs:
           echo "LOGINTOKEN_SIGNER_PRIVATE_KEY=$LOGINTOKEN_SIGNER_PRIVATE_KEY" >> .env
           echo "UPDATE_CACHE_BEARER_TOKEN=$UPDATE_CACHE_BEARER_TOKEN" >> .env
           echo "MATOMO_URL=$MATOMO_URL" >> .env
+          echo "SMTP_HOST=$SMTP_HOST" >> .env
+          echo "SMTP_PORT=$SMTP_PORT" >> .env
+          echo "SMTP_USER=$SMTP_USER" >> .env
+          echo "SMTP_PASS=$SMTP_PASS" >> .env
+          echo "SMTP_FROM=$SMTP_FROM" >> .env
 
       - name: print env file
         run: cat .env
@@ -65,7 +75,11 @@ jobs:
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.PROD_NEXT_PUBLIC_MAPBOX_TOKEN}}
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.PROD_CACHE_UPDATE_BEARER_TOKEN }}
           MATOMO_URL: ${{ vars.PROD_MATOMO_URL }}
-
+          SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.PROD_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.PROD_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.PROD_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.PROD_SMTP_FROM }}
         run: |
           npm install
           npm run build
