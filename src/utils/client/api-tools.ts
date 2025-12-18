@@ -6,6 +6,7 @@ type ApiSuccess<T> = {
 type ApiError = {
     success: false;
     error: string;
+    details?: string;
 };
 
 type ApiResponse<T> = ApiSuccess<T> | ApiError;
@@ -28,14 +29,24 @@ export async function makeClientApiCall<T>(
             ...(body && { body: JSON.stringify(body) })
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
+            // Try to parse error response as JSON
+            let errorMessage = `HTTP error! status: ${response.status}`;
+            let errorDetails: string | undefined;
+            if (data.error) {
+                errorMessage = data.error;
+                if (data.details) {
+                    errorDetails = data.details;
+                }
+            }
             return {
                 success: false,
-                error: `HTTP error! status: ${response.status}`
+                error: errorMessage,
+                details: errorDetails
             };
         }
-
-        const data = await response.json();
         return {
             success: true,
             result: data
