@@ -11,27 +11,6 @@ const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) =
     message?: string;
   }>({ state: 'idle' });
 
-  const sendTestMail = async () => {
-    try {
-      setTestMailStatus({ state: 'sending' });
-      const resp = await fetch('/api/mail', { method: 'POST' });
-      const data = (await resp.json()) as { ok?: boolean; error?: string; messageId?: string | null };
-      if (!resp.ok || !data?.ok) {
-        setTestMailStatus({ state: 'error', message: data?.error ?? 'Failed to send test email' });
-        return;
-      }
-      setTestMailStatus({
-        state: 'success',
-        message: data?.messageId ? `Sent (messageId: ${data.messageId})` : 'Sent',
-      });
-    } catch (e) {
-      setTestMailStatus({
-        state: 'error',
-        message: e instanceof Error ? e.message : 'Failed to send test email',
-      });
-    }
-  };
-
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white/95 p-8 shadow-sm">
@@ -66,23 +45,6 @@ const HomeInfoComponent: React.FC<HomeInfoComponentProps> = ({ gemeentenaam }) =
             <FiMail className="h-4 w-4" />
             Mail ons op info@veiligstallen.nl
           </a>
-          <button
-            type="button"
-            onClick={sendTestMail}
-            disabled={testMailStatus.state === 'sending'}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
-          >
-            Test mail functionality
-          </button>
-          {testMailStatus.state === 'sending' && (
-            <span className="text-sm text-slate-600">Sending…</span>
-          )}
-          {testMailStatus.state === 'success' && (
-            <span className="text-sm font-medium text-emerald-700">{testMailStatus.message}</span>
-          )}
-          {testMailStatus.state === 'error' && (
-            <span className="text-sm font-medium text-rose-700">{testMailStatus.message}</span>
-          )}
         </div>
       </section>
     </div>
