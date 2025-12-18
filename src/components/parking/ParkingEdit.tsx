@@ -37,6 +37,7 @@ import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
+import ParkingEditLogs from "~/components/parking/ParkingEditLogs";
 import ParkingEditTarieven from "~/components/parking/ParkingEditTarieven";
 
 export type ParkingEditUpdateStructure = {
@@ -1267,6 +1268,15 @@ const ParkingEdit = ({
     );
   };
 
+  const renderTabLogs = (visible = false) => {
+    return (
+      <ParkingEditLogs
+        visible={visible}
+        parkingdata={parkingdata}
+      />
+    );
+  };
+
   let parkingTitle = parkingdata.Title;
   if (parkingdata.ID.substring(0, 8) === "VOORSTEL") {
     parkingTitle += " (voorstel)";
@@ -1361,6 +1371,13 @@ const ParkingEdit = ({
         value={selectedTab}
         onChange={handleChange}
         aria-label="Edit parking"
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{
+          '& .MuiTabs-scrollButtons': {
+            '&.Mui-disabled': { opacity: 0.3 }
+          }
+        }}
       >
         <Tab label="Algemeen" value="tab-algemeen" />
         {hasID && <Tab label="Afbeelding" value="tab-afbeelding" />}
@@ -1375,6 +1392,7 @@ const ParkingEdit = ({
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
+        {isLoggedIn && <Tab label="Logs" value="tab-logs" />}
       </Tabs>
 
       {renderTabAlgemeen(selectedTab === "tab-algemeen")}
@@ -1390,6 +1408,7 @@ const ParkingEdit = ({
         showAbonnementenTab && selectedTab === "tab-abonnementen",
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}
+      {renderTabLogs(selectedTab === "tab-logs" && isLoggedIn)}
     </div>
   );
 };
