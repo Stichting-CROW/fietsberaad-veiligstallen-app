@@ -77,3 +77,6 @@ logs/*
 
 #for now, do not check in prisma generated files
 /src/generated/prisma-client/**/*
+
+#local docs
+/docs/analyse-modules
