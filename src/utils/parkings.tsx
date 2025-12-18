@@ -181,34 +181,10 @@ export const getNewStallingDefaultRecord = async (
 }
 
 export const createVeiligstallenOrgLink = async (parkingdata: ParkingDetailsType): Promise<string> => {
-  let url = '';
-  if (parkingdata.EditorCreated === "NS-connector") {
-    url = `https://www.veiligstallen.nl/ns/stallingen/${parkingdata.StallingsID}#${parkingdata.StallingsID}`
-  } else {
-    if (!parkingdata.Coordinaten || parkingdata.Coordinaten === "") {
-      // no municipality available
-      return ""
-    }
-    const stallingMunicipalty = await getMunicipalityBasedOnLatLng(parkingdata.Coordinaten.split(","));
-    if (stallingMunicipalty) {
-      switch (parkingdata.Type) {
-        case "fietskluizen":
-          url = `https://veiligstallen.nl/${stallingMunicipalty.name}/fietskluizen/${parkingdata.StallingsID}`;
-          break;
-        case "fietstrommel":
-          url = `https://veiligstallen.nl/${stallingMunicipalty.name}/fietstrommels/${parkingdata.StallingsID}`;
-          break;
-        case "buurtstalling":
-          url = `https://veiligstallen.nl/${stallingMunicipalty.name}/buurtstallingen/${parkingdata.StallingsID}`;
-          break;
-        default:
-          url = `https://veiligstallen.nl/${stallingMunicipalty.name}/stallingen/${parkingdata.StallingsID}#${parkingdata.StallingsID}`;
-          break;
-      }
-    }
+  if (!parkingdata.ID) {
+    return "";
   }
-
-  return url;
+  return `/?stallingid=${parkingdata.ID}`;
 }
 
 export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetailsType, fietsenstallingen: fietsenstallingen[], contacts: contacts[]): string => {
