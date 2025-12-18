@@ -35,6 +35,7 @@ import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
 import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
 import DatabaseExport from '~/components/beheer/database/DatabaseExport';
+import DatabaseModules from '~/components/beheer/database/DatabaseModules';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 
@@ -355,6 +356,16 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             selectedComponent = <AccessDenied />;
           } else {
             selectedComponent = <DatabaseExport />;
+          }
+          break;
+        case VSMenuTopic.DatabaseModules:
+          // Check if user has fietsberaad_admin or fietsberaad_superadmin rights
+          const hasDatabaseModulesFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasDatabaseModulesFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasDatabaseModulesFietsberaadAdmin && !hasDatabaseModulesFietsberaadSuperadmin) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <DatabaseModules />;
           }
           break;
         case VSMenuTopic.Export:
