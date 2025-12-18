@@ -62,6 +62,7 @@ mysql-db/export-db.zip
 
 #checkpoints
 /data/checkpoints*
+/data/ns
 
 #auto generated test scripts
 scripts/*.sql
