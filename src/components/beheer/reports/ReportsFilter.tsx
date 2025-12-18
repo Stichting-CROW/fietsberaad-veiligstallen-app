@@ -393,6 +393,22 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
   }, [bikeparks]);
 
+  // Sync selectedBikeparkIDs with bikeparkDataSources when bikeparkDataSources changes
+  // This is especially important for the bezetting report type where BikeparkDataSourceSelect is used
+  useEffect(() => {
+    // Only sync for bezetting report type where BikeparkDataSourceSelect is actively used
+    if (reportType === 'bezetting' && selectedBikeparkDataSources && selectedBikeparkDataSources.length > 0) {
+      const idsFromDataSources = selectedBikeparkDataSources.map(bp => bp.StallingsID);
+      // Only update if the IDs are different to avoid infinite loops
+      // Sort both arrays for comparison
+      const currentIds = [...selectedBikeparkIDs].sort().join(',');
+      const newIds = [...idsFromDataSources].sort().join(',');
+      if (currentIds !== newIds) {
+        setSelectedBikeparkIDs(idsFromDataSources);
+      }
+    }
+  }, [reportType, selectedBikeparkDataSources, selectedBikeparkIDs]);
+
   useEffect(() => {
     const newState: ReportState = currentReportState;
 
