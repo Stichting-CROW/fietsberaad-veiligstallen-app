@@ -1586,7 +1586,7 @@ const ParkingEditTarievendata: React.FC<ParkingEditTarievendataProps> = ({
               variant="secundary"
               onClick={handleCancelEdit}
             >
-              Annuleer
+              Terug
             </Button>
           </PageTitle>
         </div>

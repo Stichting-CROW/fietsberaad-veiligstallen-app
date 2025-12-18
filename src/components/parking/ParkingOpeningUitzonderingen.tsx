@@ -368,7 +368,7 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
                 onClick={closeDialog}
                 className="bg-gray-100 text-gray-800 rounded px-4 py-2 hover:bg-gray-200 transition"
               >
-                Annuleer
+                Terug
               </button>
             </div>
           </form>

@@ -22,11 +22,11 @@ const ParkingEditLogs: React.FC<ParkingEditLogsProps> = ({
       <div className="mt-4 w-full">
         <dl>
           <dt className="font-bold">Laatst bewerkt</dt>
-          <dd>{parkingdata.DateModified ? new Date(parkingdata.DateModified).toLocaleString() : "N/A"} door {parkingdata.EditorModified || "[onbekend]"}</dd>
+          <dd>{parkingdata.DateModified ? new Date(parkingdata.DateModified).toLocaleDateString() : "N/A"} door {parkingdata.EditorModified || "[onbekend]"}</dd>
         </dl>
         <dl>
           <dt className="font-bold mt-4">Aangemaakt</dt>
-          <dd>{parkingdata.DateCreated ? new Date(parkingdata.DateCreated).toLocaleString() : "N/A"} door {parkingdata.EditorCreated || "[onbekend]"}</dd>
+          <dd>{parkingdata.DateCreated ? new Date(parkingdata.DateCreated).toLocaleDateString() : "N/A"} door {parkingdata.EditorCreated || "[onbekend]"}</dd>
         </dl>
       </div>
     </div>
