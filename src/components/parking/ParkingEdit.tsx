@@ -10,6 +10,7 @@ import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
 import {
   getDefaultLocation,
+  createVeiligstallenOrgLink,
 } from "~/utils/parkings";
 import {
   cbsCodeFromMunicipality,
@@ -1349,7 +1350,7 @@ const ParkingEdit = ({
                 }
               }}
             >
-              Annuleer
+              Terug
             </Button>
           )}
           {showUpdateButtons === false && (
@@ -1362,6 +1363,30 @@ const ParkingEdit = ({
               }}
             >
               Terug
+            </Button>
+          )}
+          {hasID && parkingdata.StallingsID && parkingdata.Coordinaten && (
+            <Button
+              key="b-view-frontend"
+              className="ml-2 mt-3 sm:mt-0 group"
+              variant="secundary"
+              onClick={async (e: any) => {
+                if (e) e.preventDefault();
+                try {
+                  const url = await createVeiligstallenOrgLink(parkingdata);
+                  if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  } else {
+                    toast.error('Kan frontend URL niet genereren. Controleer of de stalling een locatie en StallingsID heeft.');
+                  }
+                } catch (error) {
+                  console.error('Error generating frontend URL:', error);
+                  toast.error('Er is een fout opgetreden bij het genereren van de frontend URL.');
+                }
+              }}
+            >
+              <img src="/images/beeldmerk.png" alt="Bekijk op website" className="w-4 h-4 inline-block" />
+              <span className="ml-2 hidden group-hover:inline-block">Bekijk op website</span>
             </Button>
           )}
         </PageTitle>
