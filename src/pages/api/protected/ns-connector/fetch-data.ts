@@ -82,19 +82,19 @@ export default async function handle(
     const fietskluizenData = await fietskluizenResponse.json();
 
     // Log the responses to temporary files
-    const tmpDir = '/tmp';
-    const stallingenLogPath = path.join(tmpDir, 'ns-fietsenstallingen-response.json');
-    const fietskluizenLogPath = path.join(tmpDir, 'ns-fietskluizen-response.json');
+    // const tmpDir = '/tmp';
+    // const stallingenLogPath = path.join(tmpDir, 'ns-fietsenstallingen-response.json');
+    // const fietskluizenLogPath = path.join(tmpDir, 'ns-fietskluizen-response.json');
 
-    try {
-      fs.writeFileSync(stallingenLogPath, JSON.stringify(stallingenData, null, 2), 'utf-8');
-      fs.writeFileSync(fietskluizenLogPath, JSON.stringify(fietskluizenData, null, 2), 'utf-8');
-      console.log(`[NS Connector] Logged fietsenstallingen response to ${stallingenLogPath}`);
-      console.log(`[NS Connector] Logged fietskluizen response to ${fietskluizenLogPath}`);
-    } catch (writeError) {
-      console.error('[NS Connector] Error writing log files:', writeError);
-      // Continue even if logging fails
-    }
+    // try {
+    //   fs.writeFileSync(stallingenLogPath, JSON.stringify(stallingenData, null, 2), 'utf-8');
+    //   fs.writeFileSync(fietskluizenLogPath, JSON.stringify(fietskluizenData, null, 2), 'utf-8');
+    //   console.log(`[NS Connector] Logged fietsenstallingen response to ${stallingenLogPath}`);
+    //   console.log(`[NS Connector] Logged fietskluizen response to ${fietskluizenLogPath}`);
+    // } catch (writeError) {
+    //   console.error('[NS Connector] Error writing log files:', writeError);
+    //   // Continue even if logging fails
+    // }
 
     // Extract payload from responses (based on the ColdFusion code structure)
     const fietsenstallingen: NSFacilityType[] = Array.isArray(stallingenData.payload) 
