@@ -52,25 +52,13 @@ export default async function handle(
   }
 
   try {
-    // Fetch all modules first, excluding "Fiets en Win" (ID: "fietsenwin")
     const modules = await prisma.modules.findMany({
-      where: {
-        ID: {
-          not: 'fietsenwin',
-        },
-      },
       orderBy: {
         Name: 'asc',
       },
     });
 
-    // Fetch all modules_contacts, excluding "Fiets en Win" module
     const allModulesContacts = await prisma.modules_contacts.findMany({
-      where: {
-        ModuleID: {
-          not: 'fietsenwin',
-        },
-      },
       select: {
         ModuleID: true,
         SiteID: true,
