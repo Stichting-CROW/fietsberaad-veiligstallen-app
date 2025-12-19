@@ -53,22 +53,46 @@ export const ExploreUserDetailsComponent = ({
         fetchUserContacts();
     }
   }, [selectedUserID]);
+
+  useEffect(() => {
+    const fetchArchiveStatus = async () => {
+      if (!selectedUserID) return;
+      
+      try {
+        const response = await fetch(`/api/protected/archive/user/status/${selectedUserID}`);
+        if (response.ok) {
+          const data = await response.json();
+          setIsArchived(data.archived || false);
+        }
+      } catch (error) {
+        console.error('Error fetching archive status:', error);
+      }
+    };
+
+    if (selectedUserID) {
+      fetchArchiveStatus();
+    }
+  }, [selectedUserID]);
     
     const handleArchiveToggle = async () => {
         if (!selectedUser) return;
 
         setIsUpdatingArchive(true);
         try {
-            const response = await fetch(`/api/protected/archive/user/${selectedUser.UserID}`, {
+            const response = await fetch(`/api/protected/archive/user`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ archive: !isArchived }),
+                body: JSON.stringify({ 
+                    userId: selectedUser.UserID,
+                    archived: !isArchived 
+                }),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to update archive status');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to update archive status');
             }
 
             setIsArchived(!isArchived);
