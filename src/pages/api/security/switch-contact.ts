@@ -59,32 +59,75 @@ export default async function handler(
           return res.status(403).json({ error: 'Fietsberaad user must have rootadmin or viewer role to switch contacts' });
         }
 
-        // If not rootman of Fietsberaad, check if user has access to contact
+        // If not rootman of Fietsberaad, check if user can switch to this contact
         else {
-          // Get current user data
-          const user = await prisma.security_users.findFirst({
-              where: { UserID: session.user.id },
+          // Get user's parent organization (isOwnOrganization = true)
+          const parentOrgRole = await prisma.user_contact_role.findFirst({
+            where: {
+              UserID: session.user.id,
+              isOwnOrganization: true
+            },
               select: {
-                user_contact_roles: {
-                  where: { ContactID: contactId },
-                  select: { NewRoleID: true }
-                }
-              }
-          }) as VSUserWithRoles;
+              ContactID: true,
+              NewRoleID: true
+            }
+          });
 
-          if (!user) {
-              console.error("User not found");
-              return res.status(404).json({ error: 'User not found' });
+          if (!parentOrgRole) {
+              console.error("User has no parent organization");
+              return res.status(403).json({ error: 'User has no parent organization. Unable to switch contact.' });
           }
 
-          if(!user.user_contact_roles[0]) {
-              console.error("User has no roles for this contact. Unable to switch contact.");
-              return res.status(403).json({ error: 'User has no roles for this contact. Unable to switch contact.' });
+          const parentOrgID = parentOrgRole.ContactID;
+
+          // Check if contactId is the user's own parent organization
+          const isOwnParentOrg = contactId === parentOrgID;
+
+          // Check if contactId is managed by the user's parent organization
+          const managedOrg = await prisma.contact_contact.findFirst({
+            where: {
+              parentSiteID: parentOrgID,
+              childSiteID: contactId
+              }
+          });
+
+          const isManagedByParent = !!managedOrg;
+
+          // Security check: Only allow switching to parent org or organizations managed by parent
+          if (!isOwnParentOrg && !isManagedByParent) {
+              console.error(`User ${session.user.id} attempted to switch to unauthorized contact ${contactId}. Parent org: ${parentOrgID}`);
+              return res.status(403).json({ 
+                error: 'Cannot switch to this contact. Only parent organization or organizations managed by parent organization are allowed.' 
+              });
+          }
+
+          // Get the role for the contactId (either parent org role or managed org role)
+          let roleForContact: VSUserRoleValuesNew;
+          
+          if (isOwnParentOrg) {
+            // Use the parent organization role
+            roleForContact = parentOrgRole.NewRoleID as VSUserRoleValuesNew;
+          } else {
+            // Get role for the managed organization
+            const managedOrgRole = await prisma.user_contact_role.findFirst({
+              where: {
+                UserID: session.user.id,
+                ContactID: contactId
+              },
+              select: { NewRoleID: true }
+            });
+
+            if (!managedOrgRole) {
+                console.error(`User has no role for managed organization ${contactId}`);
+                return res.status(403).json({ error: 'User has no role for this managed organization. Unable to switch contact.' });
+            }
+
+            roleForContact = managedOrgRole.NewRoleID as VSUserRoleValuesNew;
           }
 
           // Create new security profile with updated active contact
           const activeContactType = await getOrganisationTypeByID(contactId);
-          const securityProfile = createSecurityProfile(user.user_contact_roles[0].NewRoleID as VSUserRoleValuesNew, activeContactType);
+          const securityProfile = createSecurityProfile(roleForContact, activeContactType);
 
           // Create updated user object
           const updatedUser = {
@@ -95,7 +138,6 @@ export default async function handler(
 
           // The session will be automatically updated on the server side
           // when the client calls the update() function from useSession
-          // console.log(">>> updatedUser activeContactId", updatedUser.activeContactId);
           return res.status(200).json({ user: updatedUser });
         }
     } catch (error) {
