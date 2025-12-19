@@ -77,7 +77,6 @@ function formatDate(date: Date | string | null | undefined): string {
   });
 }
 
-
 export default async function handle(
   req: NextApiRequest,
   res: NextApiResponse
@@ -196,6 +195,13 @@ export default async function handle(
     for (const contact of contacts) {
       companyNameMap.set(contact.ID, contact.CompanyName);
     }
+    
+    // For SiteIDs without a contact record, use the SiteID as the name
+    for (const siteID of siteIDs) {
+      if (!companyNameMap.has(siteID)) {
+        companyNameMap.set(siteID, siteID);
+      }
+    }
 
     // Get all unique ParentIDs
     const parentIDs = [
@@ -228,85 +234,6 @@ export default async function handle(
       }
     }
 
-    // Fetch FAQs linked to companies via contacts_faq
-    const contactsFaqs = await prisma.contacts_faq.findMany({
-      where: {
-        Status: true, // Only active FAQ links
-      },
-      select: {
-        SiteID: true,
-        FaqID: true,
-      },
-    });
-
-    // Get all FAQ IDs
-    const faqIDs = [...new Set(contactsFaqs.map(cf => cf.FaqID))];
-
-    // Fetch FAQs with content (Question or Answer not null and length > 0)
-    const faqs = await prisma.faq.findMany({
-      where: {
-        ID: {
-          in: faqIDs,
-        },
-        OR: [
-          {
-            Question: {
-              not: null,
-            },
-          },
-          {
-            Answer: {
-              not: null,
-            },
-          },
-        ],
-      },
-      select: {
-        ID: true,
-        ParentID: true,
-        Title: true,
-        Question: true,
-        Answer: true,
-        SortOrder: true,
-        Status: true,
-        EditorCreated: true,
-        DateCreated: true,
-        EditorModified: true,
-        DateModified: true,
-        ModuleID: true,
-      },
-      orderBy: [
-        {
-          SortOrder: 'asc',
-        },
-        {
-          Title: 'asc',
-        },
-      ],
-    });
-
-    // Filter FAQs that actually have content
-    const faqsWithContent = faqs.filter(
-      (faq) =>
-        (faq.Question && faq.Question.trim().length > 0) ||
-        (faq.Answer && faq.Answer.trim().length > 0)
-    );
-
-    // Create map of SiteID to FAQ IDs
-    const faqsByCompany = new Map<string, string[]>();
-    for (const cf of contactsFaqs) {
-      if (!faqsByCompany.has(cf.SiteID)) {
-        faqsByCompany.set(cf.SiteID, []);
-      }
-      faqsByCompany.get(cf.SiteID)!.push(cf.FaqID);
-    }
-
-    // Create map of FAQ ID to FAQ data
-    const faqMap = new Map<string, typeof faqs[0]>();
-    for (const faq of faqsWithContent) {
-      faqMap.set(faq.ID, faq);
-    }
-
     // Group articles by SiteID
     const articlesByCompany = new Map<string, ArticleWithRelations[]>();
     for (const article of articlesWithContent) {
@@ -317,14 +244,8 @@ export default async function handle(
       articlesByCompany.get(siteID)!.push(article);
     }
 
-    // Combine articles and FAQs by company
-    const allSiteIDs = new Set([
-      ...articlesByCompany.keys(),
-      ...faqsByCompany.keys(),
-    ]);
-
     // Sort companies by name
-    const sortedSiteIDs = Array.from(allSiteIDs).sort((a, b) => {
+    const sortedSiteIDs = Array.from(articlesByCompany.keys()).sort((a, b) => {
       const nameA = companyNameMap.get(a) ?? a;
       const nameB = companyNameMap.get(b) ?? b;
       return String(nameA).localeCompare(String(nameB), 'nl-NL');
@@ -337,7 +258,7 @@ export default async function handle(
     });
 
     // Set response headers for PDF download
-    const filename = `paginas_export_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = `artikelen_export_${new Date().toISOString().split('T')[0]}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -348,7 +269,7 @@ export default async function handle(
     doc.pipe(res);
 
     // Title page
-    doc.fontSize(24).font('Helvetica-Bold').text('Export van alle pagina\'s', { align: 'center' });
+    doc.fontSize(24).font('Helvetica-Bold').text('Export van alle artikelen', { align: 'center' });
     doc.moveDown();
     doc.fontSize(12).font('Helvetica').text(`Gegenereerd op: ${new Date().toLocaleString('nl-NL')}`, { align: 'center' });
     doc.addPage();
@@ -357,23 +278,17 @@ export default async function handle(
     doc.fontSize(18).font('Helvetica-Bold').text('Inhoudsopgave', { align: 'left' });
     doc.moveDown(0.5);
 
-    // Add TOC entries (bookmarks will be created when we add the headings)
+    // Add TOC entries
     doc.fontSize(11).font('Helvetica');
     
     for (let idx = 0; idx < sortedSiteIDs.length; idx++) {
       const siteID = sortedSiteIDs[idx];
       if (!siteID) continue;
       
-      const companyName = companyNameMap.get(siteID);
-      if (!companyName) continue;
-      
       const companyArticles = articlesByCompany.get(siteID) || [];
-      const companyFaqIDs = faqsByCompany.get(siteID) || [];
-      const companyFaqs = companyFaqIDs
-        .map(id => faqMap.get(id))
-        .filter((faq): faq is NonNullable<typeof faq> => faq !== undefined);
-      const totalCount = companyArticles.length + companyFaqs.length;
-      const tocText = `${companyName} (${totalCount} ${totalCount === 1 ? 'pagina' : 'pagina\'s'})`;
+      const companyName = companyNameMap.get(siteID) || siteID;
+      const articleCount = companyArticles.length;
+      const tocText = `${companyName} (${articleCount} ${articleCount === 1 ? 'pagina' : 'pagina\'s'})`;
       
       doc.text(tocText, { indent: 20 });
       doc.moveDown(0.3);
@@ -392,20 +307,11 @@ export default async function handle(
       const siteID = sortedSiteIDs[i];
       if (!siteID) continue;
       
-      const companyName = companyNameMap.get(siteID);
-      if (!companyName) {
-        console.warn(`Skipping company with no name for SiteID: ${siteID}`);
-        continue;
-      }
       const companyArticles = articlesByCompany.get(siteID) || [];
-      const companyFaqIDs = faqsByCompany.get(siteID) || [];
-      const companyFaqs = companyFaqIDs
-        .map(id => faqMap.get(id))
-        .filter((faq): faq is NonNullable<typeof faq> => faq !== undefined)
-        .sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
+      const companyName = companyNameMap.get(siteID) || siteID;
 
-      const totalCount = companyArticles.length + companyFaqs.length;
-      let itemIndex = 0; // Track total items (articles + FAQs) for page breaks
+      const totalCount = companyArticles.length;
+      let itemIndex = 0;
 
       // Generate content for each article
       for (let j = 0; j < companyArticles.length; j++) {
@@ -542,121 +448,6 @@ export default async function handle(
           doc.moveDown();
         }
       }
-
-      // Generate content for each FAQ
-      for (const faq of companyFaqs) {
-        // Each FAQ gets its own page
-        doc.addPage();
-        
-        const faqTitle = faq.Title || faq.Question || 'FAQ';
-        
-        // H2 for FAQ title
-        doc.fontSize(16).font('Helvetica-Bold').text(faqTitle, { align: 'left' });
-        doc.moveDown(0.5);
-
-        // Table with properties
-        doc.fontSize(10).font('Helvetica');
-        
-        const properties: Array<[string, string]> = [];
-        
-        if (faq.ID) {
-          properties.push(['ID', faq.ID]);
-        }
-        if (faq.Title) {
-          properties.push(['Title', faq.Title]);
-        }
-        if (faq.SortOrder !== null) {
-          properties.push(['SortOrder', String(faq.SortOrder)]);
-        }
-        if (faq.Status) {
-          properties.push(['Status', faq.Status]);
-        }
-        if (faq.EditorCreated) {
-          properties.push(['EditorCreated', faq.EditorCreated]);
-        }
-        if (faq.DateCreated) {
-          properties.push(['DateCreated', formatDate(faq.DateCreated)]);
-        }
-        if (faq.EditorModified) {
-          properties.push(['EditorModified', faq.EditorModified]);
-        }
-        if (faq.DateModified) {
-          properties.push(['DateModified', formatDate(faq.DateModified)]);
-        }
-        if (faq.ModuleID) {
-          properties.push(['ModuleID', faq.ModuleID]);
-        }
-        if (faq.ParentID) {
-          const parentFaq = faqMap.get(faq.ParentID);
-          const parentTitle = parentFaq?.Title || faq.ParentID;
-          properties.push(['Parent FAQ', parentTitle]);
-        }
-
-        // Calculate table height and check if we need a new page
-        const col1X = 50;
-        const col2X = 250;
-        const rowHeight = 15;
-        const tableWidth = 500;
-        const tableHeight = (properties.length + 1) * rowHeight; // +1 for header
-        const pageBottom = 750; // Approximate bottom margin
-        
-        // If table won't fit on current page, start on new page
-        if (doc.y + tableHeight > pageBottom) {
-          doc.addPage();
-        }
-
-        // Draw table
-        let tableY = doc.y;
-
-        // Table header
-        doc.font('Helvetica-Bold').fontSize(10);
-        doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-        doc.text('Eigenschap', col1X + 5, tableY + 3);
-        doc.text('Waarde', col2X + 5, tableY + 3);
-        tableY += rowHeight;
-
-        // Table rows
-        doc.font('Helvetica').fontSize(9);
-        for (const [key, value] of properties) {
-          // Check if we need a new page for this row
-          if (tableY + rowHeight > pageBottom) {
-            doc.addPage();
-            tableY = doc.page.margins.top;
-            // Redraw header on new page
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-            doc.text('Eigenschap', col1X + 5, tableY + 3);
-            doc.text('Waarde', col2X + 5, tableY + 3);
-            tableY += rowHeight;
-            doc.font('Helvetica').fontSize(9);
-          }
-          
-          doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-          doc.text(key, col1X + 5, tableY + 3, { width: col2X - col1X - 10 });
-          doc.text(String(value || ''), col2X + 5, tableY + 3, { width: tableWidth - (col2X - col1X) - 10 });
-          tableY += rowHeight;
-        }
-
-        doc.y = tableY + 10;
-
-        // Question paragraph (if set)
-        if (faq.Question && faq.Question.trim().length > 0) {
-          const decodedQuestion = decodeHtml(faq.Question);
-          doc.fontSize(11).font('Helvetica-Bold').text('Question:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedQuestion, { align: 'left' });
-          doc.moveDown();
-        }
-
-        // Answer paragraph (if set)
-        if (faq.Answer && faq.Answer.trim().length > 0) {
-          const decodedAnswer = decodeHtml(faq.Answer);
-          doc.fontSize(11).font('Helvetica-Bold').text('Answer:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedAnswer, { align: 'left' });
-          doc.moveDown();
-        }
-      }
     }
 
     // Finalize PDF
@@ -668,3 +459,4 @@ export default async function handle(
     }
   }
 }
+

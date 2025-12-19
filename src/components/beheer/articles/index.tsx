@@ -18,14 +18,11 @@ const ArticlesComponent: React.FC = () => {
   // Check user rights for access control
   const canCreateNew = session?.user?.securityProfile?.rights[VSSecurityTopic.instellingen_site_content_pages]?.create || false;
   const canDelete = session?.user?.securityProfile?.rights[VSSecurityTopic.instellingen_site_content_pages]?.delete || false;
-  const isFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) || 
-                             userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const { articles, isLoading, error, reloadArticles } = useArticles();
   const [filteredArticles, setFilteredArticles] = useState<VSArticle[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | undefined>(undefined);
   const [sortColumn, setSortColumn] = useState<string>("Titel");
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [isExporting, setIsExporting] = useState(false);
   const filters = useSelector(selectArticleFilters);
 
   const articleIsVisibleOnSite = (article: VSArticle) => {
@@ -91,34 +88,6 @@ const ArticlesComponent: React.FC = () => {
     setCurrentArticleId(undefined);
     // Refresh the articles list
     reloadArticles();
-  };
-
-  const handleExportAll = async () => {
-    setIsExporting(true);
-    try {
-      const response = await fetch('/api/protected/articles/export-all');
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
-        throw new Error(errorData.error || `Export failed with status ${response.status}`);
-      }
-
-      // Get the PDF content from response
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `paginas_export_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error('Error exporting articles:', err);
-      alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const handleSort = (header: string) => {
@@ -188,16 +157,6 @@ const ArticlesComponent: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pagina's</h1>
-          <div className="flex gap-2">
-            {isFietsberaadAdmin && (
-              <button 
-                onClick={handleExportAll}
-                disabled={isExporting}
-                className="bg-blue-500 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 px-4 rounded"
-              >
-                {isExporting ? 'Exporteren...' : 'Exporteer alles'}
-              </button>
-            )}
           {canCreateNew && (
             <button 
               onClick={() => handleEditArticle('new')}
@@ -206,7 +165,6 @@ const ArticlesComponent: React.FC = () => {
               Nieuwe pagina
             </button>
           )}
-          </div>
         </div>
 
         <ArticleFilters activeMunicipalityID={session?.user?.activeContactId || ''} />
