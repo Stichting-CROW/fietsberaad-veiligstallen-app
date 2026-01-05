@@ -77,6 +77,121 @@ const FaqComponent: React.FC = () => {
     }
   };
 
+  const refreshFaqs = async () => {
+    const response = await fetch('/api/protected/faqs');
+    if (response.ok) {
+      const data = await response.json();
+      setFaqs(data.data);
+      setFilteredFaqs(data.data);
+    }
+  };
+
+  const handleMoveUp = async (id: string, currentIndex: number) => {
+    if (currentIndex === 0) return; // Already at the top
+
+    // Find the FAQ item (use full list to ensure we have all data)
+    const currentFaq = faqs.items.find((faq: VSFAQ) => faq.ID === id);
+    if (!currentFaq) return;
+
+    // Get all items in the same group (same ParentID)
+    const groupItems = faqs.items
+      .filter((faq: VSFAQ) => faq.ParentID === currentFaq.ParentID)
+      .sort((a, b) => {
+        const orderA = a.SortOrder ?? 0;
+        const orderB = b.SortOrder ?? 0;
+        return orderA - orderB;
+      });
+
+    // Find the current item's position in the sorted group
+    const sortedIndex = groupItems.findIndex((faq: VSFAQ) => faq.ID === id);
+    if (sortedIndex === 0) return; // Already at the top
+
+    const previousFaq = groupItems[sortedIndex - 1];
+    if (!previousFaq) return;
+
+    // Swap SortOrder values
+    const currentSortOrder = currentFaq.SortOrder ?? 0;
+    const previousSortOrder = previousFaq.SortOrder ?? 0;
+
+    try {
+      // Update both FAQs - only send SortOrder field
+      await Promise.all([
+        fetch(`/api/protected/faqs/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            SortOrder: previousSortOrder,
+          }),
+        }),
+        fetch(`/api/protected/faqs/${previousFaq.ID}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            SortOrder: currentSortOrder,
+          }),
+        }),
+      ]);
+
+      // Refresh the list
+      await refreshFaqs();
+    } catch (error) {
+      console.error('Error moving FAQ up:', error);
+      alert('Er is een fout opgetreden bij het verplaatsen van de FAQ.');
+    }
+  };
+
+  const handleMoveDown = async (id: string, currentIndex: number) => {
+    // Find the FAQ item (use full list to ensure we have all data)
+    const currentFaq = faqs.items.find((faq: VSFAQ) => faq.ID === id);
+    if (!currentFaq) return;
+
+    // Get all items in the same group (same ParentID)
+    const groupItems = faqs.items
+      .filter((faq: VSFAQ) => faq.ParentID === currentFaq.ParentID)
+      .sort((a, b) => {
+        const orderA = a.SortOrder ?? 0;
+        const orderB = b.SortOrder ?? 0;
+        return orderA - orderB;
+      });
+
+    // Find the current item's position in the sorted group
+    const sortedIndex = groupItems.findIndex((faq: VSFAQ) => faq.ID === id);
+    if (sortedIndex === groupItems.length - 1) return; // Already at the bottom
+
+    const nextFaq = groupItems[sortedIndex + 1];
+    if (!nextFaq) return;
+
+    // Swap SortOrder values
+    const currentSortOrder = currentFaq.SortOrder ?? 0;
+    const nextSortOrder = nextFaq.SortOrder ?? 0;
+
+    try {
+      // Update both FAQs - only send SortOrder field
+      await Promise.all([
+        fetch(`/api/protected/faqs/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            SortOrder: nextSortOrder,
+          }),
+        }),
+        fetch(`/api/protected/faqs/${nextFaq.ID}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            SortOrder: currentSortOrder,
+          }),
+        }),
+      ]);
+
+      // Refresh the list
+      await refreshFaqs();
+    } catch (error) {
+      console.error('Error moving FAQ down:', error);
+      alert('Er is een fout opgetreden bij het verplaatsen van de FAQ.');
+    }
+  };
+
   const renderOverview = () => {
     return (
       <div>
@@ -109,15 +224,20 @@ const FaqComponent: React.FC = () => {
           />
         </div>
 
-        {filteredFaqs.sections.map((section: VSFAQ) =>
-          <FaqSection
-            key={section.ID}
-            section={section}
-            items={filteredFaqs.items.filter((item: VSFAQ) => item.ParentID === section.ID)}
-            handleEditFaq={handleEditFaq}
-            handleDeleteFaq={handleDeleteFaq}
-          />)
-        }
+        {filteredFaqs.sections.map((section: VSFAQ) => {
+          const sectionItems = filteredFaqs.items.filter((item: VSFAQ) => item.ParentID === section.ID);
+          return (
+            <FaqSection
+              key={section.ID}
+              section={section}
+              items={sectionItems}
+              handleEditFaq={handleEditFaq}
+              handleDeleteFaq={handleDeleteFaq}
+              handleMoveUp={handleMoveUp}
+              handleMoveDown={handleMoveDown}
+            />
+          );
+        })}
 
       </div>
     );
