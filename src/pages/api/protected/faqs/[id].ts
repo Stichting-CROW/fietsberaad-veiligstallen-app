@@ -109,6 +109,8 @@ export default async function handle(
         }
         const parsed = parseResult.data;
 
+        const userName = session?.user?.name || session?.user?.email || 'unknown';
+
         const newData = {
           ID: newID,
           ParentID: parsed.ParentID,
@@ -116,7 +118,11 @@ export default async function handle(
           Answer: parsed.Answer,
           Status: parsed.Status || "1",
           ModuleID: parsed.ModuleID,
-          SortOrder: parsed.SortOrder
+          SortOrder: parsed.SortOrder,
+          EditorCreated: userName,
+          DateCreated: new Date(),
+          EditorModified: null,
+          DateModified: null,
         }
 
         const newFaq = await prisma.faq.create({data: newData}) as unknown as VSFAQ;
@@ -158,6 +164,9 @@ export default async function handle(
           return;
         }
 
+        const userName = session?.user?.name || session?.user?.email || 'unknown';
+        const dateModified = new Date();
+
         const parsed = parseResult.data;
         const updatedFaq = await prisma.faq.update({
           where: { ID: id },
@@ -168,6 +177,8 @@ export default async function handle(
             SortOrder: parsed.SortOrder,
             Status: parsed.Status,
             ModuleID: parsed.ModuleID,
+            EditorModified: userName,
+            DateModified: dateModified,
           }
         }) as unknown as VSFAQ;
 
