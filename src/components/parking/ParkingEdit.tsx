@@ -58,6 +58,7 @@ export type ParkingEditUpdateStructure = {
   HelpdeskHandmatigIngesteld?: boolean;
   FMS?: boolean;
   StallingsID?: string;
+  Description?: string | null;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -156,6 +157,10 @@ const ParkingEdit = ({
   );
 
   const [newStatus, setNewStatus] = React.useState<ParkingStatus | undefined>(
+    undefined,
+  );
+
+  const [newDescription, setNewDescription] = React.useState<string | undefined>(
     undefined,
   );
 
@@ -503,6 +508,12 @@ const ParkingEdit = ({
     if (newExtraServices !== undefined) {
       if (newExtraServices !== parkingdata.ExtraServices) {
         update.ExtraServices = newExtraServices;
+      }
+    }
+
+    if (newDescription !== undefined) {
+      if (newDescription !== parkingdata.Description) {
+        update.Description = newDescription || null;
       }
     }
 
@@ -1091,6 +1102,28 @@ const ParkingEdit = ({
           {!isVoorstel && <HorizontalDivider className="my-4" /> }
 
           { renderStatusSection() } 
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlockEdit>
+            <div className="mt-4 w-full">
+              <label>
+                <div>
+                  <b>Beschrijving</b>
+                </div>
+                <textarea
+                  rows={4}
+                  className="px-5 py-2 border rounded-md my-2 w-full"
+                  placeholder="Beschrijving van de stalling"
+                  onChange={(e) => {
+                    setNewDescription(e.target.value);
+                  }}
+                  value={newDescription !== undefined ? newDescription : (parkingdata.Description || "")}
+                  disabled={!canEditAllFields && !canEditLimitedFields}
+                />
+              </label>
+            </div>
+          </SectionBlockEdit>
 
           <p className="mb-10">{/*Some spacing*/}</p>
 
