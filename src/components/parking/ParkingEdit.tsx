@@ -59,6 +59,9 @@ export type ParkingEditUpdateStructure = {
   FMS?: boolean;
   StallingsID?: string;
   Description?: string | null;
+  MaxStallingsduur?: number;
+  IsStationsstalling?: boolean;
+  IsPopup?: boolean;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -161,6 +164,18 @@ const ParkingEdit = ({
   );
 
   const [newDescription, setNewDescription] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  const [newMaxStallingsduur, setNewMaxStallingsduur] = React.useState<number | undefined>(
+    undefined,
+  );
+
+  const [newIsStationsstalling, setNewIsStationsstalling] = React.useState<boolean | undefined>(
+    undefined,
+  );
+
+  const [newIsPopup, setNewIsPopup] = React.useState<boolean | undefined>(
     undefined,
   );
 
@@ -514,6 +529,28 @@ const ParkingEdit = ({
     if (newDescription !== undefined) {
       if (newDescription !== parkingdata.Description) {
         update.Description = newDescription || null;
+      }
+    }
+
+    if (newMaxStallingsduur !== undefined) {
+      // Convert hours to minutes (same as ColdFusion: form.maxParkingTime * 60)
+      // Empty or 0 value becomes 0 minutes (matching ColdFusion: if form.maxParkingTime eq "" then form.maxParkingTime = 0)
+      const maxStallingsduurInMinutes = (newMaxStallingsduur > 0 ? Math.round(newMaxStallingsduur * 60) : 0);
+      const currentMaxStallingsduur = parkingdata.MaxStallingsduur || 0;
+      if (maxStallingsduurInMinutes !== currentMaxStallingsduur) {
+        update.MaxStallingsduur = maxStallingsduurInMinutes;
+      }
+    }
+
+    if (newIsStationsstalling !== undefined) {
+      if (newIsStationsstalling !== parkingdata.IsStationsstalling) {
+        update.IsStationsstalling = newIsStationsstalling;
+      }
+    }
+
+    if (newIsPopup !== undefined) {
+      if (newIsPopup !== parkingdata.IsPopup) {
+        update.IsPopup = newIsPopup;
       }
     }
 
@@ -1100,6 +1137,82 @@ const ParkingEdit = ({
           </SectionBlock> }
 
           {!isVoorstel && <HorizontalDivider className="my-4" /> }
+
+          {!isVoorstel && hasFmsservices && canEditAllFields && (
+            <>
+              <SectionBlock heading="Max. stallingsduur">
+                <div className="w-full flex items-center">
+                  <input
+                    type="number"
+                    name="maxStallingsduur"
+                    id="maxStallingsduur"
+                    className="px-5 py-2 border rounded-md w-20 mr-2"
+                    title="Leeg laten indien niet van toepassing"
+                    onChange={(e) => {
+                      const inputValue = e.target.value.trim();
+                      if (inputValue === '') {
+                        setNewMaxStallingsduur(undefined);
+                      } else {
+                        const numValue = parseFloat(inputValue);
+                        setNewMaxStallingsduur(isNaN(numValue) ? undefined : numValue);
+                      }
+                    }}
+                    value={newMaxStallingsduur !== undefined 
+                      ? (newMaxStallingsduur > 0 ? newMaxStallingsduur : '') 
+                      : (parkingdata.MaxStallingsduur && parkingdata.MaxStallingsduur > 0 
+                        ? Math.round((parkingdata.MaxStallingsduur / 60) * 100) / 100 
+                        : '')}
+                    disabled={!canEditAllFields}
+                  />
+                  <span className="text-sm text-gray-600">uur (leeg/0 = onbeperkt)</span>
+                </div>
+              </SectionBlock>
+            </>
+          )}
+
+          {!isVoorstel && canEditAllFields && (
+            <>
+              <HorizontalDivider className="my-4" />
+
+              <SectionBlock heading="Bij station?">
+                <div className="w-full flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isStationsstalling-checkbox"
+                    checked={newIsStationsstalling !== undefined ? newIsStationsstalling : parkingdata.IsStationsstalling || false}
+                    onChange={(e) => {
+                      setNewIsStationsstalling(e.target.checked);
+                    }}
+                    disabled={!canEditAllFields}
+                  />
+                  <label htmlFor="isStationsstalling-checkbox" className={`text-sm font-medium ml-2 ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
+                    Stalling bij station
+                  </label>
+                </div>
+              </SectionBlock>
+
+              <HorizontalDivider className="my-4" />
+
+              <SectionBlock heading="Popup stalling?">
+                <div className="w-full flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isPopup-checkbox"
+                    checked={newIsPopup !== undefined ? newIsPopup : parkingdata.IsPopup || false}
+                    onChange={(e) => {
+                      setNewIsPopup(e.target.checked);
+                    }}
+                    disabled={!canEditAllFields}
+                  />
+                  <label htmlFor="isPopup-checkbox" className={`text-sm font-medium ml-2 ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
+                    Popup stalling
+                  </label>
+                </div>
+              </SectionBlock>
+            </>
+          )}
+
+          {!isVoorstel && hasFmsservices && canEditAllFields && <HorizontalDivider className="my-4" /> }
 
           { renderStatusSection() } 
 
