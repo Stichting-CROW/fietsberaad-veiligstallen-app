@@ -15,9 +15,9 @@ export type VSFAQ = {
   Answer?: string | null,
   SortOrder?: number | null,
   Status?: string | null,
-  // EditorCreated: Date,
-  // EditorModified: Date,
+  EditorCreated?: string | null,
   DateCreated?: Date,
+  EditorModified?: string | null,
   DateModified?: Date,
   ModuleID?: string | null,
 }
