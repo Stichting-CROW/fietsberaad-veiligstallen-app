@@ -134,10 +134,7 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
       const startKey = moment(startDate).isoWeek(moment(startDate).isoWeek()).startOf('isoWeek');
       const endKey = moment(endDate).isoWeek(moment(endDate).isoWeek()).endOf('isoWeek');
       for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'week')) {
-        // Use GGGG-WW for key to match MySQL's DATE_FORMAT(..., '%x-%v')
-        // %x returns ISO week year (GGGG), %v returns zero-padded week number (WW)
-        const key = `${date.isoWeekYear()}-${date.isoWeek().toString().padStart(2, '0')}`;
-        labelMap[key] = date.format('YYYY-WW');
+        labelMap[date.format('YYYY-W')] = date.format('YYYY-WW');
       }
       return labelMap;
     }
