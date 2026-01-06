@@ -132,9 +132,18 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     case 'per_week': {
       const labelMap: XAxisLabelMap = {};
       const startKey = moment(startDate).isoWeek(moment(startDate).isoWeek()).startOf('isoWeek');
-      const endKey = moment(endDate).isoWeek(moment(endDate).isoWeek()).endOf('isoWeek');
-      for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'week')) {
-        labelMap[date.format('YYYY-W')] = date.format('YYYY-[w]W');
+      const endKey = moment(endDate).isoWeek(moment(endDate).isoWeek()).startOf('isoWeek');
+      // Use isSameOrBefore to include the end week, matching SQL BETWEEN clause
+      for (let date = moment(startKey); date.isSameOrBefore(endKey); date.add(1, 'week')) {
+        // Match MySQL's DATE_FORMAT(..., '%x-%v') format: YYYY-WW (with zero-padded week)
+        // %x = Year for the week where Sunday is the first day, %v = Week (01..53) where Monday is first day
+        // When used together, %x-%v produces ISO-like weeks where the year is the ISO week year
+        // Use GGGG (ISO week year) with WW (zero-padded ISO week) to match MySQL output
+        const year = date.format('GGGG'); // ISO week year (matches MySQL %x when used with %v)
+        const week = date.format('WW'); // Zero-padded ISO week (01-53, matches MySQL %v)
+        const key = `${year}-${week}`;
+        // Use ISO week year (GGGG) for the label to match the key format
+        labelMap[key] = date.format('GGGG-[w]WW');
       }
       return labelMap;
     }
