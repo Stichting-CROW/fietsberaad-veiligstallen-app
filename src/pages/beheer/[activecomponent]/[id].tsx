@@ -6,11 +6,9 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 
 import { useRouter } from "next/router";
-const LeftMenuFietsberaad = dynamic(() => import('~/components/beheer/LeftMenuFietsberaad'), { ssr: false })// TODO Make SSR again
-const LeftMenuGemeente = dynamic(() => import('~/components/beheer/LeftMenuGemeente'), { ssr: false })// TODO Make SSR again
-const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExploitant'), { ssr: false })// TODO Make SSR again
 
 import TopBar from "~/components/beheer/TopBar";
+import { renderLeftMenu } from "~/utils/renderLeftMenu";
 
 // import AbonnementenComponent from '~/components/beheer/abonnementen';
 import AbonnementsvormenComponent from '~/components/beheer/abonnementsvormen';
@@ -513,43 +511,15 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     }
   }
 
-  const renderLeftMenu = () => {
-    // If user is Fietsberaad, show the Fietsberaad left menu
-    if (selectedContactID === "1") {
-      return <LeftMenuFietsberaad
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={activecomponent}
-        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-      />
-    }
-    else if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
-      return <LeftMenuGemeente
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={activecomponent}
-        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-        hasAbonnementenModule={hasAbonnementenModule}
-      />
-    }
-    else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {
-      return <LeftMenuExploitant
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={activecomponent}
-        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-      />
-    }
-    // By default: render empty left menu
-    else {
-      return (
-        <nav
-          id="leftMenu"
-          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
-          aria-label="Hoofdmenu"
-        >
-          <ul className="space-y-1" />
-        </nav>
-      );
-    }
-  }
+  const leftMenuElement = renderLeftMenu({
+    selectedContactID,
+    activecomponent,
+    securityProfile: session?.user?.securityProfile,
+    gemeenten: gemeenten || [],
+    exploitanten: exploitanten || [],
+    onSelect: (componentKey: VSMenuTopic) => handleSelectComponent(componentKey),
+    hasAbonnementenModule,
+  });
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-gray-50">
@@ -561,7 +531,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         onOrganisatieSelect={handleSelectGemeente}
       />
       <div className="flex">
-        {renderLeftMenu()}
+        {leftMenuElement}
 
         {/* Main Content */}
         {/* ${Styles.ContentPage_Body}`} */}
