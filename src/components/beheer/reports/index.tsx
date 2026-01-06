@@ -24,7 +24,7 @@ import { useSession } from "next-auth/react";
 import { getXAxisFormatter, getTooltipFormatter } from "~/backend/services/reports/ReportAxisFunctions";
 import { useRouter } from "next/router";
 
-// Color palette for chart series - using a diverse set of colors
+// Color palette for chart series - using a diverse set of colors with better visual separation
 const CHART_COLORS = [
   '#008FFB', // Blue
   '#00E396', // Green
@@ -46,22 +46,43 @@ const CHART_COLORS = [
   '#F44336', // Red
   '#2196F3', // Blue
   '#009688', // Teal
+  '#FF6B6B', // Coral Red
+  '#4ECDC4', // Turquoise
+  '#45B7D1', // Sky Blue
+  '#FFA07A', // Light Salmon
+  '#98D8C8', // Mint
+  '#F7DC6F', // Yellow
+  '#BB8FCE', // Lavender
+  '#85C1E2', // Powder Blue
+  '#F8B739', // Golden Yellow
+  '#52BE80', // Emerald
+  '#EC7063', // Soft Red
+  '#5DADE2', // Light Blue
+  '#F1948A', // Pink
+  '#82E0AA', // Light Green
+  '#F4D03F', // Yellow
+  '#AED6F1', // Light Blue
+  '#D7BDE2', // Light Purple
+  '#F9E79F', // Light Yellow
+  '#A9DFBF', // Light Mint
+  '#FAD7A0', // Peach
 ];
 
 /**
- * Generates a consistent color for a series name using a hash function
- * This ensures the same series name always gets the same color
+ * Generates a consistent color for a series name using an improved hash function
+ * This ensures the same series name always gets the same color with better distribution
  */
 const getColorForSeriesName = (name: string): string => {
-  // Simple hash function to convert string to number
-  let hash = 0;
+  // Use djb2 hash algorithm for better distribution
+  // This algorithm provides better hash distribution than simple additive hashing
+  let hash = 5381;
   for (let i = 0; i < name.length; i++) {
     const char = name.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = ((hash << 5) + hash) + char; // hash * 33 + char
   }
   
   // Use absolute value and modulo to get index in color array
+  // The djb2 algorithm can produce negative numbers, so we use Math.abs
   const colorIndex = Math.abs(hash) % CHART_COLORS.length;
   return CHART_COLORS[colorIndex] ?? CHART_COLORS[0]!;
 };
