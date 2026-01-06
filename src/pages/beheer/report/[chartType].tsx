@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { type GetServerSidePropsContext, type GetServerSidePropsResult } from 'next';
 import type { Session } from "next-auth";
 import { getServerSession } from "next-auth/next"
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { useRouter } from "next/router";
 
-const LeftMenuFietsberaad = dynamic(() => import('~/components/beheer/LeftMenuFietsberaad'), { ssr: false })
-const LeftMenuGemeente = dynamic(() => import('~/components/beheer/LeftMenuGemeente'), { ssr: false })
-const LeftMenuExploitant = dynamic(() => import('~/components/beheer/LeftMenuExploitant'), { ssr: false })
-
 import TopBar from "~/components/beheer/TopBar";
+import { renderLeftMenu } from "~/utils/renderLeftMenu";
 import ReportComponent from '~/components/beheer/reports';
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -130,41 +126,23 @@ const ReportPage: React.FC<ReportPageProps> = () => {
   // Check if user has access to reports
   const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
 
-  const renderLeftMenu = () => {
-    if (selectedContactID === "1") {
-      return <LeftMenuFietsberaad
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={VSMenuTopic.Report}
-        onSelect={() => {}}
-      />
+  // For report page, only Gemeente should allow navigation, others use empty handler
+  const handleReportPageSelect = (componentKey: VSMenuTopic) => {
+    if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
+      handleSelectComponent(componentKey);
     }
-    else if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
-      return <LeftMenuGemeente
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={VSMenuTopic.Report}
-        onSelect={(componentKey: VSMenuTopic) => handleSelectComponent(componentKey)} // Pass the component key
-        hasAbonnementenModule={true}
-      />
-    }
-    else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {
-      return <LeftMenuExploitant
-        securityProfile={session?.user?.securityProfile}
-        activecomponent={VSMenuTopic.Report}
-        onSelect={() => {}}
-      />
-    }
-    else {
-      return (
-        <nav
-          id="leftMenu"
-          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
-          aria-label="Hoofdmenu"
-        >
-          <ul className="space-y-1" />
-        </nav>
-      );
-    }
-  }
+    // For Fietsberaad and Exploitant, do nothing (empty handler)
+  };
+
+  const leftMenuElement = renderLeftMenu({
+    selectedContactID,
+    activecomponent: VSMenuTopic.Report,
+    securityProfile: session?.user?.securityProfile,
+    gemeenten: gemeenten || [],
+    exploitanten: exploitanten || [],
+    onSelect: handleReportPageSelect,
+    hasAbonnementenModule: true,
+  });
 
   if (!hasRapportages) {
     return (
@@ -177,7 +155,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
           onOrganisatieSelect={handleSelectGemeente}
         />
         <div className="flex">
-          {renderLeftMenu()}
+          {leftMenuElement}
           <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
               <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
@@ -211,7 +189,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
           onOrganisatieSelect={handleSelectGemeente}
         />
         <div className="flex">
-          {renderLeftMenu()}
+          {leftMenuElement}
           <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
             <div className="text-center text-gray-500 mt-10 text-xl">
               Selecteer een gemeente om rapportages te bekijken
@@ -232,7 +210,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
         onOrganisatieSelect={handleSelectGemeente}
       />
       <div className="flex">
-        {renderLeftMenu()}
+        {leftMenuElement}
         <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
           <ReportComponent
             showAbonnementenRapporten={showAbonnementenRapporten}

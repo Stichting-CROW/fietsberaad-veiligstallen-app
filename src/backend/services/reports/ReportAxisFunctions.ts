@@ -109,9 +109,12 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_day': {
       const labelMap: XAxisLabelMap = {};
+      // Dutch day abbreviations
+      const dayAbbreviations = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
       // Use isSameOrBefore to include the end date, matching SQL BETWEEN clause
       for (let date = moment(startDate).startOf('day'); date.isSameOrBefore(moment(endDate).startOf('day')); date.add(1, 'day')) {
-        labelMap[date.format('YYYY-DDD')] = date.format('D MMM');
+        const dayOfWeek = dayAbbreviations[date.day()] || '';
+        labelMap[date.format('YYYY-DDD')] = `${dayOfWeek} ${date.format('D MMM')}`;
       }
       return labelMap;
     }
