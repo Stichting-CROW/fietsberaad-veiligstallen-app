@@ -30,7 +30,7 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   } = params;
 
   // TMP: disable cache for now
-  // useCache = false;
+  useCache = false;
 
   if (["transacties_voltooid", "inkomsten"].includes(reportType) === false) {
     throw new Error("Invalid report type");
@@ -38,6 +38,8 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   }
 
   const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate, dayBeginsAt);
+  console.log('adjustedStartDate', adjustedStartDate);
+  console.log('adjustedEndDate', adjustedEndDate);
 
   if (adjustedStartDate === undefined || adjustedEndDate === undefined) {
     throw new Error("Start or end date is undefined");

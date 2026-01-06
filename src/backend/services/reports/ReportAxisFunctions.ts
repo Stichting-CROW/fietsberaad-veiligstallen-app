@@ -109,7 +109,8 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_day': {
       const labelMap: XAxisLabelMap = {};
-      for (let date = moment(startDate); date.isBefore(endDate); date.add(1, 'day')) {
+      // Use isSameOrBefore to include the end date, matching SQL BETWEEN clause
+      for (let date = moment(startDate).startOf('day'); date.isSameOrBefore(moment(endDate).startOf('day')); date.add(1, 'day')) {
         labelMap[date.format('YYYY-DDD')] = date.format('MMM-D');
       }
       return labelMap;

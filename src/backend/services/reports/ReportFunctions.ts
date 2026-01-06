@@ -1,5 +1,6 @@
 import { type ReportParams, type ReportGrouping, type ReportType } from "~/components/beheer/reports/ReportsFilter";
 import { getLabelMapForXAxis, getXAxisTitle, type XAxisLabelMap } from "~/backend/services/reports/ReportAxisFunctions";
+import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 
 import { prisma } from "~/server/db";
 import fs from "fs";
@@ -71,6 +72,9 @@ export const convertToTimegroupSeries = async (
       });
     }
     // Update the value for this specific timegroup
+    console.log('timegroup', timegroup);
+    console.log('value', tx.value);
+    console.log('--------------------------------');
     acc[category].data[timegroup] = Number(tx.value);
     return acc;
   }, {});
@@ -249,11 +253,53 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
   try {
     const results = await prisma.$queryRawUnsafe<SingleResult[]>(sql);
 
-    const keyToLabelMap = getLabelMapForXAxis(
-      params.reportGrouping,
-      params.startDT || new Date(),
-      params.endDT || new Date()
+    // Use adjusted dates to match the SQL query date range
+    const { adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(
+      params.startDT,
+      params.endDT,
+      params.dayBeginsAt
     );
+
+    // For per_day grouping, normalize to start of day to match SQL timegroup calculation
+    // The SQL uses DAYOFYEAR(DATE_ADD(...)) + 1, which groups by the day after time adjustment
+    // So we need to account for this +1 offset by starting the label map from one day earlier
+    let labelMapStartDate = adjustedStartDate?.toDate() || params.startDT || new Date();
+    let labelMapEndDate = adjustedEndDate?.toDate() || params.endDT || new Date();
+    
+    if (params.reportGrouping === 'per_day' && adjustedStartDate && adjustedEndDate) {
+      // Start from the start of the day of the adjusted start date
+      // We'll adjust the keys later to account for SQL's +1 offset
+      labelMapStartDate = adjustedStartDate.clone().startOf('day').toDate();
+      // End date should include the full day, so use end of day
+      labelMapEndDate = adjustedEndDate.clone().endOf('day').toDate();
+    }
+
+    let keyToLabelMap = getLabelMapForXAxis(
+      params.reportGrouping,
+      labelMapStartDate,
+      labelMapEndDate
+    );
+    
+    // For per_day grouping, the SQL query uses DAYOFYEAR(...) + 1, so we need to adjust the keys
+    // to match the SQL timegroup format
+    if (params.reportGrouping === 'per_day' && keyToLabelMap) {
+      const adjustedLabelMap: XAxisLabelMap = {};
+      for (const [key, label] of Object.entries(keyToLabelMap)) {
+        // Parse the key (format: 'YYYY-DDD') and add 1 to the day-of-year to match SQL
+        const match = key.match(/^(\d{4})-(\d+)$/);
+        if (match && match[1] && match[2]) {
+          const year = match[1];
+          const dayOfYear = parseInt(match[2], 10);
+          const adjustedKey = `${year}-${dayOfYear + 1}`;
+          adjustedLabelMap[adjustedKey] = label;
+        } else {
+          adjustedLabelMap[key] = label;
+        }
+      }
+      keyToLabelMap = adjustedLabelMap;
+    }
+    
+    console.log('keyToLabelMap', keyToLabelMap);
     if (!keyToLabelMap) {
       return false;
     }

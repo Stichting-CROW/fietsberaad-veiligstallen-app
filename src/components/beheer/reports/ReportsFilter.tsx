@@ -540,7 +540,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     if(! isValidPeriod) return;
 
-    console.log('periodInDays', periodInDays);
     if(periodInDays <= 100) {
       // Do nothing
     } else if(periodInDays <= 124) {
