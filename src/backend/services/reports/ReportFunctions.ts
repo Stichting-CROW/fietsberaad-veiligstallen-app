@@ -270,8 +270,15 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
       // Start from the start of the day of the adjusted start date
       // We'll adjust the keys later to account for SQL's +1 offset
       labelMapStartDate = adjustedStartDate.clone().startOf('day').toDate();
-      // End date should include the full day, so use end of day
-      labelMapEndDate = adjustedEndDate.clone().endOf('day').toDate();
+      // Use the original endDT's day (before adjustment) to determine the last day to include
+      // This ensures we don't include an extra day beyond what the user requested
+      // The SQL query may extend slightly into the next day due to time adjustment, but we only
+      // want to show data up to the end of the requested day
+      if (params.endDT) {
+        labelMapEndDate = moment(params.endDT).startOf('day').toDate();
+      } else {
+        labelMapEndDate = adjustedEndDate.clone().startOf('day').toDate();
+      }
     }
 
     let keyToLabelMap = getLabelMapForXAxis(
