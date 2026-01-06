@@ -23,6 +23,7 @@ import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
 import { getXAxisFormatter, getTooltipFormatter } from "~/backend/services/reports/ReportAxisFunctions";
 import { useRouter } from "next/router";
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from "./urlFilterSync";
 
 // Color palette for chart series - using a diverse set of colors
 const CHART_COLORS = [
@@ -138,6 +139,24 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   );
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+  const [initialFilterStateFromUrl, setInitialFilterStateFromUrl] = React.useState<Partial<ReportState> | undefined>(undefined);
+
+  // Helper function to reconstruct bikeparkDataSources from IDs
+  const reconstructBikeparkDataSources = React.useCallback((urlFilters: any) => {
+    if (urlFilters.bikeparkDataSourcesIDs && Array.isArray(urlFilters.bikeparkDataSourcesIDs)) {
+      const source = urlFilters.source || 'FMS';
+      urlFilters.bikeparkDataSources = urlFilters.bikeparkDataSourcesIDs.map((id: string) => {
+        const bikepark = bikeparks.find(bp => bp.StallingsID === id);
+        return {
+          StallingsID: id,
+          Title: bikepark?.Title || '',
+          source: source as 'FMS' | 'Lumiguide'
+        };
+      }).filter((bp: any) => bp.Title); // Only include if we found the bikepark
+      delete urlFilters.bikeparkDataSourcesIDs;
+    }
+    return urlFilters;
+  }, [bikeparks]);
 
   const selectedReportTitle = React.useMemo(() => {
     if (!selectedReportType) return '';
@@ -154,6 +173,99 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       setSelectedReportType(initialReportType);
     }
   }, [initialReportType]);
+
+  // Track if we've read initial URL state to avoid re-reading unnecessarily
+  const urlStateReadRef = React.useRef(false);
+  // Track when we're updating the URL ourselves to prevent reading it back
+  const isUpdatingUrlRef = React.useRef(false);
+  // Track the last pathname to detect navigation between chart types
+  const lastPathnameRef = React.useRef<string>('');
+  
+  // Read filters from URL on mount
+  useEffect(() => {
+    if (router.isReady && router.query) {
+      const urlFilters = deserializeFiltersFromUrl(router.query, {});
+      if (Object.keys(urlFilters).length > 0) {
+        const reconstructed = reconstructBikeparkDataSources(urlFilters);
+        setInitialFilterStateFromUrl(reconstructed);
+      }
+      urlStateReadRef.current = true;
+      lastPathnameRef.current = router.pathname;
+    }
+  }, [router.isReady, bikeparks, reconstructBikeparkDataSources]);
+
+  // Read from URL when pathname changes (navigation between chart types) or on genuine navigation
+  // But skip if we just updated the URL ourselves
+  useEffect(() => {
+    if (!router.isReady || !urlStateReadRef.current) return;
+    
+    // If pathname changed, it's a navigation - always read from URL
+    const pathnameChanged = router.pathname !== lastPathnameRef.current;
+    if (pathnameChanged) {
+      lastPathnameRef.current = router.pathname;
+      const urlFilters = deserializeFiltersFromUrl(router.query, {});
+      if (Object.keys(urlFilters).length > 0) {
+        const reconstructed = reconstructBikeparkDataSources(urlFilters);
+        setInitialFilterStateFromUrl(reconstructed);
+      }
+      return;
+    }
+    
+    // If we just updated the URL ourselves, skip reading it back
+    if (isUpdatingUrlRef.current) {
+      isUpdatingUrlRef.current = false;
+      return;
+    }
+    
+    // For query changes on the same pathname, only read if it's a genuine navigation (browser back/forward)
+    // We can detect this by checking if the query is different from what we last wrote
+    const currentQueryString = JSON.stringify(router.query);
+    if (currentQueryString !== lastWrittenUrlRef.current) {
+      // This might be a browser back/forward - read from URL
+      const urlFilters = deserializeFiltersFromUrl(router.query, {});
+      if (Object.keys(urlFilters).length > 0) {
+        const reconstructed = reconstructBikeparkDataSources(urlFilters);
+        setInitialFilterStateFromUrl(reconstructed);
+      }
+    }
+  }, [router.query, router.pathname, router.isReady, reconstructBikeparkDataSources]);
+
+  // Track last URL we wrote to avoid unnecessary updates
+  const lastWrittenUrlRef = React.useRef<string>('');
+  
+  // Update URL when filterState changes
+  useEffect(() => {
+    if (!router.isReady || !filterState) return;
+
+    const urlParams = serializeFiltersToUrl(filterState);
+    const currentQuery = { ...router.query };
+    
+    // Remove filter params that are not in the new state
+    const filterKeys = ['grouping', 'categories', 'rangeUnit', 'bikeparks', 'startDate', 'endDate', 'preset', 'fillups', 'source', 'series', 'bikeparkDataSources'];
+    filterKeys.forEach(key => {
+      if (!(key in urlParams)) {
+        delete currentQuery[key];
+      }
+    });
+
+    // Merge new params
+    const newQuery = { ...currentQuery, ...urlParams };
+    const newQueryString = JSON.stringify(newQuery);
+
+    // Only update if query actually changed and it's different from what we last wrote
+    if (newQueryString !== lastWrittenUrlRef.current) {
+      lastWrittenUrlRef.current = newQueryString;
+      isUpdatingUrlRef.current = true; // Mark that we're updating the URL
+      router.replace(
+        {
+          pathname: router.pathname,
+          query: newQuery,
+        },
+        undefined,
+        { shallow: true }
+      );
+    }
+  }, [filterState, router.isReady, router.pathname]);
 
   const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
     filterComponentRef.current?.applyPreset(preset);
@@ -439,6 +551,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 bikeparks={bikeparksWithData}
                 activeReportType={selectedReportType}
                 onStateChange={handleFilterChange}
+                initialFilterState={initialFilterStateFromUrl}
               />
             </div>
 

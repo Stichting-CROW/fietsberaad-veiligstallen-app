@@ -131,6 +131,7 @@ interface ReportsFilterComponentProps {
   showDetails?: boolean;
   activeReportType?: ReportType;
   onStateChange: (newState: ReportState) => void;
+  initialFilterState?: Partial<ReportState>;
 }
 
 export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
@@ -182,7 +183,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   bikeparks,
   showDetails = true,
   activeReportType,
-  onStateChange
+  onStateChange,
+  initialFilterState
 }, ref) => {
   const selectClasses = "min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md";
 
@@ -276,7 +278,12 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     return null;
   };
 
-  const initialState = loadInitialState();
+  const localStorageState = loadInitialState();
+  
+  // Merge URL state with localStorage state (URL takes precedence)
+  const initialState = initialFilterState 
+    ? { ...localStorageState, ...initialFilterState }
+    : localStorageState;
 
   // Use activeReportType if provided, otherwise use initialState or default
   const [reportType, setReportType] = useState<ReportType>(
@@ -384,6 +391,84 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       setReportType(activeReportType);
     }
   }, [activeReportType, reportType]);
+
+  // Track the last applied URL state to prevent re-applying the same state
+  const lastAppliedUrlStateRef = useRef<string>('');
+  
+  // Apply initial filter state from URL when provided
+  // This allows URL params to override localStorage state
+  useEffect(() => {
+    if (!initialFilterState) return;
+    
+    // Create a stable string representation of the URL state
+    const urlStateString = JSON.stringify({
+      reportGrouping: initialFilterState.reportGrouping,
+      reportCategories: initialFilterState.reportCategories,
+      reportRangeUnit: initialFilterState.reportRangeUnit,
+      selectedBikeparkIDs: initialFilterState.selectedBikeparkIDs?.sort(),
+      customStartDate: initialFilterState.customStartDate,
+      customEndDate: initialFilterState.customEndDate,
+      activePreset: initialFilterState.activePreset,
+      fillups: initialFilterState.fillups,
+      source: initialFilterState.source,
+      selectedSeries: initialFilterState.selectedSeries?.sort(),
+      bikeparkDataSources: initialFilterState.bikeparkDataSources
+    });
+    
+    // Only apply if this is a new/different URL state
+    if (urlStateString === lastAppliedUrlStateRef.current) {
+      return;
+    }
+    
+    lastAppliedUrlStateRef.current = urlStateString;
+    
+    // Apply URL state only if values are different from current state
+    if (initialFilterState.reportGrouping && initialFilterState.reportGrouping !== reportGrouping) {
+      setReportGrouping(initialFilterState.reportGrouping);
+    }
+    if (initialFilterState.reportCategories && initialFilterState.reportCategories !== reportCategories) {
+      setReportCategories(initialFilterState.reportCategories);
+    }
+    if (initialFilterState.reportRangeUnit && initialFilterState.reportRangeUnit !== reportRangeUnit) {
+      setReportRangeUnit(initialFilterState.reportRangeUnit);
+    }
+    if (initialFilterState.selectedBikeparkIDs && initialFilterState.selectedBikeparkIDs.length > 0) {
+      const currentIds = [...selectedBikeparkIDs].sort().join(',');
+      const newIds = [...initialFilterState.selectedBikeparkIDs].sort().join(',');
+      if (currentIds !== newIds) {
+        setSelectedBikeparkIDs(initialFilterState.selectedBikeparkIDs);
+      }
+    }
+    if (initialFilterState.customStartDate && initialFilterState.customStartDate !== customStartDate) {
+      setCustomStartDate(initialFilterState.customStartDate);
+    }
+    if (initialFilterState.customEndDate && initialFilterState.customEndDate !== customEndDate) {
+      setCustomEndDate(initialFilterState.customEndDate);
+    }
+    if (initialFilterState.activePreset && initialFilterState.activePreset !== activePreset) {
+      setActivePreset(initialFilterState.activePreset);
+    }
+    if (initialFilterState.fillups !== undefined && initialFilterState.fillups !== fillups) {
+      setFillups(initialFilterState.fillups);
+    }
+    if (initialFilterState.source !== undefined && initialFilterState.source !== source) {
+      setSource(initialFilterState.source);
+    }
+    if (initialFilterState.selectedSeries) {
+      const currentSeries = [...(selectedSeries || [])].sort().join(',');
+      const newSeries = [...initialFilterState.selectedSeries].sort().join(',');
+      if (currentSeries !== newSeries) {
+        setSelectedSeries(initialFilterState.selectedSeries);
+      }
+    }
+    if (initialFilterState.bikeparkDataSources) {
+      const currentDataSources = JSON.stringify(selectedBikeparkDataSources || []);
+      const newDataSources = JSON.stringify(initialFilterState.bikeparkDataSources);
+      if (currentDataSources !== newDataSources) {
+        setSelectedBikeparkDataSources(initialFilterState.bikeparkDataSources);
+      }
+    }
+  }, [initialFilterState]);
 
   const previousStateRef = useRef<ReportState | null>(null);
 
