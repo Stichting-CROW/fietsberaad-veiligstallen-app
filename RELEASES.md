@@ -1,5 +1,15 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-01-06 pt 2.
+
+**Rapportage**
+
+- 🖌️ X-as labels zijn beter geformatteerd. Bijvoorbeeld: "1 dec." ipv "Dec.-1" en "2025-w1" ipv "2025-01"
+- 🖌️ X-as labels hebben meer ruimte en worden daardoor minder vaak 'afgeknipt'
+- 🖌️ Absolute bezetting grafiek heeft nu capaciteit-lijnen zonder 'markers' (rechte horizontale lijnen)
+- 🐛 Opgelost: Dag voor de geselecteerde periode werd getoond met 0 waarde. Die dag had helemaal niet moeten worden weergegeven
+- 🐛 Opgelost: Periodeselectie dagA t/m dagB, toonde dagA-1 t/m dagB-1
+
 ## VeiligStallen 2026-01-06
 
 **Rapportage**
