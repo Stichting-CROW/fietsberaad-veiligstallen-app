@@ -1,5 +1,16 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-01-06 pt 3.
+
+**Beheer algemeen**
+
+- Prevent flickering of LeftMenu in beheer app, by setting a fixed width
+
+**Rapportage**
+
+- Add weekday to day xaxis-labels (i.e.: 'wo', 'do')
+- Improve color differentiation of series
+
 ## VeiligStallen 2026-01-06 pt 2.
 
 **Rapportage**
