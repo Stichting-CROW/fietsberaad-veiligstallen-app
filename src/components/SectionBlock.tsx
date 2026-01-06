@@ -8,7 +8,7 @@ const  SectionBlock = ({
   contentClasses?: string;
 }) => {
   return (
-    <div className="flex flex-wrap justify-between xl:flex-nowrap">
+    <div className="flex flex-wrap justify-between items-center xl:flex-nowrap">
       <div
         className="
           w-full

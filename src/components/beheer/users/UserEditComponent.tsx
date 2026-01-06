@@ -11,6 +11,7 @@ import { useUser } from '~/hooks/useUser';
 import { makeClientApiCall } from '~/utils/client/api-tools';
 import { useSession } from 'next-auth/react';
 import { VSSecurityTopic } from '~/types/securityprofile';
+import { notifySuccess } from '~/utils/client/notifications';
 
 import type { SecurityUserValidateResponse } from '~/pages/api/protected/security_users/validate';
 import { type securityUserCreateSchema, type SecurityUserResponse, type securityUserUpdateSchema } from '~/pages/api/protected/security_users/[id]';
@@ -56,6 +57,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const nameInputRef = useRef<HTMLInputElement>(null);
 
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
+    const [passwordSetupCooldown, setPasswordSetupCooldown] = useState(false);
 
     const roleOptions = Object.values(VSUserRoleValuesNew).map(role => ({
       label: getNewRoleLabel(role),
@@ -298,6 +300,28 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
       setShowPassword(false);
     };
 
+    const handleSendPasswordSetupEmail = async () => {
+      if (passwordSetupCooldown) return;
+      setPasswordSetupCooldown(true);
+      window.setTimeout(() => setPasswordSetupCooldown(false), 5000);
+
+      setErrorMessage(null);
+      const response = await makeClientApiCall<{ ok: boolean; error?: string }>(
+        `/api/protected/security_users/${id}/password-setup`,
+        "POST",
+        {},
+      );
+      if (!response.success) {
+        setErrorMessage(`E-mail versturen mislukt: (${response.error})`);
+        return;
+      }
+      if (!response.result?.ok) {
+        setErrorMessage(response.result?.error ?? "E-mail versturen mislukt.");
+        return;
+      }
+      notifySuccess("E-mail verstuurd");
+    };
+
     // Auto-save password changes when user types
     const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -306,12 +330,12 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
 
-    const sendEmail = (isNew: boolean) => {
+    const sendEmail = async (isNew: boolean) => {
       const to = userName;
       const subject = isNew ? 'Welkom bij de beheeromgeving van VeiligStallen!' : 'VeiligStallen: Wachtwoord gewijzigd';
       const currentPassword = isChangingPassword ? newPassword : password;
       
-      const bodyNew = ` Beste ${displayName},
+      const bodyNew = `Beste ${displayName},
 
 Ik heb een account voor je aangemaakt voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl: https://veiligstallen.nl
 
@@ -328,7 +352,7 @@ Als je nog vragen hebt, hoor ik het graag.
 ${session?.user?.name}
 ${session?.user?.email}`;
 
-const bodyPassword = ` Beste ${displayName},
+const bodyPassword = `Beste ${displayName},
 
 Het wachtwoord van jouw account voor de beheeromgeving van ${props.siteCompanyName} in VeiligStallen.nl is gewijzigd.
  
@@ -341,11 +365,24 @@ Als je nog vragen hebt, hoor ik het graag.
 ${session?.user?.name}
 ${session?.user?.email}`;
 
-      // Create mailto URL with encoded parameters
-      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(isNew ? bodyNew : bodyPassword)}`;
-      
-      // Open the default email client
-      window.open(mailtoUrl, '_blank');
+      try {
+        const response = await fetch('/api/mail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to,
+            subject,
+            text: isNew ? bodyNew : bodyPassword,
+          }),
+        });
+
+        const json = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !json.ok) {
+          setError(json.error ?? 'E-mail versturen mislukt.');
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'E-mail versturen mislukt.');
+      }
     };
 
     const handleEmailDialog = (shouldEmail: boolean, isNew: boolean) => {
@@ -477,7 +514,7 @@ ${session?.user?.email}`;
                     onChange={handleNewPasswordChange}
                     disabled={!hasLimitedAdminRight}
                     autoComplete="new-password"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className={`flex-1 px-5 py-2 border rounded-full my-2 ${!hasLimitedAdminRight ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}`}
                   />
                   <button
                     type="button"
@@ -503,14 +540,22 @@ ${session?.user?.email}`;
             </>
           ) : (
             // Existing user - show change password button
-            <div className="mb-4">
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSendPasswordSetupEmail}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                disabled={!hasLimitedAdminRight || passwordSetupCooldown}
+              >
+                Laat gebruiker het wachtwoord kiezen
+              </button>
               <button
                 type="button"
                 onClick={handleChangePassword}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                 disabled={!hasLimitedAdminRight}
               >
-                Wachtwoord wijzigen
+                Stel wachtwoord in
               </button>
             </div>
           )}

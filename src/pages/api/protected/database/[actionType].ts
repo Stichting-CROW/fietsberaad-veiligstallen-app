@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { handleApiError } from "~/utils/formatPrismaError";
 const dateSchema = z.string().datetime();
 
 const UserStatusParamsSchema = z.object({
@@ -197,7 +198,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       return res.status(405).end(); // Method Not Allowed
     }
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    const errorResponse = handleApiError("database/[actionType]", error);
+    return res.status(errorResponse.status).json(errorResponse.response);
   }
 }

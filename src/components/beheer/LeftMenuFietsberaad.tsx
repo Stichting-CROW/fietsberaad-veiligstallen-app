@@ -5,6 +5,7 @@ import {
   FiClock,
   FiDownload,
   FiFileText,
+  FiGrid,
   FiHelpCircle,
   FiHome,
   FiMap,
@@ -163,6 +164,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiDownload}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.DatabaseModules}
+                title={'Modules'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiGrid}
               />
             </>
           </LeftMenuItem>

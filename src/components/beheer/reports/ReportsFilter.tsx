@@ -393,6 +393,22 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
   }, [bikeparks]);
 
+  // Sync selectedBikeparkIDs with bikeparkDataSources when bikeparkDataSources changes
+  // This is especially important for the bezetting report type where BikeparkDataSourceSelect is used
+  useEffect(() => {
+    // Only sync for bezetting report type where BikeparkDataSourceSelect is actively used
+    if (reportType === 'bezetting' && selectedBikeparkDataSources && selectedBikeparkDataSources.length > 0) {
+      const idsFromDataSources = selectedBikeparkDataSources.map(bp => bp.StallingsID);
+      // Only update if the IDs are different to avoid infinite loops
+      // Sort both arrays for comparison
+      const currentIds = [...selectedBikeparkIDs].sort().join(',');
+      const newIds = [...idsFromDataSources].sort().join(',');
+      if (currentIds !== newIds) {
+        setSelectedBikeparkIDs(idsFromDataSources);
+      }
+    }
+  }, [reportType, selectedBikeparkDataSources, selectedBikeparkIDs]);
+
   useEffect(() => {
     const newState: ReportState = currentReportState;
 
@@ -785,6 +801,36 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             onSelectionChange={setSelectedBikeparkDataSources}
           />
         }
+        {reportType === 'bezetting' && (
+          <div className="relative inline-block text-left">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
+            >
+              <span>Databron: {source || 'Alle'}</span>
+              <svg
+                className="h-4 w-4 text-gray-500"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <select
+              value={source || ''}
+              onChange={(e) => setSource(e.target.value || undefined)}
+              name="source"
+              id="source"
+              className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
+            >
+              <option value="">Alle</option>
+              <option value="FMS">FMS</option>
+              <option value="Lumiguide">Lumiguide</option>
+            </select>
+          </div>
+        )}
         {reportType === 'absolute_bezetting' && (
           <div className="relative inline-block text-left">
             <button

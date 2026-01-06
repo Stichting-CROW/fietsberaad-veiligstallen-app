@@ -10,6 +10,7 @@ import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
 import {
   getDefaultLocation,
+  createVeiligstallenOrgLink,
 } from "~/utils/parkings";
 import {
   cbsCodeFromMunicipality,
@@ -37,6 +38,7 @@ import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
+import ParkingEditLogs from "~/components/parking/ParkingEditLogs";
 import ParkingEditTarieven from "~/components/parking/ParkingEditTarieven";
 
 export type ParkingEditUpdateStructure = {
@@ -56,6 +58,10 @@ export type ParkingEditUpdateStructure = {
   HelpdeskHandmatigIngesteld?: boolean;
   FMS?: boolean;
   StallingsID?: string;
+  Description?: string | null;
+  MaxStallingsduur?: number;
+  IsStationsstalling?: boolean;
+  IsPopup?: boolean;
 
   // [key: string]: string | undefined;
   Openingstijden?: any; // Replace with the actual type if different
@@ -154,6 +160,22 @@ const ParkingEdit = ({
   );
 
   const [newStatus, setNewStatus] = React.useState<ParkingStatus | undefined>(
+    undefined,
+  );
+
+  const [newDescription, setNewDescription] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  const [newMaxStallingsduur, setNewMaxStallingsduur] = React.useState<number | undefined>(
+    undefined,
+  );
+
+  const [newIsStationsstalling, setNewIsStationsstalling] = React.useState<boolean | undefined>(
+    undefined,
+  );
+
+  const [newIsPopup, setNewIsPopup] = React.useState<boolean | undefined>(
     undefined,
   );
 
@@ -501,6 +523,34 @@ const ParkingEdit = ({
     if (newExtraServices !== undefined) {
       if (newExtraServices !== parkingdata.ExtraServices) {
         update.ExtraServices = newExtraServices;
+      }
+    }
+
+    if (newDescription !== undefined) {
+      if (newDescription !== parkingdata.Description) {
+        update.Description = newDescription || null;
+      }
+    }
+
+    if (newMaxStallingsduur !== undefined) {
+      // Convert hours to minutes (same as ColdFusion: form.maxParkingTime * 60)
+      // Empty or 0 value becomes 0 minutes (matching ColdFusion: if form.maxParkingTime eq "" then form.maxParkingTime = 0)
+      const maxStallingsduurInMinutes = (newMaxStallingsduur > 0 ? Math.round(newMaxStallingsduur * 60) : 0);
+      const currentMaxStallingsduur = parkingdata.MaxStallingsduur || 0;
+      if (maxStallingsduurInMinutes !== currentMaxStallingsduur) {
+        update.MaxStallingsduur = maxStallingsduurInMinutes;
+      }
+    }
+
+    if (newIsStationsstalling !== undefined) {
+      if (newIsStationsstalling !== parkingdata.IsStationsstalling) {
+        update.IsStationsstalling = newIsStationsstalling;
+      }
+    }
+
+    if (newIsPopup !== undefined) {
+      if (newIsPopup !== parkingdata.IsPopup) {
+        update.IsPopup = newIsPopup;
       }
     }
 
@@ -1088,7 +1138,105 @@ const ParkingEdit = ({
 
           {!isVoorstel && <HorizontalDivider className="my-4" /> }
 
+          {!isVoorstel && hasFmsservices && canEditAllFields && (
+            <>
+              <SectionBlock heading="Max. stallingsduur">
+                <div className="w-full flex items-center">
+                  <input
+                    type="number"
+                    name="maxStallingsduur"
+                    id="maxStallingsduur"
+                    className="px-5 py-2 border rounded-md w-20 mr-2"
+                    title="Leeg laten indien niet van toepassing"
+                    onChange={(e) => {
+                      const inputValue = e.target.value.trim();
+                      if (inputValue === '') {
+                        setNewMaxStallingsduur(undefined);
+                      } else {
+                        const numValue = parseFloat(inputValue);
+                        setNewMaxStallingsduur(isNaN(numValue) ? undefined : numValue);
+                      }
+                    }}
+                    value={newMaxStallingsduur !== undefined 
+                      ? (newMaxStallingsduur > 0 ? newMaxStallingsduur : '') 
+                      : (parkingdata.MaxStallingsduur && parkingdata.MaxStallingsduur > 0 
+                        ? Math.round((parkingdata.MaxStallingsduur / 60) * 100) / 100 
+                        : '')}
+                    disabled={!canEditAllFields}
+                  />
+                  <span className="text-sm text-gray-600">uur (leeg/0 = onbeperkt)</span>
+                </div>
+              </SectionBlock>
+            </>
+          )}
+
+          {!isVoorstel && canEditAllFields && (
+            <>
+              <HorizontalDivider className="my-4" />
+
+              <SectionBlock heading="Bij station?">
+                <div className="w-full flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isStationsstalling-checkbox"
+                    checked={newIsStationsstalling !== undefined ? newIsStationsstalling : parkingdata.IsStationsstalling || false}
+                    onChange={(e) => {
+                      setNewIsStationsstalling(e.target.checked);
+                    }}
+                    disabled={!canEditAllFields}
+                  />
+                  <label htmlFor="isStationsstalling-checkbox" className={`text-sm font-medium ml-2 ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
+                    Stalling bij station
+                  </label>
+                </div>
+              </SectionBlock>
+
+              <HorizontalDivider className="my-4" />
+
+              <SectionBlock heading="Popup stalling?">
+                <div className="w-full flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isPopup-checkbox"
+                    checked={newIsPopup !== undefined ? newIsPopup : parkingdata.IsPopup || false}
+                    onChange={(e) => {
+                      setNewIsPopup(e.target.checked);
+                    }}
+                    disabled={!canEditAllFields}
+                  />
+                  <label htmlFor="isPopup-checkbox" className={`text-sm font-medium ml-2 ${!canEditAllFields ? 'text-gray-500' : 'text-gray-700'}`}>
+                    Popup stalling
+                  </label>
+                </div>
+              </SectionBlock>
+            </>
+          )}
+
+          {!isVoorstel && hasFmsservices && canEditAllFields && <HorizontalDivider className="my-4" /> }
+
           { renderStatusSection() } 
+
+          <HorizontalDivider className="my-4" />
+
+          <SectionBlockEdit>
+            <div className="mt-4 w-full">
+              <label>
+                <div>
+                  <b>Beschrijving</b>
+                </div>
+                <textarea
+                  rows={4}
+                  className="px-5 py-2 border rounded-md my-2 w-full"
+                  placeholder="Beschrijving van de stalling"
+                  onChange={(e) => {
+                    setNewDescription(e.target.value);
+                  }}
+                  value={newDescription !== undefined ? newDescription : (parkingdata.Description || "")}
+                  disabled={!canEditAllFields && !canEditLimitedFields}
+                />
+              </label>
+            </div>
+          </SectionBlockEdit>
 
           <p className="mb-10">{/*Some spacing*/}</p>
 
@@ -1267,6 +1415,15 @@ const ParkingEdit = ({
     );
   };
 
+  const renderTabLogs = (visible = false) => {
+    return (
+      <ParkingEditLogs
+        visible={visible}
+        parkingdata={parkingdata}
+      />
+    );
+  };
+
   let parkingTitle = parkingdata.Title;
   if (parkingdata.ID.substring(0, 8) === "VOORSTEL") {
     parkingTitle += " (voorstel)";
@@ -1339,7 +1496,7 @@ const ParkingEdit = ({
                 }
               }}
             >
-              Annuleer
+              Terug
             </Button>
           )}
           {showUpdateButtons === false && (
@@ -1354,6 +1511,30 @@ const ParkingEdit = ({
               Terug
             </Button>
           )}
+          {hasID && parkingdata.StallingsID && parkingdata.Coordinaten && (
+            <Button
+              key="b-view-frontend"
+              className="ml-2 mt-3 sm:mt-0 group"
+              variant="secundary"
+              onClick={async (e: any) => {
+                if (e) e.preventDefault();
+                try {
+                  const url = await createVeiligstallenOrgLink(parkingdata);
+                  if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  } else {
+                    toast.error('Kan frontend URL niet genereren. Controleer of de stalling een locatie en StallingsID heeft.');
+                  }
+                } catch (error) {
+                  console.error('Error generating frontend URL:', error);
+                  toast.error('Er is een fout opgetreden bij het genereren van de frontend URL.');
+                }
+              }}
+            >
+              <img src="/images/beeldmerk.png" alt="Bekijk op website" className="w-4 h-4 inline-block" />
+              <span className="ml-2 hidden group-hover:inline-block">Bekijk op website</span>
+            </Button>
+          )}
         </PageTitle>
       </div>
 
@@ -1361,6 +1542,13 @@ const ParkingEdit = ({
         value={selectedTab}
         onChange={handleChange}
         aria-label="Edit parking"
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{
+          '& .MuiTabs-scrollButtons': {
+            '&.Mui-disabled': { opacity: 0.3 }
+          }
+        }}
       >
         <Tab label="Algemeen" value="tab-algemeen" />
         {hasID && <Tab label="Afbeelding" value="tab-afbeelding" />}
@@ -1375,6 +1563,7 @@ const ParkingEdit = ({
           <Tab label="Abonnementen" value="tab-abonnementen" />
         )}
         {isLoggedIn && <Tab label="Beheerder" value="tab-beheerder" />}
+        {isLoggedIn && <Tab label="Logs" value="tab-logs" />}
       </Tabs>
 
       {renderTabAlgemeen(selectedTab === "tab-algemeen")}
@@ -1390,6 +1579,7 @@ const ParkingEdit = ({
         showAbonnementenTab && selectedTab === "tab-abonnementen",
       )}
       {renderTabBeheerder(selectedTab === "tab-beheerder" && isLoggedIn)}
+      {renderTabLogs(selectedTab === "tab-logs" && isLoggedIn)}
     </div>
   );
 };

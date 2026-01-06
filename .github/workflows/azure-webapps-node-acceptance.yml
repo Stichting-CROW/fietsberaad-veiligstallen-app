@@ -38,7 +38,13 @@ jobs:
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
           LOGINTOKEN_SIGNER_PRIVATE_KEY: "ec5a35e2057bf489dccc6510753455669cd2d7d388a5ddcba93414ee85c982cb"
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.ACC_CACHE_UPDATE_BEARER_TOKEN }}
+          NSCONNECTOR_SUBSCRIPTION_KEY: ${{ secrets.ACC_NSCONNECTOR_SUBSCRIPTION_KEY }}
           MATOMO_URL: ${{ vars.ACC_MATOMO_URL }}
+          SMTP_HOST: ${{ secrets.ACC_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.ACC_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.ACC_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.ACC_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.ACC_SMTP_FROM }}
         run: |
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
@@ -50,7 +56,13 @@ jobs:
           echo "NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN" >> .env
           echo "LOGINTOKEN_SIGNER_PRIVATE_KEY=$LOGINTOKEN_SIGNER_PRIVATE_KEY" >> .env
           echo "UPDATE_CACHE_BEARER_TOKEN=$UPDATE_CACHE_BEARER_TOKEN" >> .env
+          echo "NSCONNECTOR_SUBSCRIPTION_KEY=$NSCONNECTOR_SUBSCRIPTION_KEY" >> .env
           echo "MATOMO_URL=$MATOMO_URL" >> .env
+          echo "SMTP_HOST=$SMTP_HOST" >> .env
+          echo "SMTP_PORT=$SMTP_PORT" >> .env
+          echo "SMTP_USER=$SMTP_USER" >> .env
+          echo "SMTP_PASS=$SMTP_PASS" >> .env
+          echo "SMTP_FROM=$SMTP_FROM" >> .env
       - name: print env file
         run: cat .env
 
@@ -63,8 +75,14 @@ jobs:
           NEXTAUTH_URL: ${{vars.ACC_NEXTAUTH_URL}}
           NEXT_PUBLIC_MAPBOX_TOKEN: ${{vars.ACC_NEXT_PUBLIC_MAPBOX_TOKEN}}
           UPDATE_CACHE_BEARER_TOKEN: ${{ secrets.ACC_CACHE_UPDATE_BEARER_TOKEN }}
+          NSCONNECTOR_SUBSCRIPTION_KEY: ${{ secrets.ACC_NSCONNECTOR_SUBSCRIPTION_KEY }}
           MATOMO_URL: ${{ vars.ACC_MATOMO_URL }}
           PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
+          SMTP_HOST: ${{ secrets.ACC_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.ACC_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.ACC_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.ACC_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.ACC_SMTP_FROM }}
         run: |
           npm install
           npm run build

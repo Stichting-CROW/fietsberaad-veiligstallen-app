@@ -196,6 +196,13 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
 
         const apiEndpoint = `/api/reports/${filterState.reportType}`;
+        
+        // For bezetting report, derive bikeparkIDs from bikeparkDataSources if selectedBikeparkIDs is empty
+        let bikeparkIDs = filterState.selectedBikeparkIDs;
+        if (filterState.reportType === 'bezetting' && (!bikeparkIDs || bikeparkIDs.length === 0) && filterState.bikeparkDataSources && filterState.bikeparkDataSources.length > 0) {
+          bikeparkIDs = filterState.bikeparkDataSources.map(bp => bp.StallingsID);
+        }
+        
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           headers: {
@@ -207,7 +214,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               reportCategories: filterState.reportCategories,
               reportGrouping: filterState.reportGrouping,
               reportRangeUnit: filterState.reportRangeUnit,
-              bikeparkIDs: filterState.selectedBikeparkIDs,
+              bikeparkIDs: bikeparkIDs,
               bikeparkDataSources: filterState.bikeparkDataSources,
               startDT,
               endDT,

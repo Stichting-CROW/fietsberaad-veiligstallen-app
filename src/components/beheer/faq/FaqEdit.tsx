@@ -190,6 +190,20 @@ const FaqEdit: React.FC<FaqEditProps> = ({
           />
         </div>
 
+        {faq.DateModified ? 
+          <div>
+            <label className="block text-sm font-bold text-gray-700">
+              Laatst aangepast door {faq.EditorModified || "Onbekend"} op {faq.DateModified ? new Date(faq.DateModified).toLocaleDateString() : ''}
+            </label>
+          </div>
+          : faq.DateCreated && 
+            <div>
+              <label className="block text-sm font-bold text-gray-700">
+                Aangemaakt door {faq.EditorCreated || "Onbekend"} op {faq.DateCreated ? new Date(faq.DateCreated).toLocaleDateString() : ''}
+              </label>
+            </div>
+        }
+
         <div className="flex justify-end space-x-4 pt-4">
           <button
             type="button"

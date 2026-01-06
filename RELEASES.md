@@ -1,25 +1,69 @@
 # App updates VeiligStallen
 
-## VeiligStallen 2025-12-17
+## VeiligStallen 2026-01-06
 
 **Rapportage**
+
+Rapportage: Procentuele bezetting grafiek
+
+- 'Databron'-selectiebalk toegevoegd
 
 Rapportage: Absolute bezetting grafiek
 
 - Twee lijnen van dezelfde stalling hebben nu dezelfde kleur
 - Geen gestippelde lijn meer voor "Capaciteit"
 
-- Rapportage: Algemeen
+Rapportage: Algemeen
 
 - Titel boven de grafiek is nu 'Type grafiek' in plaats van 'Data-eigenaar'
 - X-as toont juiste waardes
 - Elke nacht worden geaggregeerde datasets automatisch gegenereerd ('cache'), voor snel laden van de grafieken
 
+**Beheer algemeen**
+
+- Module-beheer toegevoegd
+- Linkermenu verbergt automatisch menu-items zodat je alleen de de modules ziet waar je toegang toe hebt
+- 'Fiets en win' module verwijderd
+
+**Stallingbeheer**
+
+- Bij beheer fietsenstallingen is er nu een knop 'Bekijk op website'
+- Log-informatie toegevoegd: stalling [toegevoegd / laatst bewerkt] door [gebruiker] op [datumtijd]
+- Nieuwe velden toegevoegd aan bewerkscherm: Description, MaxStallingsduur, IsStationsstalling, IsPopup
+
+**Gebruikersbeheer**
+
+- Beheerder kan een gebruiker een 'stel je wachtwoord in' mail sturen
+- Als beheerder het wachtwoord van een gebruiker wijzigt, ontvangt de gebruiker een mail
+- Fix 'Archiveer gebruiker' in geavanceerd gebruikersbeheer
+
+**Wachtwoord instellen**
+
+- Voor gebruikers is er een nieuwe 'stel je wachtwoord in' flow inclusief auto login na instellen wachtwoord
+
+**Wachtwoord vergeten**
+
+- Wachtwoord vergeten knop toegevoegd aan login-scherm
+- Gebruiker kan nu Wachtwoord instellen via de nieuwe 'wachtwoord vergeten' flow
+
+**FAQ**
+
+- 'Laatst bewerkt' toegevoegd aan FAQ-item-bewerkpagina
+- Volgorde van FAQ-items nu in te stellen
+
+**Dataleveranciers**
+
+- Nieuwe testpagina toegevoegd voor het ophalen van NS-data
+
+**Hulpmiddelen**
+
+- Exporteertool voor exporteren alle pagina's en alle FAQ-items
+
 ## VeiligStallen 2025-12-16
 
 - Op verschillende plekken verbeterde opmaak
 
-**Stalling-beheer / Tarieven**
+**Stallingbeheer / Tarieven**
 
 - Nieuw: Volledige tariefbewerkingsfunctionaliteit toegevoegd
 - Nieuwe API endpoints voor tariefbeheer:
@@ -32,7 +76,7 @@ Rapportage: Absolute bezetting grafiek
 - Automatische bijwerking van `EditorModified` en `DateModified` bij tariefwijzigingen
 - Fix: Automatische bijwerking van parent `fietsenstallingen` record bij tariefwijzigingen (editorModified, dateModified)
 
-**Beheer / Database**
+**Database**
 
 - Verwijderd: "Incorrecte Tarieven Opruimen" component uit database beheer + bijbehorende api endpoints
 - Nieuw: Database diff testing tool (development only)

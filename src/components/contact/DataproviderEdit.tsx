@@ -226,7 +226,7 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
                 }
               }}
             >
-              {props.onClose ? "Annuleer" : "Herstel"}
+              {props.onClose ? "Terug" : "Herstel"}
             </Button>
           </>
         )}

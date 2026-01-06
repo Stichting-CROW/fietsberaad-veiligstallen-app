@@ -1,15 +1,101 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { Button } from '~/components/Button';
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 const TestIndexPage: React.FC = () => {
   const router = useRouter();
   const { data: session } = useSession();
+  const [nsConnectorAvailable, setNsConnectorAvailable] = useState<boolean | null>(null);
+  const [isExportingArticles, setIsExportingArticles] = useState(false);
+  const [isExportingFaqs, setIsExportingFaqs] = useState(false);
+  
+  const isFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) || 
+                             userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
   const handleNavigate = (path: string) => {
     router.push(path);
   };
+
+  const handleExportArticles = async () => {
+    setIsExportingArticles(true);
+    try {
+      const response = await fetch('/api/protected/articles/export-articles');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(errorData.error || `Export failed with status ${response.status}`);
+      }
+
+      // Get the PDF content from response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `artikelen_export_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error exporting articles:', err);
+      alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
+    } finally {
+      setIsExportingArticles(false);
+    }
+  };
+
+  const handleExportFaqs = async () => {
+    setIsExportingFaqs(true);
+    try {
+      const response = await fetch('/api/protected/articles/export-faqs');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(errorData.error || `Export failed with status ${response.status}`);
+      }
+
+      // Get the PDF content from response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `faqs_export_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error exporting FAQs:', err);
+      alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
+    } finally {
+      setIsExportingFaqs(false);
+    }
+  };
+
+  // Check if NS Connector is available
+  useEffect(() => {
+    if (!session) return;
+
+    const checkAvailability = async () => {
+      try {
+        const response = await fetch('/api/protected/ns-connector/check-available');
+        if (response.ok) {
+          const data = await response.json();
+          setNsConnectorAvailable(data.available);
+        } else {
+          setNsConnectorAvailable(false);
+        }
+      } catch (error) {
+        console.error('Error checking NS Connector availability:', error);
+        setNsConnectorAvailable(false);
+      }
+    };
+
+    checkAvailability();
+  }, [session]);
 
   if (!session) {
     return (
@@ -72,6 +158,44 @@ const TestIndexPage: React.FC = () => {
           >
             Fietsenstalling Helpdesk Overzicht
           </Button>
+          
+          {nsConnectorAvailable === true && (
+            <Button
+              onClick={() => handleNavigate('/test/ns-koppeling')}
+              className="py-6 px-8 text-center w-full"
+              style={{
+                backgroundColor: '#3B82F6',
+              }}
+            >
+              NS-Koppeling
+            </Button>
+          )}
+          
+          {isFietsberaadAdmin && (
+            <>
+              <Button
+                onClick={handleExportArticles}
+                disabled={isExportingArticles}
+                className="py-6 px-8 text-center w-full"
+                style={{
+                  backgroundColor: isExportingArticles ? '#9CA3AF' : '#10B981',
+                }}
+              >
+                {isExportingArticles ? 'Exporteren pagina\'s...' : 'Exporteer alle pagina\'s'}
+              </Button>
+              
+              <Button
+                onClick={handleExportFaqs}
+                disabled={isExportingFaqs}
+                className="py-6 px-8 text-center w-full"
+                style={{
+                  backgroundColor: isExportingFaqs ? '#9CA3AF' : '#10B981',
+                }}
+              >
+                {isExportingFaqs ? 'Exporteren FAQ\'s...' : 'Exporteer alle FAQ\'s'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

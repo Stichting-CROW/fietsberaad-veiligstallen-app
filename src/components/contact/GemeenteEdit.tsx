@@ -568,7 +568,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                                 }
                             }}
                         >
-                            {props.onClose ? "Annuleer" : "Herstel"}
+                            {props.onClose ? "Terug" : "Herstel"}
                         </Button>
                     </>
                 )}

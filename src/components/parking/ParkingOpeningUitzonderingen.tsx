@@ -3,7 +3,7 @@ import type { UitzonderingOpeningstijden } from "~/types/parking";
 import SectionBlock from "~/components/SectionBlock";
 import Modal from "~/components/Modal";
 import FormInput from "~/components/Form/FormInput";
-import FormTimeInput from "~/components/Form/FormTimeInput";
+import FormRadio from "~/components/Form/FormRadio";
 import FormCheckbox from "~/components/Form/FormCheckbox";
 import moment from "moment";
 
@@ -30,6 +30,27 @@ const formatTimeOnly = (date: string | Date | null) => {
   return moment.utc(date).format("HH:mm");
 };
 
+const formatTimeDisplay = (openingDateTime: string | Date | null, closingDateTime: string | Date | null) => {
+  if (!openingDateTime || !closingDateTime) {
+    return "Onbekend";
+  }
+  
+  const open = moment.utc(openingDateTime);
+  const close = moment.utc(closingDateTime);
+  
+  const isOpen24 = open.hours() === 0 && open.minutes() === 0 && close.hours() === 23 && close.minutes() === 59;
+  const isGesloten = open.hours() === 0 && open.minutes() === 0 && close.hours() === 0 && close.minutes() === 0;
+  
+  if (isOpen24) {
+    return "Gehele dag geopend";
+  }
+  if (isGesloten) {
+    return "Gehele dag gesloten";
+  }
+  
+  return `${formatTimeOnly(openingDateTime)} - ${formatTimeOnly(closingDateTime)}${isNextDay(openingDateTime, closingDateTime) ? " [+1]" : ""}`;
+};
+
 const isNextDay = (base: string | Date | null, compare: string | Date | null) => {
   if (!base || !compare) return false;
   const baseDate = moment.utc(base);
@@ -44,9 +65,48 @@ const isFutureOrToday = (date: string | Date | null) => {
   return d.isSameOrAfter(now);
 };
 
+type RadioOption = "open24" | "gesloten" | "onbekend" | "times";
+
 const emptyRecord: Partial<UitzonderingOpeningstijden> = {
   openingDateTime: null,
   closingDateTime: null,
+};
+
+const setHourInDate = (date: moment.Moment, newHour: number): moment.Moment => {
+  if (newHour < 0 || newHour >= 24) {
+    throw new Error('Invalid hour value. Hour should be between 0 and 23.');
+  }
+  const newDate = date.clone();
+  newDate.hours(newHour);
+  return newDate;
+};
+
+const setMinutesInDate = (date: moment.Moment, newMinutes: number): moment.Moment => {
+  if (newMinutes < 0 || newMinutes >= 60) {
+    throw new Error('Invalid minutes value. Minutes should be between 0 and 59.');
+  }
+  const newDate = date.clone();
+  newDate.minutes(newMinutes);
+  return newDate;
+};
+
+const computeOptionFromForm = (form: Partial<UitzonderingOpeningstijden>): RadioOption => {
+  const openVal = form.openingDateTime;
+  const closeVal = form.closingDateTime;
+
+  if (openVal === null || openVal === undefined || closeVal === null || closeVal === undefined) {
+    return "gesloten";
+  }
+
+  const open = moment.utc(openVal);
+  const close = moment.utc(closeVal);
+
+  const isOpen24 = open.hours() === 0 && open.minutes() === 0 && close.hours() === 23 && close.minutes() === 59;
+  const isGesloten = open.hours() === 0 && open.minutes() === 0 && close.hours() === 0 && close.minutes() === 0;
+
+  if (isOpen24) return "open24";
+  if (isGesloten) return "gesloten";
+  return "times";
 };
 
 const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> = ({ fietsenstallingID, editMode }) => {
@@ -60,6 +120,7 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
   const [showDialog, setShowDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
   const [showAll, setShowAll] = useState(false);
+  const [radioSelection, setRadioSelection] = useState<RadioOption>("gesloten");
 
   const fetchData = async () => {
     setLoading(true);
@@ -160,13 +221,21 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
   };
 
   const openAddDialog = () => {
-    setForm(emptyRecord);
+    // Set default to gesloten (00:00-00:00) for new records
+    const today = moment.utc().startOf('day');
+    const defaultForm = {
+      openingDateTime: today.clone().hours(0).minutes(0).toDate(),
+      closingDateTime: today.clone().hours(0).minutes(0).toDate(),
+    };
+    setForm(defaultForm);
+    setRadioSelection("gesloten");
     setDialogMode('add');
     setShowDialog(true);
   };
 
   const openEditDialog = (record: UitzonderingOpeningstijden) => {
     setForm({ ...record });
+    setRadioSelection(computeOptionFromForm(record));
     setEditRecord(record);
     setDialogMode('edit');
     setShowDialog(true);
@@ -176,10 +245,95 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
     setShowDialog(false);
     setEditRecord(null);
     setForm(emptyRecord);
+    setRadioSelection("gesloten");
+  };
+
+  const handleRadioChange = (option: RadioOption) => {
+    setRadioSelection(option);
+    const selectedDate = form.openingDateTime ? moment.utc(form.openingDateTime) : moment.utc();
+    const dateOnly = selectedDate.startOf('day');
+
+    let newopen: Date | null = null;
+    let newdicht: Date | null = null;
+
+    if (option === "open24") {
+      newopen = dateOnly.clone().hours(0).minutes(0).toDate();
+      newdicht = dateOnly.clone().hours(23).minutes(59).toDate();
+    } else if (option === "gesloten") {
+      newopen = dateOnly.clone().hours(0).minutes(0).toDate();
+      newdicht = dateOnly.clone().hours(0).minutes(0).toDate();
+    } else if (option === "times") {
+      // If values are not set (null or special values), set defaults 10:00 - 17:00
+      const currentOpen = form.openingDateTime ? moment.utc(form.openingDateTime) : null;
+      const currentClose = form.closingDateTime ? moment.utc(form.closingDateTime) : null;
+      const needDefaults = currentOpen === null || currentClose === null;
+      if (needDefaults) {
+        newopen = dateOnly.clone().hours(10).minutes(0).toDate();
+        newdicht = dateOnly.clone().hours(17).minutes(0).toDate();
+      } else {
+        // keep whatever is there, but preserve the date
+        newopen = dateOnly.clone().hours(currentOpen.hours()).minutes(currentOpen.minutes()).toDate();
+        newdicht = dateOnly.clone().hours(currentClose.hours()).minutes(currentClose.minutes()).toDate();
+      }
+    }
+
+    setForm({ ...form, openingDateTime: newopen, closingDateTime: newdicht });
+  };
+
+  const handleTimeChange = (isOpeningTime: boolean, isHoursField: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const key = isOpeningTime ? 'openingDateTime' : 'closingDateTime';
+    const currentTime = form[key] ? moment.utc(form[key]) : moment.utc();
+    // Use the date from openingDateTime for both to keep them on the same date
+    const baseDate = form.openingDateTime ? moment.utc(form.openingDateTime).startOf('day') : moment.utc().startOf('day');
+
+    const newval = Number(e.target.value);
+    let newtime: Date | null = null;
+
+    if (isHoursField) {
+      if (newval < 0 || newval > 23) {
+        return; // invalid value
+      }
+      newtime = setHourInDate(baseDate.clone().hours(currentTime.hours()).minutes(currentTime.minutes()), newval).toDate();
+    } else {
+      if (newval < 0 || newval > 59) {
+        return; // invalid value
+      }
+      newtime = setMinutesInDate(baseDate.clone().hours(currentTime.hours()).minutes(currentTime.minutes()), newval).toDate();
+    }
+
+    // When updating opening time, also update closing time's date to match
+    if (isOpeningTime) {
+      const closeTime = form.closingDateTime ? moment.utc(form.closingDateTime) : moment.utc();
+      const closeOnSameDate = baseDate.clone().hours(closeTime.hours()).minutes(closeTime.minutes()).toDate();
+      setForm({ ...form, [key]: newtime, closingDateTime: closeOnSameDate });
+    } else {
+      setForm({ ...form, [key]: newtime });
+    }
   };
 
   const handleDialogSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check for duplicate date (only for new records, or when editing if date changed)
+    if (form.openingDateTime) {
+      const selectedDate = moment.utc(form.openingDateTime).startOf('day');
+      const existingRecord = records.find(r => {
+        if (!r.openingDateTime) return false;
+        const recordDate = moment.utc(r.openingDateTime).startOf('day');
+        // For edit mode, exclude the current record being edited
+        if (dialogMode === 'edit' && editRecord && r.ID === editRecord.ID) {
+          return false;
+        }
+        return recordDate.isSame(selectedDate, 'day');
+      });
+      
+      if (existingRecord) {
+        setError("Voor deze dag is al een uitzondering ingesteld");
+        return;
+      }
+    }
+    
     setLoading(true);
     setError(null);
     try {
@@ -229,10 +383,7 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
               <tr key={r.ID}>
                 <td>{formatDateOnly(r.openingDateTime)}</td>
                 <td>
-                  {formatTimeOnly(r.openingDateTime)}
-                  &nbsp;-&nbsp;
-                  {formatTimeOnly(r.closingDateTime)}
-                  {isNextDay(r.openingDateTime, r.closingDateTime) ? " [+1]" : ""}
+                  {formatTimeDisplay(r.openingDateTime, r.closingDateTime)}
                 </td>
               </tr>
             ))}
@@ -281,10 +432,7 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
               <tr key={r.ID}>
                 <td className="text-center">{formatDateOnly(r.openingDateTime)}</td>
                 <td className="text-center">
-                  {formatTimeOnly(r.openingDateTime)}
-                  &nbsp;-&nbsp;
-                  {formatTimeOnly(r.closingDateTime)}
-                  {isNextDay(r.openingDateTime, r.closingDateTime) ? " [+1]" : ""}
+                  {formatTimeDisplay(r.openingDateTime, r.closingDateTime)}
                 </td>
                 <td className="text-right">
                   <div className="inline-flex">
@@ -318,62 +466,118 @@ const ParkingOpeningUitzonderingen: React.FC<ParkingOpeningUitzonderingenProps> 
           </tbody>
         </table>
       </SectionBlock>
-      {showDialog && (
-        <Modal onClose={closeDialog} title={dialogMode === 'add' ? 'Uitzondering toevoegen' : 'Uitzondering bewerken'}>
-          <form onSubmit={handleDialogSave}>
-            <FormInput
-              type="date"
-              label="Datum"
-              value={form.openingDateTime ? moment.utc(form.openingDateTime).format("YYYY-MM-DD") : ""}
-              onChange={e => {
-                const date = e.target.value;
-                // preserve time if present
-                let open = form.openingDateTime ? moment.utc(form.openingDateTime) : moment.utc();
-                let close = form.closingDateTime ? moment.utc(form.closingDateTime) : moment.utc();
-                open.year(Number(date.slice(0, 4))).month(Number(date.slice(5, 7)) - 1).date(Number(date.slice(8, 10)));
-                close.year(Number(date.slice(0, 4))).month(Number(date.slice(5, 7)) - 1).date(Number(date.slice(8, 10)));
-                setForm({ ...form, openingDateTime: open.toDate(), closingDateTime: close.toDate() });
-              }}
-              required
-            />
-            <div className="flex flex-row items-center gap-4">
-              <FormTimeInput
-                label="Open tijd"
-                value={form.openingDateTime ? moment.utc(form.openingDateTime).toDate() : null}
-                onChange={date => {
-                  let open = date ? moment.utc(date).toDate() : null;
-                  setForm({ ...form, openingDateTime: open });
+      {showDialog && (() => {
+        const opentime = form.openingDateTime ? moment.utc(form.openingDateTime) : moment.utc().hours(10).minutes(0);
+        const hoursopen = opentime.hours();
+        const minutesopen = opentime.minutes();
+
+        const closetime = form.closingDateTime ? moment.utc(form.closingDateTime) : moment.utc().hours(17).minutes(0);
+        const hoursclose = closetime.hours();
+        const minutesclose = closetime.minutes();
+
+        const specifytimes = radioSelection === "times";
+
+        return (
+          <Modal onClose={closeDialog} title={dialogMode === 'add' ? 'Uitzondering toevoegen' : 'Uitzondering bewerken'}>
+            <form onSubmit={handleDialogSave}>
+              {error && <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>}
+              <FormInput
+                type="date"
+                label="Datum"
+                value={form.openingDateTime ? moment.utc(form.openingDateTime).format("YYYY-MM-DD") : ""}
+                onChange={e => {
+                  const date = e.target.value;
+                  // preserve time if present
+                  let open = form.openingDateTime ? moment.utc(form.openingDateTime) : moment.utc();
+                  let close = form.closingDateTime ? moment.utc(form.closingDateTime) : moment.utc();
+                  open.year(Number(date.slice(0, 4))).month(Number(date.slice(5, 7)) - 1).date(Number(date.slice(8, 10)));
+                  close.year(Number(date.slice(0, 4))).month(Number(date.slice(5, 7)) - 1).date(Number(date.slice(8, 10)));
+                  const newForm = { ...form, openingDateTime: open.toDate(), closingDateTime: close.toDate() };
+                  setForm(newForm);
+                  // Update radio selection based on new times
+                  setRadioSelection(computeOptionFromForm(newForm));
+                  // Clear error when date changes
+                  setError(null);
                 }}
                 required
               />
-              <FormTimeInput
-                label="Dicht tijd"
-                value={form.closingDateTime ? moment.utc(form.closingDateTime).toDate() : null}
-                onChange={date => {
-                  let close = date ? moment.utc(date).toDate() : null;
-                  setForm({ ...form, closingDateTime: close });
-                }}
-                required
-              />
-            </div>
-            <div className="flex flex-row gap-4 mt-4">
-              <button
-                type="submit"
-                className="bg-gray-200 text-gray-800 rounded px-4 py-2 hover:bg-gray-300 transition"
-              >
-                Opslaan
-              </button>
-              <button
-                type="button"
-                onClick={closeDialog}
-                className="bg-gray-100 text-gray-800 rounded px-4 py-2 hover:bg-gray-200 transition"
-              >
-                Annuleer
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+              <div className="flex flex-col mt-4">
+                <FormRadio 
+                  name="radio-uitzondering"
+                  value="open24"
+                  checked={radioSelection === "open24"}
+                  onChange={() => handleRadioChange("open24")}
+                >
+                  Gehele dag geopend
+                </FormRadio>
+                <FormRadio 
+                  name="radio-uitzondering"
+                  value="gesloten"
+                  checked={radioSelection === "gesloten"}
+                  onChange={() => handleRadioChange("gesloten")}
+                >
+                  Gehele dag gesloten
+                </FormRadio>
+                <FormRadio 
+                  name="radio-uitzondering"
+                  value="times"
+                  checked={radioSelection === "times"}
+                  onChange={() => handleRadioChange("times")}
+                  classes="mb-0 flex flex-row items-center"
+                >
+                  Van
+                  <FormInput
+                    type="number"
+                    value={hoursopen}
+                    style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
+                    onChange={handleTimeChange(true, true)}
+                    disabled={!specifytimes}
+                  />
+                  <FormInput
+                    type="number"
+                    value={minutesopen}
+                    style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
+                    onChange={handleTimeChange(true, false)}
+                    disabled={!specifytimes}
+                  />
+                  <span className="mx-2">t/m</span>
+                  <FormInput
+                    type="number"
+                    value={hoursclose}
+                    size={4}
+                    style={{ width: '80px', borderRadius: '10px 0 0 10px', textAlign: 'right' }}
+                    onChange={handleTimeChange(false, true)}
+                    disabled={!specifytimes}
+                  />
+                  <FormInput
+                    type="number"
+                    value={minutesclose}
+                    size={4}
+                    style={{ width: '80px', borderRadius: '0 10px 10px 0' }}
+                    onChange={handleTimeChange(false, false)}
+                    disabled={!specifytimes}
+                  />
+                </FormRadio>
+              </div>
+              <div className="flex flex-row gap-4 mt-4">
+                <button
+                  type="submit"
+                  className="bg-gray-200 text-gray-800 rounded px-4 py-2 hover:bg-gray-300 transition"
+                >
+                  Opslaan
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDialog}
+                  className="bg-gray-100 text-gray-800 rounded px-4 py-2 hover:bg-gray-200 transition"
+                >
+                  Terug
+                </button>
+              </div>
+            </form>
+          </Modal>
+        );
+      })()}
       {deleteRecord && (
         <div className="mt-4">
           Weet je zeker dat je deze uitzondering wilt verwijderen?

@@ -16,11 +16,6 @@ export const AVAILABLE_MODULES: VSmodule[] = [
         parent: null,
     },
     {
-        ID: "fietsenwin",
-        Name: "Fiets en Win",
-        parent: "fms",
-    },
-    {
         ID: "fietskluizen",
         Name: "Fietskluizen",
         parent: null,
