@@ -131,6 +131,7 @@ interface ReportsFilterComponentProps {
   showDetails?: boolean;
   activeReportType?: ReportType;
   onStateChange: (newState: ReportState) => void;
+  initialFilterState?: Partial<ReportState>;
 }
 
 export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
@@ -182,7 +183,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   bikeparks,
   showDetails = true,
   activeReportType,
-  onStateChange
+  onStateChange,
+  initialFilterState
 }, ref) => {
   const selectClasses = "min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md";
 
@@ -276,7 +278,12 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     return null;
   };
 
-  const initialState = loadInitialState();
+  const localStorageState = loadInitialState();
+  
+  // Merge URL state with localStorage state (URL takes precedence)
+  const initialState = initialFilterState 
+    ? { ...localStorageState, ...initialFilterState }
+    : localStorageState;
 
   // Use activeReportType if provided, otherwise use initialState or default
   const [reportType, setReportType] = useState<ReportType>(
@@ -384,6 +391,84 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       setReportType(activeReportType);
     }
   }, [activeReportType, reportType]);
+
+  // Track the last applied URL state to prevent re-applying the same state
+  const lastAppliedUrlStateRef = useRef<string>('');
+  
+  // Apply initial filter state from URL when provided
+  // This allows URL params to override localStorage state
+  useEffect(() => {
+    if (!initialFilterState) return;
+    
+    // Create a stable string representation of the URL state
+    const urlStateString = JSON.stringify({
+      reportGrouping: initialFilterState.reportGrouping,
+      reportCategories: initialFilterState.reportCategories,
+      reportRangeUnit: initialFilterState.reportRangeUnit,
+      selectedBikeparkIDs: initialFilterState.selectedBikeparkIDs?.sort(),
+      customStartDate: initialFilterState.customStartDate,
+      customEndDate: initialFilterState.customEndDate,
+      activePreset: initialFilterState.activePreset,
+      fillups: initialFilterState.fillups,
+      source: initialFilterState.source,
+      selectedSeries: initialFilterState.selectedSeries?.sort(),
+      bikeparkDataSources: initialFilterState.bikeparkDataSources
+    });
+    
+    // Only apply if this is a new/different URL state
+    if (urlStateString === lastAppliedUrlStateRef.current) {
+      return;
+    }
+    
+    lastAppliedUrlStateRef.current = urlStateString;
+    
+    // Apply URL state only if values are different from current state
+    if (initialFilterState.reportGrouping && initialFilterState.reportGrouping !== reportGrouping) {
+      setReportGrouping(initialFilterState.reportGrouping);
+    }
+    if (initialFilterState.reportCategories && initialFilterState.reportCategories !== reportCategories) {
+      setReportCategories(initialFilterState.reportCategories);
+    }
+    if (initialFilterState.reportRangeUnit && initialFilterState.reportRangeUnit !== reportRangeUnit) {
+      setReportRangeUnit(initialFilterState.reportRangeUnit);
+    }
+    if (initialFilterState.selectedBikeparkIDs && initialFilterState.selectedBikeparkIDs.length > 0) {
+      const currentIds = [...selectedBikeparkIDs].sort().join(',');
+      const newIds = [...initialFilterState.selectedBikeparkIDs].sort().join(',');
+      if (currentIds !== newIds) {
+        setSelectedBikeparkIDs(initialFilterState.selectedBikeparkIDs);
+      }
+    }
+    if (initialFilterState.customStartDate && initialFilterState.customStartDate !== customStartDate) {
+      setCustomStartDate(initialFilterState.customStartDate);
+    }
+    if (initialFilterState.customEndDate && initialFilterState.customEndDate !== customEndDate) {
+      setCustomEndDate(initialFilterState.customEndDate);
+    }
+    if (initialFilterState.activePreset && initialFilterState.activePreset !== activePreset) {
+      setActivePreset(initialFilterState.activePreset);
+    }
+    if (initialFilterState.fillups !== undefined && initialFilterState.fillups !== fillups) {
+      setFillups(initialFilterState.fillups);
+    }
+    if (initialFilterState.source !== undefined && initialFilterState.source !== source) {
+      setSource(initialFilterState.source);
+    }
+    if (initialFilterState.selectedSeries) {
+      const currentSeries = [...(selectedSeries || [])].sort().join(',');
+      const newSeries = [...initialFilterState.selectedSeries].sort().join(',');
+      if (currentSeries !== newSeries) {
+        setSelectedSeries(initialFilterState.selectedSeries);
+      }
+    }
+    if (initialFilterState.bikeparkDataSources) {
+      const currentDataSources = JSON.stringify(selectedBikeparkDataSources || []);
+      const newDataSources = JSON.stringify(initialFilterState.bikeparkDataSources);
+      if (currentDataSources !== newDataSources) {
+        setSelectedBikeparkDataSources(initialFilterState.bikeparkDataSources);
+      }
+    }
+  }, [initialFilterState]);
 
   const previousStateRef = useRef<ReportState | null>(null);
 
@@ -540,7 +625,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
     if(! isValidPeriod) return;
 
-    console.log('periodInDays', periodInDays);
     if(periodInDays <= 100) {
       // Do nothing
     } else if(periodInDays <= 124) {
@@ -801,36 +885,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             onSelectionChange={setSelectedBikeparkDataSources}
           />
         }
-        {reportType === 'bezetting' && (
-          <div className="relative inline-block text-left">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-56 h-10 pointer-events-none"
-            >
-              <span>Databron: {source || 'Alle'}</span>
-              <svg
-                className="h-4 w-4 text-gray-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <select
-              value={source || ''}
-              onChange={(e) => setSource(e.target.value || undefined)}
-              name="source"
-              id="source"
-              className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-10"
-            >
-              <option value="">Alle</option>
-              <option value="FMS">FMS</option>
-              <option value="Lumiguide">Lumiguide</option>
-            </select>
-          </div>
-        )}
         {reportType === 'absolute_bezetting' && (
           <div className="relative inline-block text-left">
             <button

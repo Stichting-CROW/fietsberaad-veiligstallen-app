@@ -148,7 +148,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     );
   }, [availableReports, selectedReportType, reportData?.title]);
 
-  // Update selectedReportType when initialReportType changes (e.g., from URL)
+  // Update selectedReportType when initialReportType changes
   useEffect(() => {
     if (initialReportType) {
       setSelectedReportType(initialReportType);
@@ -476,6 +476,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                           );
                         }
 
+                        const isAbsoluteBezetting = filterState?.reportType === 'absolute_bezetting';
+                        
                         const filteredSeries = reportData.series
                           .filter(series => {
                             // For bezetting reports, filter by selectedSeries
@@ -490,6 +492,28 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               getColorKeyForSeries(series.name, filterState?.reportType)
                             )
                           }));
+
+                        // Create markers config for per-series marker configuration in absolute_bezetting
+                        // For absolute_bezetting, use array for size to control per-series markers
+                        const markersConfig = isAbsoluteBezetting
+                          ? {
+                              size: filteredSeries.map(series => {
+                                const isCapaciteitSeries = typeof series.name === 'string' && series.name.includes('- Capaciteit');
+                                return isCapaciteitSeries ? 0 : 4;
+                              }),
+                              hover: {
+                                size: filteredSeries.map(series => {
+                                  const isCapaciteitSeries = typeof series.name === 'string' && series.name.includes('- Capaciteit');
+                                  return isCapaciteitSeries ? 0 : 6;
+                                })
+                              }
+                            }
+                          : {
+                              size: 4,
+                              hover: {
+                                size: 6
+                              }
+                            };
 
                         return (
                           <Chart
@@ -561,12 +585,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                   opacity: 0.5
                                 },
                               },
-                              markers: {
-                                size: 4,
-                                hover: {
-                                  size: 6
-                                }
-                              },
+                              markers: markersConfig,
                               // Cap x-axis ticks to keep labels readable, especially for long ranges.
                               // (ApexCharts will skip labels; data is unaffected.)
                               xaxis: {
@@ -590,8 +609,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                       : getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                                   datetimeUTC: false,
                                   rotate: -45,
-                                  trim: true,
-                                  hideOverlappingLabels: true
+                                  // trim: true,
+                                  hideOverlappingLabels: true,
                                 },
                                 title: {
                                   text: reportData.options?.xaxis?.title?.text || 'Time',
