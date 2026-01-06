@@ -111,7 +111,7 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
       const labelMap: XAxisLabelMap = {};
       // Use isSameOrBefore to include the end date, matching SQL BETWEEN clause
       for (let date = moment(startDate).startOf('day'); date.isSameOrBefore(moment(endDate).startOf('day')); date.add(1, 'day')) {
-        labelMap[date.format('YYYY-DDD')] = date.format('MMM-D');
+        labelMap[date.format('YYYY-DDD')] = date.format('D MMM');
       }
       return labelMap;
     }
@@ -124,7 +124,7 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
           // use locale month name
           labelMap[date.format('YYYY-M')] = date.format('MMM');
         } else {
-          labelMap[date.format('YYYY-M')] = date.format('MMM-YYYY');
+          labelMap[date.format('YYYY-M')] = date.format('MMM YYYY');
         }
       }
       return labelMap;
@@ -134,7 +134,7 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
       const startKey = moment(startDate).isoWeek(moment(startDate).isoWeek()).startOf('isoWeek');
       const endKey = moment(endDate).isoWeek(moment(endDate).isoWeek()).endOf('isoWeek');
       for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'week')) {
-        labelMap[date.format('YYYY-W')] = date.format('YYYY-WW');
+        labelMap[date.format('YYYY-W')] = date.format('YYYY-[w]W');
       }
       return labelMap;
     }
