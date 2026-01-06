@@ -25,11 +25,15 @@ const BikeparkSelect: React.FC<BikeparkSelectProps> = ({
 
   const toggleSelectAll = () => {
     const validBikeparkIDs = bikeparks.filter(bp => bp.StallingsID!==null).map(bp => bp.StallingsID as string);
-    if (selectedBikeparkIDs.length > 0 && selectedBikeparkIDs.length < validBikeparkIDs.length) {
-      setSelectedBikeparkIDs(validBikeparkIDs);
+    const allSelected = selectedBikeparkIDs.length === validBikeparkIDs.length && 
+                        validBikeparkIDs.every(id => selectedBikeparkIDs.includes(id));
+    
+    if (allSelected) {
+      // Deselect all
+      setSelectedBikeparkIDs([]);
     } else {
-      const newSelection = bikeparks.filter((park => selectedBikeparkIDs.includes(park.StallingsID as string) === false)).map(park => park.StallingsID as string);
-      setSelectedBikeparkIDs(newSelection);
+      // Select all
+      setSelectedBikeparkIDs(validBikeparkIDs);
     }
     // Focus search input when "Selecteer alles" is clicked
     if (hasMultipleBikeparks) {

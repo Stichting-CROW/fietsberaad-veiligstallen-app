@@ -471,28 +471,111 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   }, [initialFilterState]);
 
   const previousStateRef = useRef<ReportState | null>(null);
+  const hasInitializedBikeparksRef = useRef<boolean>(false);
+  const initialBikeparkSelectionRef = useRef<string[] | undefined>(
+    initialState?.selectedBikeparkIDs || initialFilterState?.selectedBikeparkIDs
+  );
 
-  // Load initial bikepark selection when bikeparks change
+  // Load initial bikepark selection when bikeparks are first loaded
+  // Only runs once to set default "select all" behavior, then respects user selections
   useEffect(() => {
-    // For all report types, use default behavior (select all)
-    setSelectedBikeparkIDs(bikeparks.map(bikepark => bikepark.StallingsID as string));
+    if (bikeparks.length === 0 || hasInitializedBikeparksRef.current) return;
+    
+    const validBikeparkIDs = bikeparks
+      .filter(bikepark => bikepark.StallingsID !== null)
+      .map(bikepark => bikepark.StallingsID as string);
+    
+    // Only auto-select all if there's no saved selection from localStorage/URL
+    // Check if we have a meaningful initial state (not just empty array from default)
+    const hasSavedSelection = initialBikeparkSelectionRef.current && 
+                               initialBikeparkSelectionRef.current.length > 0;
+    
+    // Only auto-select if there's no saved state to respect
+    if (!hasSavedSelection) {
+      setSelectedBikeparkIDs(validBikeparkIDs);
+    }
+    
+    hasInitializedBikeparksRef.current = true;
   }, [bikeparks]);
+
+  const lastBikeparkDataSourcesRef = useRef<string>('');
+  const lastSelectedBikeparkIDsRef = useRef<string>('');
+  const skipNextDataSourceSyncRef = useRef<boolean>(false);
+  const skipNextBikeparkIDsSyncRef = useRef<boolean>(false);
 
   // Sync selectedBikeparkIDs with bikeparkDataSources when bikeparkDataSources changes
   // This is especially important for the bezetting report type where BikeparkDataSourceSelect is used
   useEffect(() => {
-    // Only sync for bezetting report type where BikeparkDataSourceSelect is actively used
-    if (reportType === 'bezetting' && selectedBikeparkDataSources && selectedBikeparkDataSources.length > 0) {
+    if (reportType !== 'bezetting') return;
+    if (skipNextDataSourceSyncRef.current) {
+      skipNextDataSourceSyncRef.current = false;
+      return;
+    }
+
+    const currentDataSourcesString = JSON.stringify(selectedBikeparkDataSources || []);
+    const dataSourcesChanged = currentDataSourcesString !== lastBikeparkDataSourcesRef.current;
+    lastBikeparkDataSourcesRef.current = currentDataSourcesString;
+
+    // Only sync when bikeparkDataSources actually changes
+    if (!dataSourcesChanged) return;
+
+    if (selectedBikeparkDataSources && selectedBikeparkDataSources.length > 0) {
       const idsFromDataSources = selectedBikeparkDataSources.map(bp => bp.StallingsID);
-      // Only update if the IDs are different to avoid infinite loops
-      // Sort both arrays for comparison
       const currentIds = [...selectedBikeparkIDs].sort().join(',');
       const newIds = [...idsFromDataSources].sort().join(',');
       if (currentIds !== newIds) {
+        skipNextBikeparkIDsSyncRef.current = true;
         setSelectedBikeparkIDs(idsFromDataSources);
       }
+    } else if (selectedBikeparkDataSources && selectedBikeparkDataSources.length === 0) {
+      // If bikeparkDataSources is cleared, also clear selectedBikeparkIDs
+      if (selectedBikeparkIDs.length > 0) {
+        skipNextBikeparkIDsSyncRef.current = true;
+        setSelectedBikeparkIDs([]);
+      }
     }
-  }, [reportType, selectedBikeparkDataSources, selectedBikeparkIDs]);
+  }, [reportType, selectedBikeparkDataSources]);
+
+  // Sync bikeparkDataSources with selectedBikeparkIDs when user manually changes selectedBikeparkIDs
+  // This keeps them in sync when user changes selection in BikeparkSelect
+  useEffect(() => {
+    if (reportType !== 'bezetting') return;
+    if (skipNextBikeparkIDsSyncRef.current) {
+      skipNextBikeparkIDsSyncRef.current = false;
+      return;
+    }
+
+    const currentIdsString = [...selectedBikeparkIDs].sort().join(',');
+    const idsChanged = currentIdsString !== lastSelectedBikeparkIDsRef.current;
+    lastSelectedBikeparkIDsRef.current = currentIdsString;
+
+    // Only sync when selectedBikeparkIDs actually changes
+    if (!idsChanged) return;
+
+    // Update bikeparkDataSources to match selectedBikeparkIDs
+    // Keep existing source selections when possible, default to FMS
+    const updatedDataSources = selectedBikeparkIDs
+      .map(id => {
+        const existing = selectedBikeparkDataSources.find(bp => bp.StallingsID === id);
+        const bikepark = bikeparks.find(bp => bp.StallingsID === id);
+        if (bikepark) {
+          return {
+            StallingsID: id,
+            Title: bikepark.Title || '',
+            source: existing?.source || 'FMS'
+          };
+        }
+        return null;
+      })
+      .filter((bp): bp is BikeparkWithDataSource => bp !== null);
+
+    const currentDataSourcesString = JSON.stringify(selectedBikeparkDataSources || []);
+    const newDataSourcesString = JSON.stringify(updatedDataSources);
+    if (currentDataSourcesString !== newDataSourcesString) {
+      skipNextDataSourceSyncRef.current = true;
+      setSelectedBikeparkDataSources(updatedDataSources);
+    }
+  }, [reportType, selectedBikeparkIDs, bikeparks]);
 
   useEffect(() => {
     const newState: ReportState = currentReportState;
