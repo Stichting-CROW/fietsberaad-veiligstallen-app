@@ -30,45 +30,52 @@ export const renderLeftMenu = ({
   // If user is Fietsberaad, show the Fietsberaad left menu
   if (selectedContactID === "1") {
     return (
-      <LeftMenuFietsberaad
-        securityProfile={securityProfile}
-        activecomponent={activecomponent}
-        onSelect={onSelect}
-      />
+      <div className="min-w-[280px]">
+        <LeftMenuFietsberaad
+          securityProfile={securityProfile}
+          activecomponent={activecomponent}
+          onSelect={onSelect}
+        />
+      </div>
     );
   }
   // If user is a Gemeente, show the Gemeente left menu
   else if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
     return (
-      <LeftMenuGemeente
-        securityProfile={securityProfile}
-        activecomponent={activecomponent}
-        onSelect={onSelect}
-        hasAbonnementenModule={hasAbonnementenModule}
-      />
+      <div className="min-w-[280px]">
+        <LeftMenuGemeente
+          securityProfile={securityProfile}
+          activecomponent={activecomponent}
+          onSelect={onSelect}
+          hasAbonnementenModule={hasAbonnementenModule}
+        />
+      </div>
     );
   }
   // If user is an Exploitant, show the Exploitant left menu
   else if (exploitanten.find(exploitant => exploitant.ID === selectedContactID)) {
     return (
-      <LeftMenuExploitant
-        securityProfile={securityProfile}
-        activecomponent={activecomponent}
-        onSelect={onSelect}
-      />
+      <div className="min-w-[280px]">
+        <LeftMenuExploitant
+          securityProfile={securityProfile}
+          activecomponent={activecomponent}
+          onSelect={onSelect}
+        />
+      </div>
     );
   }
   // By default: render empty left menu
   else {
     return (
-      <nav
-        id="leftMenu"
-        className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
-        aria-label="Hoofdmenu"
-      >
-        <ul className="space-y-1" />
-      </nav>
+      <div className="min-w-[280px]">
+        <nav
+          id="leftMenu"
+          className="h-[calc(100vh-64px)] shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-5 py-6"
+          aria-label="Hoofdmenu"
+        >
+          <ul className="space-y-1" />
+        </nav>
+      </div>
     );
   }
 };
-
