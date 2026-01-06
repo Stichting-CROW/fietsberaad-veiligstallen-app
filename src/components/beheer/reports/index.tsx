@@ -590,8 +590,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                                       : getXAxisFormatter(filterState?.reportGrouping || 'per_hour'),
                                   datetimeUTC: false,
                                   rotate: -45,
-                                  trim: true,
-                                  hideOverlappingLabels: true
+                                  // trim: true,
+                                  hideOverlappingLabels: true,
                                 },
                                 title: {
                                   text: reportData.options?.xaxis?.title?.text || 'Time',
