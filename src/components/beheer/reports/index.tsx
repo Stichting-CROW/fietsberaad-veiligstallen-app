@@ -265,11 +265,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     };
   }, [
     filterState,
-    gemeenteInfo?.DayBeginsAt
+    gemeenteInfo?.DayBeginsAt,
+    bikeparksWithData?.length ?? 0// Force reloading data if available bikeparks change
   ]);
 
   useEffect(() => {
-    // Only check waht bikeparks have data if a start and end time are set
+    // Only check what bikeparks have data if a start and end time are set
     if (!filterState) return;
 
     // Skip API call for report types that don't support availableDataPerBikepark
@@ -341,7 +342,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     };
   }, [filterState?.reportType, bikeparks.length]);
 
-  const profile = session?.user?.securityProfile as VSUserSecurityProfile | undefined;
+  // const profile = session?.user?.securityProfile as VSUserSecurityProfile | undefined;
   const selectedGemeenteID = session?.user?.activeContactId || "";
 
   useEffect(() => {
