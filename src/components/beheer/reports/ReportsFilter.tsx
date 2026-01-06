@@ -498,6 +498,59 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     hasInitializedBikeparksRef.current = true;
   }, [bikeparks]);
 
+  // Track previous bikeparks to detect changes
+  const previousBikeparksRef = useRef<string>('');
+  
+  // Update selectedBikeparkIDs when bikeparks prop changes (e.g., when bikeparksWithData changes)
+  // Filter out any selected IDs that are no longer in the available bikeparks list
+  useEffect(() => {
+    if (bikeparks.length === 0) return;
+    
+    // Create a stable string representation of bikeparks to detect changes
+    const bikeparksString = bikeparks
+      .map(bp => bp.StallingsID)
+      .filter(id => id !== null)
+      .sort()
+      .join(',');
+    
+    // Only proceed if bikeparks actually changed
+    if (bikeparksString === previousBikeparksRef.current) return;
+    previousBikeparksRef.current = bikeparksString;
+    
+    const availableBikeparkIDs = bikeparks
+      .filter(bikepark => bikepark.StallingsID !== null)
+      .map(bikepark => bikepark.StallingsID as string);
+    
+    // Use functional updates to access current state values
+    setSelectedBikeparkIDs(currentSelectedIDs => {
+      // Filter selectedBikeparkIDs to only include IDs that are still available
+      const filteredSelectedIDs = currentSelectedIDs.filter(id => 
+        availableBikeparkIDs.includes(id)
+      );
+      
+      // Only update if there's a change (some IDs were removed)
+      if (filteredSelectedIDs.length !== currentSelectedIDs.length) {
+        skipNextBikeparkIDsSyncRef.current = true;
+        return filteredSelectedIDs;
+      }
+      return currentSelectedIDs;
+    });
+    
+    // Use functional updates to access current state values
+    setSelectedBikeparkDataSources(currentDataSources => {
+      // Also update bikeparkDataSources to match available bikeparks
+      const filteredDataSources = currentDataSources.filter(bp => 
+        availableBikeparkIDs.includes(bp.StallingsID)
+      );
+      
+      if (filteredDataSources.length !== currentDataSources.length) {
+        skipNextDataSourceSyncRef.current = true;
+        return filteredDataSources;
+      }
+      return currentDataSources;
+    });
+  }, [bikeparks]);
+
   const lastBikeparkDataSourcesRef = useRef<string>('');
   const lastSelectedBikeparkIDsRef = useRef<string>('');
   const skipNextDataSourceSyncRef = useRef<boolean>(false);
