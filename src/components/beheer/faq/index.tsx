@@ -5,15 +5,24 @@ import FaqEdit from './FaqEdit';
 import FaqSection from './FaqSection';
 import type { VSContactsFAQ, VSFAQ } from '~/types/faq';
 import { SearchFilter } from '~/components/common/SearchFilter';
+import { useSession } from 'next-auth/react';
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 const FaqComponent: React.FC = () => {
   const router = useRouter();
+  const { data: session } = useSession();
   const [faqs, setFaqs] = useState<{sections: VSFAQ[], items: VSFAQ[]}>({ sections: [], items: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filteredFaqs, setFilteredFaqs] = useState<{sections: VSFAQ[], items: VSFAQ[]}>({ sections: [], items: [] });
   const [currentFaqId, setCurrentFaqId] = useState<string | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportingFaqs, setIsExportingFaqs] = useState(false);
+  
+  const isFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) || 
+                             userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  const isFietsberaadOrganization = session?.user?.activeContactId === '1';
 
   useEffect(() => {
     const fetchFaqs = async () => {
@@ -192,17 +201,57 @@ const FaqComponent: React.FC = () => {
     }
   };
 
+  const handleExportFaqs = async () => {
+    setIsExportingFaqs(true);
+    try {
+      const response = await fetch('/api/protected/articles/export-faqs');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(errorData.error || `Export failed with status ${response.status}`);
+      }
+
+      // Get the HTML content from response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') || '';
+      a.download = `${dateStr}-faqs-rapport.html`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error exporting FAQs HTML:', err);
+      alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
+    } finally {
+      setIsExportingFaqs(false);
+    }
+  };
+
   const renderOverview = () => {
     return (
       <div>
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">FAQ's</h1>
-          <button 
-            onClick={() => handleEditFaq('new')}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Nieuwe FAQ
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleEditFaq('new')}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Nieuwe FAQ
+            </button>
+            {isFietsberaadAdmin && isFietsberaadOrganization && (
+              <button 
+                onClick={handleExportFaqs}
+                disabled={isExportingFaqs}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExportingFaqs ? 'Exporteren...' : 'FAQ rapport'}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mb-4">

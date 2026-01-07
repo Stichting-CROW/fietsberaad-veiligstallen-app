@@ -28,7 +28,7 @@ const Divider = () => {
 
 const LowPriority = 1;
 
-const Toolbar = ({ onToggleRawView, isRawView, showToggleRaw = false }: { onToggleRawView: () => void; isRawView: boolean, showToggleRaw?: boolean }) => {
+const Toolbar = () => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isBold, setIsBold] = useState(false);
@@ -222,15 +222,6 @@ const Toolbar = ({ onToggleRawView, isRawView, showToggleRaw = false }: { onTogg
       >
         <i className={`${styles['format']} ${styles['format-list']}`} />
       </button>
-      <Divider />
-      { showToggleRaw && <button
-        onClick={onToggleRawView}
-        className={`${styles.toolbarItem} ${isRawView ? styles.active : ''}`}
-        type="button"
-        aria-label={isRawView ? 'Met opmaak tonen' : 'Broncode tonen'}
-      >
-        {isRawView ? 'Toon opgemaakte tekst' : 'Toon Broncode'}
-      </button>}
     </div>
   );
 };
