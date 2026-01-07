@@ -29,18 +29,19 @@ const TestIndexPage: React.FC = () => {
         throw new Error(errorData.error || `Export failed with status ${response.status}`);
       }
 
-      // Get the PDF content from response
+      // Get the HTML content from response
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `artikelen_export_${new Date().toISOString().split('T')[0]}.pdf`;
+      const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') || '';
+      a.download = `${dateStr}-artikelen-export.html`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error('Error exporting articles:', err);
+      console.error('Error exporting articles HTML:', err);
       alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
     } finally {
       setIsExportingArticles(false);
@@ -57,18 +58,19 @@ const TestIndexPage: React.FC = () => {
         throw new Error(errorData.error || `Export failed with status ${response.status}`);
       }
 
-      // Get the PDF content from response
+      // Get the HTML content from response
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `faqs_export_${new Date().toISOString().split('T')[0]}.pdf`;
+      const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') || '';
+      a.download = `${dateStr}-faqs-export.html`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error('Error exporting FAQs:', err);
+      console.error('Error exporting FAQs HTML:', err);
       alert(err instanceof Error ? err.message : 'Er is een fout opgetreden bij het exporteren');
     } finally {
       setIsExportingFaqs(false);

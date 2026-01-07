@@ -8,7 +8,8 @@ export const Button = ({
   htmlBefore,
   className,
   style,
-  variant
+  variant,
+  disabled
 }: {
   onClick?: Function,
   children: any
@@ -16,6 +17,7 @@ export const Button = ({
   className?: string,
   style?: object
   variant?: string
+  disabled?: boolean
 }) => {
   return (
     <button
@@ -31,10 +33,12 @@ export const Button = ({
         text-white
         ${className}
         ${Styles[variant]}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
       `}
       onClick={(e: MouseEvent<HTMLButtonElement, MouseEvent>) => {
-        if (onClick) onClick(e)
+        if (onClick && !disabled) onClick(e)
       }}
+      disabled={disabled}
       style={Object.assign({}, {
         userSelect: "none", // disable highlighting
         backgroundColor: '#CC0000'

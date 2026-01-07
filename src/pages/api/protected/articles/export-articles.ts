@@ -4,8 +4,6 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
-import PDFDocument from "pdfkit";
-
 type ArticleWithRelations = {
   ID: string;
   SiteID: string | null;
@@ -26,44 +24,6 @@ type ArticleWithRelations = {
 };
 
 /**
- * Decode HTML entities and convert to plain text
- */
-function decodeHtml(html: string): string {
-  return html
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<p[^>]*>/gi, '\n')
-    .replace(/<\/p>/gi, '')
-    .replace(/<div[^>]*>/gi, '\n')
-    .replace(/<\/div>/gi, '')
-    .replace(/<h[1-6][^>]*>/gi, '\n')
-    .replace(/<\/h[1-6]>/gi, '\n')
-    .replace(/<strong[^>]*>/gi, '')
-    .replace(/<\/strong>/gi, '')
-    .replace(/<b[^>]*>/gi, '')
-    .replace(/<\/b>/gi, '')
-    .replace(/<em[^>]*>/gi, '')
-    .replace(/<\/em>/gi, '')
-    .replace(/<i[^>]*>/gi, '')
-    .replace(/<\/i>/gi, '')
-    .replace(/<ul[^>]*>/gi, '\n')
-    .replace(/<\/ul>/gi, '\n')
-    .replace(/<ol[^>]*>/gi, '\n')
-    .replace(/<\/ol>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, '$2 ($1)')
-    .replace(/<[^>]+>/g, '') // Remove any remaining HTML tags
-    .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
-    .trim();
-}
-
-/**
  * Format date for display
  */
 function formatDate(date: Date | string | null | undefined): string {
@@ -75,6 +35,21 @@ function formatDate(date: Date | string | null | undefined): string {
     month: '2-digit',
     day: '2-digit',
   });
+}
+
+/**
+ * Escape HTML for safe display
+ */
+function escapeHtml(text: string | null | undefined): string {
+  if (!text) return '';
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return String(text).replace(/[&<>"']/g, (m) => map[m] || m);
 }
 
 export default async function handle(
@@ -251,207 +226,224 @@ export default async function handle(
       return String(nameA).localeCompare(String(nameB), 'nl-NL');
     });
 
-    // Create PDF document
-    const doc = new PDFDocument({
-      margins: { top: 50, bottom: 50, left: 50, right: 50 },
-      size: 'A4',
-    });
+    // Generate HTML
+    const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') || '';
+    const html = `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Export van alle artikelen</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      border-bottom: 2px solid #333;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #555;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+    h3 {
+      color: #666;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .article-section {
+      margin-bottom: 40px;
+      page-break-inside: avoid;
+    }
+    .company-header {
+      background-color: #f9f9f9;
+      padding: 15px;
+      margin: 20px 0;
+      border-left: 4px solid #333;
+    }
+    .abstract, .article {
+      margin: 15px 0;
+      padding: 10px;
+      background-color: #fafafa;
+    }
+    .meta {
+      font-size: 0.9em;
+      color: #666;
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #ccc;
+    }
+    .toc-toggle {
+      cursor: pointer;
+      user-select: none;
+      color: #0366d6;
+      font-weight: normal;
+    }
+    .toc-toggle:hover {
+      text-decoration: underline;
+    }
+    .toc-toggle::before {
+      content: '▶ ';
+      display: inline-block;
+      transition: transform 0.2s;
+      font-size: 0.8em;
+    }
+    .toc-toggle.expanded::before {
+      transform: rotate(90deg);
+    }
+    .toc-nested {
+      display: none;
+      margin-left: 20px;
+      margin-top: 5px;
+    }
+    .toc-nested.expanded {
+      display: block;
+    }
+    .toc-nested li {
+      margin: 5px 0;
+    }
+  </style>
+  <script>
+    function toggleToc(event) {
+      event.preventDefault();
+      const toggle = event.target.closest('.toc-toggle');
+      const nested = toggle.nextElementSibling;
+      if (nested) {
+        toggle.classList.toggle('expanded');
+        nested.classList.toggle('expanded');
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Export van alle artikelen</h1>
+  <div class="meta">
+    Gegenereerd op: ${new Date().toLocaleString('nl-NL')}
+  </div>
 
-    // Set response headers for PDF download
-    const filename = `artikelen_export_${new Date().toISOString().split('T')[0]}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
+  <h2>Inhoudsopgave</h2>
+  <ul>
+${sortedSiteIDs.map((siteID) => {
+  const companyArticles = articlesByCompany.get(siteID) || [];
+  const companyName = companyNameMap.get(siteID) || siteID;
+  const articleCount = companyArticles.length;
+  return `    <li>
+      <a href="#company-${siteID}">${escapeHtml(companyName)} (${articleCount} ${articleCount === 1 ? 'pagina' : 'pagina\'s'})</a>
+      <span class="toc-toggle" onclick="toggleToc(event)"></span>
+      <ul class="toc-nested">
+${companyArticles.map((article) => {
+  const title = article.DisplayTitle || article.Title || 'Geen titel';
+  const articleId = `article-${article.ID}`;
+  return `        <li><a href="#${articleId}">${escapeHtml(title)}</a></li>`;
+}).join('\n')}
+      </ul>
+    </li>`;
+}).join('\n')}
+  </ul>
+
+${sortedSiteIDs.map((siteID) => {
+  const companyArticles = articlesByCompany.get(siteID) || [];
+  const companyName = companyNameMap.get(siteID) || siteID;
+  const totalCount = companyArticles.length;
+
+  return `
+  <div class="company-header" id="company-${siteID}">
+    <h2>${escapeHtml(companyName)} (${totalCount} ${totalCount === 1 ? 'pagina' : 'pagina\'s'})</h2>
+  </div>
+
+${companyArticles.map((article) => {
+  const title = article.DisplayTitle || article.Title || 'Geen titel';
+  
+  const properties: Array<[string, string]> = [];
+  if (article.ID) properties.push(['ID', article.ID]);
+  if (article.DisplayTitle) properties.push(['DisplayTitle', article.DisplayTitle]);
+  if (article.SortOrder !== null) properties.push(['SortOrder', String(article.SortOrder)]);
+  if (article.Status) properties.push(['Status', article.Status]);
+  if (article.Navigation) properties.push(['Navigation', article.Navigation]);
+  if (article.System) properties.push(['System', article.System]);
+  if (article.EditorCreated) properties.push(['EditorCreated', article.EditorCreated]);
+  if (article.DateCreated) properties.push(['DateCreated', formatDate(article.DateCreated)]);
+  if (article.EditorModified) properties.push(['EditorModified', article.EditorModified]);
+  if (article.DateModified) properties.push(['DateModified', formatDate(article.DateModified)]);
+  if (article.ModuleID) properties.push(['ModuleID', article.ModuleID]);
+  if (article.ParentID) {
+    const parentTitle = parentTitleMap.get(article.ParentID) || article.ParentID;
+    properties.push(['Parent Article', parentTitle]);
+  }
+
+  const articleId = `article-${article.ID}`;
+  return `
+  <div class="article-section" id="${articleId}">
+    <h3>${escapeHtml(title)}</h3>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Eigenschap</th>
+          <th>Waarde</th>
+        </tr>
+      </thead>
+      <tbody>
+${properties.map(([key, value]) => `        <tr>
+          <td>${escapeHtml(key)}</td>
+          <td>${escapeHtml(String(value || ''))}</td>
+        </tr>`).join('\n')}
+      </tbody>
+    </table>
+
+${article.Abstract && article.Abstract.trim().length > 0 ? `
+    <div class="abstract">
+      <strong>Abstract:</strong>
+      <div style="margin-top: 10px;">${article.Abstract}</div>
+    </div>
+` : ''}
+
+${article.Article && article.Article.trim().length > 0 ? `
+    <div class="article">
+      <strong>Article:</strong>
+      <div style="margin-top: 10px;">${article.Article}</div>
+    </div>
+` : ''}
+  </div>
+`;
+}).join('\n')}
+`;
+}).join('\n')}
+
+</body>
+</html>`;
+
+    // Set response headers for HTML download
+    const filename = `${dateStr}-artikelen-export.html`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${filename}"`
     );
 
-    // Pipe PDF to response
-    doc.pipe(res);
-
-    // Title page
-    doc.fontSize(24).font('Helvetica-Bold').text('Export van alle artikelen', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).font('Helvetica').text(`Gegenereerd op: ${new Date().toLocaleString('nl-NL')}`, { align: 'center' });
-    doc.addPage();
-
-    // Table of Contents
-    doc.fontSize(18).font('Helvetica-Bold').text('Inhoudsopgave', { align: 'left' });
-    doc.moveDown(0.5);
-
-    // Add TOC entries
-    doc.fontSize(11).font('Helvetica');
-    
-    for (let idx = 0; idx < sortedSiteIDs.length; idx++) {
-      const siteID = sortedSiteIDs[idx];
-      if (!siteID) continue;
-      
-      const companyArticles = articlesByCompany.get(siteID) || [];
-      const companyName = companyNameMap.get(siteID) || siteID;
-      const articleCount = companyArticles.length;
-      const tocText = `${companyName} (${articleCount} ${articleCount === 1 ? 'pagina' : 'pagina\'s'})`;
-      
-      doc.text(tocText, { indent: 20 });
-      doc.moveDown(0.3);
-      
-      // Check if we need a new page for TOC
-      if (doc.y > 750) {
-        doc.addPage();
-        doc.fontSize(18).font('Helvetica-Bold').text('Inhoudsopgave (vervolg)', { align: 'left' });
-        doc.moveDown(0.5);
-        doc.fontSize(11).font('Helvetica');
-      }
-    }
-
-    // Generate content for each company
-    for (let i = 0; i < sortedSiteIDs.length; i++) {
-      const siteID = sortedSiteIDs[i];
-      if (!siteID) continue;
-      
-      const companyArticles = articlesByCompany.get(siteID) || [];
-      const companyName = companyNameMap.get(siteID) || siteID;
-
-      const totalCount = companyArticles.length;
-      let itemIndex = 0;
-
-      // Generate content for each article
-      for (let j = 0; j < companyArticles.length; j++) {
-        const article = companyArticles[j];
-        if (!article) continue;
-        
-        // Each article gets its own page
-        doc.addPage();
-        
-        // Add company header and bookmark on first item of company
-        if (itemIndex === 0) {
-          const h1Text = `${companyName} (${totalCount} ${totalCount === 1 ? 'pagina' : 'pagina\'s'})`;
-          
-          // Add bookmark to PDF outline
-          doc.outline.addItem(h1Text, { expanded: false });
-          
-          doc.fontSize(20).font('Helvetica-Bold').text(h1Text, { align: 'left' });
-          doc.moveDown();
-        }
-        
-        itemIndex++;
-        
-        const title = article.DisplayTitle || article.Title || 'Geen titel';
-        
-        // H2 for article title
-        doc.fontSize(16).font('Helvetica-Bold').text(title, { align: 'left' });
-        doc.moveDown(0.5);
-
-        // Table with properties
-        doc.fontSize(10).font('Helvetica');
-        
-        const properties: Array<[string, string]> = [];
-        
-        if (article.ID) {
-          properties.push(['ID', article.ID]);
-        }
-        if (article.DisplayTitle) {
-          properties.push(['DisplayTitle', article.DisplayTitle]);
-        }
-        if (article.SortOrder !== null) {
-          properties.push(['SortOrder', String(article.SortOrder)]);
-        }
-        if (article.Status) {
-          properties.push(['Status', article.Status]);
-        }
-        if (article.Navigation) {
-          properties.push(['Navigation', article.Navigation]);
-        }
-        if (article.System) {
-          properties.push(['System', article.System]);
-        }
-        if (article.EditorCreated) {
-          properties.push(['EditorCreated', article.EditorCreated]);
-        }
-        if (article.DateCreated) {
-          properties.push(['DateCreated', formatDate(article.DateCreated)]);
-        }
-        if (article.EditorModified) {
-          properties.push(['EditorModified', article.EditorModified]);
-        }
-        if (article.DateModified) {
-          properties.push(['DateModified', formatDate(article.DateModified)]);
-        }
-        if (article.ModuleID) {
-          properties.push(['ModuleID', article.ModuleID]);
-        }
-        if (article.ParentID) {
-          const parentTitle = parentTitleMap.get(article.ParentID) || article.ParentID;
-          properties.push(['Parent Article', parentTitle]);
-        }
-
-        // Calculate table height and check if we need a new page
-        const col1X = 50;
-        const col2X = 250;
-        const rowHeight = 15;
-        const tableWidth = 500;
-        const tableHeight = (properties.length + 1) * rowHeight; // +1 for header
-        const pageBottom = 750; // Approximate bottom margin
-        
-        // If table won't fit on current page, start on new page
-        if (doc.y + tableHeight > pageBottom) {
-          doc.addPage();
-        }
-
-        // Draw table
-        let tableY = doc.y;
-
-        // Table header
-        doc.font('Helvetica-Bold').fontSize(10);
-        doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-        doc.text('Eigenschap', col1X + 5, tableY + 3);
-        doc.text('Waarde', col2X + 5, tableY + 3);
-        tableY += rowHeight;
-
-        // Table rows
-        doc.font('Helvetica').fontSize(9);
-        for (const [key, value] of properties) {
-          // Check if we need a new page for this row
-          if (tableY + rowHeight > pageBottom) {
-            doc.addPage();
-            tableY = doc.page.margins.top;
-            // Redraw header on new page
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-            doc.text('Eigenschap', col1X + 5, tableY + 3);
-            doc.text('Waarde', col2X + 5, tableY + 3);
-            tableY += rowHeight;
-            doc.font('Helvetica').fontSize(9);
-          }
-          
-          doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-          doc.text(key, col1X + 5, tableY + 3, { width: col2X - col1X - 10 });
-          doc.text(String(value || ''), col2X + 5, tableY + 3, { width: tableWidth - (col2X - col1X) - 10 });
-          tableY += rowHeight;
-        }
-
-        doc.y = tableY + 10;
-
-        // Abstract paragraph (if set)
-        if (article.Abstract && article.Abstract.trim().length > 0) {
-          const decodedAbstract = decodeHtml(article.Abstract);
-          doc.fontSize(11).font('Helvetica-Bold').text('Abstract:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedAbstract, { align: 'left' });
-          doc.moveDown();
-        }
-
-        // Article paragraph (if set)
-        if (article.Article && article.Article.trim().length > 0) {
-          const decodedArticle = decodeHtml(article.Article);
-          doc.fontSize(11).font('Helvetica-Bold').text('Article:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedArticle, { align: 'left' });
-          doc.moveDown();
-        }
-      }
-    }
-
-    // Finalize PDF
-    doc.end();
+    res.status(200).send(html);
   } catch (error) {
     console.error("Error exporting articles:", error);
     if (!res.headersSent) {
@@ -459,4 +451,3 @@ export default async function handle(
     }
   }
 }
-
