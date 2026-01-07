@@ -749,6 +749,72 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     checkInput();
   }, [reportRangeUnit, reportType, selectedBikeparkIDs, datatype, customStartDate, customEndDate, activePreset]);
 
+  // Helper function to calculate available X-axis options based on current state
+  const getAvailableXAxisOptions = (): Array<{ value: ReportGrouping; label: string; disabled?: boolean }> => {
+    const { startDT, endDT } = getStartEndDT(currentReportState, firstDate, lastDate);
+    const DAY_IN_MS = 24 * 60 * 60 * 1000;
+    const isValidPeriod = endDT >= startDT;
+    const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+
+    const isStallingsduurReport = ["stallingsduur"].includes(reportType);
+    const isBezettingReport = ["bezetting"].includes(reportType);
+    const isAbsoluteBezettingReport = ["absolute_bezetting"].includes(reportType);
+    const showIntervalPeriods = !isStallingsduurReport && !isBezettingReport;
+
+    const showIntervalYear = showIntervalPeriods && true;
+    const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
+    const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
+    const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
+    const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
+    const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
+    const isHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
+    const isQuarterHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
+    const showIntervalBucket = isStallingsduurReport;
+
+    const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
+    if (isAbsoluteBezettingReport) {
+      xAxisOptions.push({
+        value: "per_hour_time",
+        label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
+        disabled: isHourDisabled,
+      });
+      xAxisOptions.push({
+        value: "per_quarter_hour",
+        label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
+        disabled: isQuarterHourDisabled,
+      });
+    } else {
+      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
+      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
+      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
+      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
+      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
+    }
+
+    return xAxisOptions;
+  };
+
+  // Auto-update reportGrouping if current selection is no longer available
+  useEffect(() => {
+    if (!reportType) return;
+
+    const availableOptions = getAvailableXAxisOptions();
+    
+    // Check if current reportGrouping is still available (and not disabled)
+    const currentOption = availableOptions.find(opt => opt.value === reportGrouping);
+    const isCurrentOptionValid = currentOption && !currentOption.disabled;
+    
+    // If current selection is not available or is disabled, select the first available non-disabled option
+    if (!isCurrentOptionValid && availableOptions.length > 0) {
+      const firstAvailableOption = availableOptions.find(opt => !opt.disabled) || availableOptions[0];
+      if (firstAvailableOption && firstAvailableOption.value !== reportGrouping) {
+        setReportGrouping(firstAvailableOption.value);
+      }
+    }
+  }, [reportType, customStartDate, customEndDate, reportRangeUnit, activePreset, firstDate, lastDate, reportGrouping]);
+
   // Auto set preset "select" values if period changes
   useEffect(() => {
     const startDT = customStartDate ? new Date(customStartDate) : undefined;
@@ -841,44 +907,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showCategorySection = ["bezetting"].includes(reportType);
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
-    const showIntervalYear = showIntervalPeriods && true;
-    // const showIntervalQuarter = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 1464 : false;
-    const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
-    const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
-    const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
-    const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
-    const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
-    // For absolute_bezetting, always show "Uur" and "Kwartier" but disable if period >= 14 days
-    const isHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
-    const isQuarterHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
-    const showIntervalBucket = isStallingsduurReport;
-
     // Show the generic BikeparkSelect for all reports, including absolute_bezetting
     const showBikeparkSelect = true;
 
-    // Build available X-axis options
-    const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
-    if (isAbsoluteBezettingReport) {
-      // For absolute_bezetting we only allow "Uur" and "Kwartier"
-      xAxisOptions.push({
-        value: "per_hour_time",
-        label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
-        disabled: isHourDisabled,
-      });
-      xAxisOptions.push({
-        value: "per_quarter_hour",
-        label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
-        disabled: isQuarterHourDisabled,
-      });
-    } else {
-      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
-      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
-      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
-      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
-      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
-      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
-    }
+    // Build available X-axis options using the helper function
+    const xAxisOptions = getAvailableXAxisOptions();
 
     // Build available Legenda options
     const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];
