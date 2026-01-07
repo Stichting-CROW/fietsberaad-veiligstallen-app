@@ -64,6 +64,13 @@ export default async function handle(
     return;
   }
 
+  // Check that the current organization is Fietsberaad (SiteID "1")
+  const activeContactId = session.user.activeContactId;
+  if (activeContactId !== '1') {
+    res.status(403).json({ error: "Access denied - export only available for Fietsberaad organization" });
+    return;
+  }
+
   try {
     // Fetch all FAQs - matching the structure used in the FAQ page
     const allFaqs = await prisma.faq.findMany({
@@ -512,7 +519,7 @@ ${sectionItems.map((item) => {
 </html>`;
 
     // Set response headers for HTML download
-    const filename = `${dateStr}-faqs-export.html`;
+    const filename = `${dateStr}-faqs-rapport.html`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Disposition',

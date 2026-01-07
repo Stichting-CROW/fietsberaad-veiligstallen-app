@@ -82,6 +82,13 @@ export default async function handle(
     return;
   }
 
+  // Check that the current organization is Fietsberaad (SiteID "1")
+  const activeContactId = session.user.activeContactId;
+  if (activeContactId !== '1') {
+    res.status(403).json({ error: "Access denied - export only available for Fietsberaad organization" });
+    return;
+  }
+
   try {
     // Fetch all articles with content (Abstract OR Article not null and length > 0)
     const articles = await prisma.articles.findMany({
@@ -171,17 +178,21 @@ export default async function handle(
       companyNameMap.set(contact.ID, contact.CompanyName);
     }
     
-    // For SiteIDs without a contact record, use the SiteID as the name
-    for (const siteID of siteIDs) {
-      if (!companyNameMap.has(siteID)) {
-        companyNameMap.set(siteID, siteID);
-      }
+    // Filter out articles for contacts that no longer exist
+    const validSiteIDs = new Set(companyNameMap.keys());
+    const articlesWithValidContacts = articlesWithContent.filter(
+      (article) => article.SiteID && validSiteIDs.has(article.SiteID)
+    );
+
+    if (articlesWithValidContacts.length === 0) {
+      res.status(404).json({ error: "No articles with valid contacts found" });
+      return;
     }
 
     // Get all unique ParentIDs
     const parentIDs = [
       ...new Set(
-        articlesWithContent
+        articlesWithValidContacts
           .map((a) => a.ParentID)
           .filter((id): id is string => id !== null)
       ),
@@ -211,7 +222,7 @@ export default async function handle(
 
     // Group articles by SiteID
     const articlesByCompany = new Map<string, ArticleWithRelations[]>();
-    for (const article of articlesWithContent) {
+    for (const article of articlesWithValidContacts) {
       const siteID = article.SiteID || 'unknown';
       if (!articlesByCompany.has(siteID)) {
         articlesByCompany.set(siteID, []);
@@ -436,7 +447,7 @@ ${article.Article && article.Article.trim().length > 0 ? `
 </html>`;
 
     // Set response headers for HTML download
-    const filename = `${dateStr}-artikelen-export.html`;
+    const filename = `${dateStr}-parina-rapport.html`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
