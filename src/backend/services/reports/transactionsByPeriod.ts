@@ -30,7 +30,7 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   } = params;
 
   // TMP: disable cache for now
-  useCache = false;
+  useCache = true;
 
   if (["transacties_voltooid", "inkomsten"].includes(reportType) === false) {
     throw new Error("Invalid report type");
@@ -123,13 +123,26 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   // The cache stores dates adjusted by dayBeginsAt, so we need to adjust the query dates accordingly
   // For cache queries, checkoutdate is a DATE column, so we use DATE format
   // For non-cache queries, checkoutdate is a DATETIME column, so we use DATETIME format
+  // When using cache, we use the original endDate (not adjustedEndDate) to ensure we don't include the next day
+  // The cache stores dates as DATE(DATE_ADD(checkoutdate, INTERVAL -timeIntervalInMinutes MINUTE))
+  // So we need to adjust the query dates the same way, but use the original endDate to determine the last day
+  let cacheStartDate: string = '';
+  let cacheEndDate: string = '';
+  if (useCache) {
+    // For cache queries, adjust the start date the same way as when populating the cache
+    cacheStartDate = adjustedStartDate ? adjustedStartDate.clone().startOf('day').format('YYYY-MM-DD') : (startDate ? moment(startDate).startOf('day').format('YYYY-MM-DD') : '');
+    // For the end date, use the original endDate (not adjustedEndDate) to ensure we don't include the next day
+    // Adjust it the same way as when populating the cache: DATE(DATE_ADD(checkoutdate, INTERVAL -timeIntervalInMinutes MINUTE))
+    cacheEndDate = endDate ? moment(endDate).add(-timeIntervalInMinutes, 'minutes').startOf('day').format('YYYY-MM-DD') : (adjustedEndDate ? adjustedEndDate.clone().startOf('day').format('YYYY-MM-DD') : '');
+  }
+  
   const queryParams = [
     false === useCache 
       ? adjustedStartDate.format('YYYY-MM-DD HH:mm:ss')
-      : adjustedStartDate ? adjustedStartDate.clone().startOf('day').format('YYYY-MM-DD') : moment(startDate).format('YYYY-MM-DD'),
+      : cacheStartDate,
     false === useCache 
       ? adjustedEndDate.format('YYYY-MM-DD HH:mm:ss')
-      : adjustedEndDate ? adjustedEndDate.clone().startOf('day').format('YYYY-MM-DD') : moment(endDate).format('YYYY-MM-DD')
+      : cacheEndDate
   ];
 
   const sqlfilledin = interpolateSQL(sql, queryParams);
