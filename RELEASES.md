@@ -1,5 +1,13 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-01-07
+
+**Rapportage**
+
+- Als x-as optie niet meer beschikbaar is na veranderen periode: selecteer 1e beschikbare x-as optie
+- Zorg dat cache wordt opgebouwd rekening houdend met dagstart
+- Haal grafiekdata weer uit cache-tabellen (zet cache weer 'aan')
+
 ## VeiligStallen 2026-01-06 pt 3.
 
 **Beheer algemeen**

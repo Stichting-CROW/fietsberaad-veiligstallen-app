@@ -175,6 +175,8 @@ export interface ReportsFilterHandle {
 }
 
 const STORAGE_KEY = 'VS_reports_filterState';
+// Presets that use "range_custom" as their reportRangeUnit
+const PRESETS_USING_CUSTOM_RANGE: PeriodPreset[] = ["afgelopen_7_dagen", "afgelopen_30_dagen", "afgelopen_12_maanden"];
 
 const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
@@ -254,20 +256,28 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         const parsed = JSON.parse(savedState);
         const legacyRange = (!parsed.customStartDate || !parsed.customEndDate) ? deriveLegacyRange(parsed) : {};
 
+        const reportRangeUnit = parsed.reportRangeUnit || defaultReportState.reportRangeUnit;
+        const savedActivePreset = parsed.activePreset as PeriodPreset | undefined;
+        // If reportRangeUnit is "range_custom" and activePreset is undefined or not one of the presets that use "range_custom",
+        // then it's a manual custom range and activePreset should be undefined
+        const activePreset = reportRangeUnit === "range_custom" && (savedActivePreset === undefined || !PRESETS_USING_CUSTOM_RANGE.includes(savedActivePreset))
+          ? undefined 
+          : (savedActivePreset ?? defaultReportState.activePreset);
+
         return {
           reportType: (parsed.reportType && reportTypeValues.includes(parsed.reportType))
             ? parsed.reportType as ReportType
             : defaultReportState.reportType,
           reportGrouping: parsed.reportGrouping || defaultReportState.reportGrouping,
           reportCategories: parsed.reportCategories || defaultReportState.reportCategories,
-          reportRangeUnit: parsed.reportRangeUnit || defaultReportState.reportRangeUnit,
+          reportRangeUnit,
           fillups: parsed.fillups ?? defaultReportState.fillups,
           grouped: parsed.grouped ?? defaultReportState.grouped,
           selectedBikeparkIDs: parsed.selectedBikeparkIDs || defaultReportState.selectedBikeparkIDs,
           selectedBikeparkDataSources: parsed.bikeparkDataSources || parsed.selectedBikeparkDataSources || defaultReportState.bikeparkDataSources,
           customStartDate: parsed.customStartDate || legacyRange.customStartDate || defaultReportState.customStartDate,
           customEndDate: parsed.customEndDate || legacyRange.customEndDate || defaultReportState.customEndDate,
-          activePreset: parsed.activePreset as PeriodPreset | undefined ?? defaultReportState.activePreset,
+          activePreset,
           selectedSeries: parsed.selectedSeries || defaultReportState.selectedSeries || DEFAULT_SERIES,
           source: parsed.source || undefined
         };
@@ -285,19 +295,27 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     ? { ...localStorageState, ...initialFilterState }
     : localStorageState;
 
+  const finalReportRangeUnit = initialState?.reportRangeUnit ?? defaultReportState.reportRangeUnit;
+  const savedActivePreset = initialState?.activePreset;
+  // If reportRangeUnit is "range_custom" and activePreset is undefined or not one of the presets that use "range_custom",
+  // then it's a manual custom range and activePreset should be undefined
+  const finalActivePreset = finalReportRangeUnit === "range_custom" && (savedActivePreset === undefined || !PRESETS_USING_CUSTOM_RANGE.includes(savedActivePreset))
+    ? undefined 
+    : (savedActivePreset ?? defaultReportState.activePreset);
+
   // Use activeReportType if provided, otherwise use initialState or default
   const [reportType, setReportType] = useState<ReportType>(
     activeReportType ?? initialState?.reportType ?? defaultReportState.reportType
   );
   const [reportGrouping, setReportGrouping] = useState<ReportGrouping>(initialState?.reportGrouping ?? defaultReportState.reportGrouping);
   const [reportCategories, setReportCategories] = useState<ReportCategories>(initialState?.reportCategories ?? defaultReportState.reportCategories);
-  const [reportRangeUnit, setReportRangeUnit] = useState<ReportRangeUnit>(initialState?.reportRangeUnit ?? defaultReportState.reportRangeUnit);
+  const [reportRangeUnit, setReportRangeUnit] = useState<ReportRangeUnit>(finalReportRangeUnit);
   const [selectedBikeparkIDs, setSelectedBikeparkIDs] = useState<string[]>(initialState?.selectedBikeparkIDs ?? defaultReportState.selectedBikeparkIDs);
   const [selectedBikeparkDataSources, setSelectedBikeparkDataSources] = useState<BikeparkWithDataSource[]>(initialState?.selectedBikeparkDataSources ?? defaultReportState.bikeparkDataSources);
   const [datatype, setDatatype] = useState<ReportDatatype | undefined>(undefined);
   const [customStartDate, setCustomStartDate] = useState<string | undefined>(initialState?.customStartDate ?? defaultReportState.customStartDate);
   const [customEndDate, setCustomEndDate] = useState<string | undefined>(initialState?.customEndDate ?? defaultReportState.customEndDate);
-  const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(initialState?.activePreset ?? defaultReportState.activePreset);
+  const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(finalActivePreset);
   const [fillups, setFillups] = useState(initialState?.fillups ?? defaultReportState.fillups);
   const [grouped, setGrouped] = useState(initialState?.grouped ?? defaultReportState.grouped);
   const [selectedSeries, setSelectedSeries] = useState<SeriesLabel[]>(initialState?.selectedSeries ?? defaultReportState.selectedSeries ?? DEFAULT_SERIES);
@@ -749,6 +767,72 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     checkInput();
   }, [reportRangeUnit, reportType, selectedBikeparkIDs, datatype, customStartDate, customEndDate, activePreset]);
 
+  // Helper function to calculate available X-axis options based on current state
+  const getAvailableXAxisOptions = (): Array<{ value: ReportGrouping; label: string; disabled?: boolean }> => {
+    const { startDT, endDT } = getStartEndDT(currentReportState, firstDate, lastDate);
+    const DAY_IN_MS = 24 * 60 * 60 * 1000;
+    const isValidPeriod = endDT >= startDT;
+    const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
+
+    const isStallingsduurReport = ["stallingsduur"].includes(reportType);
+    const isBezettingReport = ["bezetting"].includes(reportType);
+    const isAbsoluteBezettingReport = ["absolute_bezetting"].includes(reportType);
+    const showIntervalPeriods = !isStallingsduurReport && !isBezettingReport;
+
+    const showIntervalYear = showIntervalPeriods && true;
+    const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
+    const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
+    const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
+    const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
+    const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
+    const isHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
+    const isQuarterHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
+    const showIntervalBucket = isStallingsduurReport;
+
+    const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
+    if (isAbsoluteBezettingReport) {
+      xAxisOptions.push({
+        value: "per_hour_time",
+        label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
+        disabled: isHourDisabled,
+      });
+      xAxisOptions.push({
+        value: "per_quarter_hour",
+        label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
+        disabled: isQuarterHourDisabled,
+      });
+    } else {
+      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
+      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
+      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
+      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
+      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
+      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
+    }
+
+    return xAxisOptions;
+  };
+
+  // Auto-update reportGrouping if current selection is no longer available
+  useEffect(() => {
+    if (!reportType) return;
+
+    const availableOptions = getAvailableXAxisOptions();
+    
+    // Check if current reportGrouping is still available (and not disabled)
+    const currentOption = availableOptions.find(opt => opt.value === reportGrouping);
+    const isCurrentOptionValid = currentOption && !currentOption.disabled;
+    
+    // If current selection is not available or is disabled, select the first available non-disabled option
+    if (!isCurrentOptionValid && availableOptions.length > 0) {
+      const firstAvailableOption = availableOptions.find(opt => !opt.disabled) || availableOptions[0];
+      if (firstAvailableOption && firstAvailableOption.value !== reportGrouping) {
+        setReportGrouping(firstAvailableOption.value);
+      }
+    }
+  }, [reportType, customStartDate, customEndDate, reportRangeUnit, activePreset, firstDate, lastDate, reportGrouping]);
+
   // Auto set preset "select" values if period changes
   useEffect(() => {
     const startDT = customStartDate ? new Date(customStartDate) : undefined;
@@ -841,44 +925,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showCategorySection = ["bezetting"].includes(reportType);
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
-    const showIntervalYear = showIntervalPeriods && true;
-    // const showIntervalQuarter = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 1464 : false;
-    const showIntervalMonth = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 732 : false;
-    const showIntervalWeek = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 366 : false;
-    const showIntervalDay = (showIntervalPeriods && isValidPeriod) ? periodInDays <= 90 : false;
-    const showIntervalWeekday = showIntervalPeriods && ["stallingsduur"].includes(reportType);
-    const showIntervalHourOfDay = ["bezetting"].includes(reportType) === true;
-    // For absolute_bezetting, always show "Uur" and "Kwartier" but disable if period >= 14 days
-    const isHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
-    const isQuarterHourDisabled = isAbsoluteBezettingReport && isValidPeriod && periodInDays >= 14;
-    const showIntervalBucket = isStallingsduurReport;
-
     // Show the generic BikeparkSelect for all reports, including absolute_bezetting
     const showBikeparkSelect = true;
 
-    // Build available X-axis options
-    const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
-    if (isAbsoluteBezettingReport) {
-      // For absolute_bezetting we only allow "Uur" and "Kwartier"
-      xAxisOptions.push({
-        value: "per_hour_time",
-        label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
-        disabled: isHourDisabled,
-      });
-      xAxisOptions.push({
-        value: "per_quarter_hour",
-        label: isQuarterHourDisabled ? "Kwartier (max. 14 dagen)" : "Kwartier",
-        disabled: isQuarterHourDisabled,
-      });
-    } else {
-      if (showIntervalYear) xAxisOptions.push({ value: "per_year", label: "Jaar" });
-      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
-      if (showIntervalWeek) xAxisOptions.push({ value: "per_week", label: "Week" });
-      if (showIntervalDay) xAxisOptions.push({ value: "per_day", label: "Dag" });
-      if (showIntervalWeekday) xAxisOptions.push({ value: "per_weekday", label: "Dag van de week" });
-      if (showIntervalHourOfDay) xAxisOptions.push({ value: "per_hour", label: "Uur van de dag" });
-      if (showIntervalBucket) xAxisOptions.push({ value: "per_bucket", label: "Stallingsduur" });
-    }
+    // Build available X-axis options using the helper function
+    const xAxisOptions = getAvailableXAxisOptions();
 
     // Build available Legenda options
     const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];

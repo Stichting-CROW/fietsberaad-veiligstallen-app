@@ -66,7 +66,9 @@ export const updateStallingsduurCache = async (params: CacheParams) => {
     return false;
   }
 
-  const { timeIntervalInMinutes, adjustedStartDate } = getAdjustedStartEndDates(params.startDate, params.endDate, undefined);
+  // For filtering, we still use adjusted dates based on params.dayBeginsAt as a fallback
+  // But the actual date calculation in SELECT uses each transaction's own daybeginsat field
+  const { timeIntervalInMinutes, adjustedStartDate } = getAdjustedStartEndDates(params.startDate, params.endDate, params.dayBeginsAt);
 
   if (adjustedStartDate === undefined) {
     console.error(">>> updateStallingsduurCache ERROR Start date is undefined");
@@ -75,13 +77,16 @@ export const updateStallingsduurCache = async (params: CacheParams) => {
 
   const conditions = [];
   if (!params.allDates) {
-    conditions.push(`checkoutdate >= DATE_ADD('${adjustedStartDate.format('YYYY-MM-DD 00:00:00')}', INTERVAL -${timeIntervalInMinutes} MINUTE)`);
+    // For filtering, use a conservative approach: include transactions that might fall in the date range
+    // We subtract the maximum possible daybeginsat offset (23:59 = 1439 minutes) to ensure we don't miss any
+    conditions.push(`checkoutdate >= DATE_ADD('${adjustedStartDate.format('YYYY-MM-DD 00:00:00')}', INTERVAL -1439 MINUTE)`);
   }
   if (!params.allBikeparks) {
     conditions.push(`locationID IN (${params.selectedBikeparkIDs.map(bp => `'${bp}'`).join(',')})`);
   }
 
-  // conditions.push(`NOT ISNULL(checkoutdate)`);
+  conditions.push(`NOT ISNULL(checkoutdate)`);
+  conditions.push(`NOT ISNULL(daybeginsat)`);
   conditions.push(`checkintype = 'user'`);
   conditions.push(`checkouttype = 'user'`);
 
@@ -107,7 +112,9 @@ export const updateStallingsduurCache = async (params: CacheParams) => {
   statementItems.push(`INSERT INTO stallingsduur_cache (locationID, checkoutdate, sectionID, clienttypeID, bucket, count_transacties)`);
   statementItems.push(`SELECT `);
   statementItems.push(`  locationID,`);
-  statementItems.push(`  DATE(DATE_ADD(checkoutdate, INTERVAL -${timeIntervalInMinutes} MINUTE)) AS date,`);
+  // Use each transaction's own daybeginsat field to calculate the date adjustment
+  // daybeginsat is a TIME field, so we extract hours and minutes and convert to total minutes
+  statementItems.push(`  DATE(DATE_ADD(checkoutdate, INTERVAL -(HOUR(daybeginsat) * 60 + MINUTE(daybeginsat)) MINUTE)) AS date,`);
   statementItems.push(`  sectionID,`);
   statementItems.push(`  clienttypeID,`);
   statementItems.push(`  ${sqlCalculateBucket} as bucket,`);

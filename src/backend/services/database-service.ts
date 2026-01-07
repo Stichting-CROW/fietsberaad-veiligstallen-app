@@ -23,6 +23,7 @@ export interface CacheParams {
   startDate: Date;
   endDate: Date;
   selectedBikeparkIDs: string[];
+  dayBeginsAt?: string; // Optional: municipality-specific day start time (e.g., "04:00:00")
 }
 
 export interface CacheStatus {
