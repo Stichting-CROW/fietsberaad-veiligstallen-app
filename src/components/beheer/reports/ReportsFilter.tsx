@@ -175,6 +175,8 @@ export interface ReportsFilterHandle {
 }
 
 const STORAGE_KEY = 'VS_reports_filterState';
+// Presets that use "range_custom" as their reportRangeUnit
+const PRESETS_USING_CUSTOM_RANGE: PeriodPreset[] = ["afgelopen_7_dagen", "afgelopen_30_dagen", "afgelopen_12_maanden"];
 
 const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
@@ -254,20 +256,28 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         const parsed = JSON.parse(savedState);
         const legacyRange = (!parsed.customStartDate || !parsed.customEndDate) ? deriveLegacyRange(parsed) : {};
 
+        const reportRangeUnit = parsed.reportRangeUnit || defaultReportState.reportRangeUnit;
+        const savedActivePreset = parsed.activePreset as PeriodPreset | undefined;
+        // If reportRangeUnit is "range_custom" and activePreset is undefined or not one of the presets that use "range_custom",
+        // then it's a manual custom range and activePreset should be undefined
+        const activePreset = reportRangeUnit === "range_custom" && (savedActivePreset === undefined || !PRESETS_USING_CUSTOM_RANGE.includes(savedActivePreset))
+          ? undefined 
+          : (savedActivePreset ?? defaultReportState.activePreset);
+
         return {
           reportType: (parsed.reportType && reportTypeValues.includes(parsed.reportType))
             ? parsed.reportType as ReportType
             : defaultReportState.reportType,
           reportGrouping: parsed.reportGrouping || defaultReportState.reportGrouping,
           reportCategories: parsed.reportCategories || defaultReportState.reportCategories,
-          reportRangeUnit: parsed.reportRangeUnit || defaultReportState.reportRangeUnit,
+          reportRangeUnit,
           fillups: parsed.fillups ?? defaultReportState.fillups,
           grouped: parsed.grouped ?? defaultReportState.grouped,
           selectedBikeparkIDs: parsed.selectedBikeparkIDs || defaultReportState.selectedBikeparkIDs,
           selectedBikeparkDataSources: parsed.bikeparkDataSources || parsed.selectedBikeparkDataSources || defaultReportState.bikeparkDataSources,
           customStartDate: parsed.customStartDate || legacyRange.customStartDate || defaultReportState.customStartDate,
           customEndDate: parsed.customEndDate || legacyRange.customEndDate || defaultReportState.customEndDate,
-          activePreset: parsed.activePreset as PeriodPreset | undefined ?? defaultReportState.activePreset,
+          activePreset,
           selectedSeries: parsed.selectedSeries || defaultReportState.selectedSeries || DEFAULT_SERIES,
           source: parsed.source || undefined
         };
@@ -285,19 +295,27 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     ? { ...localStorageState, ...initialFilterState }
     : localStorageState;
 
+  const finalReportRangeUnit = initialState?.reportRangeUnit ?? defaultReportState.reportRangeUnit;
+  const savedActivePreset = initialState?.activePreset;
+  // If reportRangeUnit is "range_custom" and activePreset is undefined or not one of the presets that use "range_custom",
+  // then it's a manual custom range and activePreset should be undefined
+  const finalActivePreset = finalReportRangeUnit === "range_custom" && (savedActivePreset === undefined || !PRESETS_USING_CUSTOM_RANGE.includes(savedActivePreset))
+    ? undefined 
+    : (savedActivePreset ?? defaultReportState.activePreset);
+
   // Use activeReportType if provided, otherwise use initialState or default
   const [reportType, setReportType] = useState<ReportType>(
     activeReportType ?? initialState?.reportType ?? defaultReportState.reportType
   );
   const [reportGrouping, setReportGrouping] = useState<ReportGrouping>(initialState?.reportGrouping ?? defaultReportState.reportGrouping);
   const [reportCategories, setReportCategories] = useState<ReportCategories>(initialState?.reportCategories ?? defaultReportState.reportCategories);
-  const [reportRangeUnit, setReportRangeUnit] = useState<ReportRangeUnit>(initialState?.reportRangeUnit ?? defaultReportState.reportRangeUnit);
+  const [reportRangeUnit, setReportRangeUnit] = useState<ReportRangeUnit>(finalReportRangeUnit);
   const [selectedBikeparkIDs, setSelectedBikeparkIDs] = useState<string[]>(initialState?.selectedBikeparkIDs ?? defaultReportState.selectedBikeparkIDs);
   const [selectedBikeparkDataSources, setSelectedBikeparkDataSources] = useState<BikeparkWithDataSource[]>(initialState?.selectedBikeparkDataSources ?? defaultReportState.bikeparkDataSources);
   const [datatype, setDatatype] = useState<ReportDatatype | undefined>(undefined);
   const [customStartDate, setCustomStartDate] = useState<string | undefined>(initialState?.customStartDate ?? defaultReportState.customStartDate);
   const [customEndDate, setCustomEndDate] = useState<string | undefined>(initialState?.customEndDate ?? defaultReportState.customEndDate);
-  const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(initialState?.activePreset ?? defaultReportState.activePreset);
+  const [activePreset, setActivePreset] = useState<PeriodPreset | undefined>(finalActivePreset);
   const [fillups, setFillups] = useState(initialState?.fillups ?? defaultReportState.fillups);
   const [grouped, setGrouped] = useState(initialState?.grouped ?? defaultReportState.grouped);
   const [selectedSeries, setSelectedSeries] = useState<SeriesLabel[]>(initialState?.selectedSeries ?? defaultReportState.selectedSeries ?? DEFAULT_SERIES);
