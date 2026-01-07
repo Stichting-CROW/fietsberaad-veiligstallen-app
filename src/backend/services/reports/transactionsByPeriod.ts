@@ -119,9 +119,17 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   const sql = statementItems.join('\n')
 
   // Prepare parameters for the query
+  // When using cache, we need to query using the same date adjustment as when populating the cache
+  // The cache stores dates adjusted by dayBeginsAt, so we need to adjust the query dates accordingly
+  // For cache queries, checkoutdate is a DATE column, so we use DATE format
+  // For non-cache queries, checkoutdate is a DATETIME column, so we use DATETIME format
   const queryParams = [
-    false === useCache ? adjustedStartDate.format('YYYY-MM-DD HH:mm:ss') : moment(startDate).format('YYYY-MM-DD 00:00:00'),
-    false === useCache ? adjustedEndDate.format('YYYY-MM-DD HH:mm:ss') : moment(endDate).format('YYYY-MM-DD 23:59:59')
+    false === useCache 
+      ? adjustedStartDate.format('YYYY-MM-DD HH:mm:ss')
+      : adjustedStartDate ? adjustedStartDate.clone().startOf('day').format('YYYY-MM-DD') : moment(startDate).format('YYYY-MM-DD'),
+    false === useCache 
+      ? adjustedEndDate.format('YYYY-MM-DD HH:mm:ss')
+      : adjustedEndDate ? adjustedEndDate.clone().startOf('day').format('YYYY-MM-DD') : moment(endDate).format('YYYY-MM-DD')
   ];
 
   const sqlfilledin = interpolateSQL(sql, queryParams);

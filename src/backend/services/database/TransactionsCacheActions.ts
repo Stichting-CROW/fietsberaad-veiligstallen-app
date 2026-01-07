@@ -60,7 +60,7 @@ export const getTransactionCacheStatus = async (params: CacheParams) => {
 }
 
 export const updateTransactionCache = async (params: CacheParams) => {
-    const { timeIntervalInMinutes, adjustedStartDate } = getAdjustedStartEndDates(params.startDate, params.endDate, undefined);
+    const { timeIntervalInMinutes, adjustedStartDate } = getAdjustedStartEndDates(params.startDate, params.endDate, params.dayBeginsAt);
 
     if(adjustedStartDate === undefined) {
         console.error(">>> updateTransactionCache ERROR Start date is undefined");
