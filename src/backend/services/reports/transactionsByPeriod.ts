@@ -30,7 +30,7 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   } = params;
 
   // TMP: disable cache for now
-  useCache = true;
+  // useCache = false;
 
   if (["transacties_voltooid", "inkomsten"].includes(reportType) === false) {
     throw new Error("Invalid report type");
