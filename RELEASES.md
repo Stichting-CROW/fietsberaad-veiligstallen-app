@@ -1,5 +1,11 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-01-08.
+
+**Features**
+
+- Rapporten toegevoegd voor het exporteren van faq/pagina data, huidige faq/page data geexporteerd als referentie voor de toekomst 
+
 ## VeiligStallen 2026-01-07
 
 **Rapportage**

@@ -4,45 +4,6 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
-import PDFDocument from "pdfkit";
-
-/**
- * Decode HTML entities and convert to plain text
- */
-function decodeHtml(html: string): string {
-  return html
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<p[^>]*>/gi, '\n')
-    .replace(/<\/p>/gi, '')
-    .replace(/<div[^>]*>/gi, '\n')
-    .replace(/<\/div>/gi, '')
-    .replace(/<h[1-6][^>]*>/gi, '\n')
-    .replace(/<\/h[1-6]>/gi, '\n')
-    .replace(/<strong[^>]*>/gi, '')
-    .replace(/<\/strong>/gi, '')
-    .replace(/<b[^>]*>/gi, '')
-    .replace(/<\/b>/gi, '')
-    .replace(/<em[^>]*>/gi, '')
-    .replace(/<\/em>/gi, '')
-    .replace(/<i[^>]*>/gi, '')
-    .replace(/<\/i>/gi, '')
-    .replace(/<ul[^>]*>/gi, '\n')
-    .replace(/<\/ul>/gi, '\n')
-    .replace(/<ol[^>]*>/gi, '\n')
-    .replace(/<\/ol>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, '$2 ($1)')
-    .replace(/<[^>]+>/g, '') // Remove any remaining HTML tags
-    .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
-    .trim();
-}
 
 /**
  * Format date for display
@@ -56,6 +17,21 @@ function formatDate(date: Date | string | null | undefined): string {
     month: '2-digit',
     day: '2-digit',
   });
+}
+
+/**
+ * Escape HTML for safe display
+ */
+function escapeHtml(text: string | null | undefined): string {
+  if (!text) return '';
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return String(text).replace(/[&<>"']/g, (m) => map[m] || m);
 }
 
 export default async function handle(
@@ -88,14 +64,18 @@ export default async function handle(
     return;
   }
 
+  // Check that the current organization is Fietsberaad (SiteID "1")
+  const activeContactId = session.user.activeContactId;
+  if (activeContactId !== '1') {
+    res.status(403).json({ error: "Access denied - export only available for Fietsberaad organization" });
+    return;
+  }
+
   try {
     // Fetch all FAQs - matching the structure used in the FAQ page
-    // Sections: FAQs with Title !== null (these are the parent sections)
-    // Items: FAQs with Title === null (these are child FAQs)
-    // Only fetch active FAQs (Status = '1' or true)
     const allFaqs = await prisma.faq.findMany({
       where: {
-        Status: '1', // Only active FAQs (matching FAQ page logic)
+        Status: '1', // Only active FAQs
       },
       select: {
         ID: true,
@@ -118,14 +98,12 @@ export default async function handle(
       ],
     });
 
-    // Sections: FAQs with Title !== null AND Title !== '' (matching FAQ page logic)
-    // Sections don't need Question/Answer content - they're just headers
+    // Sections: FAQs with Title !== null AND Title !== ''
     const sections = allFaqs.filter(
       (faq) => faq.Title !== null && faq.Title !== undefined && faq.Title.trim().length > 0
     );
     
-    // Items: FAQs with Title === null OR Title === '' (matching FAQ page logic)
-    // Items need Question or Answer content
+    // Items: FAQs with Title === null OR Title === ''
     const items = allFaqs.filter(
       (faq) =>
         (faq.Title === null || faq.Title === undefined || faq.Title.trim().length === 0) &&
@@ -133,44 +111,18 @@ export default async function handle(
          (faq.Answer && faq.Answer.trim().length > 0))
     );
 
-    console.log(`[FAQ Export] Total FAQs: ${allFaqs.length}, Sections: ${sections.length}, Items: ${items.length}`);
-
     if (sections.length === 0) {
-      res.status(404).json({ 
-        error: "No FAQ sections found",
-        debug: {
-          totalFaqs: allFaqs.length,
-          sectionsFound: sections.length,
-          itemsFound: items.length,
-          sampleFaqs: allFaqs.slice(0, 5).map(f => ({
-            id: f.ID,
-            title: f.Title,
-            hasQuestion: !!f.Question,
-            hasAnswer: !!f.Answer,
-            parentId: f.ParentID
-          }))
-        }
-      });
+      res.status(404).json({ error: "No FAQ sections found" });
       return;
     }
 
-    // Group items by ParentID (matching FAQ page structure)
-    const itemsBySection = new Map<string, typeof items>();
-    for (const item of items) {
-      if (item.ParentID) {
-        if (!itemsBySection.has(item.ParentID)) {
-          itemsBySection.set(item.ParentID, []);
-        }
-        itemsBySection.get(item.ParentID)!.push(item);
-      }
-    }
-
-    // Sort sections by SortOrder
-    const sortedSections = sections.sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
-
-    // Filter to only sections that have items (matching FAQ page: "Don't show empty sections")
-    const sectionsWithItems = sortedSections.filter(section => {
-      const sectionItems = itemsBySection.get(section.ID) || [];
+    // Filter to only sections that have items
+    // Sections maintain their order from the database query (sorted by SortOrder globally)
+    // This matches the behavior of the GUI API endpoint
+    const sectionsWithItems = sections.filter(section => {
+      // Filter items for this section from the globally sorted items array
+      // This matches exactly how the GUI component filters items (preserving order from global sort)
+      const sectionItems = items.filter(item => item.ParentID === section.ID);
       return sectionItems.length > 0;
     });
 
@@ -179,195 +131,402 @@ export default async function handle(
       return;
     }
 
-    // Create PDF document
-    const doc = new PDFDocument({
-      margins: { top: 50, bottom: 50, left: 50, right: 50 },
-      size: 'A4',
+    // Get SiteID mappings for all FAQs through contacts_faq
+    // Include all links regardless of Status (no Status filter)
+    const allFaqIds = allFaqs.map(faq => faq.ID);
+    const contactsFaqs = await prisma.contacts_faq.findMany({
+      where: {
+        FaqID: { in: allFaqIds },
+      },
+      select: {
+        SiteID: true,
+        FaqID: true,
+      },
     });
 
-    // Set response headers for PDF download
-    const filename = `faqs_export_${new Date().toISOString().split('T')[0]}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
+    // Create a map: FaqID -> SiteIDs[]
+    const faqToSiteIds = new Map<string, string[]>();
+    for (const cf of contactsFaqs) {
+      if (!faqToSiteIds.has(cf.FaqID)) {
+        faqToSiteIds.set(cf.FaqID, []);
+      }
+      faqToSiteIds.get(cf.FaqID)!.push(cf.SiteID);
+    }
+
+    // Get all unique SiteIDs
+    const siteIDs = [...new Set(contactsFaqs.map(cf => cf.SiteID))];
+
+    // Fetch company names for all SiteIDs - this also filters out non-existent contacts
+    const contacts = await prisma.contacts.findMany({
+      where: {
+        ID: { in: siteIDs },
+      },
+      select: {
+        ID: true,
+        CompanyName: true,
+      },
+    });
+
+    const companyNameMap = new Map<string, string | null>();
+    for (const contact of contacts) {
+      companyNameMap.set(contact.ID, contact.CompanyName);
+    }
+
+    // Filter to only SiteIDs that exist in the contacts table
+    const validSiteIDs = siteIDs.filter(siteID => companyNameMap.has(siteID));
+
+    // Sort SiteIDs: SiteID "1" first, then others alphabetically by company name
+    const sortedSiteIDs = validSiteIDs.sort((a, b) => {
+      if (a === '1') return -1;
+      if (b === '1') return 1;
+      const nameA = companyNameMap.get(a) ?? a;
+      const nameB = companyNameMap.get(b) ?? b;
+      return String(nameA).localeCompare(String(nameB), 'nl-NL');
+    });
+
+    // Generate HTML
+    const dateStr = new Date().toISOString().split('T')[0]?.replace(/-/g, '') || '';
+    const html = `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Export van alle FAQ's</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      border-bottom: 2px solid #333;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #555;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+    h3 {
+      color: #666;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .faq-section {
+      margin-bottom: 30px;
+      page-break-inside: avoid;
+    }
+    .org-section {
+      margin-bottom: 40px;
+      page-break-inside: avoid;
+      padding: 20px;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+    }
+    .org-faq-group {
+      margin: 15px 0;
+    }
+    .org-faq-group ul {
+      list-style-type: disc;
+      padding-left: 30px;
+    }
+    .org-faq-group li {
+      margin: 5px 0;
+    }
+    .faq-item {
+      margin: 15px 0;
+      padding: 15px;
+      background-color: #fafafa;
+      border-left: 4px solid #333;
+    }
+    h4 {
+      color: #555;
+      margin-top: 15px;
+      margin-bottom: 10px;
+    }
+    .question {
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .answer {
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .meta {
+      font-size: 0.9em;
+      color: #666;
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #ccc;
+    }
+    ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+    li {
+      margin: 10px 0;
+    }
+    a {
+      color: #0366d6;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .toc-toggle {
+      cursor: pointer;
+      user-select: none;
+      color: #0366d6;
+      font-weight: normal;
+    }
+    .toc-toggle:hover {
+      text-decoration: underline;
+    }
+    .toc-toggle::before {
+      content: '▶ ';
+      display: inline-block;
+      transition: transform 0.2s;
+      font-size: 0.8em;
+    }
+    .toc-toggle.expanded::before {
+      transform: rotate(90deg);
+    }
+    .toc-nested {
+      display: none;
+      margin-left: 20px;
+      margin-top: 5px;
+    }
+    .toc-nested.expanded {
+      display: block;
+    }
+    .toc-nested li {
+      margin: 5px 0;
+    }
+  </style>
+  <script>
+    function toggleToc(event) {
+      event.preventDefault();
+      const toggle = event.target.closest('.toc-toggle');
+      const nested = toggle.nextElementSibling;
+      if (nested) {
+        toggle.classList.toggle('expanded');
+        nested.classList.toggle('expanded');
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Export van alle FAQ's</h1>
+  <div class="meta">
+    Gegenereerd op: ${new Date().toLocaleString('nl-NL')}
+  </div>
+
+  <h2>Inhoudsopgave</h2>
+  <ul>
+    <li>
+      <a href="#faq-artikelen">Faq artikelen</a>
+      <ul style="display: block; margin-left: 20px;">
+${sectionsWithItems.map((section) => {
+  // Filter items for this section from the globally sorted items array, then sort
+  const sectionItems = items.filter(item => item.ParentID === section.ID)
+    .sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
+  
+  return `        <li>
+          <a href="#section-${section.ID}">${escapeHtml(section.Title || '')}</a> (${sectionItems.length} ${sectionItems.length === 1 ? 'item' : 'items'})
+          <span class="toc-toggle" onclick="toggleToc(event)"></span>
+          <ul class="toc-nested">
+${sectionItems.map((item) => {
+  // Use Question as title, or first part of Answer if no Question, or "FAQ Item" as fallback
+  const itemTitle = item.Question && item.Question.trim().length > 0 
+    ? item.Question.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Question.length > 100 ? '...' : '')
+    : (item.Answer && item.Answer.trim().length > 0
+      ? item.Answer.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Answer.length > 100 ? '...' : '')
+      : 'FAQ Item');
+  const itemId = `faq-item-${item.ID}`;
+  return `            <li><a href="#${itemId}">${escapeHtml(itemTitle)}</a></li>`;
+}).join('\n')}
+          </ul>
+        </li>`;
+}).join('\n')}
+      </ul>
+    </li>
+    <li>
+      <a href="#faq-artikelen-per-organisatie">Faq artikelen per organisatie</a>
+      <span class="toc-toggle" onclick="toggleToc(event)"></span>
+      <ul class="toc-nested">
+${sortedSiteIDs.map((siteId) => {
+  const companyName = companyNameMap.get(siteId) ?? siteId;
+  // Count sections that have FAQs linked to this site
+  let sectionCount = 0;
+  for (const section of sectionsWithItems) {
+    const sectionItems = items.filter(item => item.ParentID === section.ID);
+    const hasLinkedItems = sectionItems.some(item => {
+      const siteIdsForItem = faqToSiteIds.get(item.ID) || [];
+      return siteIdsForItem.includes(siteId);
+    });
+    if (hasLinkedItems) sectionCount++;
+  }
+  if (sectionCount === 0) return '';
+  return `        <li><a href="#org-${siteId}">${escapeHtml(companyName)}</a></li>`;
+}).filter(Boolean).join('\n')}
+      </ul>
+    </li>
+  </ul>
+
+  <div id="faq-artikelen">
+    <h2>Faq artikelen</h2>
+    
+${sectionsWithItems.map((section) => {
+  // Filter items for this section from the globally sorted items array, then sort
+  const sectionItems = items.filter(item => item.ParentID === section.ID)
+    .sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
+  
+  return `
+    <div class="faq-section" id="section-${section.ID}">
+      <h3>${escapeHtml(section.Title || '')}</h3>
+      
+${sectionItems.map((item) => {
+  // Use Question as title, or first part of Answer if no Question, or "FAQ Item" as fallback
+  const itemTitle = item.Question && item.Question.trim().length > 0 
+    ? item.Question.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Question.length > 100 ? '...' : '')
+    : (item.Answer && item.Answer.trim().length > 0
+      ? item.Answer.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Answer.length > 100 ? '...' : '')
+      : 'FAQ Item');
+  
+  const properties: Array<[string, string]> = [];
+  if (item.Title) properties.push(['Title', item.Title]);
+  if (item.SortOrder !== null) properties.push(['SortOrder', String(item.SortOrder)]);
+  if (item.Status) {
+    const statusText = item.Status === '1' ? 'zichtbaar' : item.Status === '0' ? 'niet zichtbaar' : item.Status;
+    properties.push(['Status', statusText]);
+  }
+  if (item.EditorCreated) properties.push(['EditorCreated', item.EditorCreated]);
+  if (item.DateCreated) properties.push(['DateCreated', formatDate(item.DateCreated)]);
+  if (item.EditorModified) properties.push(['EditorModified', item.EditorModified]);
+  if (item.DateModified) properties.push(['DateModified', formatDate(item.DateModified)]);
+  if (item.ModuleID) properties.push(['ModuleID', item.ModuleID]);
+  
+  const itemId = `faq-item-${item.ID}`;
+  return `
+      <div class="faq-item" id="${itemId}">
+        <h4>${escapeHtml(itemTitle)}</h4>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Eigenschap</th>
+              <th>Waarde</th>
+            </tr>
+          </thead>
+          <tbody>
+${properties.map(([key, value]) => `            <tr>
+              <td>${escapeHtml(key)}</td>
+              <td>${escapeHtml(String(value || ''))}</td>
+            </tr>`).join('\n')}
+          </tbody>
+        </table>
+
+${item.Question && item.Question.trim().length > 0 ? `
+        <div class="question">Vraag:</div>
+        <div>${item.Question}</div>
+` : ''}
+${item.Answer && item.Answer.trim().length > 0 ? `
+        <br />
+        <div class="question">Antwoord:</div>
+        <div class="answer">${item.Answer}</div>
+` : ''}
+      </div>
+`;
+}).join('\n')}
+    </div>
+`;
+}).join('\n')}
+  </div>
+
+  <div id="faq-artikelen-per-organisatie">
+    <h2>Faq artikelen per organisatie</h2>
+    
+${sortedSiteIDs.map((siteId) => {
+  const companyName = companyNameMap.get(siteId) ?? siteId;
+  
+  // Get sections that have FAQs linked to this site
+  const orgSections = sectionsWithItems.filter(section => {
+    const sectionItems = items.filter(item => item.ParentID === section.ID);
+    return sectionItems.some(item => {
+      const siteIdsForItem = faqToSiteIds.get(item.ID) || [];
+      return siteIdsForItem.includes(siteId);
+    });
+  });
+  
+  if (orgSections.length === 0) return '';
+  
+  return `
+    <div class="org-section" id="org-${siteId}">
+      <h3>${escapeHtml(companyName)}</h3>
+      
+${orgSections.map((section) => {
+  const sectionItems = items.filter(item => {
+    if (item.ParentID !== section.ID) return false;
+    const siteIdsForItem = faqToSiteIds.get(item.ID) || [];
+    return siteIdsForItem.includes(siteId);
+  }).sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
+  
+  if (sectionItems.length === 0) return '';
+  
+  return `
+      <div class="org-faq-group">
+        <h4>${escapeHtml(section.Title || '')}</h4>
+        <ul>
+${sectionItems.map((item) => {
+  const itemTitle = item.Question && item.Question.trim().length > 0 
+    ? item.Question.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Question.length > 100 ? '...' : '')
+    : (item.Answer && item.Answer.trim().length > 0
+      ? item.Answer.replace(/<[^>]*>/g, '').substring(0, 100) + (item.Answer.length > 100 ? '...' : '')
+      : 'FAQ Item');
+  const itemId = `faq-item-${item.ID}`;
+  return `          <li><a href="#${itemId}">${escapeHtml(itemTitle)}</a></li>`;
+}).join('\n')}
+        </ul>
+      </div>
+`;
+}).filter(Boolean).join('\n')}
+    </div>
+`;
+}).filter(Boolean).join('\n')}
+  </div>
+
+</body>
+</html>`;
+
+    // Set response headers for HTML download
+    const filename = `${dateStr}-faqs-rapport.html`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${filename}"`
     );
 
-    // Pipe PDF to response
-    doc.pipe(res);
-
-    // Title page
-    doc.fontSize(24).font('Helvetica-Bold').text('Export van alle FAQ\'s', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).font('Helvetica').text(`Gegenereerd op: ${new Date().toLocaleString('nl-NL')}`, { align: 'center' });
-    doc.addPage();
-
-    // Table of Contents
-    doc.fontSize(18).font('Helvetica-Bold').text('Inhoudsopgave', { align: 'left' });
-    doc.moveDown(0.5);
-
-    // Add TOC entries for sections (matching FAQ page structure)
-    doc.fontSize(11).font('Helvetica');
-    
-    for (let idx = 0; idx < sectionsWithItems.length; idx++) {
-      const section = sectionsWithItems[idx];
-      const sectionItems = itemsBySection.get(section.ID) || [];
-      const itemCount = sectionItems.length;
-      const sectionTitle = section.Title || 'Geen titel';
-      const tocText = `${sectionTitle} (${itemCount} ${itemCount === 1 ? 'FAQ' : 'FAQ\'s'})`;
-      
-      doc.text(tocText, { indent: 20 });
-      doc.moveDown(0.3);
-      
-      // Check if we need a new page for TOC
-      if (doc.y > 750) {
-        doc.addPage();
-        doc.fontSize(18).font('Helvetica-Bold').text('Inhoudsopgave (vervolg)', { align: 'left' });
-        doc.moveDown(0.5);
-        doc.fontSize(11).font('Helvetica');
-      }
-    }
-
-    // Generate content for each section (matching FAQ page structure)
-    for (let i = 0; i < sectionsWithItems.length; i++) {
-      const section = sectionsWithItems[i];
-      const sectionItems = itemsBySection.get(section.ID) || [];
-      
-      // Sort items by SortOrder (matching FAQ page)
-      const sortedItems = sectionItems.sort((a, b) => (a.SortOrder ?? 0) - (b.SortOrder ?? 0));
-      
-      const sectionTitle = section.Title || 'Geen titel';
-      const totalCount = sortedItems.length;
-      let itemIndex = 0;
-
-      // Generate content for each item (matching FAQ page: each item gets its own page)
-      for (const faq of sortedItems) {
-        // Each FAQ gets its own page
-        doc.addPage();
-        
-        // Add section header (H1) and bookmark on first FAQ of section
-        if (itemIndex === 0) {
-          const h1Text = `${sectionTitle} (${totalCount} ${totalCount === 1 ? 'FAQ' : 'FAQ\'s'})`;
-          
-          // Add bookmark to PDF outline
-          doc.outline.addItem(h1Text, { expanded: false });
-          
-          doc.fontSize(20).font('Helvetica-Bold').text(h1Text, { align: 'left' });
-          doc.moveDown();
-        }
-        
-        itemIndex++;
-        
-        const faqTitle = faq.Title || faq.Question || 'FAQ';
-        
-        // H2 for FAQ title
-        doc.fontSize(16).font('Helvetica-Bold').text(faqTitle, { align: 'left' });
-        doc.moveDown(0.5);
-
-        // Table with properties
-        doc.fontSize(10).font('Helvetica');
-        
-        const properties: Array<[string, string]> = [];
-        
-        if (faq.ID) {
-          properties.push(['ID', faq.ID]);
-        }
-        if (faq.Title) {
-          properties.push(['Title', faq.Title]);
-        }
-        if (faq.SortOrder !== null) {
-          properties.push(['SortOrder', String(faq.SortOrder)]);
-        }
-        if (faq.Status) {
-          properties.push(['Status', faq.Status]);
-        }
-        if (faq.EditorCreated) {
-          properties.push(['EditorCreated', faq.EditorCreated]);
-        }
-        if (faq.DateCreated) {
-          properties.push(['DateCreated', formatDate(faq.DateCreated)]);
-        }
-        if (faq.EditorModified) {
-          properties.push(['EditorModified', faq.EditorModified]);
-        }
-        if (faq.DateModified) {
-          properties.push(['DateModified', formatDate(faq.DateModified)]);
-        }
-        if (faq.ModuleID) {
-          properties.push(['ModuleID', faq.ModuleID]);
-        }
-        // Parent FAQ title (we know the parent from the loop)
-        properties.push(['Parent FAQ', sectionTitle]);
-
-        // Calculate table height and check if we need a new page
-        const col1X = 50;
-        const col2X = 250;
-        const rowHeight = 15;
-        const tableWidth = 500;
-        const tableHeight = (properties.length + 1) * rowHeight; // +1 for header
-        const pageBottom = 750; // Approximate bottom margin
-        
-        // If table won't fit on current page, start on new page
-        if (doc.y + tableHeight > pageBottom) {
-          doc.addPage();
-        }
-
-        // Draw table
-        let tableY = doc.y;
-
-        // Table header
-        doc.font('Helvetica-Bold').fontSize(10);
-        doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-        doc.text('Eigenschap', col1X + 5, tableY + 3);
-        doc.text('Waarde', col2X + 5, tableY + 3);
-        tableY += rowHeight;
-
-        // Table rows
-        doc.font('Helvetica').fontSize(9);
-        for (const [key, value] of properties) {
-          // Check if we need a new page for this row
-          if (tableY + rowHeight > pageBottom) {
-            doc.addPage();
-            tableY = doc.page.margins.top;
-            // Redraw header on new page
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-            doc.text('Eigenschap', col1X + 5, tableY + 3);
-            doc.text('Waarde', col2X + 5, tableY + 3);
-            tableY += rowHeight;
-            doc.font('Helvetica').fontSize(9);
-          }
-          
-          doc.rect(col1X, tableY, tableWidth, rowHeight).stroke();
-          doc.text(key, col1X + 5, tableY + 3, { width: col2X - col1X - 10 });
-          doc.text(String(value || ''), col2X + 5, tableY + 3, { width: tableWidth - (col2X - col1X) - 10 });
-          tableY += rowHeight;
-        }
-
-        doc.y = tableY + 10;
-
-        // Question paragraph (if set)
-        if (faq.Question && faq.Question.trim().length > 0) {
-          const decodedQuestion = decodeHtml(faq.Question);
-          doc.fontSize(11).font('Helvetica-Bold').text('Question:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedQuestion, { align: 'left' });
-          doc.moveDown();
-        }
-
-        // Answer paragraph (if set)
-        if (faq.Answer && faq.Answer.trim().length > 0) {
-          const decodedAnswer = decodeHtml(faq.Answer);
-          doc.fontSize(11).font('Helvetica-Bold').text('Answer:', { align: 'left' });
-          doc.moveDown(0.3);
-          doc.fontSize(10).font('Helvetica').text(decodedAnswer, { align: 'left' });
-          doc.moveDown();
-        }
-      }
-    }
-
-    // Finalize PDF
-    doc.end();
+    res.status(200).send(html);
   } catch (error) {
     console.error("Error exporting FAQs:", error);
     if (!res.headersSent) {
@@ -375,4 +534,3 @@ export default async function handle(
     }
   }
 }
-
