@@ -1,6 +1,6 @@
 # App updates VeiligStallen
 
-## VeiligStallen 2026-01-07 pt 2.
+## VeiligStallen 2026-01-08.
 
 **Features**
 
