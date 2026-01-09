@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "~/generated/prisma-client";
 import { type VSArticle, type VSArticleInLijst, articleSelect, articleLijstSelect } from "~/types/articles";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
@@ -75,7 +75,14 @@ export default async function handle(
 
       // Define where clause
       const where: Prisma.articlesWhereInput = {
-        SiteID: { in: sitesToGetArticlesFor() }
+        SiteID: { in: sitesToGetArticlesFor() },
+        // Exclude archived articles from lists (Archived != '1')
+        // Include null (legacy records), '0' (not archived), and anything not '1'
+        OR: [
+          { Archived: null },
+          { Archived: '0' },
+          { Archived: { not: '1' } }
+        ]
       };
       if (req.query.Title) {
         where.Title = req.query.Title as string
@@ -85,11 +92,11 @@ export default async function handle(
       }
 
       // Define full query
-      const query: Prisma.articlesFindFirstArgs = {
+      const query = {
         where: where,
         select: compact ? articleLijstSelect : articleSelect,
         orderBy: {
-          SortOrder: 'asc',
+          SortOrder: 'asc' as const,
         }
       }
 
