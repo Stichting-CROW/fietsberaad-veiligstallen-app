@@ -215,6 +215,8 @@ model articles {
   EditorModified     String?   @db.VarChar(255)
   DateModified       DateTime? @db.DateTime(0)
   ModuleID           String    @default("veiligstallenprisma") @db.VarChar(50)
+  Archived           String?   @db.VarChar(4) @default("0")
+  UsedInColdfusion   String?   @db.VarChar(4) @default("0")
 }
 
 model articles_templates {

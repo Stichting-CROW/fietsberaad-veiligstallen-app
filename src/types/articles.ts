@@ -21,6 +21,8 @@ export type VSArticle = {
   Status: string;
   Navigation?: string | null;
   // ShowInNav?: string | null;
+  Archived?: string | null;
+  UsedInColdfusion?: string | null;
   System?: string | null;
   EditorCreated?: string | null;
   DateCreated: Date | string | null;
@@ -64,6 +66,8 @@ export const articleSelect = {
   Status: true,
   Navigation: true,
   // ShowInNav: true,
+  Archived: true,
+  UsedInColdfusion: true,
   System: true,
   EditorCreated: true,
   DateCreated: true,
@@ -144,6 +148,16 @@ export const articleSchema = z.object({
   //   .max(4, { message: "Show in nav must be at most 4 characters" })
   //   .nullable()
   //   .optional(),
+  Archived: z.string()
+    .max(4, { message: "Archived must be at most 4 characters" })
+    .default("0")
+    .nullable()
+    .optional(),
+  UsedInColdfusion: z.string()
+    .max(4, { message: "UsedInColdfusion must be at most 4 characters" })
+    .default("0")
+    .nullable()
+    .optional(),
   System: z.string()
     .max(4, { message: "System must be at most 4 characters" })
     .default("0")
@@ -184,6 +198,8 @@ export const getDefaultNewArticle = (title = "New Article") => {
     Status: "1",
     Navigation: null,
     // ShowInNav: null,
+    Archived: "0",
+    UsedInColdfusion: "0",
     System: "0",
     EditorCreated: null,
     DateCreated: new Date(),
