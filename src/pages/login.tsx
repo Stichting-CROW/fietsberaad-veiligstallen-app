@@ -1,7 +1,8 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import Head from "next/head";
 import { useRouter, useSearchParams } from "next/navigation";
 import useQueryParam from "../hooks/useQueryParam";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 // Import components
 import PageTitle from "~/components/PageTitle";
@@ -18,6 +19,7 @@ import { type NextPage } from "next/types";
 const Login: NextPage = () => {
   const emailRef = useRef<HTMLInputElement | null>(null);
   const passwordRef = useRef<HTMLInputElement | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,14 +146,26 @@ const Login: NextPage = () => {
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <FormInput
                     innerRef={passwordRef}
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Wachtwoord"
                     required
-                    className="w-full"
+                    className="w-full pr-10"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <FiEyeOff className="h-5 w-5" />
+                    ) : (
+                      <FiEye className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
 
                 <div className="flex justify-between">
