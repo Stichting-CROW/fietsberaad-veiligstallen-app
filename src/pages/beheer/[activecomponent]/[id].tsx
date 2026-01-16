@@ -161,7 +161,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
   const firstDate = new Date("2018-03-01");
 
+  // Use yesterday as the last date since there's no data for today in the cache
   const lastDate = new Date();
+  lastDate.setDate(lastDate.getDate() - 1);
   lastDate.setHours(0, 0, 0, 0); // set time to midnight
 
   let activecomponent: VSMenuTopic | undefined = VSMenuTopic.Home;

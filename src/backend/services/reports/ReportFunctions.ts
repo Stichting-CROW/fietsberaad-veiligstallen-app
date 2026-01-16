@@ -263,8 +263,12 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
     // For per_day grouping, normalize to start of day to match SQL timegroup calculation
     // The SQL uses DAYOFYEAR(DATE_ADD(...)) + 1, which groups by the day after time adjustment
     // So we need to account for this +1 offset by starting the label map from one day earlier
-    let labelMapStartDate = adjustedStartDate?.toDate() || params.startDT || new Date();
-    let labelMapEndDate = adjustedEndDate?.toDate() || params.endDT || new Date();
+    // Use yesterday as fallback since there's no data for today in the cache
+    const yesterdayFallback = new Date();
+    yesterdayFallback.setDate(yesterdayFallback.getDate() - 1);
+    yesterdayFallback.setHours(23, 59, 59, 999);
+    let labelMapStartDate = adjustedStartDate?.toDate() || params.startDT || yesterdayFallback;
+    let labelMapEndDate = adjustedEndDate?.toDate() || params.endDT || yesterdayFallback;
     
     if (params.reportGrouping === 'per_day' && adjustedStartDate && adjustedEndDate) {
       // Start from the start of the day of the adjusted start date
