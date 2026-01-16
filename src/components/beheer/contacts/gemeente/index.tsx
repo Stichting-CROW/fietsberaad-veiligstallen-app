@@ -254,7 +254,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
             //   accessor: (contact: VSContactGemeenteInLijst) => getBeheert(contact)
             // }] : []),
             ...(hasFietsberaadSuperadmin ? [{
-              header: "Wordt beheerd door", 
+              header: "Organisaties met toegang", 
               accessor: (contact: VSContactGemeenteInLijst) => getWordtBeheerdDoor(contact)
             }] : []),
             {
