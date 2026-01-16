@@ -143,13 +143,13 @@ export default function WachtwoordInstellenPage() {
             <div>
               <label className="block font-semibold mb-1">Nieuw wachtwoord</label>
               <div className="relative">
-                <input
+              <input
                   type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                   className="px-5 py-2 border rounded-full my-2 w-full pr-10"
-                />
+              />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -166,16 +166,16 @@ export default function WachtwoordInstellenPage() {
             </div>
 
             {!showPassword && (
-              <div>
-                <label className="block font-semibold mb-1">Herhaal wachtwoord</label>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  className="px-5 py-2 border rounded-full my-2 w-full"
-                />
-              </div>
+            <div>
+              <label className="block font-semibold mb-1">Herhaal wachtwoord</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="px-5 py-2 border rounded-full my-2 w-full"
+              />
+            </div>
             )}
 
             <button
