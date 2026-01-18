@@ -6,6 +6,7 @@ type ExportableTable = 'fietsenstallingen';
 
 const DatabaseExport: React.FC<DatabaseExportProps> = () => {
   const [selectedTable, setSelectedTable] = useState<ExportableTable>('fietsenstallingen');
+  const [includeStatistics, setIncludeStatistics] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +15,7 @@ const DatabaseExport: React.FC<DatabaseExportProps> = () => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/protected/database/export?table=${selectedTable}`);
+      const response = await fetch(`/api/protected/database/export?table=${selectedTable}${includeStatistics ? '&statistics=true' : ''}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
@@ -38,24 +39,46 @@ const DatabaseExport: React.FC<DatabaseExportProps> = () => {
     }
   };
 
+  let statisticsLabel;
+  switch(selectedTable) {
+    case 'fietsenstallingen':
+      statisticsLabel = 'Met aantallen transacties';
+      break;
+    default:
+      statisticsLabel = 'Uitgebreid';
+      break;
+  }
+
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-4">Database Export</h1>
       
       <div className="max-w-2xl space-y-6">
         <div>
-          <label htmlFor="table-select" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="table-select" className="block text-sm font-medium text-gray-700 mb-4">
             Selecteer tabel om te exporteren:
           </label>
           <select
             id="table-select"
             value={selectedTable}
             onChange={(e) => setSelectedTable(e.target.value as ExportableTable)}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             disabled={isExporting}
           >
             <option value="fietsenstallingen">Fietsenstallingen</option>
           </select>
+        </div>
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeStatistics}
+              onChange={(e) => setIncludeStatistics(e.target.checked)}
+              disabled={isExporting}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">{statisticsLabel}</span>
+          </label>
         </div>
 
         {error && (

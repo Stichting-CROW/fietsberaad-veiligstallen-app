@@ -1833,3 +1833,58 @@ model user_status {
 
   @@unique([UserID], map: "UserID") 
 }
+
+model bezettingsdata_day_hour_cache {
+  ID              Int       @id @default(autoincrement())
+  timestamp       DateTime? @db.DateTime(0)
+  interval        Int       @default(1)
+  bikeparkID      String?   @db.VarChar(255)
+  sectionID       String?   @db.VarChar(255)
+  source          String?   @db.VarChar(255)
+  fillup          Boolean?  @db.Bit(1)
+  open            Boolean?  @db.Bit(1)
+  totalCheckins   Int?
+  totalCheckouts  Int?
+  totalOccupation Int?
+  totalCapacity   Int?
+  perc_occupation Decimal?  @db.Decimal(5, 2)
+
+  @@unique([bikeparkID, sectionID, source, interval, timestamp], map: "uk_bikepark_section_source_interval_timestamp")
+  @@index([timestamp], map: "idx_timestamp")
+  @@index([bikeparkID], map: "idx_bikeparkID")
+  @@index([sectionID], map: "idx_sectionID")
+  @@index([source], map: "idx_source")
+  @@index([interval], map: "idx_interval")
+  @@index([source, bikeparkID], map: "idx_bikeparkID_source")
+  @@index([bikeparkID, timestamp], map: "idx_bikeparkID_timestamp")
+  @@index([bikeparkID, sectionID, source, interval, timestamp], map: "idx_bikeparkID_sectionID_source_interval_timestamp")
+}
+
+model stallingsduur_cache {
+  ID               Int       @id @default(autoincrement())
+  locationID       String    @db.VarChar(255)
+  checkoutdate     DateTime? @db.DateTime(0)
+  sectionID        String    @db.VarChar(255)
+  clienttypeid     Int
+  bucket           Int
+  count_transacties Int
+
+  @@unique([locationID, sectionID, clienttypeid, bucket, checkoutdate], map: "uk_location_section_clienttype_bucket_date")
+  @@index([locationID], map: "idx_locationId")
+  @@index([checkoutdate], map: "idx_checkoutdate")
+  @@index([sectionID], map: "idx_sectionID")
+  @@index([clienttypeid], map: "idx_clienttypeid")
+  @@index([bucket], map: "idx_bucket")
+  @@index([locationID, sectionID, clienttypeid, bucket, checkoutdate], map: "idx_locationID_sectionID_clienttypeID_bucket_checkoutdate")
+}
+
+model transacties_archief_day_cache {
+  ID                Int      @id @default(autoincrement())
+  locationID        String?  @db.VarChar(8)
+  checkoutdate      DateTime? @db.Date
+  count_transacties Int?
+  sum_inkomsten     Decimal? @db.Decimal(10, 2)
+
+  @@unique([locationID, checkoutdate], map: "uk_location_date")
+  @@index([locationID, checkoutdate], map: "idx_location_date")
+}
