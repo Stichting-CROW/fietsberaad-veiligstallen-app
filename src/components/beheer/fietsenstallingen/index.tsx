@@ -30,11 +30,61 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
   const [filteredParkings, setFilteredParkings] = useState<any[]>([]);
-  const [sortColumn, setSortColumn] = useState<string | undefined>('Naam');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
-  const [selectedVisibilityFilter, setSelectedVisibilityFilter] = useState<string>('all');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  
+  // Storage key for persisting filters
+  const FILTERS_STORAGE_KEY = 'VS_fietsenstallingen_filters';
+  
+  // Load filters from localStorage on mount
+  const loadFiltersFromStorage = () => {
+    try {
+      const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          sortColumn: parsed.sortColumn || 'Naam',
+          sortDirection: parsed.sortDirection || 'asc',
+          selectedTypeFilter: parsed.selectedTypeFilter || 'all',
+          selectedVisibilityFilter: parsed.selectedVisibilityFilter || 'all',
+          selectedStatusFilter: parsed.selectedStatusFilter || 'all',
+          searchTerm: parsed.searchTerm || '',
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to load filters from storage:', e);
+    }
+    return {
+      sortColumn: 'Naam' as string | undefined,
+      sortDirection: 'asc' as 'asc' | 'desc',
+      selectedTypeFilter: 'all',
+      selectedVisibilityFilter: 'all',
+      selectedStatusFilter: 'all',
+      searchTerm: '',
+    };
+  };
+
+  const savedFilters = loadFiltersFromStorage();
+  const [sortColumn, setSortColumn] = useState<string | undefined>(savedFilters.sortColumn);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(savedFilters.sortDirection);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>(savedFilters.selectedTypeFilter);
+  const [selectedVisibilityFilter, setSelectedVisibilityFilter] = useState<string>(savedFilters.selectedVisibilityFilter);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>(savedFilters.selectedStatusFilter);
+  const [searchTerm, setSearchTerm] = useState<string>(savedFilters.searchTerm || '');
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({
+        sortColumn,
+        sortDirection,
+        selectedTypeFilter,
+        selectedVisibilityFilter,
+        selectedStatusFilter,
+        searchTerm,
+      }));
+    } catch (e) {
+      console.warn('Failed to save filters to storage:', e);
+    }
+  }, [sortColumn, sortDirection, selectedTypeFilter, selectedVisibilityFilter, selectedStatusFilter, searchTerm]);
 
   // Use the useFietsenstallingen hook to fetch parkings
   const { fietsenstallingen, isLoading, error, reloadFietsenstallingen } = useFietsenstallingen(selectedGemeenteID);
@@ -102,6 +152,13 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   useEffect(() => {
     let filtered = fietsenstallingen;
 
+    // Apply search filter first
+    if (searchTerm) {
+      filtered = filtered.filter(parking =>
+        parking.Title?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
     // Apply type filter
     if (selectedTypeFilter !== 'all') {
       filtered = filtered.filter(parking => parking.Type === selectedTypeFilter);
@@ -128,7 +185,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     }
 
     setFilteredParkings(filtered);
-  }, [fietsenstallingen, selectedTypeFilter, selectedVisibilityFilter, selectedStatusFilter]);
+  }, [fietsenstallingen, searchTerm, selectedTypeFilter, selectedVisibilityFilter, selectedStatusFilter]);
 
   const handleEdit = async (id: string) => {
     if (id === 'new') {
@@ -338,13 +395,9 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             type="text"
             placeholder="Vind stalling..."
             className="w-full p-2 mb-4 border rounded"
+            value={searchTerm}
             onChange={(e) => {
-              const searchTerm = e.target.value.toLowerCase();
-              setFilteredParkings(
-                fietsenstallingen.filter(parking =>
-                  parking.Title?.toLowerCase().includes(searchTerm)
-                )
-              );
+              setSearchTerm(e.target.value);
             }}
           />
           

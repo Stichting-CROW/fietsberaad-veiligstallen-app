@@ -99,7 +99,9 @@ export interface ReportParams {
   bikeparkDataSources: BikeparkWithDataSource[];
 }
 
+// Use yesterday as the default end date since there's no data for today in the cache
 const DEFAULT_RANGE_END = new Date();
+DEFAULT_RANGE_END.setDate(DEFAULT_RANGE_END.getDate() - 1);
 DEFAULT_RANGE_END.setHours(23, 59, 59, 999);
 
 const DEFAULT_RANGE_START = new Date(DEFAULT_RANGE_END);
@@ -1051,7 +1053,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           </div>
         )}
 
-        {showBikeparkSelect && bikeparks.length > 1 &&
+        {showBikeparkSelect &&
           <BikeparkSelect
             bikeparks={bikeparks}
             selectedBikeparkIDs={selectedBikeparkIDs}
@@ -1066,7 +1068,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setSelectedSeries={setSelectedSeries}
           />
         }
-        {showBikeparkSelect && reportType === 'bezetting' && bikeparks.length > 1 &&
+        {showBikeparkSelect && reportType === 'bezetting' && // bikeparks.length > 1 &&
           <BikeparkDataSourceSelect
             bikeparks={bikeparks}
             onSelectionChange={setSelectedBikeparkDataSources}
