@@ -310,7 +310,7 @@ export const getData = async (sql: string, params: ReportParams): Promise<Report
       keyToLabelMap = adjustedLabelMap;
     }
     
-    console.log('keyToLabelMap', keyToLabelMap);
+    // console.log('keyToLabelMap', keyToLabelMap);
     if (!keyToLabelMap) {
       return false;
     }

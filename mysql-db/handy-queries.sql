@@ -237,3 +237,12 @@ SELECT
         THEN 'OK: Has own organization role'
         ELSE 'WARNING: Multiple own organization roles (should be exactly 1)'
     END AS own_org_status;
+
+
+--- Data interval per stalling obv transacties_archief_day_cache
+SELECT f.Title, locationID, YEAR(checkoutdate), MIN(checkoutdate), MAX(checkoutdate), COUNT(*) AS total 
+FROM transacties_archief_day_cache 
+LEFT JOIN fietsenstallingen f ON (f.StallingsID=transacties_archief_day_cache.locationID)
+WHERE locationID IN ('8005_007','8005_002','8005_003','8005_004') -- AND checkoutdate BETWEEN "2025-01-01 00:00:00" AND "2025-03-12 23:59:59" 
+GROUP BY f.Title, locationID,YEAR(checkoutdate)
+ORDER BY f.Title, locationID,YEAR(checkoutdate);

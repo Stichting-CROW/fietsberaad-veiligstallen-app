@@ -327,7 +327,6 @@ const ParkingView = ({
 
     { isLoggedIn && <Reports bikeparks={[
           {
-            GemeenteID: parkingdata.SiteID || "",
             Title: parkingdata.Title || "---",
             ID: parkingdata.StallingsID || "",
             StallingsID: parkingdata.StallingsID || "---",
@@ -371,7 +370,6 @@ const Reports = ({ bikeparks }: { bikeparks: ReportBikepark[] }) => {
           showAbonnementenRapporten={showAbonnementenRapporten}
           firstDate={firstDate}
           lastDate={lastDate}
-          bikeparks={bikeparks || []}
           onDataLoaded={(hasReportData: boolean) => {
             setHasReportData(hasReportData);
           }}

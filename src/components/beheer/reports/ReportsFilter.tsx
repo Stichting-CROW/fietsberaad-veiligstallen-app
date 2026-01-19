@@ -1053,7 +1053,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
           </div>
         )}
 
-        {showBikeparkSelect && bikeparks.length > 1 &&
+        {showBikeparkSelect &&
           <BikeparkSelect
             bikeparks={bikeparks}
             selectedBikeparkIDs={selectedBikeparkIDs}
@@ -1068,7 +1068,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setSelectedSeries={setSelectedSeries}
           />
         }
-        {showBikeparkSelect && reportType === 'bezetting' && bikeparks.length > 1 &&
+        {showBikeparkSelect && reportType === 'bezetting' && // bikeparks.length > 1 &&
           <BikeparkDataSourceSelect
             bikeparks={bikeparks}
             onSelectionChange={setSelectedBikeparkDataSources}
