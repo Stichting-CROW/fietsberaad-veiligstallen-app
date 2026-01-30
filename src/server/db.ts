@@ -1,14 +1,14 @@
 import { PrismaClient } from "~/generated/prisma-client";
-
 import { env } from "~/env.mjs";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    // log: env.NODE_ENV === "development" ? ["error", "warn"] : ["error"], // "query" -> add to development to see queries
+// Only create and store if it doesn't exist yet
+if (!globalForPrisma.prisma) {
+  globalForPrisma.prisma = new PrismaClient({
     log: ["error"],
   });
+}
 
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Always export the singleton instance
+export const prisma = globalForPrisma.prisma;
