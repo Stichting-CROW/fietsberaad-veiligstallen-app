@@ -7,9 +7,8 @@ import { prisma } from "~/server/db";
 // see https://next-crud-pi.vercel.app/ for documentation
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    // Ensure prisma is connected
-    await prisma.$connect();
-    
+    // PrismaClient connects automatically on first query
+    // NextCrud will trigger connection when it introspects models
     const nextCrudHandler = await NextCrud({
       adapter: new PrismaAdapter({
         prismaClient: prisma,
@@ -20,9 +19,9 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   } catch (error) {
     console.error("NextCrud error:", error);
     res.status(500).json({ error: "Internal server error" });
-  } finally {
-    await prisma.$disconnect();
   }
+  // ⚠️ DO NOT call $disconnect() on singleton PrismaClient!
+  // It will break all concurrent and subsequent requests
 };
 
 export default handler;
