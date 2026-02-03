@@ -95,12 +95,12 @@ const FooterNav = ({ onStallingAanmelden, children }: {
       text-xs
       z-10
     ">
-      {!session && mapZoom >= 12 ?
+      {/* {!session && mapZoom >= 12 ?
         <FooterNavItemClick
           onClick={() => { onStallingAanmelden && onStallingAanmelden() }}
           className="cursor-pointer font-bold">
           Stalling aanmelden
-        </FooterNavItemClick> : null}
+        </FooterNavItemClick> : null} */}
 
       {navItemsPrimary.map(x => <FooterNavItem
         key={x.title}
