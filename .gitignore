@@ -80,5 +80,8 @@ logs/*
 /src/generated/prisma-client/**/*
 
 #local docs
-/docs/analyse-modules
-/docs/documentatie-crow
+/docs/**
+!/docs/documentatie-crow/
+!/docs/documentatie-crow/1-api
+!/docs/documentatie-crow/1-api/**
+
