@@ -113,11 +113,35 @@ De Veiligstallen-app consumeert de data niet voor verwerking, maar leest deze ui
 
 ## 3. wachtrij_sync
 
-De INSERT gebeurt in **BaseFMSService.syncSector()**:
+### Doel van de tabel
+
+De `wachtrij_sync`-tabel is een wachtrij voor **sectorsynchronisatie**: het afstemmen van de centrale database met de lokale database van een fietsenstalling (FMS). Lokale systemen roepen `syncSector` aan om een momentopname te sturen van welke fietsen zich op een bepaald tijdstip in een sectie bevinden. De centrale verwerking corrigeert vervolgens afwijkingen:
+
+- **Check-out van ontbrekende fietsen:** Fietsen die in de centrale DB staan maar *niet* in de aangeleverde array → worden uitgecheckt (bv. gemiste check-out door netwerkstoring).
+- **Check-in van nieuwe fietsen:** Fietsen die in de array staan maar *niet* in de centrale DB → worden ingecheckt (bv. gemiste check-in).
+
+Dit voorkomt dat lokale en centrale systemen uit sync raken na gemiste transacties of storingen.
+
+### Hoe de tabel data krijgt
 
 | API | Methode |
 |-----|--------|
-| **REST** | `BaseRestService.syncSector` – o.a. path `/{citycode}/locations/{locationid}/sections/{sectionid}` (PUT) |
+| **REST** | `BaseRestService.syncSector` – path `PUT .../{citycode}/locations/{locationid}/sections/{sectionid}` (via `BaseFMSService.syncSector()`) |
+
+De lokale FMS stuurt een snapshot van de sectie: een JSON-array met fietsen (`bikes`) plus `bikeparkID`, `sectionID` en `transactionDate`.
+
+### Verwerking door de background processor
+
+De scheduled task in `processTransactions2.cfm` verwerkt `wachtrij_sync` **na** `wachtrij_transacties` (stap 4 van de pipeline), maximaal **1 record per run**. Er wordt alleen een syncrecord verwerkt als `transactionDate <= laatste verwerkte transactiedatum` — zodat eerst alle gewone in/uit-transacties tot dat tijdstip zijn verwerkt en de sync consistent is.
+
+| Veld | Beschrijving |
+|------|--------------|
+| `bikes` | JSON-array met fietsidentificaties (idcode, bikeid, idtype, transactiondate) |
+| `bikeparkID`, `sectionID` | Locatie en sectie |
+| `transactionDate` | Tijdstip van de momentopname |
+| `processed` | 0 = wachtend, 1 = succes, 2 = fout |
+
+**Doeltabellen bij verwerking:** `accounts_pasids` (huidige stalling/sectie per pas), `transacties` (synthetische in/uit-records).
 
 ---
 
