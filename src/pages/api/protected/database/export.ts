@@ -117,7 +117,7 @@ export default async function handle(
       LEFT JOIN fietsenstalling_sectie fs ON fs.fietsenstallingsId = f.ID
       LEFT JOIN sectie_fietstype sft ON fs.sectieId = sft.sectieID
       WHERE f.Title NOT LIKE '%Systeemstalling%'
-      GROUP BY f.ID, c.CompanyName, c.Gemeentecode, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
+      GROUP BY f.ID, c.CompanyName, c.Gemeentecode, c.UrlName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
       ORDER BY c.CompanyName ASC, ft.name ASC, f.Title ASC
     `;
 
