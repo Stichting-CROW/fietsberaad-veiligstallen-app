@@ -101,6 +101,14 @@ De cronjob verwerkt de wachtrij-tabellen in vaste volgorde:
 | 1 | Succesvol verwerkt |
 | 2 | Fout (error in `error` column) |
 
+### Status 0: nieuw / wachtend
+
+**Wanneer:** Bij INSERT via `addTransactionToWachtrij` (REST API of andere bron), of na handmatige reset van 8 of 2 naar 0.
+
+**Doel:** Record wacht op verwerking. De cron pakt alleen records met `processed=0` en `transactionDate <= now`. Records met toekomstige transactionDate blijven wachten.
+
+**Duur:** Tot de cron het record selecteert en naar 9 zet (of tot handmatige reset).
+
 ### Status 9: geïsoleerd
 
 **Wanneer:** Direct na de eerste `UPDATE` die maximaal 50 records met `processed=0` en `transactionDate <= now` selecteert.
@@ -116,6 +124,22 @@ De cronjob verwerkt de wachtrij-tabellen in vaste volgorde:
 **Doel:** Markeert records die nu echt verwerkt worden. Als de cron crasht of timeout heeft tijdens de loop, blijven ze op 8 staan. Het dashboard (`viewTransactions.cfm`) kan ze dan terugzetten naar 0 zodat ze opnieuw worden geprobeerd.
 
 **Duur:** Tijdens de hele verwerking van de batch.
+
+### Status 1: succesvol verwerkt
+
+**Wanneer:** Na succesvolle verwerking in de loop; `uploadTransactionObject` en `putTransaction` zijn goed gelukt.
+
+**Doel:** Record is afgerond. De transactie staat in de `transacties`-tabel. Het record wordt niet meer verwerkt.
+
+**Duur:** Permanent (eindstatus).
+
+### Status 2: fout
+
+**Wanneer:** Na een exception in de loop; `uploadTransactionObject` of `putTransaction` is mislukt.
+
+**Doel:** Record is vastgelopen. De foutmelding staat in de kolom `error`. Kan handmatig naar 0 worden gezet voor retry via `viewTransactions.cfm` (`?resetErrorsTransactions`).
+
+**Duur:** Tot handmatige reset naar 0 of tot archiveren.
 
 ### Flow wanneer status = 8
 
@@ -133,50 +157,146 @@ Records met `processed=8` zitten in de loop van `processTransactions2.cfm`. Per 
    - Succes → `UPDATE processed=1`, `processDate=now`
    - Fout → `UPDATE processed=2`, `error=message`, `processDate=now`
 
-**Overige processen die status=8 gebruiken:**
+**Overige processen die status=8 gebruiken – triggers, filters en acties:**
 
-| Proces | Actie |
-|--------|-------|
-| **resetOccupations.cfm** | Telt records met `processed IN (0,8,9)` voor bezetting (wachtrij_in, wachtrij_uit) |
-| **admin.cfc** | Toont aantal/records met `processed=8` in admin-dashboard |
-| **viewTransactions.cfm** | Toont records met `processed=8`; kan reset naar 0 voor retry |
-| **archiveWachtrijTransacties.cfm** | Bij archiveren: records met 0,8,9 blijven in actieve tabel; 8,9 worden terug naar 0 gezet |
-
-### Welk proces wanneer – triggers en filters
-
-De processen zien allemaal dezelfde records met `processed=8`; ze concurreren niet om records. Het verschil zit in **wanneer** ze draaien en **welke** records ze benaderen of wijzigen:
-
-| Proces | Trigger | Filter op records | Actie |
-|--------|---------|------------------|-------|
-| **resetOccupations.cfm** | Cron elke **301 seconden** | `processed IN (0,8,9)` **én** `sectionID` moet overeenkomen met een sectie uit `transacties` waar `Date_checkout IS NULL` en `BronBezettingsdata = 'FMS'` | **Lezen** – telt in/uit per sectie voor bezetting |
-| **admin.cfc** | REST-call `GET /v1/health` | `processed=8` **én** `typeCheck != 'afboeking'` | **Lezen** – telt aantal voor health-check |
-| **viewTransactions.cfm** | Bezoek dashboard met URL-params | Geen filter (alle 8) | **Lezen** bij `?showWachtrijInBehandeling`; **Schrijven** (8→0) bij `?resetWachtrijInBehandeling` |
-| **archiveWachtrijTransacties.cfm** | **Handmatig** (niet in scheduler) | Alle records met `processed IN (0,8,9)` | **Schrijven** – kopieert naar actieve tabel, zet 8 en 9 naar 0 |
-
-**Samenvatting:**
-
-- **resetOccupations**: alleen secties met open transacties en FMS-bezetting; elke ~5 minuten.
-- **admin**: health-endpoint; alleen lezen, geen afboekingen.
-- **viewTransactions**: alleen bij gebruikersactie; kan alle 8 tonen of resetten.
-- **archiveWachtrijTransacties**: alleen bij handmatige uitvoering; verwerkt alle niet-afgeronde records.
-
-### Samenvatting
-
-| Status | Betekenis | Rol |
-|--------|-----------|-----|
-| **9** | Geïsoleerd | Record hoort bij deze batch, niet meer beschikbaar voor andere runs |
-| **8** | In behandeling | Record wordt nu verwerkt; bij crash kan handmatig naar 0 worden gezet voor retry |
+| Proces | Trigger | Filter | Actie |
+|--------|---------|--------|-------|
+| **resetOccupations.cfm** | Cron elke 301 seconden | `processed IN (0,8,9)` **én** `sectionID` in sectie met open transacties en `BronBezettingsdata = 'FMS'` | **Lezen** – telt in/uit per sectie voor bezetting |
+| **admin.cfc** | REST `GET /v1/health` | `processed=8` **én** `typeCheck != 'afboeking'` | **Lezen** – telt aantal voor health-check |
+| **viewTransactions.cfm** | Dashboard met URL-params | Geen filter (alle 8) | **Lezen** bij `?showWachtrijInBehandeling`; **Schrijven** (8→0) bij `?resetWachtrijInBehandeling` |
+| **archiveWachtrijTransacties.cfm** | Handmatig | `processed IN (0,8,9)` | **Schrijven** – kopieert naar actieve tabel, zet 8 en 9 naar 0 |
 
 ---
 
-## Overige processen die wachtrij_transacties gebruiken
+## resetOccupations
 
-| Proces | Actie | Consumeert? |
-|--------|-------|-------------|
-| **resetOccupations.cfm** | Leest `processed IN (0,8,9)` voor bezetting in/uit | Nee – alleen lezen |
-| **archiveWachtrijTransacties.cfm** | Archiveert tabel; kopieert 0,8,9 terug naar nieuwe tabel | Nee – alleen archiveren |
-| **viewTransactions.cfm** | Dashboard: reset 8→0, 2→0 voor retry | Nee – alleen status reset |
-| **correctBikepark.cfm** | Admin: correcties, reset processed | Nee – alleen correcties |
+**Doel:** Herijkt de bezetting van secties met stallingstransacties die FMS als bron voor bezettingsdata gebruiken. Zorgt ervoor dat de bezetting ook rekening houdt met transacties die nog in de wachtrij staan.
+
+**Trigger:** Cronjob elke 301 seconden (~5 minuten).  
+**Bestand:** `verwijssysteem/cronjobs/resetOccupations.cfm` of `remote/cronjobs/resetOccupations.cfm`.
+
+### Wat wordt gewijzigd
+
+| Tabel | Actie |
+|-------|-------|
+| `wachtrij_transacties` | **Lezen** – telt `type='in'` en `type='uit'` per sectie |
+| `transacties` | **Lezen** – telt open transacties (geverifieerde geparkeerde fietsen) |
+| `fietsenstallingen` | **Lezen** – filter `BronBezettingsdata = 'FMS'` |
+| `fietsenstalling_sectie` | **Schrijven** – kolom `Bezetting` wordt bijgewerkt |
+
+De tabel `wachtrij_transacties` wordt **niet** gewijzigd; die wordt alleen gelezen.
+
+### Formule
+
+```
+Bezetting = occupation + wachtrij_in - wachtrij_uit
+```
+
+- **occupation** = aantal open transacties in die sectie (`transacties` met `Date_checkout IS NULL`)
+- **wachtrij_in** = aantal `wachtrij_transacties` met `processed IN (0,8,9)` en `type = 'in'` voor die sectie
+- **wachtrij_uit** = idem voor `type = 'uit'`
+
+Dus: (geverifieerde geparkeerde fietsen) + (nog niet verwerkte inchecks) − (nog niet verwerkte uitchecks).
+
+### Welke secties
+
+Alleen secties die voldoen aan:
+
+- Er zijn open transacties (`Date_checkout IS NULL`) in die sectie
+- De stalling heeft `BronBezettingsdata = 'FMS'` (geen externe bezettingsbron)
+
+### Flow
+
+1. Query secties met open transacties en FMS-bezetting
+2. Per sectie: bereken `occupation`, `wachtrij_in`, `wachtrij_uit`
+3. `UPDATE fietsenstalling_sectie SET Bezetting = occupation + wachtrij_in - wachtrij_uit WHERE externalId = sectionID`
+
+---
+
+## admin.cfc
+
+**Doel:** REST API voor admin en monitoring. Health-check en aggregaties van wachtrij-transacties voor dashboards.
+
+**Trigger:** REST-calls (on-demand). Voor wachtrij: `GET /v1/health` (telt wachtrij), `GET /v1/transactions` (aggregaties per tijdseenheid).
+
+**Bestand:** `remote/REST/admin/admin.cfc`.
+
+### Wat wordt gewijzigd
+
+| Tabel | Actie |
+|-------|-------|
+| `wachtrij_transacties` | **Lezen** – health: count met `processed=0` en `processed=8` (excl. afboeking); getTransactions: aggregaties op `dateCreated` (excl. afboeking) |
+| `bezettingsdata_tmp` | **Lezen** – lumiguide endpoint |
+| `emails` | **Lezen** – getEmail endpoint |
+
+De tabel `wachtrij_transacties` wordt **niet** gewijzigd; die wordt alleen gelezen.
+
+### Endpoints met wachtrij
+
+- **health** – `transactions.waiting` (processed=0), `transactions.pending` (processed=8), filter `typeCheck != 'afboeking'`
+- **getTransactionsForFMS** – aggregaties (start, count) per tijdseenheid; filter op `dateCreated`, optioneel `citycode`/`locationid`
+
+---
+
+## viewTransactions.cfm
+
+**Doel:** Dashboard voor wachtrij-monitoring. Toont aantallen, kan records resetten, verwerking pauzeren en TransactionGateway herladen.
+
+**Trigger:** Bezoek dashboard met `?action=viewTransactions`. Schrijfacties alleen bij specifieke URL-params.
+
+**Bestand:** `remote/dashboard/actions/viewTransactions.cfm`.
+
+### Wat wordt gewijzigd
+
+| Tabel | Actie |
+|-------|-------|
+| `wachtrij_transacties` | **Lezen** – aantallen (processed=0, 8, 2), details bij `?showWachtrij`, `?showWachtrijInBehandeling`, `?showErrors` |
+| `wachtrij_transacties` | **Schrijven** – bij `?resetWachtrijInBehandeling`: 8→0; bij `?resetErrorsTransactions`: 2→0 (alleen laatste 24h) |
+| `wachtrij_pasids` | **Lezen** – aantallen; **Schrijven** – bij `?resetErrorsPassIds`: 2→0 (laatste 24h) |
+| `wachtrij_betalingen` | **Lezen** – aantallen |
+| `transacties` | **Lezen** – laatste transactie bij `?showTransaction` |
+| `application` | **Schrijven** – bij `?pause`: `pauseProcessTransactionsUntil`; bij `?resume`: opheffen; bij `?reinitTransactionGateway`: herladen |
+
+### URL-params
+
+| Param | Actie |
+|-------|-------|
+| `showWachtrij` | Toon max 100 records met processed=0 |
+| `showWachtrijInBehandeling` | Toon max 100 records met processed=8 |
+| `showErrors` | Toon max 100 records met processed=2 (laatste 24h) |
+| `resetWachtrijInBehandeling` | Alle 8→0 |
+| `resetErrorsTransactions` | Alle 2→0 (laatste 24h) |
+| `pause` | Pauzeer processTransactions 15 min |
+| `resume` | Hervat verwerking |
+| `reinitTransactionGateway` | Herlaad TransactionGateway |
+
+---
+
+## archiveWachtrijTransacties.cfm
+
+**Doel:** Archiveert de tabel `wachtrij_transacties`. Maakt een dagarchief en behoudt onverwerkte records (0, 8, 9) in de actieve tabel.
+
+**Trigger:** Handmatig (niet in scheduler).
+
+**Bestand:** `verwijssysteem/remote/archiveWachtrijTransacties.cfm` of `remote/remote/archiveWachtrijTransacties.cfm`.
+
+### Wat wordt gewijzigd
+
+| Tabel | Actie |
+|-------|-------|
+| `wachtrij_transacties` | **Schrijven** – tabel wordt hernoemd naar `wachtrij_transacties_archive_yyyymmdd` |
+| `wachtrij_transacties_new` | **Schrijven** – nieuwe lege tabel wordt `wachtrij_transacties` |
+| `wachtrij_transacties` | **Schrijven** – `INSERT` van records met `processed IN (0,8,9)` uit archief; daarna `UPDATE` 8,9→0 |
+
+### Flow
+
+1. **CREATE** `wachtrij_transacties_new` (lege kopie van structuur)
+2. **RENAME** `wachtrij_transacties` → `wachtrij_transacties_archive_yyyymmdd`
+3. **RENAME** `wachtrij_transacties_new` → `wachtrij_transacties`
+4. **INSERT** uit archief waar `processed IN (0,8,9)` (onverwerkte records blijven in actieve tabel)
+5. **UPDATE** `processed=0` waar `processed IN (8,9)` (voor herverwerking)
+
+Verwerkte records (1, 2) blijven alleen in het archief.
 
 ---
 
