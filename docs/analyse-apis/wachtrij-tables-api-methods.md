@@ -6,6 +6,17 @@ Analyse van de ColdFusion-broncode: welke API-methodes schrijven data naar de ta
 
 ---
 
+## Samenvatting
+
+| Tabel | API-methodes die data in de tabel schrijven |
+|-------|--------------------------------------------|
+| **wachtrij_transacties** | `uploadTransaction`, `uploadTransactions` (REST) |
+| **wachtrij_pasids** | `saveBike`, `saveBikes` (REST) |
+| **wachtrij_sync** | `syncSector` (REST) |
+| **wachtrij_betalingen** | `addSaldo`, `addSaldos` (REST), en indirect via `uploadTransaction` wanneer de transactie betalingsvelden bevat |
+
+---
+
 ## 1. wachtrij_transacties
 
 De INSERT wordt uitgevoerd in **TransactionGateway.addTransactionToWachtrij()**. Die wordt o.a. aangeroepen door:
@@ -14,6 +25,8 @@ De INSERT wordt uitgevoerd in **TransactionGateway.addTransactionToWachtrij()**.
 |------------|--------------------|
 | **REST** | `uploadTransaction`, `uploadTransactions` → o.a. `BaseRestService.uploadTransaction` (path `POST .../sections/{sectionid}/transactions`), `remote/REST/FMSService.cfc` |
 | **Overige** | `www/views/fietskluizen/controller.cfm`, `cflib/.../Place.cfc`, `cflib/.../Transaction.cfc`, `cflib/.../connector/api/Prorail-events.cfc`, en intern in `TransactionGateway.cfc` |
+
+
 
 ---
 
@@ -118,13 +131,3 @@ De INSERT gebeurt in **BikeparkServiceImpl.addSaldoUpdateToWachtrij()**, aangero
 
 **Let op:** Als een transactie via `uploadTransaction` / `addTransactionToWachtrij` **betaling** bevat (`paymenttypeid` + `amountpaid`), roept **TransactionGateway.addTransactionToWachtrij** intern `application.service.addSaldoUpdateToWachtrij()` aan — dezelfde upload schrijft dan ook naar **wachtrij_betalingen**.
 
----
-
-## Samenvatting
-
-| Tabel | API-methodes die data in de tabel schrijven |
-|-------|--------------------------------------------|
-| **wachtrij_transacties** | `uploadTransaction`, `uploadTransactions` (REST) |
-| **wachtrij_pasids** | `saveBike`, `saveBikes` (REST) |
-| **wachtrij_sync** | `syncSector` (REST) |
-| **wachtrij_betalingen** | `addSaldo`, `addSaldos` (REST), en indirect via `uploadTransaction` wanneer de transactie betalingsvelden bevat |
