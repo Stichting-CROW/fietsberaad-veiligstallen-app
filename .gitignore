@@ -82,3 +82,6 @@ logs/*
 #local docs
 /docs/analyse-modules
 /docs/documentatie-crow
+/docs/analyse-change-dataowner/
+/docs/analyse-motorblok/
+.tmp/
