@@ -147,11 +147,46 @@ De scheduled task in `processTransactions2.cfm` verwerkt `wachtrij_sync` **na** 
 
 ## 4. wachtrij_betalingen
 
-De INSERT gebeurt in **BikeparkServiceImpl.addSaldoUpdateToWachtrij()**, aangeroepen door:
+### Doel van de tabel
+
+De `wachtrij_betalingen`-tabel is een wachtrij voor **saldo-opwaarderingen**: het doorvoeren van betalingen op klantaccounts in de centrale database. Lokale FMS-systemen melden betalingen aan (contant, pin, etc.) waarna de achtergrondverwerking het saldo van het juiste account bijwerkt via `passID`.
+
+### Hoe de tabel data krijgt
+
+**Directe aanroep:**
 
 | API | Methode |
 |-----|--------|
-| **REST** | `FMSService.addSaldo`, `FMSService.addSaldos` (aanroep op `BaseFMSService`) |
+| **REST** | `FMSService.addSaldo`, `FMSService.addSaldos` – path o.a. `POST .../sections/{sectionid}/balance` (via `BaseFMSService` → `BikeparkServiceImpl.addSaldoUpdateToWachtrij()`) |
 
-**Let op:** Als een transactie via `uploadTransaction` / `addTransactionToWachtrij` **betaling** bevat (`paymenttypeid` + `amountpaid`), roept **TransactionGateway.addTransactionToWachtrij** intern `application.service.addSaldoUpdateToWachtrij()` aan — dezelfde upload schrijft dan ook naar **wachtrij_betalingen**.
+**Indirect via transactieupload:**
+
+Als een transactie via `uploadTransaction` / `addTransactionToWachtrij` **betalingsvelden** bevat (`paymenttypeid` + `amountpaid`), roept **TransactionGateway.addTransactionToWachtrij** intern `application.service.addSaldoUpdateToWachtrij()` aan — dezelfde upload schrijft dan ook naar `wachtrij_betalingen`.
+
+### Tabelvelden
+
+| Veld | Beschrijving |
+|------|--------------|
+| `bikeparkID`, `passID` | Locatie en pas/sleutelhanger-ID voor accountlookup |
+| `idtype` | (Optioneel) Type identificatie |
+| `transactionDate` | Tijdstip van de betaling |
+| `paymentTypeID` | Betalingswijze (contant, pin, etc.) |
+| `amount` | Bedrag |
+| `processed` | 0 = wachtend, 1 = succes, 2 = fout |
+| `processDate`, `error`, `dateCreated` | Standaard wachtrijvelden |
+
+**Voorkoming van dubbels:** Unieke constraint op `(bikeparkID, passID, transactionDate, paymentTypeID, amount)` voorkomt dubbele betalingen in de wachtrij.
+
+### Verwerking door de background processor
+
+De scheduled task in `processTransactions2.cfm` verwerkt `wachtrij_betalingen` als **stap 3** (na transacties, vóór sync), maximaal **200 records per run**. Per record:
+
+1. Bikepark ophalen via `bikeparkID`
+2. `saldoAddObject` bouwen met amount, passID, transactionDate, paymentTypeID
+3. `application.service.addSaldoObject(saldoAddObject, bikepark)` aanroepen, die:
+   - Het saldo bijwerkt in `accounts`
+   - Een record aanmaakt in `financialtransactions`
+   - Het account vindt via `passID`
+
+**Doeltabellen bij verwerking:** `accounts`, `financialtransactions`
 
