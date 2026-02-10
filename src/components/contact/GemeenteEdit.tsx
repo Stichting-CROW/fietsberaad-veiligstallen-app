@@ -23,6 +23,8 @@ import { makeClientApiCall } from '~/utils/client/api-tools';
 import { type GemeenteResponse } from '~/pages/api/protected/gemeenten/[id]';
 import { FormGroup, FormLabel, FormControlLabel, Checkbox } from '@mui/material';
 import { AVAILABLE_MODULES } from '~/types/modules';
+import { userHasRight } from '~/types/utils';
+import { VSSecurityTopic } from '~/types/securityprofile';
 
 type GemeenteEditProps = {
     id: string;
@@ -44,6 +46,11 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     // Check if user is editing from within a data-owner organization (not fietsberaad)
     // Hide restricted fields when editing a non-fietsberaad organization from within that organization
     const isDataOwnerEdit = props.id !== "1" && session?.user?.activeContactId === props.id;
+    
+    // Check if user has fietsberaad admin rights (can edit Gemeentecode)
+    const hasFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+    const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    const canEditGemeentecode = hasFietsberaadAdmin || hasFietsberaadSuperadmin;
 
     type CurrentState = {
       CompanyName: string|null,
@@ -51,6 +58,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       UrlName: string|null,
       contactID: string|null,
       ZipID: string|null,
+      Gemeentecode: number|null,
       Helpdesk: string|null,
       DayBeginsAt: Date|null,
       Coordinaten: string|null,
@@ -73,6 +81,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [AlternativeCompanyName, setAlternativeCompanyName] = useState<string|null>(null);
     const [UrlName, setUrlName] = useState<string|null>(null);
     const [ZipID, setZipID] = useState<string|null>(null);
+    const [Gemeentecode, setGemeentecode] = useState<number|null>(null);
     const [Helpdesk, setHelpdesk] = useState<string|null>(null);
     const [DayBeginsAt, setDayBeginsAt] = useState<Date|null>(null);
     const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -96,6 +105,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       UrlName: null,
       contactID: null,
       ZipID: null,
+      Gemeentecode: null,
       Helpdesk: null,
       DayBeginsAt: null,
       Coordinaten: cDefaultCoordinaten,
@@ -138,6 +148,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 UrlName: DEFAULTGEMEENTE.UrlName,
                 contactID: null,
                 ZipID: DEFAULTGEMEENTE.ZipID,
+                Gemeentecode: null,
                 Helpdesk: DEFAULTGEMEENTE.Helpdesk,
                 DayBeginsAt: DEFAULTGEMEENTE.DayBeginsAt,
                 Coordinaten: DEFAULTGEMEENTE.Coordinaten,
@@ -157,6 +168,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             setAlternativeCompanyName(initial.AlternativeCompanyName);
             setUrlName(initial.UrlName);
             setZipID(initial.ZipID);
+            setGemeentecode(initial.Gemeentecode);
             setHelpdesk(initial.Helpdesk);
             setDayBeginsAt(initial.DayBeginsAt);
             setNewCoordinaten(undefined);
@@ -184,6 +196,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     UrlName: activecontact.UrlName || initialData.UrlName,
                     contactID: null, // Will be set below if contactpersons are available
                     ZipID: activecontact.ZipID || initialData.ZipID,
+                    Gemeentecode: activecontact.Gemeentecode || initialData.Gemeentecode,
                     Helpdesk: activecontact.Helpdesk || initialData.Helpdesk,
                     DayBeginsAt: activecontact.DayBeginsAt || initialData.DayBeginsAt,
                     Coordinaten: activecontact.Coordinaten || initialData.Coordinaten,
@@ -203,6 +216,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setAlternativeCompanyName(initial.AlternativeCompanyName);
                 setUrlName(initial.UrlName);
                 setZipID(initial.ZipID);
+                setGemeentecode(initial.Gemeentecode);
                 setHelpdesk(initial.Helpdesk);
                 setDayBeginsAt(initial.DayBeginsAt);
                 setNewCoordinaten(undefined);
@@ -243,6 +257,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           UrlName !== initialData.UrlName ||
           contactID !== initialData.contactID ||
           ZipID !== initialData.ZipID ||
+          Gemeentecode !== initialData.Gemeentecode ||
           Helpdesk !== initialData.Helpdesk ||
           DayBeginsAt !== initialData.DayBeginsAt ||
           (newCoordinaten !== undefined && newCoordinaten !== initialData.Coordinaten) ||
@@ -356,6 +371,10 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               UrlName: UrlName || '',
               ZipID: ZipID || '',
             }),
+            // Gemeentecode can only be edited by fietsberaad admins
+            ...(canEditGemeentecode ? {
+              Gemeentecode: Gemeentecode || undefined,
+            } : {}),
             Helpdesk: Helpdesk || '',
             DayBeginsAt: DayBeginsAt || undefined,
             Coordinaten: newCoordinaten,
@@ -413,6 +432,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               AlternativeCompanyName: AlternativeCompanyName || prev.AlternativeCompanyName,
               UrlName: UrlName || prev.UrlName,
               ZipID: ZipID || prev.ZipID,
+              Gemeentecode: Gemeentecode !== null ? Gemeentecode : prev.Gemeentecode,
               Helpdesk: Helpdesk || prev.Helpdesk,
               DayBeginsAt: DayBeginsAt || prev.DayBeginsAt,
               Coordinaten: savedCoordinaten,
@@ -454,6 +474,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setAlternativeCompanyName(null);
           setUrlName(null);
           setZipID(null);
+          setGemeentecode(null);
           setHelpdesk(null);
           setDayBeginsAt(null);
           setNewCoordinaten(undefined);
@@ -472,6 +493,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
           setUrlName(initialData.UrlName);
           setZipID(initialData.ZipID);
+          setGemeentecode(initialData.Gemeentecode);
           setHelpdesk(initialData.Helpdesk);
           setDayBeginsAt(initialData.DayBeginsAt);
           setNewCoordinaten(undefined);
@@ -663,6 +685,23 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                       <br />
                     </>
                   )}
+                  <FormInput 
+                    label="Gemeentecode"
+                    value={
+                      !canEditGemeentecode && Gemeentecode !== null
+                        ? Gemeentecode.toString().padStart(4, '0') // Show as 4-digit when read-only
+                        : Gemeentecode !== null 
+                        ? Gemeentecode.toString() 
+                        : ''
+                    } 
+                    onChange={(e) => {
+                      const value = e.target.value.trim();
+                      setGemeentecode(value === '' ? null : parseInt(value) || null);
+                    }}
+                    disabled={!isEditing || !canEditGemeentecode}
+                    type={canEditGemeentecode ? "number" : "text"} // Use text when read-only to show padded value
+                  />
+                  <br />
                   <FormInput 
                     label="Email helpdesk"
                     value={Helpdesk || ''} 
