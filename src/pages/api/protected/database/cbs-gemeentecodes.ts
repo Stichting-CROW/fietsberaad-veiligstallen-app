@@ -5,8 +5,6 @@ import { prisma } from '~/server/db';
 import { VSSecurityTopic } from '~/types/securityprofile';
 import { userHasRight } from '~/types/utils';
 import * as XLSX from 'xlsx';
-import * as fs from 'fs';
-import * as path from 'path';
 
 export type CBSGemeentecodesResponse = {
   success: boolean;
@@ -54,69 +52,48 @@ interface GemeenteData {
   year: number;
 }
 
-// Download Excel file from URL
-async function downloadExcelFile(url: string, filePath: string, year: number): Promise<void> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error(`Bestand niet gevonden (404)`);
-      }
-      throw new Error(`Download mislukt: ${response.status} ${response.statusText}`);
+// In-memory cache: year -> parsed GemeenteData[] (~40KB per year, ~640KB total)
+const cbsGemeentenCache = new Map<number, GemeenteData[]>();
+
+// Download Excel file from URL and return buffer
+async function downloadExcelBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Bestand niet gevonden (404)`);
     }
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength === 0) {
-      throw new Error(`Leeg bestand ontvangen`);
-    }
-    fs.writeFileSync(filePath, Buffer.from(buffer));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('fetch')) {
-      throw new Error(`Netwerkfout bij downloaden`);
-    }
-    throw error;
+    throw new Error(`Download mislukt: ${response.status} ${response.statusText}`);
   }
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength === 0) {
+    throw new Error(`Leeg bestand ontvangen`);
+  }
+  return buffer;
 }
 
-// Parse Excel file and extract gemeente data
-function parseExcelFile(filePath: string, year: number): GemeenteData[] {
+// Parse Excel buffer and extract gemeente data
+function parseExcelBuffer(buffer: ArrayBuffer, year: number): GemeenteData[] {
   try {
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Bestand niet gevonden`);
-    }
-    
-    // Check if file is readable
-    try {
-      fs.accessSync(filePath, fs.constants.R_OK);
-    } catch {
-      throw new Error(`Bestand niet leesbaar`);
-    }
-    
-    const workbook = XLSX.readFile(filePath);
+    const workbook = XLSX.read(buffer);
     
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
       throw new Error(`Geen werkbladen gevonden`);
     }
     
     // Try to find the "Gemeenten_alfabetisch" sheet
-    console.log(`[${year}] Available sheets:`, workbook.SheetNames);
     let sheetName: string = 'Gemeenten_alfabetisch';
     if (!workbook.SheetNames.includes(sheetName)) {
       // Try alternative names
-      const alternatives = workbook.SheetNames.filter(name => 
-        name.toLowerCase().includes('gemeenten') || 
+      const alternatives = workbook.SheetNames.filter(name =>
+        name.toLowerCase().includes('gemeenten') ||
         name.toLowerCase().includes('alfabet')
       );
       if (alternatives.length > 0) {
         sheetName = alternatives[0]!;
-        console.log(`[${year}] Using alternative sheet name: "${sheetName}"`);
       } else {
         // Use first sheet if not found
         sheetName = workbook.SheetNames[0]!;
-        console.log(`[${year}] Using first available sheet: "${sheetName}"`);
       }
-    } else {
-      console.log(`[${year}] Using sheet: "${sheetName}"`);
     }
     
     const worksheet = workbook.Sheets[sheetName];
@@ -138,14 +115,14 @@ function parseExcelFile(filePath: string, year: number): GemeenteData[] {
     let codeColumnIndex = -1;
     
     // Determine expected column names based on year
-    // Gemeentecode: "Gemcode" (2011-2014), "Gemeentecode" (2015-)
-    // Name: "Gemcodel" (2011-2014 - note: lowercase 'l', not number '1'), "Gemeentenaam" (2015-)
-    const expectedCodeNames = year >= 2015 
+    // Gemeentecode: "Gemcode" (2011-2013), "Gemeentecode" (2014-)
+    // Name: "Gemcodel" (2011-2013 - note: lowercase 'l', not number '1'), "Gemeentenaam" (2014-)
+    const expectedCodeNames = year >= 2014 
       ? ['gemeentecode']
       : ['gemcode'];
-    const expectedNameNames = year >= 2011 && year <= 2014
-      ? ['gemcodel', 'gemcode1', 'gemeentenaam', 'naam', 'gemeente'] // "Gemcodel" is the actual column name (lowercase 'l') for 2011-2014
-      : year >= 2015
+    const expectedNameNames = year >= 2011 && year <= 2013
+      ? ['gemcodel', 'gemcode1', 'gemeentenaam', 'naam', 'gemeente'] // "Gemcodel" is the actual column name (lowercase 'l') for 2011-2013
+      : year >= 2014
       ? ['gemeentenaam']
       : ['gemeentenaam', 'naam', 'gemeente']; // Fallback for other years
     
@@ -154,41 +131,23 @@ function parseExcelFile(filePath: string, year: number): GemeenteData[] {
       const row = data[i];
       if (!Array.isArray(row)) continue;
       
-      // Log all column names in this row for debugging
-      if (i < 3) {
-        console.log(`[${year}] Row ${i} columns:`, row.map((cell, idx) => `[${idx}] "${String(cell || '').trim()}"`).join(', '));
-      }
-      
       for (let j = 0; j < row.length; j++) {
         const cell = String(row[j] || '').toLowerCase().trim();
-        
+
         // Check for code column (case-insensitive, exact match)
         if (codeColumnIndex < 0 && expectedCodeNames.some(name => cell === name)) {
           codeColumnIndex = j;
-          console.log(`[${year}] Found code column at index ${j}: "${row[j]}"`);
         }
-        
+
         // Check for name column (case-insensitive, exact match)
         if (nameColumnIndex < 0 && expectedNameNames.some(name => cell === name)) {
           nameColumnIndex = j;
-          console.log(`[${year}] Found name column at index ${j}: "${row[j]}"`);
         }
       }
       
       if (nameColumnIndex >= 0 && codeColumnIndex >= 0) {
         headerRowIndex = i;
         break;
-      }
-    }
-    
-    // Log header information for debugging
-    if (headerRowIndex < data.length) {
-      const headerRow = data[headerRowIndex];
-      console.log(`[${year}] Header row (index ${headerRowIndex}):`, headerRow);
-      console.log(`[${year}] Expected - Code: ${expectedCodeNames.join('/')}, Name: ${expectedNameNames.join('/')}`);
-      console.log(`[${year}] Detected columns - Name column: ${nameColumnIndex}, Code column: ${codeColumnIndex}`);
-      if (Array.isArray(headerRow)) {
-        console.log(`[${year}] Column names:`, headerRow.map((cell, idx) => `[${idx}] "${String(cell || '').trim()}"`).join(', '));
       }
     }
     
@@ -201,29 +160,32 @@ function parseExcelFile(filePath: string, year: number): GemeenteData[] {
       if (codeColumnIndex < 0) {
         missingColumns.push(`Code kolom (verwacht: ${expectedCodeNames.join(' of ')})`);
       }
-      const errorMsg = `Kolommen niet gevonden: ${missingColumns.join(', ')}. Data voor ${year} wordt overgeslagen.`;
-      console.warn(`[${year}] ${errorMsg}`);
+      const columnNamesDump = data
+        .slice(0, 5)
+        .map((row, i) =>
+          Array.isArray(row)
+            ? `row${i}:[${row.map((c, j) => `${j}:"${String(c ?? '').trim().replace(/"/g, '\\"')}"`).join(',')}]`
+            : `row${i}:(not array)`
+        )
+        .join(' | ');
+      console.error(
+        `[CBS ${year}] Kolommen niet gevonden. Gevonden kolommen (eerste 5 rijen):`,
+        data.slice(0, 5).map((row, i) =>
+          Array.isArray(row) ? `row${i}: ${row.map((c, j) => `[${j}]"${String(c ?? '').trim()}"`).join(' ')}` : `row${i}: (geen array)`
+        )
+      );
+      const errorMsg = `Kolommen niet gevonden: ${missingColumns.join(', ')}. Data voor ${year} wordt overgeslagen. Kolommen in bestand: ${columnNamesDump}`;
       throw new Error(errorMsg);
     }
     
     // Parse data rows with validation
-    let firstRecordLogged = false;
     for (let i = headerRowIndex + 1; i < data.length; i++) {
       const row = data[i];
       if (!Array.isArray(row) || row.length === 0) continue;
-      
+
       let name = String(row[nameColumnIndex] || '').trim();
       let code = String(row[codeColumnIndex] || '').trim();
-      
-      // Log first record for debugging
-      if (!firstRecordLogged && name && code) {
-        console.log(`[${year}] First record (row ${i}):`);
-        console.log(`[${year}]   Full row:`, row);
-        console.log(`[${year}]   Name (col ${nameColumnIndex}): "${name}"`);
-        console.log(`[${year}]   Code (col ${codeColumnIndex}): "${code}"`);
-        firstRecordLogged = true;
-      }
-      
+
       // Validation: if name looks like a code (only digits), swap them
       if (name && code) {
         // If name is numeric and code is not, or if name is shorter and numeric, likely swapped
@@ -231,19 +193,14 @@ function parseExcelFile(filePath: string, year: number): GemeenteData[] {
           // Swap them
           [name, code] = [code, name];
         }
-        // If both are numeric, check which one is more likely a name
-        // Names are usually longer or have specific patterns
+        // If both are numeric, keep original assignment
         else if (/^\d+$/.test(name) && /^\d+$/.test(code)) {
-          // If name column value is shorter and looks like a code, check if code column has more characters
-          // This is tricky - we'll keep original assignment but log a warning
-          console.warn(`[${year}] Row ${i}: Both name and code appear numeric. Name: "${name}", Code: "${code}"`);
+          // Keep as is
         }
-        
+
         // Final validation: name should not be just a 4-digit code
         // Gemeente names typically have letters or are longer
         if (/^\d{4}$/.test(name) && code) {
-          // This looks like a code in the name field - skip this row or use code as name
-          console.warn(`[${year}] Row ${i}: Skipping row with code in name field: "${name}"`);
           continue;
         }
         
@@ -338,6 +295,80 @@ function buildHistoricalStructure(
   return result;
 }
 
+export type CBSContact = {
+  id: string;
+  companyname: string;
+  veiligstallen_gemeentecode: string;
+  itemtype: string | null;
+  fietsenstallingen_count: number;
+};
+
+export type CBSGemeentecodeType = {
+  name: string;
+  history: Array<{ cbscode: string; firstyear: string; lastyear: string }>;
+};
+
+/** Exported for use by the TODO report endpoint */
+export async function getCBSGemeentecodesData(): Promise<{
+  contacts: CBSContact[];
+  cbs_gemeentecodes: CBSGemeentecodeType[];
+}> {
+  const allGemeenten: GemeenteData[] = [];
+
+  for (const { year, url } of CBS_EXCEL_URLS) {
+    try {
+      let gemeenten = cbsGemeentenCache.get(year);
+      if (!gemeenten) {
+        const buffer = await downloadExcelBuffer(url);
+        gemeenten = parseExcelBuffer(buffer, year);
+        cbsGemeentenCache.set(year, gemeenten);
+      }
+      allGemeenten.push(...gemeenten);
+    } catch {
+      // Skip failed years
+    }
+  }
+
+  if (allGemeenten.length === 0) {
+    throw new Error('Geen gemeenten data kon worden geëxtraheerd');
+  }
+
+  const cbsGemeentecodes = buildHistoricalStructure(allGemeenten);
+
+  const contacts = await prisma.contacts.findMany({
+    select: { ID: true, CompanyName: true, Gemeentecode: true, ItemType: true },
+    where: { CompanyName: { not: null } },
+    orderBy: { CompanyName: 'asc' },
+  });
+
+  const contactIds = contacts.map((c) => c.ID);
+  const countResults = await prisma.fietsenstallingen.groupBy({
+    by: ['SiteID'],
+    where: {
+      SiteID: { not: null, in: contactIds },
+      Title: { not: 'Systeemstalling' },
+      StallingsID: { not: null },
+      contacts_fietsenstallingen_SiteIDTocontacts: { Status: { not: '0' } },
+    },
+    _count: { ID: true },
+  });
+  const countMap = new Map(countResults.map((r) => [r.SiteID!, r._count.ID]));
+
+  const contactsData: CBSContact[] = contacts.map((contact) => {
+    const gemeentecode = contact.Gemeentecode?.toString() || '';
+    const paddedGemeentecode = gemeentecode ? gemeentecode.padStart(4, '0') : '';
+    return {
+      id: contact.ID,
+      companyname: contact.CompanyName || '',
+      veiligstallen_gemeentecode: paddedGemeentecode,
+      itemtype: contact.ItemType || null,
+      fietsenstallingen_count: countMap.get(contact.ID) || 0,
+    };
+  });
+
+  return { contacts: contactsData, cbs_gemeentecodes: cbsGemeentecodes };
+}
+
 export default async function handle(
   req: NextApiRequest,
   res: NextApiResponse<CBSGemeentecodesResponse>
@@ -381,47 +412,19 @@ export default async function handle(
   }
 
   try {
-    // Create temporary directory for downloaded files
-    const tmpDir = path.join(process.cwd(), '.tmp', 'cbs-gemeentecodes');
-    console.log(`Creating temporary directory: ${tmpDir}`);
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
-      console.log(`Temporary directory created: ${tmpDir}`);
-    } else {
-      console.log(`Temporary directory already exists: ${tmpDir}`);
-    }
-
-    // Download and parse all Excel files
+    // Download and parse all Excel files (use in-memory cache)
     const allGemeenten: GemeenteData[] = [];
     const downloadErrors: string[] = [];
 
     for (const { year, url } of CBS_EXCEL_URLS) {
       try {
-        const filePath = path.join(tmpDir, `gemeenten-${year}.xlsx`);
-        
-        // Check if file already exists
-        if (fs.existsSync(filePath)) {
-          const stats = fs.statSync(filePath);
-          console.log(`[${year}] File already exists (${stats.size} bytes), skipping download`);
-        } else {
-          console.log(`[${year}] Downloading CBS Excel file from ${url}...`);
-          console.log(`[${year}] Saving to: ${filePath}`);
-          
-          await downloadExcelFile(url, filePath, year);
-          
-          // Verify file was downloaded
-          if (!fs.existsSync(filePath)) {
-            throw new Error(`Bestand niet aangemaakt`);
-          }
-          const stats = fs.statSync(filePath);
-          console.log(`[${year}] File downloaded successfully (${stats.size} bytes)`);
+        let gemeenten = cbsGemeentenCache.get(year);
+        if (!gemeenten) {
+          const buffer = await downloadExcelBuffer(url);
+          gemeenten = parseExcelBuffer(buffer, year);
+          cbsGemeentenCache.set(year, gemeenten);
         }
-        
-        console.log(`[${year}] Parsing Excel file...`);
-        const gemeenten = parseExcelFile(filePath, year);
         allGemeenten.push(...gemeenten);
-        
-        console.log(`[${year}] Processed ${gemeenten.length} gemeenten`);
       } catch (error) {
         const errorMsg = error instanceof Error 
           ? `${year}: ${error.message}`
@@ -431,11 +434,6 @@ export default async function handle(
         // Continue with other years even if one fails
       }
     }
-
-    // Keep files permanently - they won't change in the future
-    const files = fs.readdirSync(tmpDir);
-    console.log(`Excel files stored at: ${tmpDir}`);
-    console.log(`Total files: ${files.length}`);
 
     if (allGemeenten.length === 0) {
       return res.status(500).json({
@@ -448,7 +446,6 @@ export default async function handle(
     }
 
     // Build historical structure
-    console.log('Building historical structure...');
     const cbsGemeentecodes = buildHistoricalStructure(allGemeenten);
 
     // Query contacts from database
@@ -469,31 +466,24 @@ export default async function handle(
       },
     });
 
-    // Get counts of fietsenstallingen for each contact
-    // Count from fietsenstallingen table where SiteID matches contact ID
-    // This matches the logic in /api/protected/fietsenstallingen/index.ts
-    const contactFietsenstallingenCounts = await Promise.all(
-      contacts.map(async (contact) => {
-        const count = await prisma.fietsenstallingen.count({
-          where: {
-            SiteID: contact.ID,
-            Title: { // Exclude Systeemstalling (matching API logic)
-              not: 'Systeemstalling'
-            },
-            StallingsID: { not: null },
-            // Exclude stallingen from archived data owners (Status = "0")
-            contacts_fietsenstallingen_SiteIDTocontacts: {
-              Status: { not: "0" }
-            },
-          },
-        });
-        return { contactId: contact.ID, count };
-      })
-    );
+    // Get counts of fietsenstallingen for each contact in a single query
+    // Matches the logic in /api/protected/fietsenstallingen/index.ts
+    const contactIds = contacts.map((c) => c.ID);
+    const countResults = await prisma.fietsenstallingen.groupBy({
+      by: ['SiteID'],
+      where: {
+        SiteID: { not: null, in: contactIds },
+        Title: { not: 'Systeemstalling' },
+        StallingsID: { not: null },
+        contacts_fietsenstallingen_SiteIDTocontacts: {
+          Status: { not: '0' },
+        },
+      },
+      _count: { ID: true },
+    });
 
-    // Create a map for quick lookup
     const countMap = new Map(
-      contactFietsenstallingenCounts.map(item => [item.contactId, item.count])
+      countResults.map((r) => [r.SiteID!, r._count.ID])
     );
 
     // Map contacts to response structure
@@ -503,6 +493,7 @@ export default async function handle(
       const paddedGemeentecode = gemeentecode ? gemeentecode.padStart(4, '0') : '';
       
       return {
+        id: contact.ID,
         companyname: contact.CompanyName || '',
         veiligstallen_gemeentecode: paddedGemeentecode,
         itemtype: contact.ItemType || null,

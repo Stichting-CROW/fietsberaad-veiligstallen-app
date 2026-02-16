@@ -388,8 +388,6 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             ThemeColor2: ThemeColor2 || undefined,
           }
 
-          console.log("update data-owner:", data);
-
           const urlValidate = `/api/protected/gemeenten/validate/`;
           const responseValidate = await makeClientApiCall<GemeenteValidateResponse>(urlValidate, 'POST', data);
           if(!responseValidate.success) {
@@ -399,7 +397,6 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
 
 
           if (!responseValidate.result.valid) {
-            console.log("handleUpdate 3", responseValidate.result.message);
             setErrorMessage(responseValidate.result.message);
             return;
           }

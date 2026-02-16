@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 
 interface DatabaseCBSGemeentecodesProps {}
 
@@ -27,7 +27,18 @@ interface CBSData {
 
 type TabType = 'cbs' | 'veiligstallen';
 type VeranderingenFilter = 'alles' | 'opgeheven' | 'nieuw' | 'ongewijzigd';
-type StatusFilter = 'all' | 'ok' | 'not ok';
+type VeiligstallenStatus =
+  | 'ok'
+  | 'bestaat_niet_meer'
+  | 'hernoemd'
+  | 'nieuwe_gemeente';
+type StatusFilter =
+  | 'all'
+  | 'ok'
+  | 'not_ok'
+  | 'bestaat_niet_meer'
+  | 'hernoemd'
+  | 'nieuwe_gemeente';
 
 const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => {
   const [activeTab, setActiveTab] = useState<TabType>('veiligstallen');
@@ -38,9 +49,10 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
   const [veranderingenFilter, setVeranderingenFilter] = useState<VeranderingenFilter>('alles');
   const [veiligstallenNameFilter, setVeiligstallenNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [itemTypeFilter, setItemTypeFilter] = useState<string>('organizations');
+  const [alleenMetStallingen, setAlleenMetStallingen] = useState(false);
+  const [isExportingRapport, setIsExportingRapport] = useState(false);
 
-  const handleRapport = async () => {
+  const handleRapport = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -68,12 +80,12 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   // Load data automatically when component mounts
   useEffect(() => {
     handleRapport();
-  }, []);
+  }, [handleRapport]);
 
   // Get gemeentecode for a specific year
   const getCodeForYear = (gemeente: CBSGemeentecode, year: number): string => {
@@ -164,6 +176,16 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
   const oldestYear = years.length > 0 ? years[years.length - 1] : null;
   const newestYear = years.length > 0 ? years[0] : null;
 
+  // Voor Veiligstallen-tab: alleen CBS gemeenten uit meest recente spreadsheet
+  const cbsGemeentecodesNewestYear = useMemo(() => {
+    if (!data?.cbs_gemeentecodes || newestYear === null) {
+      return data?.cbs_gemeentecodes ?? [];
+    }
+    return data.cbs_gemeentecodes.filter(
+      (gemeente) => getCodeForYear(gemeente, newestYear!) !== '-'
+    );
+  }, [data, newestYear]);
+
   // Filter CBS gemeentecodes by name and veranderingen type
   const filteredCBSGemeentecodes = useMemo(() => {
     if (!data?.cbs_gemeentecodes) {
@@ -226,69 +248,141 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
     return latestEntry ? latestEntry.cbscode : '-';
   };
 
-  // Find CBS gemeente by name (case-insensitive)
-  const findCBSGemeenteByName = (name: string): CBSGemeentecode | undefined => {
-    if (!data?.cbs_gemeentecodes) return undefined;
-    return data.cbs_gemeentecodes.find(
-      (gemeente) => gemeente.name.toLowerCase() === name.toLowerCase()
+  // Rows voor Veiligstallen-tab: per code, CBS naam, VS naam, naam status
+  // Codes = merge unique van CBS (meest recente jaar) en Veiligstallen
+  // + individuele regels voor VS items zonder code
+  const veiligstallenRows = useMemo(() => {
+    if (!data?.cbs_gemeentecodes || !data?.contacts) return [];
+    const orgContacts = data.contacts.filter(
+      (c) => c.itemtype === 'organizations'
     );
+    const codesFromCBS = new Set<string>();
+    cbsGemeentecodesNewestYear.forEach((g) => {
+      const code = getCurrentCode(g);
+      if (code !== '-') codesFromCBS.add(code.padStart(4, '0'));
+    });
+    const codesFromVS = new Set<string>();
+    data.contacts.forEach((c) => {
+      const code = (c.veiligstallen_gemeentecode || '').padStart(4, '0');
+      if (code && code !== '0000') codesFromVS.add(code);
+    });
+    const allCodes = [...new Set([...codesFromCBS, ...codesFromVS])].sort();
+    const codeRows = allCodes.map((paddedCode) => {
+      const matches = cbsGemeentecodesNewestYear.filter((g) => {
+        const c = getCurrentCode(g);
+        return c !== '-' && c.padStart(4, '0') === paddedCode;
+      });
+      const cbsGemeente =
+        matches.length === 0
+          ? undefined
+          : matches.length === 1
+            ? matches[0]
+            : matches.reduce((a, b) => {
+                const aLast = Math.max(
+                  ...a.history.map((h) => parseInt(h.lastyear))
+                );
+                const bLast = Math.max(
+                  ...b.history.map((h) => parseInt(h.lastyear))
+                );
+                return bLast > aLast ? b : a;
+              });
+      const vsContact =
+        orgContacts.find(
+          (c) =>
+            (c.veiligstallen_gemeentecode || '').padStart(4, '0') === paddedCode
+        ) ??
+        data.contacts.find(
+          (c) =>
+            (c.veiligstallen_gemeentecode || '').padStart(4, '0') === paddedCode
+        );
+      const cbsName = cbsGemeente?.name ?? '---';
+      const vsName = vsContact?.companyname ?? '----';
+      const aantalStallingen = vsContact?.fietsenstallingen_count ?? 0;
+      let status: VeiligstallenStatus;
+      if (!cbsGemeente) {
+        status = 'bestaat_niet_meer';
+      } else if (!vsContact) {
+        status = 'nieuwe_gemeente';
+      } else if (
+        cbsGemeente.name.toLowerCase() !== vsContact.companyname.toLowerCase()
+      ) {
+        status = 'hernoemd';
+      } else {
+        status = 'ok';
+      }
+      return { code: paddedCode, cbsName, vsName, status, aantalStallingen };
+    });
+    const noCodeRows = orgContacts
+      .filter(
+        (c) =>
+          !c.veiligstallen_gemeentecode ||
+          String(c.veiligstallen_gemeentecode).trim() === ''
+      )
+      .map((c) => ({
+        code: '-',
+        cbsName: '---',
+        vsName: c.companyname,
+        status: 'ok' as const,
+        aantalStallingen: c.fietsenstallingen_count,
+      }));
+    return [...codeRows, ...noCodeRows];
+  }, [data, cbsGemeentecodesNewestYear]);
+
+  const escapeCsv = (value: string): string => {
+    const str = String(value ?? '');
+    if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
   };
 
-  // Check if contact name exists in CBS data
-  const checkNaamStatus = (contact: Contact): boolean => {
-    return findCBSGemeenteByName(contact.companyname) !== undefined;
-  };
-
-  // Check if CBS code matches Veiligstallen code
-  const checkCBSCodeStatus = (contact: Contact): boolean | null => {
-    const cbsGemeente = findCBSGemeenteByName(contact.companyname);
-    if (!cbsGemeente) {
-      return null; // No corresponding name in CBS database
+  const handleExportRapport = useCallback(() => {
+    if (!veiligstallenRows.length) return;
+    setIsExportingRapport(true);
+    try {
+      const headers = [
+        'Code',
+        'Status',
+        'Veiligstallen Naam',
+        'CBS Naam',
+        'Aantal stallingen',
+      ];
+      const rows = veiligstallenRows.map((r) =>
+        [
+          escapeCsv(r.code),
+          escapeCsv(r.status),
+          escapeCsv(r.vsName),
+          escapeCsv(r.cbsName),
+          String(r.aantalStallingen),
+        ].join(',')
+      );
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], {
+        type: 'text/csv; charset=utf-8',
+      });
+      const now = new Date();
+      const filename = `cbs-rapport-${now.toISOString().slice(0, 10)}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}.csv`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export mislukt');
+    } finally {
+      setIsExportingRapport(false);
     }
-    const cbsCode = getCurrentCode(cbsGemeente);
-    if (cbsCode === '-') {
-      return false;
-    }
-    // Veiligstallen code is already padded in the backend
-    const veiligstallenCode = contact.veiligstallen_gemeentecode || '';
-    return cbsCode === veiligstallenCode;
-  };
-
-  // Find Veiligstallen contact by gemeentecode
-  const findVeiligstallenByCode = (code: string): Contact | undefined => {
-    if (!data?.contacts || !code || code === '-') {
-      return undefined;
-    }
-    // Pad code to 4 digits for comparison
-    const paddedCode = code.padStart(4, '0');
-    return data.contacts.find(contact => 
-      contact.veiligstallen_gemeentecode === paddedCode
-    );
-  };
-
-  // Find CBS gemeenten that don't exist in Veiligstallen data
-  const cbsNotInVeiligstallen = useMemo(() => {
-    if (!data?.cbs_gemeentecodes || !data?.contacts) {
-      return [];
-    }
-    
-    // Create a set of all Veiligstallen company names (case-insensitive)
-    const veiligstallenNames = new Set(
-      data.contacts.map(contact => contact.companyname.toLowerCase())
-    );
-    
-    // Filter CBS gemeenten that don't have a matching name in Veiligstallen
-    return data.cbs_gemeentecodes.filter(gemeente => 
-      !veiligstallenNames.has(gemeente.name.toLowerCase())
-    );
-  }, [data]);
+  }, [veiligstallenRows]);
 
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-4">CBS Gemeentecodes</h1>
 
       <div className="mb-6">
-        <div className="mb-4">
+        <div className="mb-4 flex gap-2">
           <button
             onClick={handleRapport}
             disabled={isLoading}
@@ -322,6 +416,30 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
               'Refresh'
             )}
           </button>
+          {data && (
+            <button
+              onClick={handleExportRapport}
+              disabled={isLoading || isExportingRapport}
+              className="inline-flex items-center px-4 py-2 border border-amber-500 text-sm font-medium rounded-md shadow-sm text-amber-700 bg-amber-50 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExportingRapport ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-amber-600"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Bezig...
+                </>
+              ) : (
+                'Rapport'
+              )}
+            </button>
+          )}
         </div>
 
         {error && (
@@ -338,16 +456,6 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 <button
-                  onClick={() => setActiveTab('cbs')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'cbs'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  CBS
-                </button>
-                <button
                   onClick={() => setActiveTab('veiligstallen')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'veiligstallen'
@@ -356,6 +464,16 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
                   }`}
                 >
                   Veiligstallen
+                </button>
+                <button
+                  onClick={() => setActiveTab('cbs')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'cbs'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  CBS
                 </button>
               </nav>
             </div>
@@ -425,7 +543,7 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
                       filteredCBSGemeentecodes.map((gemeente, index) => {
                         const currentCode = getCurrentCode(gemeente);
                         return (
-                          <tr key={index} className="hover:bg-gray-50">
+                          <tr key={gemeente.name} className="hover:bg-gray-50">
                             <td className="px-6 py-4 text-sm font-medium text-gray-900 border border-gray-300 break-words">
                               {gemeente.name}
                             </td>
@@ -471,194 +589,140 @@ const DatabaseCBSGemeentecodes: React.FC<DatabaseCBSGemeentecodesProps> = () => 
               <div className="mb-4 flex gap-4 items-center flex-wrap">
                 <input
                   type="text"
-                  placeholder="Filter op naam..."
+                  placeholder="Filter op naam (CBS of Veiligstallen)..."
                   value={veiligstallenNameFilter}
                   onChange={(e) => setVeiligstallenNameFilter(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
-                <select
-                  value={itemTypeFilter}
-                  onChange={(e) => setItemTypeFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                >
-                  <option value="all">ItemType: Alles</option>
-                  <option value="admin">Admin</option>
-                  <option value="dataprovider">Dataprovider</option>
-                  <option value="exploitant">Exploitant</option>
-                  <option value="organizations">Organizations</option>
-                </select>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
                   className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value="all">Status: Alles</option>
-                  <option value="ok">Status: OK</option>
-                  <option value="not ok">Status: Niet OK</option>
+                  <option value="ok">Status: Ok</option>
+                  <option value="not_ok">Status: Not ok</option>
+                  <option value="bestaat_niet_meer">Status: Bestaat niet meer</option>
+                  <option value="hernoemd">Status: Hernoemd</option>
+                  <option value="nieuwe_gemeente">Status: Nieuwe gemeente</option>
                 </select>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alleenMetStallingen}
+                    onChange={(e) => setAlleenMetStallingen(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Alleen met stallingen (&gt;0)
+                  </span>
+                </label>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+              <div className="overflow-x-auto w-fit">
+                <table className="table-auto divide-y divide-gray-200 border border-gray-300">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Naam
+                        Code
+                      </th>
+                      <th
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300 cursor-help"
+                        title="Ok: namen komen overeen of geen code. Bestaat niet meer: niet in CBS. Hernoemd: namen wijken af. Nieuwe gemeente: niet in Veiligstallen."
+                      >
+                        Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Veiligstallen Gemeentecode
+                        Veiligstallen Naam
                       </th>
-                      <th 
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300 cursor-help"
-                        title="Groen vinkje: de naam van de organisatie in Veiligstallen komt voor in de CBS database. Rood kruis: de naam komt niet voor in de CBS database. Koppeling informatie: de naam van de organisatie in Veiligstallen wordt vergeleken met de CBS gemeentenaam (vergelijking is hoofdletterongevoelig)."
-                      >
-                        Naam Status
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300 cursor-help"
-                        title="Groen vinkje: de CBS gemeentecode komt overeen met de Veiligstallen gemeentecode. Rood kruis: de codes komen niet overeen. Streepje: de naam van de organisatie komt niet voor in de CBS database. Koppeling informatie: eerst wordt de CBS gemeente gevonden op basis van de naam van de organisatie in Veiligstallen (hoofdletterongevoelig), daarna wordt de huidige CBS gemeentecode vergeleken met de Veiligstallen gemeentecode (beide opgevuld tot 4 cijfers met voorloopnullen)."
-                      >
-                        CBSCode Status
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                        CBS Naam
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Fietsenstallingen
+                        Aantal stallingen
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {(() => {
-                      // Filter contacts based on name, itemtype and status filters
-                      let filteredContacts = data.contacts.filter((contact) => {
-                        // Name filter
-                        if (veiligstallenNameFilter && !contact.companyname.toLowerCase().includes(veiligstallenNameFilter.toLowerCase())) {
-                          return false;
-                        }
-                        
-                        // ItemType filter
-                        if (itemTypeFilter !== 'all') {
-                          if (contact.itemtype !== itemTypeFilter) {
-                            return false;
-                          }
-                        }
-                        
-                        // Combined status filter (both naam and cbscode must be OK)
-                        if (statusFilter !== 'all') {
-                          const naamStatus = checkNaamStatus(contact);
-                          const cbsCodeStatus = checkCBSCodeStatus(contact);
-                          const bothOk = naamStatus && cbsCodeStatus === true;
-                          
-                          if (statusFilter === 'ok' && !bothOk) {
-                            return false;
-                          }
-                          if (statusFilter === 'not ok' && bothOk) {
-                            return false;
-                          }
-                        }
-                        
-                        return true;
-                      });
-                      
-                      if (filteredContacts.length === 0) {
+                      let filtered = veiligstallenRows;
+                      if (veiligstallenNameFilter) {
+                        const q = veiligstallenNameFilter.toLowerCase();
+                        filtered = filtered.filter(
+                          (r) =>
+                            r.cbsName.toLowerCase().includes(q) ||
+                            r.vsName.toLowerCase().includes(q)
+                        );
+                      }
+                      if (statusFilter !== 'all') {
+                        filtered = filtered.filter((r) =>
+                          statusFilter === 'not_ok'
+                            ? r.status !== 'ok'
+                            : r.status === statusFilter
+                        );
+                      }
+                      if (alleenMetStallingen) {
+                        filtered = filtered.filter(
+                          (r) => r.aantalStallingen > 0
+                        );
+                      }
+                      if (filtered.length === 0) {
                         return (
                           <tr>
                             <td
-                              colSpan={4}
+                              colSpan={5}
                               className="px-6 py-4 text-center text-sm text-gray-500"
                             >
-                              Geen contacten gevonden
+                              Geen rijen gevonden
                             </td>
                           </tr>
                         );
                       }
-                      
-                      return filteredContacts.map((contact, index) => {
-                        const naamStatus = checkNaamStatus(contact);
-                        const cbsCodeStatus = checkCBSCodeStatus(contact);
-                        
-                        return (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300">
-                              {contact.companyname}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-300">
-                              {contact.veiligstallen_gemeentecode || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center border border-gray-300">
-                              {naamStatus ? (
-                                <span className="text-green-600 font-bold">✓</span>
-                              ) : (
-                                <span className="text-red-600 font-bold">✗</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center border border-gray-300">
-                              {cbsCodeStatus === null ? (
-                                <span className="text-gray-400">-</span>
-                              ) : cbsCodeStatus ? (
-                                <span className="text-green-600 font-bold">✓</span>
-                              ) : (
-                                <span className="text-red-600 font-bold">✗</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500 border border-gray-300">
-                              {contact.fietsenstallingen_count}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* CBS Not in Veiligstallen Table */}
-          {data && (
-            <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-4">CBS Gemeenten niet in Veiligstallen</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Naam
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Code
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                        Veiligstallen Naam
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {cbsNotInVeiligstallen.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="px-6 py-4 text-center text-sm text-gray-500"
+                      return filtered.map((row, idx) => (
+                        <tr
+                          key={row.code === '-' ? `no-code-${row.vsName}-${idx}` : row.code}
+                          className="hover:bg-gray-50"
                         >
-                          Geen CBS gemeenten gevonden die niet in Veiligstallen voorkomen
-                        </td>
-                      </tr>
-                    ) : (
-                      cbsNotInVeiligstallen.map((gemeente, index) => {
-                        const currentCode = getCurrentCode(gemeente);
-                        const matchingContact = findVeiligstallenByCode(currentCode);
-                        return (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300">
-                              {gemeente.name}
-                            </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm border border-gray-300 text-right ${currentCode === '-' ? 'bg-gray-100 text-gray-400' : 'text-gray-500'}`}>
-                              {currentCode}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-300">
-                              {matchingContact ? matchingContact.companyname : ''}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300">
+                            {row.code}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center border border-gray-300">
+                            {row.status === 'ok' ? (
+                              <span className="text-green-600 font-medium">Ok</span>
+                            ) : row.status === 'bestaat_niet_meer' ? (
+                              <span
+                                className="text-red-600 font-medium cursor-help"
+                                title="Code komt niet meer voor in CBS (opgeheven)"
+                              >
+                                Bestaat niet meer
+                              </span>
+                            ) : row.status === 'hernoemd' ? (
+                              <span
+                                className="text-amber-600 font-medium cursor-help"
+                                title="CBS naam wijkt af van Veiligstallen naam"
+                              >
+                                Hernoemd
+                              </span>
+                            ) : (
+                              <span
+                                className="text-blue-600 font-medium cursor-help"
+                                title="Gemeente in CBS maar nog niet in Veiligstallen"
+                              >
+                                Nieuwe gemeente
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-300">
+                            {row.vsName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-300">
+                            {row.cbsName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500 border border-gray-300">
+                            {row.aantalStallingen}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>

@@ -100,13 +100,20 @@ export interface ReportParams {
 }
 
 // Use yesterday as the default end date since there's no data for today in the cache
-const DEFAULT_RANGE_END = new Date();
-DEFAULT_RANGE_END.setDate(DEFAULT_RANGE_END.getDate() - 1);
-DEFAULT_RANGE_END.setHours(23, 59, 59, 999);
+function getDefaultRangeEnd(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
 
-const DEFAULT_RANGE_START = new Date(DEFAULT_RANGE_END);
-DEFAULT_RANGE_START.setDate(DEFAULT_RANGE_START.getDate() - 29);
-DEFAULT_RANGE_START.setHours(0, 0, 0, 0);
+function getDefaultRangeStart(): Date {
+  const end = getDefaultRangeEnd();
+  const start = new Date(end);
+  start.setDate(start.getDate() - 29);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
 
 const DEFAULT_SERIES: SeriesLabel[] = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
 
@@ -119,8 +126,8 @@ export const defaultReportState: ReportState = {
   fillups: false,
   grouped: "0",
   bikeparkDataSources: [],
-  customStartDate: DEFAULT_RANGE_START.toISOString(),
-  customEndDate: DEFAULT_RANGE_END.toISOString(),
+  customStartDate: getDefaultRangeStart().toISOString(),
+  customEndDate: getDefaultRangeEnd().toISOString(),
   activePreset: "afgelopen_30_dagen",
   selectedSeries: DEFAULT_SERIES
 }
@@ -1068,7 +1075,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setSelectedSeries={setSelectedSeries}
           />
         }
-        {showBikeparkSelect && reportType === 'bezetting' && // bikeparks.length > 1 &&
+        {showBikeparkSelect && reportType === 'bezetting' &&
           <BikeparkDataSourceSelect
             bikeparks={bikeparks}
             onSelectionChange={setSelectedBikeparkDataSources}

@@ -189,24 +189,24 @@ export default async function handle(
       `;
 
       // Fetch all stats sequentially with progress logging
-      console.log('[Export] Starting stats queries...');
+      // console.log('[Export] Starting stats queries...');
       
-      console.log('[Export] Querying bezettingsdata_day_hour_cache stats...');
-      const startBezettingsdata = Date.now();
+      // console.log('[Export] Querying bezettingsdata_day_hour_cache stats...');
+      // const startBezettingsdata = Date.now();
       const bezettingsdataStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoBezettingsdata_day_hour_cache);
-      console.log(`[Export] Bezettingsdata cache stats completed in ${Date.now() - startBezettingsdata}ms (${bezettingsdataStats.length} records)`);
+      // console.log(`[Export] Bezettingsdata cache stats completed in ${Date.now() - startBezettingsdata}ms (${bezettingsdataStats.length} records)`);
       
-      console.log('[Export] Querying transacties_archief_day_cache stats...');
-      const startTransactiesArchiefCache = Date.now();
+      // console.log('[Export] Querying transacties_archief_day_cache stats...');
+      // const startTransactiesArchiefCache = Date.now();
       const transactiesArchiefCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoTransacties_archief_day_cache);
-      console.log(`[Export] Transacties archief cache stats completed in ${Date.now() - startTransactiesArchiefCache}ms (${transactiesArchiefCacheStats.length} records)`);
+      // console.log(`[Export] Transacties archief cache stats completed in ${Date.now() - startTransactiesArchiefCache}ms (${transactiesArchiefCacheStats.length} records)`);
       
-      console.log('[Export] Querying stallingsduur_cache stats...');
-      const startStallingsduur = Date.now();
+      // console.log('[Export] Querying stallingsduur_cache stats...');
+      // const startStallingsduur = Date.now();
       const stallingsduurCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoStallingsduur_cache);
-      console.log(`[Export] Stallingsduur cache stats completed in ${Date.now() - startStallingsduur}ms (${stallingsduurCacheStats.length} records)`);
+      // console.log(`[Export] Stallingsduur cache stats completed in ${Date.now() - startStallingsduur}ms (${stallingsduurCacheStats.length} records)`);
       
-      console.log('[Export] All stats queries completed');
+      // console.log('[Export] All stats queries completed');
 
       // Create lookup maps by stalling_id
       bezettingsdataMap = new Map<string, StatsRow>();
