@@ -202,6 +202,10 @@ export default async function handle(
           updateData.AlternativeCompanyName = parsed.AlternativeCompanyName ?? undefined;
           updateData.UrlName = parsed.UrlName ?? undefined;
           updateData.ZipID = parsed.ZipID ?? undefined;
+          // Gemeentecode can only be updated by fietsberaad admins
+          if (parsed.Gemeentecode !== undefined) {
+            updateData.Gemeentecode = parsed.Gemeentecode === null ? null : parsed.Gemeentecode;
+          }
         }
 
         // Add Status if it's being updated (archive/unarchive)

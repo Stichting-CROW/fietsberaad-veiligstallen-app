@@ -8,6 +8,7 @@ import { prisma } from "~/server/db";
 type ExportRow = {
   id: string | null;
   data_eigenaar: string | null;
+  data_eigenaar_gemeentecode: number | null;
   titel: string | null;
   stallings_id: string | null;
   soort_stalling: string | null;
@@ -97,6 +98,7 @@ export default async function handle(
       SELECT 
         f.ID as id,
         c.CompanyName as data_eigenaar,
+        c.Gemeentecode as data_eigenaar_gemeentecode,
         c.UrlName as data_eigenaar_urlname,
         f.Title as titel,
         f.StallingsID as stallings_id,
@@ -115,7 +117,7 @@ export default async function handle(
       LEFT JOIN fietsenstalling_sectie fs ON fs.fietsenstallingsId = f.ID
       LEFT JOIN sectie_fietstype sft ON fs.sectieId = sft.sectieID
       WHERE f.Title NOT LIKE '%Systeemstalling%'
-      GROUP BY f.ID, c.CompanyName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
+      GROUP BY f.ID, c.CompanyName, c.Gemeentecode, c.UrlName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
       ORDER BY c.CompanyName ASC, ft.name ASC, f.Title ASC
     `;
 
@@ -187,24 +189,24 @@ export default async function handle(
       `;
 
       // Fetch all stats sequentially with progress logging
-      console.log('[Export] Starting stats queries...');
+      // console.log('[Export] Starting stats queries...');
       
-      console.log('[Export] Querying bezettingsdata_day_hour_cache stats...');
-      const startBezettingsdata = Date.now();
+      // console.log('[Export] Querying bezettingsdata_day_hour_cache stats...');
+      // const startBezettingsdata = Date.now();
       const bezettingsdataStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoBezettingsdata_day_hour_cache);
-      console.log(`[Export] Bezettingsdata cache stats completed in ${Date.now() - startBezettingsdata}ms (${bezettingsdataStats.length} records)`);
+      // console.log(`[Export] Bezettingsdata cache stats completed in ${Date.now() - startBezettingsdata}ms (${bezettingsdataStats.length} records)`);
       
-      console.log('[Export] Querying transacties_archief_day_cache stats...');
-      const startTransactiesArchiefCache = Date.now();
+      // console.log('[Export] Querying transacties_archief_day_cache stats...');
+      // const startTransactiesArchiefCache = Date.now();
       const transactiesArchiefCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoTransacties_archief_day_cache);
-      console.log(`[Export] Transacties archief cache stats completed in ${Date.now() - startTransactiesArchiefCache}ms (${transactiesArchiefCacheStats.length} records)`);
+      // console.log(`[Export] Transacties archief cache stats completed in ${Date.now() - startTransactiesArchiefCache}ms (${transactiesArchiefCacheStats.length} records)`);
       
-      console.log('[Export] Querying stallingsduur_cache stats...');
-      const startStallingsduur = Date.now();
+      // console.log('[Export] Querying stallingsduur_cache stats...');
+      // const startStallingsduur = Date.now();
       const stallingsduurCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoStallingsduur_cache);
-      console.log(`[Export] Stallingsduur cache stats completed in ${Date.now() - startStallingsduur}ms (${stallingsduurCacheStats.length} records)`);
+      // console.log(`[Export] Stallingsduur cache stats completed in ${Date.now() - startStallingsduur}ms (${stallingsduurCacheStats.length} records)`);
       
-      console.log('[Export] All stats queries completed');
+      // console.log('[Export] All stats queries completed');
 
       // Create lookup maps by stalling_id
       bezettingsdataMap = new Map<string, StatsRow>();
@@ -229,6 +231,7 @@ export default async function handle(
     // Header row
     const headers = [
       'Data-eigenaar',
+      'CBS Code Dataeigenaar',
       'Titel',
       'StallingsID',
       'Soort stalling',
@@ -262,8 +265,14 @@ export default async function handle(
     // Data rows
     for (const row of results) {
       const stallingId = row.stallings_id || '';
+      // Format gemeentecode as 4 characters with leading zeros
+      const gemeentecodeFormatted = row.data_eigenaar_gemeentecode 
+        ? String(row.data_eigenaar_gemeentecode).padStart(4, '0')
+        : '';
+      
       const csvRow = [
         escapeCsvField(row.data_eigenaar || ''),           // String - quoted
+        escapeCsvField(gemeentecodeFormatted),              // String - quoted (4 chars with leading zeros)
         escapeCsvField(row.titel || ''),                   // String - quoted
         escapeCsvField(row.stallings_id || ''),            // String - quoted
         escapeCsvField(row.soort_stalling || ''),         // String - quoted

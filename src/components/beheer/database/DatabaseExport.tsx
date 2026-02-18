@@ -39,15 +39,7 @@ const DatabaseExport: React.FC<DatabaseExportProps> = () => {
     }
   };
 
-  let statisticsLabel;
-  switch(selectedTable) {
-    case 'fietsenstallingen':
-      statisticsLabel = 'Met aantallen transacties';
-      break;
-    default:
-      statisticsLabel = 'Uitgebreid';
-      break;
-  }
+  const statisticsLabel = 'Met aantallen transacties';
 
   return (
     <div className="p-6">

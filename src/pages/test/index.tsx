@@ -108,6 +108,16 @@ const TestIndexPage: React.FC = () => {
             </Button>
           )}
           
+          <Button
+            onClick={() => handleNavigate('/beheer/databasecbsgemeentecodes/0')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            CBS Gemeentecodes
+          </Button>
+          
         </div>
       </div>
     </div>
