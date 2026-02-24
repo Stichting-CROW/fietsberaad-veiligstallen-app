@@ -4,6 +4,8 @@ Analyse van de ColdFusion-broncode: welke API-methodes schrijven data naar de ta
 
 **Let op:** SOAP / CFC remote (v3-webservice) wordt niet meer gebruikt. Alleen de REST API is nog in gebruik voor externe aanroepen.
 
+**Related:** [SERVICES_FMS.md](SERVICES_FMS.md) – method details; [API_PORTING_PLAN.md](API_PORTING_PLAN.md) – porting plan; Cursor plan "FMS API Next.js Migration" – Next.js port met duplicate `new_*` tabellen.
+
 ---
 
 ## Samenvatting

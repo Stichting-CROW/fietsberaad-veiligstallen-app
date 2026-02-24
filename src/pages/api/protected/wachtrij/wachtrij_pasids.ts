@@ -31,11 +31,17 @@ export default async function handler(
     if (req.method === "GET") {
       // Parse query parameters
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      const pageSize = parseInt(req.query.pageSize as string) || 25;
+      const sortBy = (req.query.sortBy as string) || 'DateCreated';
+      const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
 
       // Validate pageSize
-      const validPageSizes = [20, 50, 100, 200, 500];
-      const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 20;
+      const validPageSizes = [25, 100, 1000, 10000];
+      const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 25;
+
+      // Whitelist sortable columns
+      const sortableColumns = ['ID', 'bikeparkID', 'passID', 'barcode', 'RFID', 'transactionDate', 'processed', 'DateCreated'] as const;
+      const orderByField = sortableColumns.includes(sortBy as typeof sortableColumns[number]) ? sortBy : 'DateCreated';
 
       // Perform count and page fetch in parallel (summary removed)
       const [total, records] = await Promise.all([
@@ -53,7 +59,7 @@ export default async function handler(
             error: true,
             DateCreated: true
           },
-          orderBy: { DateCreated: 'desc' },
+          orderBy: { [orderByField]: sortOrder },
           skip: (page - 1) * finalPageSize,
           take: finalPageSize
         })

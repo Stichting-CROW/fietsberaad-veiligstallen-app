@@ -87,6 +87,16 @@ const TestIndexPage: React.FC = () => {
           </Button>
           
           <Button
+            onClick={() => handleNavigate('/test/wachtrij')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Wachtrij
+          </Button>
+          
+          <Button
             onClick={() => window.open('/test/helpdesk', '_blank')}
             className="py-6 px-8 text-center w-full"
             style={{
