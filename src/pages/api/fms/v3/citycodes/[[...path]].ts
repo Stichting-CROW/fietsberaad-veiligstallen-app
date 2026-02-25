@@ -36,7 +36,7 @@ export default async function handle(
 
     if (subPath === "locations") {
       if (!locationid) {
-        const locations = await v3Service.getLocations(citycode);
+        const locations = await v3Service.getLocations(citycode, options);
         res.status(200).json(locations);
         return;
       }
@@ -72,7 +72,9 @@ export default async function handle(
         res.status(404).json({ message: "Location not found" });
         return;
       }
-      res.status(200).json(location);
+      // locations/{locationid} uses old API format: biketypes at top level (not sections)
+      const locationDetail = v3Service.toLocationDetailFormat(location);
+      res.status(200).json(locationDetail);
       return;
     }
 

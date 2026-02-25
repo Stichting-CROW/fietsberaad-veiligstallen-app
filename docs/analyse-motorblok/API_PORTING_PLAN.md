@@ -61,7 +61,7 @@ The Next.js app lives in [fietsberaad-veiligstallen-app/](../) with Prisma, Next
 flowchart TB
     subgraph Client [Client]
         SwaggerUI[Swagger UI /api/docs]
-        ComparePage[GET Compare Page /test/fms-api-compare]
+        ComparePage[FMS API vergelijking page]
         TestGemeente[Test Gemeente Create/Delete]
     end
 
@@ -71,9 +71,12 @@ flowchart TB
     end
 
     subgraph DB [Database]
-        Wachtrij[(wachtrij_*)]
+        Wachtrij[("wachtrij_*")]
         Trigger[AFTER INSERT Trigger]
-        NewWachtrij[(new_wachtrij_*)]
+        NewWachtrij[("new_wachtrij_*")]
+    end 
+
+    subgraph DB2 [Database]
         Transacties[(transacties)]
         Accounts[(accounts)]
         NewTransacties[(new_transacties)]
@@ -249,6 +252,10 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 | Sync sector | PUT | `/api/fms/v2/syncSector/{bikeparkID}/{sectionID}` | wachtrij_sync |
 
 **Read-only:** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes.
+
+### 4.3 V3 Endpoints
+
+V3 REST hierarchy: citycodes, citycodes/{citycode}, citycodes/{citycode}/locations, citycodes/{citycode}/locations/{locationid}, sections, section/{id}, places, subscriptiontypes.
 
 ### 4.4 V3 Response Structure (ColdFusion Compatibility)
 
@@ -441,3 +448,4 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 - **Logging:** Create `webservice_log` table with the same suffix (e.g. `new_webservice_log` when suffix is `_new`). Log FMS API calls there.
 - **Phased implementation:** Reuse code between V2 and V3 as much as possible. SOAP implementation is **not** ported.
 - **ColdFusion REST API** remains the behavioural reference.
+

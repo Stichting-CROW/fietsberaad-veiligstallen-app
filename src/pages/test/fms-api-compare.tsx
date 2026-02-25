@@ -441,7 +441,7 @@ const FmsApiComparePage: React.FC = () => {
     const newData = results?.new ?? "(no data)";
 
     const instruction = [
-      "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API. When differences exist, first check if the correct old and new API URLs/stubs are created (e.g. wrong URL routing can cause the old API to return wrong data like citycodes instead of a section). When there is a structure mismatch between the old and new API data, look in swagger description in the old documentation to resolve. Work breadth first: ie fix the first encountered mismatch, then retry etc. instead of interpreting the full object (may be very large).",
+      "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API. When differences exist, first check if the correct old and new API URLs/stubs are created (e.g. wrong URL routing can cause the old API to return wrong data like citycodes instead of a section). When there is a structure mismatch between the old and new API data, look in swagger description in the old documentation to resolve. Start by comparing the keys in the outermost object. Keys must match and be in the same order. For single value keys, values must be the same. For keys that have object values, take a recursive approach: compare the keys and values in the child object etc. For lists, look at each object in the list in the same way.",
       "",
       `Endpoint: ${endpoint.label}`,
       Object.keys(parameters).length > 0 ? `Parameters: ${JSON.stringify(parameters)}` : null,

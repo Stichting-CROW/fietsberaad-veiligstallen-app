@@ -217,7 +217,10 @@ async function getLocationsFull(
       },
       StallingsID: { not: null },
       Status: "1",
+      Title: { not: "Systeemstalling" },
     },
+    /* Council.cfc bikeparks: where="Title != 'Systeemstalling'" orderby="title asc" */
+    orderBy: { Title: "asc" },
     select: {
       StallingsID: true,
       Title: true,
@@ -354,43 +357,66 @@ function buildColdFusionLocation(
       capacity: totalCapacity,
     }),
     ...(exploitantcontact && { exploitantcontact }),
-    ...(sections.length > 0 && { sections: sections.map(toSectionForLocation) }),
-    ...(cityName && { city: cityName }),
+    ...(sections.length > 0 && { sections }),
+    ...((cityName ?? row.Plaats) && { city: cityName ?? row.Plaats ?? undefined }),
     ...(row.Location && { address: row.Location }),
   };
-  if (sections.length === 1 && sections[0]?.biketypes) {
-    loc.biketypes = sections[0].biketypes;
-  }
   return toColdFusionLocationOrder(loc);
 }
 
-/** Sections inside a location: old API only has sectionid and name (biketypes are at location level). */
-function toSectionForLocation(s: ColdFusionSection): { sectionid: string; name?: string } {
+/** Old API format for locations/{locationid} single-section: section data only, not full location. */
+export type LocationDetailSingleSection = {
+  sectionid: string;
+  name?: string;
+  biketypes: NonNullable<ColdFusionSection["biketypes"]>;
+};
+
+/** Converts location to old API format for single-location endpoint.
+ * - Single section: returns { sectionid, name, biketypes } only (not full location object).
+ * - Multi-section: returns full location with sections array (each section: sectionid, name only; no biketypes in sections).
+ */
+export function toLocationDetailFormat(loc: ColdFusionLocation): LocationDetailSingleSection | ColdFusionLocation {
+  const sections = loc.sections ?? [];
+
+  if (sections.length === 1) {
+    const section = sections[0]!;
+    return {
+      sectionid: section.sectionid,
+      name: section.name,
+      biketypes: section.biketypes ?? [],
+    };
+  }
+
+  if (sections.length > 1) {
+    const sectionsStripped = sections.map((s) => ({ sectionid: s.sectionid, name: s.name }));
+    return toColdFusionLocationOrder({ ...loc, sections: sectionsStripped });
+  }
+
   return {
-    sectionid: (s as { sectionid?: string }).sectionid ?? "",
-    name: (s as { name?: string }).name,
+    sectionid: loc.locationid,
+    name: loc.name,
+    biketypes: [],
   };
 }
 
-/** Old API order: biketypes first (when single section), then address, capacity, city, exploitantcontact, free, lat, locationid, locationtype, long, name, occupied, occupationsource, openinghours, sections, station */
+/** Key order for each location in citycodes/{citycode}/locations array. Matches old API observed order. */
 function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation {
   const order = [
-    "biketypes",
-    "address",
-    "capacity",
-    "city",
+    "occupied",
     "exploitantcontact",
-    "free",
-    "lat",
-    "locationid",
     "locationtype",
     "long",
-    "name",
-    "occupied",
-    "occupationsource",
-    "openinghours",
     "sections",
     "station",
+    "occupationsource",
+    "lat",
+    "name",
+    "free",
+    "city",
+    "capacity",
+    "address",
+    "locationid",
+    "openinghours",
   ];
   const out: Record<string, unknown> = {};
   for (const k of order) {
@@ -407,8 +433,11 @@ function parseCoordinaten(s: string | null): [string | undefined, string | undef
   return [undefined, undefined];
 }
 
-export async function getLocations(citycode: string): Promise<ColdFusionLocation[]> {
-  return getLocationsFull(citycode);
+export async function getLocations(
+  citycode: string,
+  options: { depth?: number; fields?: string } = {}
+): Promise<ColdFusionLocation[]> {
+  return getLocationsFull(citycode, options);
 }
 
 export async function getLocation(
@@ -470,11 +499,6 @@ export async function getLocation(
   });
   if (!stalling?.StallingsID) return null;
   const sections = await getSections(citycode, locationid, depth);
-  /* Old API: single-section location returns section structure (sectionid, name, biketypes) at root, not full location. */
-  if (sections.length === 1 && sections[0]?.biketypes) {
-    const s = sections[0];
-    return { sectionid: s.sectionid ?? "", name: s.name, biketypes: s.biketypes } as unknown as ColdFusionLocation;
-  }
   return buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
@@ -615,9 +639,9 @@ export async function getSection(
   return toSectionOrder(data) as SectionSummary;
 }
 
-/** Key order to match ColdFusion getSection insertion order: maxsubscriptions, sectionid, name, biketypes, places, rates. */
+/** Key order for sections inside location. Matches old API: biketypes, sectionid, name, then optional maxsubscriptions, places, rates. */
 function toSectionOrder(obj: Record<string, unknown>): Record<string, unknown> {
-  const order = ["maxsubscriptions", "sectionid", "name", "biketypes", "places", "rates"];
+  const order = ["biketypes", "sectionid", "name", "maxsubscriptions", "places", "rates"];
   const out: Record<string, unknown> = {};
   for (const k of order) {
     if (k in obj && obj[k] !== undefined) out[k] = obj[k];
