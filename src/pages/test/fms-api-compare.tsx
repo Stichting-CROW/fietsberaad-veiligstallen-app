@@ -2,8 +2,30 @@ import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
+import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+
+/** Returns { oldOnly, newOnly } with only differing paths. Uses deep-object-diff: diff(a,b) = values from b that differ from a. */
+function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOnly: string } | null {
+  try {
+    const oldObj = JSON.parse(oldJson) as object;
+    const newObj = JSON.parse(newJson) as object;
+    const newDiff = diff(oldObj, newObj);
+    const oldDiff = diff(newObj, oldObj);
+    const newKeys = Object.keys(newDiff);
+    const oldKeys = Object.keys(oldDiff);
+    if (newKeys.length === 0 && oldKeys.length === 0) {
+      return { oldOnly: "{}", newOnly: "{}" };
+    }
+    return {
+      oldOnly: JSON.stringify(oldDiff, null, 2),
+      newOnly: JSON.stringify(newDiff, null, 2),
+    };
+  } catch {
+    return null;
+  }
+}
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // Endpoints aligned with ColdFusion REST (remote/REST/FMSService.cfc) and V3 (fms_service.cfc).
@@ -269,6 +291,7 @@ const FmsApiComparePage: React.FC = () => {
   const [rowResults, setRowResults] = useState<Record<string, { old: string; new: string }>>({});
   const [rowExpanded, setRowExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
 
   const hasAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
@@ -439,6 +462,16 @@ const FmsApiComparePage: React.FC = () => {
 
     const oldData = results?.old ?? "(no data)";
     const newData = results?.new ?? "(no data)";
+    const diffRecords = status === "diff" && results ? getDiffOnly(results.old, results.new) : null;
+
+    const diffExplanation = [
+      "",
+      "--- Diff (deep-object-diff) ---",
+      "We supply a diff based on the deep-object-diff tool. The diff isolates only the differing paths:",
+      "- oldOnly: keys/values present in the OLD API result that differ from or are missing in the NEW API result",
+      "- newOnly: keys/values present in the NEW API result that differ from or are missing in the OLD API result",
+      "Nested objects show only the leaf paths that differ. Empty {} means no differences for that side.",
+    ].join("\n");
 
     const instruction = [
       "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API. When differences exist, first check if the correct old and new API URLs/stubs are created (e.g. wrong URL routing can cause the old API to return wrong data like citycodes instead of a section). When there is a structure mismatch between the old and new API data, look in swagger description in the old documentation to resolve. Start by comparing the keys in the outermost object. Keys must match and be in the same order. For single value keys, values must be the same. For keys that have object values, take a recursive approach: compare the keys and values in the child object etc. For lists, look at each object in the list in the same way.",
@@ -452,8 +485,20 @@ const FmsApiComparePage: React.FC = () => {
       "",
       "New API result:",
       truncate(newData),
+      diffRecords && (diffRecords.oldOnly !== "{}" || diffRecords.newOnly !== "{}")
+        ? [
+            diffExplanation,
+            "",
+            "Diff (oldOnly - values in old that differ from new):",
+            truncate(diffRecords.oldOnly),
+            "",
+            "Diff (newOnly - values in new that differ from old):",
+            truncate(diffRecords.newOnly),
+          ]
+        : null,
     ]
-      .filter((line): line is string => line != null)
+      .filter((line): line is string | string[] => line != null)
+      .flat()
       .join("\n");
 
     void navigator.clipboard.writeText(instruction);
@@ -635,13 +680,24 @@ const FmsApiComparePage: React.FC = () => {
           )}
         </div>
 
-        <button
-          onClick={handleCompareAll}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? "Vergelijken..." : "Vergelijk alle"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleCompareAll}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Vergelijken..." : "Vergelijk alle"}
+          </button>
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={showOnlyDifferences}
+              onChange={(e) => setShowOnlyDifferences(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Alleen verschillen tonen
+          </label>
+        </div>
       </div>
 
       <div className="w-full min-w-0 border rounded overflow-x-auto">
@@ -659,7 +715,7 @@ const FmsApiComparePage: React.FC = () => {
                 const status = rowStatus[e.id] ?? "pending";
                 const results = rowResults[e.id];
                 const hasParams = e.params.length > 0;
-                const expanded = rowExpanded[e.id] ?? status !== "identical";
+                const expanded = rowExpanded[e.id] ?? (status === "identical" || status === "diff" || status === "error");
                 const hasResults = !!results || (status === "error" && rowError[e.id]);
                 const bg =
                   status === "identical"
@@ -727,20 +783,40 @@ const FmsApiComparePage: React.FC = () => {
                           {expanded && (
                             <div className="mt-2">
                               {results ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-[400px]">
-                                  <div>
-                                    <div className="text-xs font-medium text-gray-500 mb-1">Oude API</div>
-                                    <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                      {results.old}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <div className="text-xs font-medium text-gray-500 mb-1">Nieuwe API</div>
-                                    <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                      {results.new}
-                                    </pre>
-                                  </div>
-                                </div>
+                                (() => {
+                                  const display =
+                                    showOnlyDifferences && status === "diff"
+                                      ? getDiffOnly(results.old, results.new)
+                                      : null;
+                                  const oldDisplay = display?.oldOnly ?? results.old;
+                                  const newDisplay = display?.newOnly ?? results.new;
+                                  return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-[400px]">
+                                      <div>
+                                        <div className="text-xs font-medium text-gray-500 mb-1">
+                                          Oude API
+                                          {display && (
+                                            <span className="ml-1 text-amber-600">(alleen verschillen)</span>
+                                          )}
+                                        </div>
+                                        <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
+                                          {oldDisplay}
+                                        </pre>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-medium text-gray-500 mb-1">
+                                          Nieuwe API
+                                          {display && (
+                                            <span className="ml-1 text-amber-600">(alleen verschillen)</span>
+                                          )}
+                                        </div>
+                                        <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
+                                          {newDisplay}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <span className="text-red-700 text-xs">{rowError[e.id]}</span>
                               )}

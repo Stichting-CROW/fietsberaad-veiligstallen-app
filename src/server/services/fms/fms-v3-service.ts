@@ -41,6 +41,10 @@ export type ColdFusionLocation = {
   station?: boolean;
   city?: string;
   address?: string;
+  /** Only when non-empty (BaseRestService setIfExists). */
+  postalcode?: string;
+  costsdescription?: string;
+  description?: string;
 };
 
 export type LocationSummary = {
@@ -230,7 +234,10 @@ async function getLocationsFull(
       IsStationsstalling: true,
       BronBezettingsdata: true,
       Location: true,
+      Postcode: true,
       Plaats: true,
+      Description: true,
+      OmschrijvingTarieven: true,
       Url: true,
       BeheerderContact: true,
       Open_zo: true,
@@ -287,7 +294,10 @@ type LocationRow = {
   IsStationsstalling: boolean | null;
   BronBezettingsdata: string | null;
   Location?: string | null;
+  Postcode?: string | null;
   Plaats?: string | null;
+  Description?: string | null;
+  OmschrijvingTarieven?: string | null;
   Url?: string | null;
   BeheerderContact?: string | null;
   Open_zo?: Date | null;
@@ -306,6 +316,11 @@ type LocationRow = {
   Dicht_za?: Date | null;
   fietsenstalling_secties: SectionForOccupied[];
 };
+
+/** BaseRestService setIfExists: only add field when value has Len > 0. */
+function setIfExistsValue(v: string | null | undefined): v is string {
+  return v != null && typeof v === "string" && v.length > 0;
+}
 
 /** ColdFusion-compatible: capacity from secties_fietstype.Capaciteit; occupied from locker statuses (fietskluizen) or Bezetting; bulkreservations subtracted from capacity. */
 async function computeOccupiedCapacityFree(
@@ -403,10 +418,18 @@ async function computeOccupiedCapacityFree(
     totalOccupied += sectionOccupied;
   }
 
-  const free = Math.max(0, totalCapacityRaw - totalOccupied);
+  const capacity =
+    totalCapacityNetto > 0 ? totalCapacityNetto : (totalCapacityRaw || row.Capacity) ?? 0;
+  // ColdFusion getFreePlaces = getCapacity() - getOccupiedPlaces(). Bikepark.getCapacity() returns
+  // variables.capacity (fietsenstallingen.Capacity) when set and numeric, else calculateCapacity().
+  const capacityForFree =
+    row.Capacity != null && typeof row.Capacity === "number" && !Number.isNaN(row.Capacity)
+      ? row.Capacity
+      : totalCapacityRaw;
+  const free = Math.max(0, capacityForFree - totalOccupied);
   return {
     occupied: totalOccupied,
-    capacity: totalCapacityNetto > 0 ? totalCapacityNetto : (totalCapacityRaw || row.Capacity) ?? 0,
+    capacity,
     free,
   };
 }
@@ -420,7 +443,6 @@ function buildColdFusionLocation(
   const { occupied: totalOccupied, capacity: totalCapacity, free } = ocf;
 
   const [lat, long] = parseCoordinaten(row.Coordinaten);
-  const longFormatted = long ? (long.startsWith(" ") ? long : ` ${long}`) : undefined;
 
   const openinghours = buildOpeningHours({
     Open_zo: row.Open_zo,
@@ -453,7 +475,7 @@ function buildColdFusionLocation(
     openinghours,
     station: row.IsStationsstalling ?? false,
     ...(lat && { lat }),
-    ...(longFormatted && { long: longFormatted }),
+    ...(long && { long }),
     ...(totalCapacity > 0 && {
       occupied: totalOccupied,
       free,
@@ -463,6 +485,9 @@ function buildColdFusionLocation(
     ...(sections.length > 0 && { sections }),
     ...((cityName ?? row.Plaats) && { city: cityName ?? row.Plaats ?? undefined }),
     ...(row.Location && { address: row.Location }),
+    ...(setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
+    ...(setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
+    ...(setIfExistsValue(row.Description) && { description: row.Description! }),
   };
   return toColdFusionLocationOrder(loc);
 }
@@ -518,6 +543,9 @@ function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation 
     "city",
     "capacity",
     "address",
+    "postalcode",
+    "costsdescription",
+    "description",
     "locationid",
     "openinghours",
   ];
@@ -529,10 +557,19 @@ function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation 
   return out as ColdFusionLocation;
 }
 
+/**
+ * Parse Coordinaten to [lat, long] matching ColdFusion ListFirst/ListLast semantics.
+ * BaseRestService.cfc: lat = ListFirst(getCoordinates()), long = ListLast(getCoordinates()).
+ * ColdFusion uses comma as delimiter and does NOT trim, so "51.469650, 5.473466" yields
+ * lat="51.469650", long=" 5.473466" (leading space preserved).
+ */
 function parseCoordinaten(s: string | null): [string | undefined, string | undefined] {
   if (!s || typeof s !== "string") return [undefined, undefined];
-  const parts = s.split(/[,\s]+/).filter(Boolean);
-  if (parts.length >= 2) return [parts[0]!, parts[1]!];
+  const parts = s.split(",");
+  const lat = parts[0];
+  const long = parts[parts.length - 1];
+  if (lat !== undefined && long !== undefined && lat !== "" && long !== "")
+    return [lat, long];
   return [undefined, undefined];
 }
 
@@ -570,7 +607,10 @@ export async function getLocation(
       IsStationsstalling: true,
       BronBezettingsdata: true,
       Location: true,
+      Postcode: true,
       Plaats: true,
+      Description: true,
+      OmschrijvingTarieven: true,
       Url: true,
       BeheerderContact: true,
       Open_zo: true,

@@ -18,6 +18,7 @@ Comparison of how `occupied`, `free`, and `capacity` are calculated for V3 locat
 
 ### Free
 - **Bikepark.getFreePlaces()**: `getCapacity() - getOccupiedPlaces()`, clamped to ≥ 0
+- **Bikepark.getCapacity()** (used for free): Returns `variables.capacity` (fietsenstallingen.Capacity) when set and numeric, else `calculateCapacity()` (sum of secties_fietstype)
 
 ### Sections
 - **getBikeparkSections()**: One-to-many relation, **no `where` clause** – includes all sections (no isactief filter in ORM)

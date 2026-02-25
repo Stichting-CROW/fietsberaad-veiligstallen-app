@@ -53,6 +53,7 @@
     "apexcharts": "^4.0.0",
     "babel-plugin-superjson-next": "^0.4.5",
     "bcryptjs": "^2.4.3",
+    "deep-object-diff": "^1.1.9",
     "formidable": "^3.5.1",
     "keen-slider": "^6.8.5",
     "lexical": "^0.31.0",
