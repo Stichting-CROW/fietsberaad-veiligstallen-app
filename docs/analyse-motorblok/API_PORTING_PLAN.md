@@ -451,3 +451,24 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 - **Phased implementation:** Reuse code between V2 and V3 as much as possible. SOAP implementation is **not** ported.
 - **ColdFusion REST API** remains the behavioural reference.
 
+---
+
+## 13. V3 Citycodes Caching
+
+**Endpoint:** `GET /v3/citycodes/{citycode}` (single city with locations)
+
+**Implementation:** `src/server/services/fms/fms-v3-service.ts`
+
+In-memory cache for `getCity(citycode)` to improve response time (ColdFusion achieves ~1s; Next.js uncached can take 30+ seconds due to multiple DB round trips).
+
+| Setting | Value | Behaviour |
+|---------|-------|-----------|
+| `CACHE_CITYCODES_DURATION_MINUTES` | `0` in development | No caching; every request hits the database. Use for dev/testing. |
+| `CACHE_CITYCODES_DURATION_MINUTES` | `30` in production | Cache TTL 30 minutes (matches ColdFusion getCities). Subsequent requests within TTL return from memory. |
+
+**Logic:** `process.env.NODE_ENV === "development" ? 0 : 30`
+
+**Cache key:** `citycode` + `depth` (query param)
+
+**ColdFusion reference:** `fms_service.cfc` caches `getCities` (all citycodes) for 30 minutes in `application.citycodes`. The single-city endpoint `getCity` is **not** cached in ColdFusion.
+
