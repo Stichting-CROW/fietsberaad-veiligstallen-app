@@ -232,6 +232,7 @@ async function getLocationsFull(
       Location: true,
       Plaats: true,
       Url: true,
+      BeheerderContact: true,
       Open_zo: true,
       Dicht_zo: true,
       Open_ma: true,
@@ -246,9 +247,6 @@ async function getLocationsFull(
       Dicht_vr: true,
       Open_za: true,
       Dicht_za: true,
-      contacts_fietsenstallingen_ExploitantIDTocontacts: {
-        select: { URL: true },
-      },
       fietsenstalling_secties: {
         where: { isactief: true },
         select: { Bezetting: true, capaciteit: true },
@@ -278,6 +276,7 @@ type LocationRow = {
   Location?: string | null;
   Plaats?: string | null;
   Url?: string | null;
+  BeheerderContact?: string | null;
   Open_zo?: Date | null;
   Dicht_zo?: Date | null;
   Open_ma?: Date | null;
@@ -292,7 +291,6 @@ type LocationRow = {
   Dicht_vr?: Date | null;
   Open_za?: Date | null;
   Dicht_za?: Date | null;
-  contacts_fietsenstallingen_ExploitantIDTocontacts?: { URL: string | null } | null;
   fietsenstalling_secties:
     | { Bezetting: number; capaciteit: number | null }[]
     | {
@@ -339,8 +337,11 @@ function buildColdFusionLocation(
     Dicht_za: row.Dicht_za,
   });
 
-  const exploitantcontact =
-    row.contacts_fietsenstallingen_ExploitantIDTocontacts?.URL ?? row.Url ?? undefined;
+  // exploitantcontact: uses BeheerderContact for ColdFusion compatibility (BaseRestService.cfc
+  // bikepark.getManagerContact() → BeheerderContact). NOTE: The Contact beheerder form on
+  // fietsenstalling bewerken | algemeen basis uses different logic (HelpdeskHandmatigIngesteld,
+  // exploitant Helpdesk, site Helpdesk). This API field should be updated in the future to match.
+  const exploitantcontact = row.BeheerderContact ?? undefined;
 
   const loc: ColdFusionLocation = {
     locationid: row.StallingsID!,
@@ -469,6 +470,7 @@ export async function getLocation(
       Location: true,
       Plaats: true,
       Url: true,
+      BeheerderContact: true,
       Open_zo: true,
       Dicht_zo: true,
       Open_ma: true,
@@ -483,9 +485,6 @@ export async function getLocation(
       Dicht_vr: true,
       Open_za: true,
       Dicht_za: true,
-      contacts_fietsenstallingen_ExploitantIDTocontacts: {
-        select: { URL: true },
-      },
       fietsenstalling_secties: {
         where: { isactief: true },
         select: {

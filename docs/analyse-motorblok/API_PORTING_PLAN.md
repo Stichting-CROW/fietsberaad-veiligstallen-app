@@ -406,6 +406,7 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 8. ~~V3 open data endpoints~~ ✅ (locations, sections, places, subscriptiontypes)
 9. Testing
 10. API migration guide
+11. **TODO:** Update V3 `exploitantcontact` to match Contact beheerder form logic (HelpdeskHandmatigIngesteld, exploitant Helpdesk, site Helpdesk). Currently uses BeheerderContact only for ColdFusion compatibility.
 
 ---
 
