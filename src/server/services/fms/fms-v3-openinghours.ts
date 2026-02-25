@@ -1,9 +1,11 @@
 /**
  * Build opening hours in ColdFusion V3 API format.
+ * Mirrors BaseRestService.cfc openingstijden logic exactly.
  * Day: 0=Sunday, 1=Monday, ..., 6=Saturday.
  * Time: "HHmm" (e.g. "0800", "1830").
  */
 
+// ColdFusion days order: ["su","mo","tu","we","th","fr","sa"]
 type DayKey = "zo" | "ma" | "di" | "wo" | "do" | "vr" | "za";
 const DAY_ORDER: DayKey[] = ["zo", "ma", "di", "wo", "do", "vr", "za"];
 const DAY_TO_NUMBER: Record<DayKey, number> = {
@@ -23,14 +25,29 @@ function toHhmm(d: Date | null): string {
   return `${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}`;
 }
 
-function isMidnight(d: Date | null): boolean {
-  if (!d) return true;
-  return d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+// ColdFusion isOpenAllDay: open 00:00 and close 23:59
+function isOpenAllDay(openTime: Date | null | undefined, closeTime: Date | null | undefined): boolean {
+  if (openTime == null || closeTime == null) return false;
+  const oh = openTime.getUTCHours();
+  const om = openTime.getUTCMinutes();
+  const ch = closeTime.getUTCHours();
+  const cm = closeTime.getUTCMinutes();
+  return oh === 0 && om === 0 && ch === 23 && cm === 59;
 }
 
-function is2359(d: Date | null): boolean {
-  if (!d) return false;
-  return d.getUTCHours() === 23 && d.getUTCMinutes() === 59;
+// ColdFusion isClosedAllDay: open 00:00 and close 00:00
+function isClosedAllDay(openTime: Date | null | undefined, closeTime: Date | null | undefined): boolean {
+  if (openTime == null || closeTime == null) return false;
+  const oh = openTime.getUTCHours();
+  const om = openTime.getUTCMinutes();
+  const ch = closeTime.getUTCHours();
+  const cm = closeTime.getUTCMinutes();
+  return oh === 0 && om === 0 && ch === 0 && cm === 0;
+}
+
+// ColdFusion isOpeningUnknown: no open and no close
+function isOpeningUnknown(openTime: Date | null | undefined, closeTime: Date | null | undefined): boolean {
+  return openTime == null && closeTime == null;
 }
 
 export type OpeningHoursInput = {
@@ -50,82 +67,135 @@ export type OpeningHoursInput = {
   Dicht_za?: Date | null;
 };
 
+export type OpeningHoursResult = {
+  opennow: boolean;
+  periods: Array<
+    | { day: number; open: string }
+    | { open: { day: number; time: string } }
+    | { close: { day: number; time: string } }
+    | { open: { day: number; time: string }; close: { day: number; time: string } }
+  >;
+};
+
+/**
+ * Build opening hours matching ColdFusion BaseRestService.cfc exactly.
+ * - isNonStopOpen (type fietskluizen or all days 00:00-23:59): periods = [{ day: 0, open: "0000" }]
+ * - Otherwise: iterate days su->sa, merge consecutive open-all-day, add open/close per ColdFusion logic.
+ */
 export function buildOpeningHours(
   input: OpeningHoursInput,
-  now: Date = new Date()
-): { opennow: boolean; periods: Array<Record<string, unknown>> } {
-  const periods: Array<Record<string, unknown>> = [];
-  let allOpen24h = true;
-  let hasAnyHours = false;
+  options?: { locationType?: string | null; now?: Date }
+): OpeningHoursResult {
+  const now = options?.now ?? new Date();
+  const locationType = options?.locationType;
+
+  // ColdFusion isNonStopOpen: type fietskluizen => always 24/7
+  if (locationType === "fietskluizen") {
+    return {
+      opennow: true,
+      periods: [{ day: 0, open: "0000" }],
+    };
+  }
+
+  const periods: OpeningHoursResult["periods"] = [];
+  let isopen = false;
+  let currentPeriod: { open?: { day: number; time: string }; close?: { day: number; time: string } } = {};
 
   for (const day of DAY_ORDER) {
     const openKey = `Open_${day}` as keyof OpeningHoursInput;
     const dichtKey = `Dicht_${day}` as keyof OpeningHoursInput;
     const openTime = input[openKey] as Date | null | undefined;
     const closeTime = input[dichtKey] as Date | null | undefined;
+    const dayNum = DAY_TO_NUMBER[day];
 
-    if (openTime == null && closeTime == null) continue;
-    hasAnyHours = true;
+    // ColdFusion: only process when StructKeyExists(openingByDay, "open") and StructKeyExists(openingByDay, "close")
+    if (isOpeningUnknown(openTime, closeTime)) continue;
 
     const openHhmm = toHhmm(openTime ?? null);
     const closeHhmm = toHhmm(closeTime ?? null);
-    const dayNum = DAY_TO_NUMBER[day];
 
-    const isOpenAllDay =
-      isMidnight(openTime ?? null) &&
-      (is2359(closeTime ?? null) || isMidnight(closeTime ?? null));
-    const isClosed = isMidnight(openTime ?? null) && isMidnight(closeTime ?? null);
-
-    if (!isOpenAllDay && !isClosed) {
-      allOpen24h = false;
-    }
-
-    if (isOpenAllDay) {
-      if (periods.length === 0 || (periods[periods.length - 1] as { close?: unknown }).close) {
-        periods.push({ open: { day: dayNum, time: "0000" } });
+    if (isOpenAllDay(openTime, closeTime)) {
+      // ColdFusion: if Not isopen, add { open: { day, time } }, set isopen=true
+      if (!isopen) {
+        periods.push({ open: { day: dayNum, time: openHhmm } });
+        isopen = true;
       }
-    } else if (isClosed) {
-      if (periods.length > 0 && !(periods[periods.length - 1] as { close?: unknown }).close) {
-        (periods[periods.length - 1] as { close?: { day: number; time: string } }).close = {
-          day: dayNum,
-          time: "0000",
-        };
+    } else if (isClosedAllDay(openTime, closeTime)) {
+      // ColdFusion: if isopen, add { close: { day, time } }, set isopen=false
+      if (isopen) {
+        periods.push({ close: { day: dayNum, time: closeHhmm } });
+        isopen = false;
       }
     } else {
-      const period: Record<string, unknown> = {
-        open: { day: dayNum, time: openHhmm },
-        close: { day: dayNum, time: closeHhmm },
-      };
-      if (closeHhmm === "0000") {
-        period.close = { day: (dayNum + 1) % 7, time: "0000" };
+      // Regular hours
+      // ColdFusion: if isopen and open != "0000", add close at midnight of current day
+      if (isopen && openHhmm !== "0000") {
+        periods.push({ close: { day: dayNum, time: "0000" } });
+        isopen = false;
       }
-      periods.push(period);
-      allOpen24h = false;
+
+      // ColdFusion: if Not isopen, set open
+      if (!isopen) {
+        currentPeriod = { open: { day: dayNum, time: openHhmm } };
+      }
+
+      // ColdFusion: close.day = same day if Day(open)==Day(close), else (day+1) MOD 7.
+      // When close is 00:00 and open is not, it spans midnight (next day).
+      const spansMidnight =
+        closeHhmm === "0000" && openHhmm !== "0000" ||
+        (parseInt(closeHhmm.slice(0, 2), 10) * 60 + parseInt(closeHhmm.slice(2), 10)) <
+          (parseInt(openHhmm.slice(0, 2), 10) * 60 + parseInt(openHhmm.slice(2), 10));
+      const closeDay = spansMidnight ? (dayNum + 1) % 7 : dayNum;
+
+      currentPeriod.close = { day: closeDay, time: closeHhmm };
+      periods.push({ ...currentPeriod } as { open: { day: number; time: string }; close: { day: number; time: string } });
+      isopen = false;
     }
   }
 
-  if (!hasAnyHours) {
+  // When no opening hours data at all: ColdFusion would still compute from getOpeningHoursByDayCode.
+  // If we have no periods, return opennow=true, periods=[] (unknown => treat as open per isOpened).
+  if (periods.length === 0) {
     return { opennow: true, periods: [] };
   }
 
+  // Check if all days are open 00:00-23:59 (isNonStopOpen when not fietskluizen)
+  let allOpen24h = true;
+  for (const day of DAY_ORDER) {
+    const openKey = `Open_${day}` as keyof OpeningHoursInput;
+    const dichtKey = `Dicht_${day}` as keyof OpeningHoursInput;
+    const openTime = input[openKey] as Date | null | undefined;
+    const closeTime = input[dichtKey] as Date | null | undefined;
+    if (!isOpeningUnknown(openTime, closeTime) && !isOpenAllDay(openTime, closeTime)) {
+      allOpen24h = false;
+      break;
+    }
+  }
   if (allOpen24h) {
-    return { opennow: true, periods: [{ open: "0000", day: 0 }] };
+    return {
+      opennow: true,
+      periods: [{ day: 0, open: "0000" }],
+    };
   }
 
+  // Compute opennow from periods
   const currentDay = now.getDay();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   let opennow = false;
 
   for (const p of periods) {
-    const open = p.open as { day?: number; time?: string } | string;
-    const close = p.close as { day?: number; time?: string } | undefined;
-    if (typeof open === "string") {
+    if ("day" in p && "open" in p && typeof p.open === "string") {
       opennow = true;
       break;
     }
-    const openDay = open?.day ?? 0;
-    const openTime = open?.time ?? "0000";
+    const open = "open" in p ? (p as { open: { day?: number; time?: string } }).open : undefined;
+    const close = "close" in p ? (p as { close?: { day?: number; time?: string } }).close : undefined;
+    if (!open) continue;
+
+    const openDay = open.day ?? 0;
+    const openTime = open.time ?? "0000";
     const openMins = parseInt(openTime.slice(0, 2), 10) * 60 + parseInt(openTime.slice(2), 10);
+
     if (close) {
       const closeDay = close.day ?? 0;
       const closeTime = close.time ?? "0000";

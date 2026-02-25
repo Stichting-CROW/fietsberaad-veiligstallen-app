@@ -485,25 +485,29 @@ function buildColdFusionLocation(
 
   const [lat, long] = parseCoordinaten(row.Coordinaten);
 
-  const openinghoursBase = buildOpeningHours({
-    Open_zo: row.Open_zo,
-    Dicht_zo: row.Dicht_zo,
-    Open_ma: row.Open_ma,
-    Dicht_ma: row.Dicht_ma,
-    Open_di: row.Open_di,
-    Dicht_di: row.Dicht_di,
-    Open_wo: row.Open_wo,
-    Dicht_wo: row.Dicht_wo,
-    Open_do: row.Open_do,
-    Dicht_do: row.Dicht_do,
-    Open_vr: row.Open_vr,
-    Dicht_vr: row.Dicht_vr,
-    Open_za: row.Open_za,
-    Dicht_za: row.Dicht_za,
-  });
+  const openinghoursBase = buildOpeningHours(
+    {
+      Open_zo: row.Open_zo,
+      Dicht_zo: row.Dicht_zo,
+      Open_ma: row.Open_ma,
+      Dicht_ma: row.Dicht_ma,
+      Open_di: row.Open_di,
+      Dicht_di: row.Dicht_di,
+      Open_wo: row.Open_wo,
+      Dicht_wo: row.Dicht_wo,
+      Open_do: row.Open_do,
+      Dicht_do: row.Dicht_do,
+      Open_vr: row.Open_vr,
+      Dicht_vr: row.Dicht_vr,
+      Open_za: row.Open_za,
+      Dicht_za: row.Dicht_za,
+    },
+    { locationType: row.Type }
+  );
+  // ColdFusion key order: opennow, periods, extrainfo (when present)
   const openinghours =
     setIfExistsValue(row.Openingstijden) && row.Openingstijden
-      ? { ...openinghoursBase, extrainfo: row.Openingstijden }
+      ? { opennow: openinghoursBase.opennow, periods: openinghoursBase.periods, extrainfo: row.Openingstijden }
       : openinghoursBase;
 
   // exploitantname: Beheerder (BaseRestService bikepark.getManager())
