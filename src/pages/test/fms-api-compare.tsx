@@ -289,6 +289,7 @@ const FmsApiComparePage: React.FC = () => {
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [rowResults, setRowResults] = useState<Record<string, { old: string; new: string }>>({});
+  const [rowTiming, setRowTiming] = useState<Record<string, { oldSeconds: number; newSeconds: number }>>({});
   const [rowExpanded, setRowExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
@@ -321,6 +322,7 @@ const FmsApiComparePage: React.FC = () => {
     setRowStatus({});
     setRowError({});
     setRowResults({});
+    setRowTiming({});
 
     const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
     if (credentialsFromApi && useAuth) {
@@ -341,12 +343,59 @@ const FmsApiComparePage: React.FC = () => {
           body: JSON.stringify({ ...body, oldUrl, newUrl }),
         });
         const data = await res.json();
+        const { oldError, newError } = data as { oldError?: string; newError?: string };
+        const hasFetchError = !!oldError || !!newError;
+
         if (!res.ok) {
+          const parts: string[] = [];
+          if (oldError) parts.push(`Oude API: ${oldError}`);
+          if (newError) parts.push(`Nieuwe API: ${newError}`);
           setRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
-          setRowError((e) => ({ ...e, [endpoint.id]: data.message ?? "Request failed" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: parts.length > 0 ? parts.join("; ") : data.message ?? "Request failed" }));
           continue;
         }
-        const { oldResult: oldRes, newResult: newRes } = data as { oldResult: string; newResult: string };
+        if (hasFetchError) {
+          const parts: string[] = [];
+          if (oldError) parts.push(`Oude API: ${oldError}`);
+          if (newError) parts.push(`Nieuwe API: ${newError}`);
+          setRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: parts.join("; ") }));
+          const formatResult = (s: string) => {
+            try {
+              return JSON.stringify(JSON.parse(s), null, 2);
+            } catch {
+              return s;
+            }
+          };
+          setRowResults((r) => ({
+            ...r,
+            [endpoint.id]: {
+              old: oldError ? `[Fout Oude API: ${oldError}]` : formatResult(data.oldResult ?? ""),
+              new: newError ? `[Fout Nieuwe API: ${newError}]` : formatResult(data.newResult ?? ""),
+            },
+          }));
+          if (data.oldDurationSeconds != null || data.newDurationSeconds != null) {
+            setRowTiming((t) => ({
+              ...t,
+              [endpoint.id]: {
+                oldSeconds: data.oldDurationSeconds ?? 0,
+                newSeconds: data.newDurationSeconds ?? 0,
+              },
+            }));
+          }
+          setRowExpanded((x) => ({ ...x, [endpoint.id]: true }));
+          continue;
+        }
+
+        const { oldResult: oldRes, newResult: newRes, oldDurationSeconds, newDurationSeconds } = data as {
+          oldResult: string;
+          newResult: string;
+          oldDurationSeconds?: number;
+          newDurationSeconds?: number;
+        };
+        if (oldDurationSeconds != null && newDurationSeconds != null) {
+          setRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
+        }
         const identical = responsesMatch(endpoint.id, oldRes, newRes);
         const formattedOld = (() => {
           try {
@@ -385,6 +434,11 @@ const FmsApiComparePage: React.FC = () => {
       delete next[endpointId];
       return next;
     });
+    setRowTiming((t) => {
+      const next = { ...t };
+      delete next[endpointId];
+      return next;
+    });
 
     const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
     if (credentialsFromApi && useAuth) {
@@ -403,13 +457,60 @@ const FmsApiComparePage: React.FC = () => {
         body: JSON.stringify({ ...body, oldUrl, newUrl }),
       });
       const data = await res.json();
+      const { oldError, newError } = data as { oldError?: string; newError?: string };
+      const hasFetchError = !!oldError || !!newError;
+
       if (!res.ok) {
+        const parts: string[] = [];
+        if (oldError) parts.push(`Oude API: ${oldError}`);
+        if (newError) parts.push(`Nieuwe API: ${newError}`);
         setRowStatus((s) => ({ ...s, [endpointId]: "error" }));
-        setRowError((e) => ({ ...e, [endpointId]: data.message ?? "Request failed" }));
+        setRowError((e) => ({ ...e, [endpointId]: parts.length > 0 ? parts.join("; ") : data.message ?? "Request failed" }));
         setRowExpanded((x) => ({ ...x, [endpointId]: true }));
         return;
       }
-      const { oldResult: oldRes, newResult: newRes } = data as { oldResult: string; newResult: string };
+      if (hasFetchError) {
+        const parts: string[] = [];
+        if (oldError) parts.push(`Oude API: ${oldError}`);
+        if (newError) parts.push(`Nieuwe API: ${newError}`);
+        setRowStatus((s) => ({ ...s, [endpointId]: "error" }));
+        setRowError((e) => ({ ...e, [endpointId]: parts.join("; ") }));
+        const formatResult = (s: string) => {
+          try {
+            return JSON.stringify(JSON.parse(s), null, 2);
+          } catch {
+            return s;
+          }
+        };
+        setRowResults((r) => ({
+          ...r,
+          [endpointId]: {
+            old: oldError ? `[Fout Oude API: ${oldError}]` : formatResult(data.oldResult ?? ""),
+            new: newError ? `[Fout Nieuwe API: ${newError}]` : formatResult(data.newResult ?? ""),
+          },
+        }));
+        if (data.oldDurationSeconds != null || data.newDurationSeconds != null) {
+          setRowTiming((t) => ({
+            ...t,
+            [endpointId]: {
+              oldSeconds: data.oldDurationSeconds ?? 0,
+              newSeconds: data.newDurationSeconds ?? 0,
+            },
+          }));
+        }
+        setRowExpanded((x) => ({ ...x, [endpointId]: true }));
+        return;
+      }
+
+      const { oldResult: oldRes, newResult: newRes, oldDurationSeconds, newDurationSeconds } = data as {
+        oldResult: string;
+        newResult: string;
+        oldDurationSeconds?: number;
+        newDurationSeconds?: number;
+      };
+      if (oldDurationSeconds != null && newDurationSeconds != null) {
+        setRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
+      }
       const identical = responsesMatch(endpointId, oldRes, newRes);
       const formattedOld = (() => {
         try {
@@ -711,6 +812,7 @@ const FmsApiComparePage: React.FC = () => {
               <tr>
                 <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
                 <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
+                <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
                 <th className="text-left p-3 font-medium whitespace-nowrap">Acties</th>
                 <th className="text-left p-3 font-medium w-full">Resultaten</th>
               </tr>
@@ -719,6 +821,7 @@ const FmsApiComparePage: React.FC = () => {
               {ENDPOINTS.map((e) => {
                 const status = rowStatus[e.id] ?? "pending";
                 const results = rowResults[e.id];
+                const timing = rowTiming[e.id];
                 const hasParams = e.params.length > 0;
                 const expanded = rowExpanded[e.id] ?? (status === "identical" || status === "diff" || status === "error");
                 const hasResults = !!results || (status === "error" && rowError[e.id]);
@@ -738,10 +841,27 @@ const FmsApiComparePage: React.FC = () => {
                       {status === "loading" && "..."}
                       {status === "identical" && "Identiek"}
                       {status === "diff" && "Verschilt"}
-                      {status === "error" && (
-                        <span title={rowError[e.id]} className="text-red-700">
-                          Fout
-                        </span>
+                      {status === "error" && (() => {
+                        const err = rowError[e.id] ?? "";
+                        const oldFail = err.includes("Oude API:");
+                        const newFail = err.includes("Nieuwe API:");
+                        const which = oldFail && newFail ? "beide" : oldFail ? "Oude API" : newFail ? "Nieuwe API" : "";
+                        return (
+                          <span title={err} className="text-red-700">
+                            Fout{which ? ` (${which})` : ""}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="p-3 align-top whitespace-nowrap text-xs text-gray-600">
+                      {timing ? (
+                        <>
+                          <span title="Oude API">O: {timing.oldSeconds.toFixed(3)}</span>
+                          {" · "}
+                          <span title="Nieuwe API">N: {timing.newSeconds.toFixed(3)}</span>
+                        </>
+                      ) : (
+                        "—"
                       )}
                     </td>
                     <td className="p-3 align-top whitespace-nowrap">

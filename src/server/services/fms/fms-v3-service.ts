@@ -181,7 +181,7 @@ export async function getCity(
 
   const locations =
     depth >= 1
-      ? await getLocationsFull(citycode, { depth, cityName: council.CompanyName ?? undefined })
+      ? await getLocationsFull(citycode, { depth })
       : [];
 
   return toCityWithLocationsOrder({
@@ -212,9 +212,9 @@ export async function getCityCodes(): Promise<CityCode[]> {
 /** ColdFusion-compatible: full location objects for a city. */
 async function getLocationsFull(
   citycode: string,
-  options: { depth?: number; cityName?: string } = {}
+  options: { depth?: number } = {}
 ): Promise<ColdFusionLocation[]> {
-  const { depth = 3, cityName } = options;
+  const { depth = 3 } = options;
   const includeSections = depth >= 2;
 
   const rows = await prisma.fietsenstallingen.findMany({
@@ -283,7 +283,7 @@ async function getLocationsFull(
       : [];
     const ocf = await computeOccupiedCapacityFree(r as LocationRow);
     result.push(
-      buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], cityName, ocf, includeSections)
+      buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], ocf, includeSections)
     );
   }
   return result;
@@ -477,7 +477,6 @@ async function computeOccupiedCapacityFree(
 function buildColdFusionLocation(
   row: LocationRow,
   sections: ColdFusionSection[],
-  cityName: string | undefined,
   ocf: { occupied: number; capacity: number; free: number; includeCapacity: boolean },
   includeSections = true
 ): ColdFusionLocation {
@@ -543,7 +542,7 @@ function buildColdFusionLocation(
     // ColdFusion sets sections only when depth > 1 (can be [])
     ...(includeSections && { sections }),
     ...(services && { services }),
-    ...((cityName ?? row.Plaats) && { city: cityName ?? row.Plaats ?? undefined }),
+    ...(setIfExistsValue(row.Plaats) && { city: row.Plaats! }),
     ...(row.Location && { address: row.Location }),
     ...(setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
     ...(setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
@@ -647,10 +646,6 @@ export async function getLocation(
   locationid: string,
   depth = 2
 ): Promise<ColdFusionLocation | null> {
-  const council = await prisma.contacts.findFirst({
-    where: { ZipID: citycode, ItemType: "organizations" },
-    select: { CompanyName: true },
-  });
   const stalling = await prisma.fietsenstallingen.findFirst({
     where: {
       StallingsID: locationid,
@@ -711,8 +706,8 @@ export async function getLocation(
   return buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
-    council?.CompanyName ?? undefined,
-    ocf
+    ocf,
+    depth >= 2
   );
 }
 

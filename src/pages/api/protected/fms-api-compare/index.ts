@@ -44,17 +44,48 @@ export default async function handle(
     headers.Authorization = authorizationHeader;
   }
 
-  try {
-    const [oldRes, newRes] = await Promise.all([
-      fetch(oldUrl, { headers }).then((r) => r.text()),
-      fetch(newUrl, { headers }).then((r) => r.text()),
-    ]);
+  const [oldResult, newResult] = await Promise.all([
+    (async () => {
+      const start = performance.now();
+      try {
+        const text = await fetch(oldUrl, { headers }).then((r) => r.text());
+        return { text, durationMs: performance.now() - start, error: null as string | null };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Fetch failed";
+        console.error("FMS API compare (old):", msg);
+        return { text: null, durationMs: null, error: msg };
+      }
+    })(),
+    (async () => {
+      const start = performance.now();
+      try {
+        const text = await fetch(newUrl, { headers }).then((r) => r.text());
+        return { text, durationMs: performance.now() - start, error: null as string | null };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Fetch failed";
+        console.error("FMS API compare (new):", msg);
+        return { text: null, durationMs: null, error: msg };
+      }
+    })(),
+  ]);
 
-    return res.status(200).json({ oldResult: oldRes, newResult: newRes });
-  } catch (err) {
-    console.error("FMS API compare error:", err);
+  const oldError = oldResult.error;
+  const newError = newResult.error;
+
+  if (oldError && newError) {
     return res.status(500).json({
-      message: err instanceof Error ? err.message : "Fetch failed",
+      message: "Beide API's faalden",
+      oldError,
+      newError,
     });
   }
+
+  return res.status(200).json({
+    oldResult: oldResult.text ?? "",
+    newResult: newResult.text ?? "",
+    oldDurationSeconds: oldResult.durationMs != null ? Number((oldResult.durationMs / 1000).toFixed(3)) : null,
+    newDurationSeconds: newResult.durationMs != null ? Number((newResult.durationMs / 1000).toFixed(3)) : null,
+    oldError: oldError ?? null,
+    newError: newError ?? null,
+  });
 }
