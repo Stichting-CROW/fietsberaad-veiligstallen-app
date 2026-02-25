@@ -404,11 +404,11 @@ async function computeOccupiedCapacityFree(
   });
   const hasPlacesSet = new Set(sectionsWithPlaces.map((p) => Number(p.sectie_id!)));
 
-  // ColdFusion BikeparkSection.getOccupiedPlaces(): loop places, count where place.getCurrentStatus() neq place.FREE.
+  // ColdFusion BikeparkSection.getOccupiedPlaces(): hasPlace() ? loop places count occupied : getOccupation() (= Bezetting column).
+  // FietsEnWinGateway.getOccupiedPlacesForSection() is commented out; active code uses getOccupation().
   // Place.getCurrentStatus(): if getStatus() eq "" then setStatus(calculateStatus()), return getStatus() MOD 10.
-  // calculateStatus(): when getBikeParked() is not null, returns OCCUPIED. getBikeParked() = getQOpenTransactionByPlaceID(placeID=getID()).
-  // TransactionGateway.getQOpenTransactionByPlaceID: transacties WHERE PlaceID = place.id AND Date_checkout IS NULL.
-  // So occupied = (status set and (status MOD 10) != 0) OR (transacties PlaceID=place.id, Date_checkout null).
+  // When status IS set, ColdFusion returns getStatus() MOD 10 immediately - it never checks getBikeParked().
+  // So open transaction only applies when status is empty. When status=10 (MOD 10=0), ColdFusion returns FREE.
   const [openTxByPlaceId, allLockerPlaces] = await Promise.all([
     prisma.transacties.findMany({
       where: { Date_checkout: null, PlaceID: { not: null } },
@@ -426,7 +426,7 @@ async function computeOccupiedCapacityFree(
     if (p.sectie_id == null) continue;
     const sid = Number(p.sectie_id);
     const occupiedByStatus = p.status != null && p.status % 10 !== 0;
-    const occupiedByOpenTx = openTxPlaceIdSet.has(Number(p.id));
+    const occupiedByOpenTx = p.status == null && openTxPlaceIdSet.has(Number(p.id));
     if (occupiedByStatus || occupiedByOpenTx) {
       occupiedBySectie.set(sid, (occupiedBySectie.get(sid) ?? 0) + 1);
     }

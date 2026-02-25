@@ -23,13 +23,13 @@ WHERE fs.externalId = '3500_005_1'
   AND fp.status IS NOT NULL
   AND (fp.status % 10) != 0;
 
--- 4. Lockers with open transaction (PlaceID) but status 0 or null
+-- 4. Lockers with open transaction but status NULL (ColdFusion: only when status empty)
 SELECT COUNT(*) AS extra_from_open_tx
 FROM fietsenstalling_plek fp
 JOIN transacties t ON t.PlaceID = fp.id AND t.Date_checkout IS NULL
 JOIN fietsenstalling_sectie fs ON fs.sectieId = fp.sectie_id
 WHERE fs.externalId = '3500_005_1'
-  AND (fp.status IS NULL OR fp.status = 0);
+  AND fp.status IS NULL;
 
 -- 5. Status value distribution for lockers in this section
 SELECT fp.status, COUNT(*) AS cnt
@@ -39,7 +39,7 @@ WHERE fs.externalId = '3500_005_1'
 GROUP BY fp.status
 ORDER BY fp.status;
 
--- 6. Total occupied = (status mod 10 != 0) OR (has open tx by PlaceID) - ColdFusion logic
+-- 6. Total occupied - ColdFusion: (status set and MOD 10 != 0) OR (status null and has open tx)
 SELECT COUNT(DISTINCT fp.id) AS total_occupied
 FROM fietsenstalling_plek fp
 JOIN fietsenstalling_sectie fs ON fs.sectieId = fp.sectie_id
@@ -47,5 +47,5 @@ LEFT JOIN transacties t ON t.PlaceID = fp.id AND t.Date_checkout IS NULL
 WHERE fs.externalId = '3500_005_1'
   AND (
     (fp.status IS NOT NULL AND (fp.status % 10) != 0)
-    OR t.ID IS NOT NULL
+    OR (fp.status IS NULL AND t.ID IS NOT NULL)
   );
