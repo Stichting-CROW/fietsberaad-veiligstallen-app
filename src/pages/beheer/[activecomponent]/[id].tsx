@@ -31,6 +31,7 @@ import ReportComponent from '~/components/beheer/reports';
 import SettingsComponent from '~/components/beheer/settings';
 import UsersComponent from '~/components/beheer/users';
 import DatabaseComponent from '~/components/beheer/database';
+import DataApiComponent from '~/components/beheer/database/DataApiComponent';
 import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesTable';
 import DatabaseExport from '~/components/beheer/database/DatabaseExport';
 import DatabaseModules from '~/components/beheer/database/DatabaseModules';
@@ -262,10 +263,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
       try {
         const response = await fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`);
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(`Failed to fetch modules for ${selectedContactID}`);
+          const msg = (data as { error?: string })?.error ?? response.statusText;
+          throw new Error(`Failed to fetch modules for ${selectedContactID}: ${response.status} ${msg}`);
         }
-        const modules: VSmodules_contacts[] = await response.json();
+        const modules = data as VSmodules_contacts[];
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
         }
@@ -367,6 +370,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           } else {
             selectedComponent = <DatabaseModules />;
           }
+          break;
+        case VSMenuTopic.DataApi:
+          selectedComponent = <DataApiComponent />;
           break;
         case VSMenuTopic.Export:
           // Check if user has access to reports (export is report-related)

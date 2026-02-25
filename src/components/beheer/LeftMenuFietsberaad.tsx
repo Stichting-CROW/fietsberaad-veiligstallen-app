@@ -131,6 +131,26 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           </LeftMenuItem>
         )}
 
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Data'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.DataApi}
+                title={'API'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiServer}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
         {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
           <LeftMenuItem
             component={false}

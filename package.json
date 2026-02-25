@@ -74,6 +74,7 @@
     "react-redux": "^8.0.5",
     "react-table": "^7.8.0",
     "superjson": "1.12.2",
+    "swagger-ui-react": "^5.31.2",
     "uuid": "^11.1.0",
     "zod": "^3.21.4"
   },

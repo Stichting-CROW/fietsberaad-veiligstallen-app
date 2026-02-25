@@ -65,11 +65,55 @@ export function formatPrismaError(error: unknown): string {
   return parts.join(' | ');
 }
 
+/** Max length for compact API error messages */
+const COMPACT_MAX_LEN = 180;
+
 /**
- * Logs a Prisma error in a clean format
+ * Returns a short error string for API responses (no stack traces, no verbose Prisma output).
+ */
+export function formatPrismaErrorCompact(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error).slice(0, COMPACT_MAX_LEN);
+  }
+
+  const prismaError = error as Error & {
+    code?: string;
+    meta?: { target?: string | string[]; modelName?: string; field_name?: string };
+  };
+
+  if (prismaError.code === "P2002") {
+    const target = prismaError.meta?.target;
+    const t = Array.isArray(target) ? target.join(", ") : target ?? "";
+    return `Unieke waarde bestaat al${t ? ` (${t})` : ""}`;
+  }
+  if (prismaError.code === "P2003") {
+    const field = prismaError.meta?.field_name ?? prismaError.meta?.target;
+    const f = Array.isArray(field) ? field.join(", ") : field;
+    return `Referentie ontbreekt${f ? ` (${f})` : ""}`;
+  }
+  if (prismaError.code) {
+    const msg = error.message
+      .replace(/Invalid `prisma\.[^`]+`[^:]*:\s*/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const short = msg.length > 80 ? msg.slice(0, 77) + "..." : msg;
+    return `${prismaError.code}: ${short}`;
+  }
+
+  // Strip Prisma invocation prefix, take first meaningful line
+  let msg = error.message
+    .replace(/Invalid `prisma\.[^`]+`[^:]*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstLine = msg.split("\n")[0]?.trim() ?? msg;
+  return firstLine.length > COMPACT_MAX_LEN ? firstLine.slice(0, COMPACT_MAX_LEN - 3) + "..." : firstLine;
+}
+
+/**
+ * Logs a Prisma error in a compact format (for terminal/console output)
  */
 export function logPrismaError(context: string, error: unknown): void {
-  const formatted = formatPrismaError(error);
+  const formatted = formatPrismaErrorCompact(error);
   console.error(`[${context}] ${formatted}`);
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { logPrismaError } from "~/utils/formatPrismaError";
 
 /**
  * Synchronizes security_users_sites records based on user_contact_role records.
@@ -10,6 +11,12 @@ import { prisma } from "~/server/db";
  */
 export async function syncSecurityUsersSitesFromUserContactRole(userID: string): Promise<boolean> {
   try {
+    const userExists = await prisma.security_users.findUnique({
+      where: { UserID: userID },
+      select: { UserID: true },
+    });
+    if (!userExists) return false;
+
     // Get all user_contact_role records for this user
     const userContactRoles = await prisma.user_contact_role.findMany({
       where: { UserID: userID },
@@ -31,8 +38,16 @@ export async function syncSecurityUsersSitesFromUserContactRole(userID: string):
     const contactIDs = new Set(userContactRoles.map(role => role.ContactID));
     const existingSiteIDs = new Set(existingSites.map(site => site.SiteID));
 
+    // Only create for ContactIDs that exist in contacts (avoid FK violations from orphaned data)
+    const validContacts = await prisma.contacts.findMany({
+      where: { ID: { in: [...contactIDs] } },
+      select: { ID: true },
+    });
+    const validContactSet = new Set(validContacts.map(c => c.ID));
+
     // Create security_users_sites records for user_contact_role records that don't have them
     for (const role of userContactRoles) {
+      if (!validContactSet.has(role.ContactID)) continue;
       if (!existingSiteIDs.has(role.ContactID)) {
         await prisma.security_users_sites.create({
           data: {
@@ -60,7 +75,7 @@ export async function syncSecurityUsersSitesFromUserContactRole(userID: string):
 
     return true;
   } catch (error) {
-    console.error(`Error syncing security_users_sites for user ${userID}:`, error);
+    logPrismaError(`syncSecurityUsersSites user ${userID}`, error);
     return false;
   }
 }
@@ -108,7 +123,7 @@ export async function createSecurityUsersSiteRecord(
 
     return true;
   } catch (error) {
-    console.error(`Error creating/updating security_users_sites record for user ${userID}, site ${siteID}:`, error);
+    logPrismaError(`createSecurityUsersSite user ${userID} site ${siteID}`, error);
     return false;
   }
 }
@@ -134,7 +149,7 @@ export async function deleteSecurityUsersSiteRecord(
 
     return true;
   } catch (error) {
-    console.error(`Error deleting security_users_sites record for user ${userID}, site ${siteID}:`, error);
+    logPrismaError(`deleteSecurityUsersSite user ${userID} site ${siteID}`, error);
     return false;
   }
 }
