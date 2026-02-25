@@ -35,7 +35,9 @@ export type ColdFusionLocation = {
   openinghours?: {
     opennow: boolean;
     periods: Array<Record<string, unknown>>;
+    extrainfo?: string;
   };
+  exploitantname?: string;
   exploitantcontact?: string;
   sections?: ColdFusionSection[];
   station?: boolean;
@@ -45,6 +47,8 @@ export type ColdFusionLocation = {
   postalcode?: string;
   costsdescription?: string;
   description?: string;
+  /** Array of service names (BaseRestService setIfExists). */
+  services?: string[];
 };
 
 export type LocationSummary = {
@@ -239,7 +243,13 @@ async function getLocationsFull(
       Description: true,
       OmschrijvingTarieven: true,
       Url: true,
+      Beheerder: true,
       BeheerderContact: true,
+      ExtraServices: true,
+      Openingstijden: true,
+      fietsenstallingen_services: {
+        select: { services: { select: { Name: true } } },
+      },
       Open_zo: true,
       Dicht_zo: true,
       Open_ma: true,
@@ -273,7 +283,7 @@ async function getLocationsFull(
       : [];
     const ocf = await computeOccupiedCapacityFree(r as LocationRow);
     result.push(
-      buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], cityName, ocf)
+      buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], cityName, ocf, includeSections)
     );
   }
   return result;
@@ -299,7 +309,11 @@ type LocationRow = {
   Description?: string | null;
   OmschrijvingTarieven?: string | null;
   Url?: string | null;
+  Beheerder?: string | null;
   BeheerderContact?: string | null;
+  ExtraServices?: string | null;
+  Openingstijden?: string | null;
+  fietsenstallingen_services?: Array<{ services: { Name: string } | null }>;
   Open_zo?: Date | null;
   Dicht_zo?: Date | null;
   Open_ma?: Date | null;
@@ -325,17 +339,27 @@ function setIfExistsValue(v: string | null | undefined): v is string {
 /** ColdFusion-compatible: capacity from secties_fietstype.Capaciteit; occupied from locker statuses (fietskluizen) or Bezetting; bulkreservations subtracted from capacity. */
 async function computeOccupiedCapacityFree(
   row: LocationRow
-): Promise<{ occupied: number; capacity: number; free: number }> {
+): Promise<{ occupied: number; capacity: number; free: number; includeCapacity: boolean }> {
   const secties = row.fietsenstalling_secties;
   if (!secties?.length) {
     const fallback = row.Capacity ?? 0;
-    return { occupied: 0, capacity: fallback, free: Math.max(0, fallback) };
+    return {
+      occupied: 0,
+      capacity: fallback,
+      free: Math.max(0, fallback),
+      includeCapacity: fallback > 0,
+    };
   }
 
   const sectieIds = secties.map((s) => s.sectieId);
   if (sectieIds.length === 0) {
     const fallback = row.Capacity ?? 0;
-    return { occupied: 0, capacity: fallback, free: Math.max(0, fallback) };
+    return {
+      occupied: 0,
+      capacity: fallback,
+      free: Math.max(0, fallback),
+      includeCapacity: fallback > 0,
+    };
   }
 
   const today = new Date();
@@ -343,7 +367,8 @@ async function computeOccupiedCapacityFree(
   const todayEnd = new Date(today);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
-  // Bulkreservations for today (BikeparkSection.getBulkreservationForDate): SectieID in list, Startdatumtijd date = today, Einddatumtijd >= now, exclude those with exception for today
+  // Bulkreservations for today (BikeparkSection.getBulkreservationForDate): SectieID only (ColdFusion uses ORM relation fkcolumn="SectieID").
+  // SectionExternalID is a denormalized helper column, not used for lookup.
   const exceptedIds = (
     await prisma.bulkreserveringuitzondering.findMany({
       where: { datum: { gte: today, lt: todayEnd } },
@@ -379,20 +404,31 @@ async function computeOccupiedCapacityFree(
   });
   const hasPlacesSet = new Set(sectionsWithPlaces.map((p) => Number(p.sectie_id!)));
 
-  // Locker occupied counts: fietsenstalling_plek where status != 0 (Place.FREE). ColdFusion: place.getCurrentStatus() neq place.FREE
-  const lockerCounts = await prisma.fietsenstalling_plek.groupBy({
-    by: ["sectie_id"],
-    where: {
-      sectie_id: { in: sectieIds.map((id) => BigInt(id)) },
-      status: { not: null },
-      status: { not: 0 },
-    },
-    _count: { id: true },
-  });
+  // ColdFusion BikeparkSection.getOccupiedPlaces(): loop places, count where place.getCurrentStatus() neq place.FREE.
+  // Place.getCurrentStatus(): if getStatus() eq "" then setStatus(calculateStatus()), return getStatus() MOD 10.
+  // calculateStatus(): when getBikeParked() is not null, returns OCCUPIED. getBikeParked() = getQOpenTransactionByPlaceID(placeID=getID()).
+  // TransactionGateway.getQOpenTransactionByPlaceID: transacties WHERE PlaceID = place.id AND Date_checkout IS NULL.
+  // So occupied = (status set and (status MOD 10) != 0) OR (transacties PlaceID=place.id, Date_checkout null).
+  const [openTxByPlaceId, allLockerPlaces] = await Promise.all([
+    prisma.transacties.findMany({
+      where: { Date_checkout: null, PlaceID: { not: null } },
+      select: { PlaceID: true },
+      distinct: ["PlaceID"],
+    }),
+    prisma.fietsenstalling_plek.findMany({
+      where: { sectie_id: { in: sectieIds.map((id) => BigInt(id)) } },
+      select: { id: true, sectie_id: true, status: true },
+    }),
+  ]);
+  const openTxPlaceIdSet = new Set(openTxByPlaceId.map((r) => Number(r.PlaceID!)).filter(Boolean));
   const occupiedBySectie = new Map<number, number>();
-  for (const l of lockerCounts) {
-    if (l.sectie_id != null) {
-      occupiedBySectie.set(Number(l.sectie_id), l._count.id);
+  for (const p of allLockerPlaces) {
+    if (p.sectie_id == null) continue;
+    const sid = Number(p.sectie_id);
+    const occupiedByStatus = p.status != null && p.status % 10 !== 0;
+    const occupiedByOpenTx = openTxPlaceIdSet.has(Number(p.id));
+    if (occupiedByStatus || occupiedByOpenTx) {
+      occupiedBySectie.set(sid, (occupiedBySectie.get(sid) ?? 0) + 1);
     }
   }
 
@@ -418,8 +454,9 @@ async function computeOccupiedCapacityFree(
     totalOccupied += sectionOccupied;
   }
 
-  const capacity =
-    totalCapacityNetto > 0 ? totalCapacityNetto : (totalCapacityRaw || row.Capacity) ?? 0;
+  // ColdFusion always uses getNettoCapacity() when we have sections - it never falls back to fietsenstallingen.Capacity.
+  // When secties_fietstype is empty, section.getCapacity() = 0, so getNettoCapacity() = 0 (e.g. 3500_142).
+  const capacity = totalCapacityNetto;
   // ColdFusion getFreePlaces = getCapacity() - getOccupiedPlaces(). Bikepark.getCapacity() returns
   // variables.capacity (fietsenstallingen.Capacity) when set and numeric, else calculateCapacity().
   const capacityForFree =
@@ -427,10 +464,13 @@ async function computeOccupiedCapacityFree(
       ? row.Capacity
       : totalCapacityRaw;
   const free = Math.max(0, capacityForFree - totalOccupied);
+  // ColdFusion only sets capacity when getCapacity() > 0; include when we have section/row capacity
+  const includeCapacity = totalCapacityRaw > 0 || (row.Capacity != null && row.Capacity > 0);
   return {
     occupied: totalOccupied,
     capacity,
     free,
+    includeCapacity,
   };
 }
 
@@ -438,13 +478,14 @@ function buildColdFusionLocation(
   row: LocationRow,
   sections: ColdFusionSection[],
   cityName: string | undefined,
-  ocf: { occupied: number; capacity: number; free: number }
+  ocf: { occupied: number; capacity: number; free: number; includeCapacity: boolean },
+  includeSections = true
 ): ColdFusionLocation {
-  const { occupied: totalOccupied, capacity: totalCapacity, free } = ocf;
+  const { occupied: totalOccupied, capacity: totalCapacity, free, includeCapacity } = ocf;
 
   const [lat, long] = parseCoordinaten(row.Coordinaten);
 
-  const openinghours = buildOpeningHours({
+  const openinghoursBase = buildOpeningHours({
     Open_zo: row.Open_zo,
     Dicht_zo: row.Dicht_zo,
     Open_ma: row.Open_ma,
@@ -460,12 +501,25 @@ function buildColdFusionLocation(
     Open_za: row.Open_za,
     Dicht_za: row.Dicht_za,
   });
+  const openinghours =
+    setIfExistsValue(row.Openingstijden) && row.Openingstijden
+      ? { ...openinghoursBase, extrainfo: row.Openingstijden }
+      : openinghoursBase;
 
-  // exploitantcontact: uses BeheerderContact for ColdFusion compatibility (BaseRestService.cfc
-  // bikepark.getManagerContact() → BeheerderContact). NOTE: The Contact beheerder form on
-  // fietsenstalling bewerken | algemeen basis uses different logic (HelpdeskHandmatigIngesteld,
-  // exploitant Helpdesk, site Helpdesk). This API field should be updated in the future to match.
-  const exploitantcontact = row.BeheerderContact ?? undefined;
+  // exploitantname: Beheerder (BaseRestService bikepark.getManager())
+  // exploitantcontact: BeheerderContact (BaseRestService bikepark.getManagerContact())
+  const exploitantname = setIfExistsValue(row.Beheerder) ? row.Beheerder! : undefined;
+  const exploitantcontact = setIfExistsValue(row.BeheerderContact) ? row.BeheerderContact! : undefined;
+
+  // getAllServices: fietsenstallingen_services.services.Name + ExtraServices (comma-separated list)
+  const servicesFromTable =
+    row.fietsenstallingen_services?.map((fs) => fs.services?.Name).filter((n): n is string => !!n?.trim()) ?? [];
+  const servicesFromExtra = (row.ExtraServices ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allServices = [...servicesFromTable, ...servicesFromExtra];
+  const services = allServices.length > 0 ? allServices : undefined;
 
   const loc: ColdFusionLocation = {
     locationid: row.StallingsID!,
@@ -476,13 +530,15 @@ function buildColdFusionLocation(
     station: row.IsStationsstalling ?? false,
     ...(lat && { lat }),
     ...(long && { long }),
-    ...(totalCapacity > 0 && {
-      occupied: totalOccupied,
-      free,
-      capacity: totalCapacity,
-    }),
+    // ColdFusion always sets occupied, free; capacity only when getCapacity() > 0 (can be 0 when getNettoCapacity=0)
+    occupied: totalOccupied,
+    free,
+    ...(includeCapacity && { capacity: totalCapacity }),
+    ...(exploitantname && { exploitantname }),
     ...(exploitantcontact && { exploitantcontact }),
-    ...(sections.length > 0 && { sections }),
+    // ColdFusion sets sections only when depth > 1 (can be [])
+    ...(includeSections && { sections }),
+    ...(services && { services }),
     ...((cityName ?? row.Plaats) && { city: cityName ?? row.Plaats ?? undefined }),
     ...(row.Location && { address: row.Location }),
     ...(setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
@@ -531,6 +587,7 @@ export function toLocationDetailFormat(loc: ColdFusionLocation): LocationDetailS
 function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation {
   const order = [
     "occupied",
+    "exploitantname",
     "exploitantcontact",
     "locationtype",
     "long",
@@ -548,6 +605,7 @@ function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation 
     "description",
     "locationid",
     "openinghours",
+    "services",
   ];
   const out: Record<string, unknown> = {};
   for (const k of order) {
@@ -612,7 +670,13 @@ export async function getLocation(
       Description: true,
       OmschrijvingTarieven: true,
       Url: true,
+      Beheerder: true,
       BeheerderContact: true,
+      ExtraServices: true,
+      Openingstijden: true,
+      fietsenstallingen_services: {
+        select: { services: { select: { Name: true } } },
+      },
       Open_zo: true,
       Dicht_zo: true,
       Open_ma: true,
@@ -631,8 +695,6 @@ export async function getLocation(
         /* ColdFusion getBikeparkSections has no isactief filter */
         select: {
           sectieId: true,
-          externalId: true,
-          titel: true,
           Bezetting: true,
           secties_fietstype: { select: { Capaciteit: true } },
         },

@@ -62,7 +62,7 @@ Comparison of how `occupied`, `free`, and `capacity` are calculated for V3 locat
 Next.js implementation now matches ColdFusion:
 
 1. **Capacity**: Sum of secties_fietstype.Capaciteit per section; bulkreservations for today subtracted (getNettoCapacity)
-2. **Fietskluizen occupied**: For sections with places (fietsenstalling_plek), count lockers where status != 0 (Place.FREE)
+2. **Fietskluizen occupied**: BikeparkSection.getOccupiedPlaces() loops places, counts where place.getCurrentStatus() neq place.FREE. Place.getCurrentStatus() returns getStatus() MOD 10 when set; when empty, calculateStatus() returns OCCUPIED when getBikeParked() exists. getBikeParked() = getQOpenTransactionByPlaceID(placeID=getID()) = transacties WHERE PlaceID = place.id AND Date_checkout IS NULL. So: (status MOD 10 != 0) OR (open transaction by PlaceID only).
 3. **Non-locker occupied**: Bezetting column
 4. **Bulkreservations**: Excluded from capacity when Startdatumtijd date = today, Einddatumtijd >= now, no exception for today
 5. **Section filtering**: No isactief filter (matches ColdFusion getBikeparkSections)

@@ -380,6 +380,11 @@ const FmsApiComparePage: React.FC = () => {
     const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
     setRowStatus((s) => ({ ...s, [endpointId]: "loading" }));
     setRowError((e) => ({ ...e, [endpointId]: "" }));
+    setRowResults((r) => {
+      const next = { ...r };
+      delete next[endpointId];
+      return next;
+    });
 
     const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
     if (credentialsFromApi && useAuth) {
