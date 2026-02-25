@@ -23,9 +23,13 @@ export default async function handle(
   const sectionid = path[4];
   const subPath3 = path[5];
 
+  const fields = (req.query.fields as string) ?? "*";
+  const depth = Math.min(3, Math.max(0, parseInt((req.query.depth as string) ?? "3", 10) || 3));
+  const options = { fields, depth };
+
   try {
     if (!citycode) {
-      const cities = await v3Service.getCityCodes();
+      const cities = await v3Service.getCities(options);
       res.status(200).json(cities);
       return;
     }
@@ -39,7 +43,7 @@ export default async function handle(
 
       if (subPath2 === "sections") {
         if (!sectionid) {
-          const sections = await v3Service.getSections(citycode, locationid);
+          const sections = await v3Service.getSections(citycode, locationid, depth);
           res.status(200).json(sections);
           return;
         }
@@ -48,7 +52,7 @@ export default async function handle(
           res.status(200).json(places);
           return;
         }
-        const section = await v3Service.getSection(citycode, locationid, sectionid);
+        const section = await v3Service.getSection(citycode, locationid, sectionid, depth);
         if (!section) {
           res.status(404).json({ message: "Section not found" });
           return;
@@ -63,7 +67,7 @@ export default async function handle(
         return;
       }
 
-      const location = await v3Service.getLocation(citycode, locationid);
+      const location = await v3Service.getLocation(citycode, locationid, depth);
       if (!location) {
         res.status(404).json({ message: "Location not found" });
         return;
@@ -73,14 +77,12 @@ export default async function handle(
     }
 
     if (!subPath) {
-      const cities = await v3Service.getCityCodes();
-      const city = cities.find((c) => c.citycode === citycode);
+      const city = await v3Service.getCity(citycode, options);
       if (!city) {
         res.status(404).json({ message: "City not found" });
         return;
       }
-      const locations = await v3Service.getLocations(citycode);
-      res.status(200).json({ ...city, locations });
+      res.status(200).json(city);
       return;
     }
 

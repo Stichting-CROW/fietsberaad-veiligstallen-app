@@ -41,27 +41,6 @@ paths:
                 items:
                   $ref: '#/components/schemas/BikeType'
 
-  /v2/getJsonBikeType/{bikeTypeID}:
-    get:
-      summary: Fietstype op ID
-      tags: [V2]
-      security: []
-      parameters:
-        - name: bikeTypeID
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Fietstype
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BikeType'
-        '404':
-          description: Niet gevonden
-
   /v2/getJsonPaymentTypes:
     get:
       summary: Betalingstypen

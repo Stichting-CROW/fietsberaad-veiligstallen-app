@@ -30,7 +30,6 @@ export default async function handle(
 
   const publicMethods = [
     "getJsonBikeTypes",
-    "getJsonBikeType",
     "getJsonPaymentTypes",
     "getJsonClientTypes",
     "getServerTime",
@@ -85,32 +84,24 @@ export default async function handle(
       }
       case "getJsonBikeTypes": {
         const types = await fmsService.getBikeTypes();
-        res.status(200).json(types);
+        const legacy = types.map((t) => ({ BIKETYPEID: t.bikeTypeID, NAME: t.name }));
+        res.status(200).json(legacy);
         break;
       }
       case "getJsonPaymentTypes": {
         const types = await fmsService.getPaymentTypes();
-        res.status(200).json(types);
+        const legacy = types.map((t) => ({
+          PAYMENTTYPEID: t.paymentTypeID,
+          NAME: t.name,
+          DESCRIPTION: t.description,
+        }));
+        res.status(200).json(legacy);
         break;
       }
       case "getJsonClientTypes": {
         const types = await fmsService.getClientTypes();
-        res.status(200).json(types);
-        break;
-      }
-      case "getJsonBikeType": {
-        const bikeTypeID = parseInt(bikeparkID ?? "0", 10);
-        if (!bikeTypeID) {
-          res.status(400).json({ message: "bikeTypeID required", status: 0 });
-          return;
-        }
-        const types = await fmsService.getBikeTypes();
-        const found = types.find((t) => t.bikeTypeID === bikeTypeID);
-        if (!found) {
-          res.status(404).json({ message: "Bike type not found", status: 0 });
-          return;
-        }
-        res.status(200).json(found);
+        const legacy = types.map((t) => ({ CLIENTTYPEID: t.clientTypeID, NAME: t.name }));
+        res.status(200).json(legacy);
         break;
       }
       case "saveJsonBike": {

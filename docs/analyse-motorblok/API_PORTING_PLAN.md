@@ -2,7 +2,7 @@
 
 **Version:** 2.0  
 **Created:** 2026-02  
-**Updated:** 2026-02-24  
+**Updated:** 2026-02-25  
 **Status:** Active – merged from API Porting Plan and FMS API Next.js Migration plan.
 
 ---
@@ -38,7 +38,7 @@
 | **Scheduler/cron** | ❌ Pending | Phase 3 – `/api/cron/process-queues` |
 | **Business logic services** | ❌ Pending | bikeparkService, transactionService, accountService |
 | **Archive process** | ❌ Pending | Daily archive of processed queue records |
-| **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes |
+| **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). |
 | **Testing** | ❌ Pending | Unit tests, integration tests |
 | **API migration guide** | ❌ Pending | Documentation for clients |
 
@@ -221,9 +221,11 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 
 ## 4. FMS REST API (V2/V3)
 
-**Status: 🔶 Partial** – Read-only and write endpoints done. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. **TODO:** getSectors, getBikes, getSubscriptors, updateLocker, isAllowedToUse (V2); balances, subscriptions, bikeupdates (V3 protected).
+**Status: 🔶 Partial** – Read-only and write endpoints done. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). **TODO:** getSectors, getBikes, getSubscriptors, updateLocker, isAllowedToUse (V2); balances, subscriptions, bikeupdates (V3 protected).
 
 **Reference:** [wachtrij-tables-api-methods.md](wachtrij-tables-api-methods.md) – only REST is used; SOAP/CFC remote is deprecated.
+
+**Scope:** Implement only endpoints from ColdFusion REST (`remote/REST/FMSService.cfc`, `remote/REST/v3/fms_service.cfc`). Do not add SOAP-only methods (e.g. `getJsonBikeType`). See [§12.1 REST-only: No SOAP methods](#121-rest-only-no-soap-methods).
 
 ### 4.1 Route Structure
 
@@ -248,7 +250,20 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 
 **Read-only:** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes.
 
-### 4.3 Authentication & Type Safety
+### 4.4 V3 Response Structure (ColdFusion Compatibility)
+
+The V3 API response structure is synced with the ColdFusion REST API (`BaseRestService.cfc`, `fms_service.cfc`) to ensure identical output for comparison and client compatibility.
+
+| Endpoint | Behaviour |
+|----------|-----------|
+| **Location (single section)** | Returns `{ sectionid, name, biketypes }` at root – not the full location object (address, capacity, city, etc.). Matches old API. |
+| **Location (multi-section)** | Returns full location with `sections` array. Each section in the array has only `sectionid` and `name`; biketypes are not duplicated in sections. |
+| **Section (standalone)** | Full section: `sectionid`, `name`, `biketypes`, plus conditional `maxsubscriptions` (fietskluizen), `places` (depth>1), `rates` (hasUniBikeTypePrices). Key order: maxsubscriptions, sectionid, name, biketypes, places, rates. |
+| **Section fields** | `capacity`, `occupation`, `free`, `occupationsource` omitted when `fields` param not passed (FMS getSection does not pass fields). |
+
+**Implementation:** `src/server/services/fms/fms-v3-service.ts` – `buildColdFusionLocation`, `toSectionForLocation`, `toSectionOrder`, `getSection`, `getLocation`.
+
+### 4.5 Authentication & Type Safety
 
 - HTTP Basic Auth, integrate with `fmsservice_permit` and `contacts`
 - Roles: `operator`, `dataprovider.type1`, `dataprovider.type2`, `admin`
@@ -402,6 +417,21 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 ---
 
 ## 12. Decisions and Constraints
+
+### 12.1 REST-only: No SOAP methods
+
+**Source of truth for endpoints:** ColdFusion REST API only – `remote/REST/FMSService.cfc` (V2) and `remote/REST/v3/fms_service.cfc` (V3). Do **not** port methods from SOAP/CFC services (`remote/v1/FMSService.cfc`, `remote/v2/FMSService.cfc`).
+
+**Methods to NOT implement** (exist in SOAP/CFC but not in REST):
+
+| Method | Reason |
+|--------|--------|
+| `getJsonBikeType/{bikeTypeID}` | REST has only `getBikeTypes` (plural), no single-by-ID |
+| `getBikeType` (deprecated) | Same – REST has no single bike type endpoint |
+
+**Before adding any new endpoint:** Verify it exists in `remote/REST/FMSService.cfc` or `remote/REST/v3/fms_service.cfc`. If it only exists in `remote/v1/` or `remote/v2/` (SOAP/CFC), do not add it.
+
+### 12.2 Other constraints
 
 - **Mirror only, no delete:** The trigger copies testgemeente rows from `wachtrij_*` to `new_wachtrij_*` but never deletes from `wachtrij_*`. Both ColdFusion and Next.js processors run in parallel; compare results afterwards.
 - **Queue processor:** Next.js processor reads from `new_wachtrij_*`, writes to `new_transacties`, `new_accounts`, etc. ColdFusion processor continues to process `wachtrij_*` as normal.

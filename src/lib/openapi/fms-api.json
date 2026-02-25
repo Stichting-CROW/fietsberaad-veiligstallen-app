@@ -45,27 +45,6 @@
         }
       }
     },
-    "/v2/getJsonBikeType/{bikeTypeID}": {
-      "get": {
-        "summary": "Fietstype op ID",
-        "tags": ["V2"],
-        "security": [],
-        "parameters": [
-          { "name": "bikeTypeID", "in": "path", "required": true, "schema": { "type": "integer" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Fietstype",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/BikeType" }
-              }
-            }
-          },
-          "404": { "description": "Niet gevonden" }
-        }
-      }
-    },
     "/v2/getJsonPaymentTypes": {
       "get": {
         "summary": "Betalingstypen",
@@ -594,12 +573,35 @@
       },
       "SectionSummary": {
         "type": "object",
+        "description": "ColdFusion-compatible section (BaseRestService.getSection)",
         "properties": {
           "sectionid": { "type": "string" },
           "name": { "type": "string" },
           "capacity": { "type": "integer" },
           "occupation": { "type": "integer" },
-          "isKluis": { "type": "boolean" }
+          "free": { "type": "integer" },
+          "occupationsource": { "type": "string" },
+          "biketypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "allowed": { "type": "boolean" },
+                "biketypeid": { "type": "integer" },
+                "rates": {
+                  "type": "array",
+                  "items": { "type": "object", "properties": { "timespan": { "type": "number" }, "cost": { "type": "number" } } }
+                },
+                "capacity": { "type": "integer" }
+              }
+            }
+          },
+          "places": { "type": "array", "items": { "$ref": "#/components/schemas/PlaceSummary" } },
+          "rates": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "timespan": { "type": "number" }, "cost": { "type": "number" } } }
+          },
+          "maxsubscriptions": { "type": "integer" }
         }
       },
       "PlaceSummary": {
@@ -613,11 +615,15 @@
       },
       "SubscriptionTypeSummary": {
         "type": "object",
+        "description": "ColdFusion-compatible subscription type",
         "properties": {
-          "subscriptiontypeid": { "type": "integer" },
+          "id": { "type": "integer", "description": "Subscription type ID" },
           "name": { "type": "string" },
           "price": { "type": "number" },
-          "tijdsduur": { "type": "integer" }
+          "duration": { "type": "integer", "description": "Duration in months" },
+          "locationtype": { "type": "string", "description": "bewaakt, toezicht, geautomatiseerd, etc." },
+          "biketypes": { "type": "array", "items": { "type": "integer" }, "description": "Allowed bike type IDs (1=fiets, 2=bromfiets, etc.)" },
+          "idtypes": { "type": "array", "items": { "type": "integer" }, "description": "0=barcode, 1=ov-chipkaart, 2=cijfercode" }
         }
       },
       "CityWithLocations": {

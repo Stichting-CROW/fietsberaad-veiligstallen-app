@@ -9,6 +9,7 @@ export type BikeType = {
 export type PaymentType = {
   paymentTypeID: number;
   name: string;
+  description: string;
 };
 
 export type ClientType = {
@@ -34,8 +35,18 @@ export async function getBikeTypes(): Promise<BikeType[]> {
 
 export async function getPaymentTypes(): Promise<PaymentType[]> {
   return [
-    { paymentTypeID: 1, name: "betaald" },
-    { paymentTypeID: 2, name: "kwijtschelding" },
+    {
+      paymentTypeID: 1,
+      name: "Fysieke betaling/restitutie",
+      description:
+        "Klant heeft betaald in de stalling. Bij een negatief bedrag betekent deze code dat de klant geld heeft teruggekregen van de beheerder (restitutie)",
+    },
+    {
+      paymentTypeID: 2,
+      name: "Kwijtschelding",
+      description:
+        "Beheerder heeft stallingsschuld kwijtgescholden. Louter administratieve handeling. Geen fysiek geld betrokken.",
+    },
   ];
 }
 
