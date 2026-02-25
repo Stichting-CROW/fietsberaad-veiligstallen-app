@@ -156,8 +156,8 @@ function idmiddelenToIdTypes(idmiddelen: string | null | undefined): number[] {
 type GetCitiesOptions = {
   fields?: string;
   depth?: number;
-  /** Omit exploitantname, sections, station, city, address, postalcode from locations. Use true for citycodes list only. */
-  omitExploitantAndSections?: boolean;
+  /** Use true for V3 citycodes list: omits exploitantname, sections, station, city, address, postalcode from locations. */
+  forV3Citycodes?: boolean;
 };
 
 /** ColdFusion-compatible: returns cities with nested locations (depth >= 1). */
@@ -187,7 +187,7 @@ export async function getCities(
   const result: CityWithLocations[] = [];
   for (const council of councils) {
     if (!council.ZipID) continue;
-    const city = await getCity(council.ZipID, { ...options, omitExploitantAndSections: true });
+    const city = await getCity(council.ZipID, { ...options, forV3Citycodes: true });
     if (city) result.push(city);
   }
   return result;
@@ -230,7 +230,7 @@ export async function getCity(
     depth >= 1
       ? await getLocationsFull(citycode, {
           depth,
-          omitExploitantAndSections: options.omitExploitantAndSections ?? false, // citycodes list: true; citycodes/{citycode}: false
+          forV3Citycodes: options.forV3Citycodes ?? false,
         })
       : [];
 
@@ -271,10 +271,10 @@ export async function getCityCodes(): Promise<CityCode[]> {
 /** ColdFusion-compatible: full location objects for a city. Uses single query + bulk fetches, assembles in memory. */
 async function getLocationsFull(
   citycode: string,
-  options: { depth?: number; limit?: number; omitExploitantAndSections?: boolean } = {}
+  options: { depth?: number; limit?: number; forV3Citycodes?: boolean } = {}
 ): Promise<ColdFusionLocation[]> {
   const t0 = timeStart("getLocationsFull total");
-  const { depth = 3, limit, omitExploitantAndSections = false } = options;
+  const { depth = 3, limit, forV3Citycodes = false } = options;
   const includeSections = depth >= 2;
 
   const tFind = timeStart("getLocationsFull findMany locations");
@@ -364,14 +364,18 @@ async function getLocationsFull(
         sectionsForRows[i] ?? [],
         ocfResults[i]!,
         includeSections,
-        omitExploitantAndSections
+        forV3Citycodes
       )
     );
   }
-  // ColdFusion: council.getActiveBikeparks() uses orderby="title asc" (Council.cfc). Match that order.
-  result.sort((a, b) =>
-    (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "accent" })
-  );
+  // citycodes list: order by locationid (old API uses this for getCities). citycodes/{citycode}: order by name (title asc).
+  if (forV3Citycodes) {
+    result.sort((a, b) => (a.locationid ?? "").localeCompare(b.locationid ?? "", undefined, { numeric: true }));
+  } else {
+    result.sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "accent" })
+    );
+  }
   timeEnd("getLocationsFull total", t0);
   return result;
 }
@@ -691,7 +695,7 @@ function buildColdFusionLocation(
   sections: ColdFusionSection[],
   ocf: { occupied: number; capacity: number; free: number; includeCapacity: boolean },
   includeSections = true,
-  omitExploitantAndSections = false
+  forV3Citycodes = false
 ): ColdFusionLocation {
   const { occupied: totalOccupied, capacity: totalCapacity, free, includeCapacity } = ocf;
 
@@ -716,10 +720,10 @@ function buildColdFusionLocation(
     },
     { locationType: row.Type }
   );
-  // ColdFusion key order: opennow, periods, extrainfo (when present)
+  // ColdFusion key order: opennow, periods, extrainfo (when present). V3 citycodes list: omit extrainfo.
   const openinghours =
     setIfExistsValue(row.Openingstijden) && row.Openingstijden
-      ? { opennow: openinghoursBase.opennow, periods: openinghoursBase.periods, extrainfo: row.Openingstijden }
+      ? { opennow: openinghoursBase.opennow, periods: openinghoursBase.periods, ...(!forV3Citycodes && { extrainfo: row.Openingstijden }) }
       : openinghoursBase;
 
   // exploitantname: Beheerder (BaseRestService bikepark.getManager())
@@ -743,22 +747,23 @@ function buildColdFusionLocation(
     locationtype: row.Type ?? undefined,
     occupationsource: row.BronBezettingsdata ?? "FMS",
     openinghours,
-    ...(!omitExploitantAndSections && { station: row.IsStationsstalling ?? false }),
     ...(lat && { lat }),
     ...(long && { long }),
-    // ColdFusion: occupied always; capacity and free only when getCapacity() > 0 (omit both when no capacity)
+    // ColdFusion: occupied and free always; capacity only when getCapacity() > 0
     occupied: totalOccupied,
-    ...(includeCapacity && { free, capacity: totalCapacity }),
-    ...(!omitExploitantAndSections && exploitantname && { exploitantname }),
-    ...(!omitExploitantAndSections && exploitantcontact && { exploitantcontact }),
+    free,
+    ...(includeCapacity && { capacity: totalCapacity }),
+    ...(!forV3Citycodes && { station: row.IsStationsstalling ?? false }),
+    ...(!forV3Citycodes && exploitantname && { exploitantname }),
+    ...(!forV3Citycodes && exploitantcontact && { exploitantcontact }),
     // ColdFusion sets sections only when depth > 1 (can be []). Omit for citycodes (org) response.
-    ...(!omitExploitantAndSections && includeSections && { sections }),
-    ...(services && { services }),
-    ...(!omitExploitantAndSections && setIfExistsValue(row.Plaats) && { city: row.Plaats! }),
-    ...(!omitExploitantAndSections && row.Location && { address: row.Location }),
-    ...(!omitExploitantAndSections && setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
-    ...(setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
-    ...(setIfExistsValue(row.Description) && { description: row.Description! }),
+    ...(!forV3Citycodes && includeSections && { sections }),
+    ...(!forV3Citycodes && services && { services }),
+    ...(!forV3Citycodes && setIfExistsValue(row.Plaats) && { city: row.Plaats! }),
+    ...(!forV3Citycodes && row.Location && { address: row.Location }),
+    ...(!forV3Citycodes && setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
+    ...(!forV3Citycodes && setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
+    ...(!forV3Citycodes && setIfExistsValue(row.Description) && { description: row.Description! }),
   };
   return toColdFusionLocationOrder(loc);
 }

@@ -9,7 +9,7 @@ Traced from `coldfusion-broncode/` – output fields to database source.
 | Output field | Source |
 |--------------|--------|
 | `occupied` | `bikepark.getOccupiedPlaces()` (always) |
-| `free` | `bikepark.getFreePlaces()` (only when `bikepark.getCapacity() > 0`) |
+| `free` | `bikepark.getFreePlaces()` (always) |
 | `capacity` | `bikepark.getNettoCapacity()` (only when `bikepark.getCapacity() > 0`) |
 
 ---
