@@ -156,6 +156,8 @@ function idmiddelenToIdTypes(idmiddelen: string | null | undefined): number[] {
 type GetCitiesOptions = {
   fields?: string;
   depth?: number;
+  /** Omit exploitantname, sections, station, city, address, postalcode from locations. Use true for citycodes list only. */
+  omitExploitantAndSections?: boolean;
 };
 
 /** ColdFusion-compatible: returns cities with nested locations (depth >= 1). */
@@ -163,19 +165,29 @@ export async function getCities(
   options: GetCitiesOptions = {}
 ): Promise<CityWithLocations[]> {
   const { depth = 3 } = options;
+  // ColdFusion: getCouncilsWithBikeparks() - councils with active bikeparks, ORDER BY companyName
   const councils = await prisma.contacts.findMany({
     where: {
+      ID: { not: "1" },
       ItemType: "organizations",
       ZipID: { not: null },
       Status: "1",
+      fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+        some: {
+          Status: "1",
+          StallingsID: { not: null },
+          Title: { not: "Systeemstalling" },
+        },
+      },
     },
+    orderBy: { CompanyName: "asc" },
     select: { ID: true, ZipID: true, CompanyName: true },
   });
 
   const result: CityWithLocations[] = [];
   for (const council of councils) {
     if (!council.ZipID) continue;
-    const city = await getCity(council.ZipID, options);
+    const city = await getCity(council.ZipID, { ...options, omitExploitantAndSections: true });
     if (city) result.push(city);
   }
   return result;
@@ -216,7 +228,10 @@ export async function getCity(
   const tLoc = timeStart("getCity getLocationsFull");
   const locations =
     depth >= 1
-      ? await getLocationsFull(citycode, { depth, limit: 5 })
+      ? await getLocationsFull(citycode, {
+          depth,
+          omitExploitantAndSections: options.omitExploitantAndSections ?? false, // citycodes list: true; citycodes/{citycode}: false
+        })
       : [];
 
   timeEnd("getCity getLocationsFull", tLoc);
@@ -256,10 +271,10 @@ export async function getCityCodes(): Promise<CityCode[]> {
 /** ColdFusion-compatible: full location objects for a city. Uses single query + bulk fetches, assembles in memory. */
 async function getLocationsFull(
   citycode: string,
-  options: { depth?: number; limit?: number } = {}
+  options: { depth?: number; limit?: number; omitExploitantAndSections?: boolean } = {}
 ): Promise<ColdFusionLocation[]> {
   const t0 = timeStart("getLocationsFull total");
-  const { depth = 3, limit } = options;
+  const { depth = 3, limit, omitExploitantAndSections = false } = options;
   const includeSections = depth >= 2;
 
   const tFind = timeStart("getLocationsFull findMany locations");
@@ -271,7 +286,7 @@ async function getLocationsFull(
         ItemType: "organizations",
       },
       StallingsID: { not: null },
-      Status: "1",
+      Status: "1", // ColdFusion: getActiveBikeparks() filters by isActive() = Status eq "1"
       Title: { not: "Systeemstalling" },
     },
     orderBy: { Title: "asc" },
@@ -348,10 +363,15 @@ async function getLocationsFull(
         rows[i] as LocationRow,
         sectionsForRows[i] ?? [],
         ocfResults[i]!,
-        includeSections
+        includeSections,
+        omitExploitantAndSections
       )
     );
   }
+  // ColdFusion: council.getActiveBikeparks() uses orderby="title asc" (Council.cfc). Match that order.
+  result.sort((a, b) =>
+    (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "accent" })
+  );
   timeEnd("getLocationsFull total", t0);
   return result;
 }
@@ -359,7 +379,7 @@ async function getLocationsFull(
 type SectionForOccupied = {
   sectieId: number;
   Bezetting: number;
-  secties_fietstype?: Array<{ Capaciteit: number | null }>;
+  secties_fietstype?: Array<{ Capaciteit: number | null; Toegestaan?: boolean | null }>;
 };
 
 type SectieForAssembly = SectionForOccupied & {
@@ -497,7 +517,7 @@ async function assembleSectionsFromRows(
         type SfRow = { SectionBiketypeID: number; Toegestaan: boolean | null; BikeTypeID: number | null; Capaciteit: number | null };
         const sft = (s.secties_fietstype ?? []) as SfRow[];
         if (sft.length > 0) {
-          data.biketypes = sft.map((sf) => {
+          const mapped = sft.map((sf) => {
             const tr = tariefBySbt.get(sf.SectionBiketypeID);
             const rates = tr ? tr.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) })) : [];
             const allowed = sf.Toegestaan ?? false;
@@ -509,6 +529,7 @@ async function assembleSectionsFromRows(
             if (allowed && sf.Capaciteit != null && sf.Capaciteit > 0) out.capacity = sf.Capaciteit;
             return out;
           });
+          data.biketypes = mapped.sort((a, b) => a.biketypeid - b.biketypeid);
         }
         if (row.hasUniBikeTypePrices && s.sectieId) {
           const sectieTr = tariefByUniSectie.get(s.sectieId);
@@ -630,6 +651,7 @@ function computeOcfForRow(
   let totalOccupied = 0;
 
   for (const s of secties) {
+    // ColdFusion BikeparkSection.getCapacity(): sum of all sectionBikeTypes.Capaciteit (no Toegestaan filter).
     const sectionCapacity = (s.secties_fietstype ?? []).reduce(
       (sum, sf) => sum + (sf.Capaciteit ?? 0),
       0
@@ -646,11 +668,13 @@ function computeOcfForRow(
     totalOccupied += sectionOccupied;
   }
 
-  const capacity = totalCapacityNetto;
-  const capacityForFree =
-    row.Capacity != null && typeof row.Capacity === "number" && !Number.isNaN(row.Capacity)
-      ? row.Capacity
-      : totalCapacityRaw;
+  // ColdFusion: capacity = getNettoCapacity() (always sections minus bulk); free = getCapacity() - occupied.
+  // getCapacity() returns fietsenstallingen.Capacity when set, else calculateCapacity() from sections.
+  // capacity is NEVER from fietsenstallingen.Capacity - only free uses it when set.
+  const capVal = row.Capacity != null ? Number(row.Capacity) : NaN;
+  const stallingCapacitySet = !Number.isNaN(capVal) && capVal > 0;
+  const capacity = totalCapacityNetto; // always getNettoCapacity()
+  const capacityForFree = stallingCapacitySet ? capVal : totalCapacityRaw;
   const free = Math.max(0, capacityForFree - totalOccupied);
   const includeCapacity = totalCapacityRaw > 0 || (row.Capacity != null && row.Capacity > 0);
   return { occupied: totalOccupied, capacity, free, includeCapacity };
@@ -666,7 +690,8 @@ function buildColdFusionLocation(
   row: LocationRow,
   sections: ColdFusionSection[],
   ocf: { occupied: number; capacity: number; free: number; includeCapacity: boolean },
-  includeSections = true
+  includeSections = true,
+  omitExploitantAndSections = false
 ): ColdFusionLocation {
   const { occupied: totalOccupied, capacity: totalCapacity, free, includeCapacity } = ocf;
 
@@ -718,21 +743,20 @@ function buildColdFusionLocation(
     locationtype: row.Type ?? undefined,
     occupationsource: row.BronBezettingsdata ?? "FMS",
     openinghours,
-    station: row.IsStationsstalling ?? false,
+    ...(!omitExploitantAndSections && { station: row.IsStationsstalling ?? false }),
     ...(lat && { lat }),
     ...(long && { long }),
-    // ColdFusion always sets occupied, free; capacity only when getCapacity() > 0 (can be 0 when getNettoCapacity=0)
+    // ColdFusion: occupied always; capacity and free only when getCapacity() > 0 (omit both when no capacity)
     occupied: totalOccupied,
-    free,
-    ...(includeCapacity && { capacity: totalCapacity }),
-    ...(exploitantname && { exploitantname }),
-    ...(exploitantcontact && { exploitantcontact }),
-    // ColdFusion sets sections only when depth > 1 (can be [])
-    ...(includeSections && { sections }),
+    ...(includeCapacity && { free, capacity: totalCapacity }),
+    ...(!omitExploitantAndSections && exploitantname && { exploitantname }),
+    ...(!omitExploitantAndSections && exploitantcontact && { exploitantcontact }),
+    // ColdFusion sets sections only when depth > 1 (can be []). Omit for citycodes (org) response.
+    ...(!omitExploitantAndSections && includeSections && { sections }),
     ...(services && { services }),
-    ...(setIfExistsValue(row.Plaats) && { city: row.Plaats! }),
-    ...(row.Location && { address: row.Location }),
-    ...(setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
+    ...(!omitExploitantAndSections && setIfExistsValue(row.Plaats) && { city: row.Plaats! }),
+    ...(!omitExploitantAndSections && row.Location && { address: row.Location }),
+    ...(!omitExploitantAndSections && setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
     ...(setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
     ...(setIfExistsValue(row.Description) && { description: row.Description! }),
   };
@@ -774,28 +798,28 @@ export function toLocationDetailFormat(loc: ColdFusionLocation): LocationDetailS
   };
 }
 
-/** Key order for each location in citycodes/{citycode}/locations array. Matches old API observed order. */
+/** Key order for each location in citycodes/{citycode}/locations array. Matches old API. */
 function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation {
   const order = [
     "occupied",
-    "exploitantname",
-    "exploitantcontact",
-    "locationtype",
     "long",
-    "sections",
-    "station",
-    "occupationsource",
+    "locationtype",
     "lat",
+    "occupationsource",
     "name",
     "free",
-    "city",
     "capacity",
+    "locationid",
+    "openinghours",
+    "exploitantname",
+    "exploitantcontact",
+    "sections",
+    "station",
+    "city",
     "address",
     "postalcode",
     "costsdescription",
     "description",
-    "locationid",
-    "openinghours",
     "services",
   ];
   const out: Record<string, unknown> = {};
@@ -883,7 +907,7 @@ export async function getLocation(
         select: {
           sectieId: true,
           Bezetting: true,
-          secties_fietstype: { select: { Capaciteit: true } },
+          secties_fietstype: { select: { Capaciteit: true, Toegestaan: true } },
         },
       },
     },
@@ -997,7 +1021,7 @@ export async function getSection(
       }
     }
 
-    data.biketypes = sectie.secties_fietstype.map((sf) => {
+    const mapped = sectie.secties_fietstype.map((sf) => {
       const tr = tariefBySbt.get(sf.SectionBiketypeID);
       const rates = tr ? tr.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) })) : [];
       const allowed = sf.Toegestaan ?? false;
@@ -1011,6 +1035,7 @@ export async function getSection(
       }
       return out;
     });
+    data.biketypes = mapped.sort((a, b) => a.biketypeid - b.biketypeid);
   }
 
   if (depth > 1) {

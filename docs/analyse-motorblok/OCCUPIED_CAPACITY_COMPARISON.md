@@ -14,7 +14,7 @@ Comparison of how `occupied`, `free`, and `capacity` are calculated for V3 locat
 - **BaseRestService** uses `bikepark.getNettoCapacity()` for the `capacity` field
 - **Bikepark.getNettoCapacity()**: Sum over sections of `section.getNettoCapacity()`
 - **BikeparkSection.getNettoCapacity()**: `getCapacity() - bulkreservation.getNumber()` (when bulkreservation exists for today)
-- **BikeparkSection.getCapacity()**: Sum of `sectionBikeTypes.Capaciteit` = **secties_fietstype.Capaciteit** (NOT fietsenstalling_sectie.capaciteit)
+- **BikeparkSection.getCapacity()**: Sum of `sectionBikeTypes.Capaciteit` = **secties_fietstype.Capaciteit** (NOT fietsenstalling_sectie.capaciteit). No Toegestaan filter in CF code.
 
 ### Free
 - **Bikepark.getFreePlaces()**: `getCapacity() - getOccupiedPlaces()`, clamped to ≥ 0
@@ -22,6 +22,7 @@ Comparison of how `occupied`, `free`, and `capacity` are calculated for V3 locat
 
 ### Sections
 - **getBikeparkSections()**: One-to-many relation, **no `where` clause** – includes all sections (no isactief filter in ORM)
+- Sections can be disabled via `fietsenstalling_sectie.isactief`, but ColdFusion does **not** filter by it for capacity/occupied or section listing
 
 ---
 
@@ -67,3 +68,9 @@ Next.js implementation now matches ColdFusion:
 4. **Bulkreservations**: Excluded from capacity when Startdatumtijd date = today, Einddatumtijd >= now, no exception for today
 5. **Section filtering**: No isactief filter (matches ColdFusion getBikeparkSections)
 6. **Free**: getCapacity() - getOccupiedPlaces(), clamped to ≥ 0
+
+---
+
+## Known data accuracy issues (2026-02)
+
+**V3 citycodes**: Capacity and occupation data in the V3 citycodes response may not be accurate. Example: Aalburg (citycode 4200), location 4200_001 "De Kromme Nol" – old API and new API have shown differing capacity/free values (e.g. 10/10 vs 90/90). Root cause not yet identified; ColdFusion source code follows the documented flow. Treat capacity/occupied/free in citycodes as indicative only until resolved.

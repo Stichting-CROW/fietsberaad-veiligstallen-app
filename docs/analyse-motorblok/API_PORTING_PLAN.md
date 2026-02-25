@@ -267,6 +267,9 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 | **Location (multi-section)** | Returns full location with `sections` array. Each section in the array has only `sectionid` and `name`; biketypes are not duplicated in sections. |
 | **Section (standalone)** | Full section: `sectionid`, `name`, `biketypes`, plus conditional `maxsubscriptions` (fietskluizen), `places` (depth>1), `rates` (hasUniBikeTypePrices). Key order: maxsubscriptions, sectionid, name, biketypes, places, rates. |
 | **Section fields** | `capacity`, `occupation`, `free`, `occupationsource` omitted when `fields` param not passed (FMS getSection does not pass fields). |
+| **Citycodes locations** | Locations in `citycodes` and `citycodes/{citycode}` omit `exploitantname`, `sections`, `station`, `city`, `address`, `postalcode` to match old API. `citycodes/{citycode}/locations` and `locations/{id}` keep them. |
+
+**Field comparison (ColdFusion vs Next.js):** ColdFusion `getLocation` outputs `thirdpartyreservationsurl` (Bikepark.getThirdPartyReservationsUrl); Next.js does not yet include it. All other location fields aligned.
 
 **Implementation:** `src/server/services/fms/fms-v3-service.ts` – `buildColdFusionLocation`, `toSectionForLocation`, `toSectionOrder`, `getSection`, `getLocation`.
 
@@ -408,6 +411,7 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 10. API migration guide
 11. **TODO:** Update V3 `exploitantcontact` to match Contact beheerder form logic (HelpdeskHandmatigIngesteld, exploitant Helpdesk, site Helpdesk). Currently uses BeheerderContact only for ColdFusion compatibility.
 12. ~~**TODO:** Align V3 `occupied`/`capacity`/`free` with ColdFusion~~ ✅ Done. See [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md).
+13. **TODO:** Resolve count differences between old and new API for `citycodes/{citycode}` and for `citycodes/{citycode}/locations` (old vs new, not between the two endpoints). Suspected cause: records in the `wachtrij` table affecting occupied/capacity/free calculations. To investigate and fix later.
 
 ---
 
