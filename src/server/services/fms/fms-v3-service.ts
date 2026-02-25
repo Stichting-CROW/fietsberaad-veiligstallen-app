@@ -248,8 +248,12 @@ async function getLocationsFull(
       Open_za: true,
       Dicht_za: true,
       fietsenstalling_secties: {
-        where: { isactief: true },
-        select: { Bezetting: true, capaciteit: true },
+        /* ColdFusion getBikeparkSections has no isactief filter */
+        select: {
+          sectieId: true,
+          Bezetting: true,
+          secties_fietstype: { select: { Capaciteit: true } },
+        },
       },
     },
   });
@@ -260,10 +264,19 @@ async function getLocationsFull(
     const sections = includeSections && locationid
       ? await getSections(citycode, locationid, depth - 1)
       : [];
-    result.push(buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], cityName));
+    const ocf = await computeOccupiedCapacityFree(r as LocationRow);
+    result.push(
+      buildColdFusionLocation(r as LocationRow, sections as ColdFusionSection[], cityName, ocf)
+    );
   }
   return result;
 }
+
+type SectionForOccupied = {
+  sectieId: number;
+  Bezetting: number;
+  secties_fietstype?: Array<{ Capaciteit: number | null }>;
+};
 
 type LocationRow = {
   StallingsID: string | null;
@@ -291,31 +304,120 @@ type LocationRow = {
   Dicht_vr?: Date | null;
   Open_za?: Date | null;
   Dicht_za?: Date | null;
-  fietsenstalling_secties:
-    | { Bezetting: number; capaciteit: number | null }[]
-    | {
-        externalId: string | null;
-        titel: string | null;
-        Bezetting: number;
-        capaciteit: number | null;
-        secties_fietstype: {
-          BikeTypeID: number;
-          Toegestaan: boolean | null;
-          Capaciteit: number | null;
-        }[];
-      }[];
+  fietsenstalling_secties: SectionForOccupied[];
 };
+
+/** ColdFusion-compatible: capacity from secties_fietstype.Capaciteit; occupied from locker statuses (fietskluizen) or Bezetting; bulkreservations subtracted from capacity. */
+async function computeOccupiedCapacityFree(
+  row: LocationRow
+): Promise<{ occupied: number; capacity: number; free: number }> {
+  const secties = row.fietsenstalling_secties;
+  if (!secties?.length) {
+    const fallback = row.Capacity ?? 0;
+    return { occupied: 0, capacity: fallback, free: Math.max(0, fallback) };
+  }
+
+  const sectieIds = secties.map((s) => s.sectieId);
+  if (sectieIds.length === 0) {
+    const fallback = row.Capacity ?? 0;
+    return { occupied: 0, capacity: fallback, free: Math.max(0, fallback) };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(today);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  // Bulkreservations for today (BikeparkSection.getBulkreservationForDate): SectieID in list, Startdatumtijd date = today, Einddatumtijd >= now, exclude those with exception for today
+  const exceptedIds = (
+    await prisma.bulkreserveringuitzondering.findMany({
+      where: { datum: { gte: today, lt: todayEnd } },
+      select: { BulkreservationID: true },
+    })
+  )
+    .map((e) => e.BulkreservationID)
+    .filter((id): id is number => id != null);
+
+  const bulkreservations = await prisma.bulkreservering.findMany({
+    where: {
+      SectieID: { in: sectieIds },
+      Startdatumtijd: { gte: today, lt: todayEnd },
+      Einddatumtijd: { gte: new Date() },
+      ...(exceptedIds.length > 0 && { ID: { notIn: exceptedIds } }),
+    },
+    select: { SectieID: true, Aantal: true },
+    orderBy: { Startdatumtijd: "asc" },
+  });
+  // ColdFusion getBulkreservationForDate returns first match per section
+  const bulkBySectie = new Map<number, number>();
+  for (const b of bulkreservations) {
+    if (b.SectieID != null && !bulkBySectie.has(b.SectieID)) {
+      bulkBySectie.set(b.SectieID, b.Aantal ?? 0);
+    }
+  }
+
+  // Sections with places (lockers): BikeparkSection.hasPlace() = has fietsenstalling_plek rows
+  const sectionsWithPlaces = await prisma.fietsenstalling_plek.findMany({
+    where: { sectie_id: { in: sectieIds.map((id) => BigInt(id)) } },
+    select: { sectie_id: true },
+    distinct: ["sectie_id"],
+  });
+  const hasPlacesSet = new Set(sectionsWithPlaces.map((p) => Number(p.sectie_id!)));
+
+  // Locker occupied counts: fietsenstalling_plek where status != 0 (Place.FREE). ColdFusion: place.getCurrentStatus() neq place.FREE
+  const lockerCounts = await prisma.fietsenstalling_plek.groupBy({
+    by: ["sectie_id"],
+    where: {
+      sectie_id: { in: sectieIds.map((id) => BigInt(id)) },
+      status: { not: null },
+      status: { not: 0 },
+    },
+    _count: { id: true },
+  });
+  const occupiedBySectie = new Map<number, number>();
+  for (const l of lockerCounts) {
+    if (l.sectie_id != null) {
+      occupiedBySectie.set(Number(l.sectie_id), l._count.id);
+    }
+  }
+
+  let totalCapacityRaw = 0;
+  let totalCapacityNetto = 0;
+  let totalOccupied = 0;
+
+  for (const s of secties) {
+    const sectionCapacity = (s.secties_fietstype ?? []).reduce(
+      (sum, sf) => sum + (sf.Capaciteit ?? 0),
+      0
+    );
+    const bulk = bulkBySectie.get(s.sectieId) ?? 0;
+    const netto = Math.max(0, sectionCapacity - bulk);
+
+    const hasPlaces = hasPlacesSet.has(s.sectieId);
+    const sectionOccupied = hasPlaces
+      ? occupiedBySectie.get(s.sectieId) ?? 0
+      : s.Bezetting ?? 0;
+
+    totalCapacityRaw += sectionCapacity;
+    totalCapacityNetto += netto;
+    totalOccupied += sectionOccupied;
+  }
+
+  const free = Math.max(0, totalCapacityRaw - totalOccupied);
+  return {
+    occupied: totalOccupied,
+    capacity: totalCapacityNetto > 0 ? totalCapacityNetto : (totalCapacityRaw || row.Capacity) ?? 0,
+    free,
+  };
+}
 
 function buildColdFusionLocation(
   row: LocationRow,
   sections: ColdFusionSection[],
-  cityName?: string
+  cityName: string | undefined,
+  ocf: { occupied: number; capacity: number; free: number }
 ): ColdFusionLocation {
-  const secties = row.fietsenstalling_secties as { Bezetting: number; capaciteit: number | null }[];
-  const totalBezetting = secties.reduce((s, x) => s + (x.Bezetting ?? 0), 0);
-  const totalCapacity =
-    (secties.reduce((s, x) => s + (x.capaciteit ?? 0), 0) || row.Capacity) ?? 0;
-  const free = Math.max(0, totalCapacity - totalBezetting);
+  const { occupied: totalOccupied, capacity: totalCapacity, free } = ocf;
 
   const [lat, long] = parseCoordinaten(row.Coordinaten);
   const longFormatted = long ? (long.startsWith(" ") ? long : ` ${long}`) : undefined;
@@ -353,7 +455,7 @@ function buildColdFusionLocation(
     ...(lat && { lat }),
     ...(longFormatted && { long: longFormatted }),
     ...(totalCapacity > 0 && {
-      occupied: totalBezetting,
+      occupied: totalOccupied,
       free,
       capacity: totalCapacity,
     }),
@@ -486,22 +588,25 @@ export async function getLocation(
       Open_za: true,
       Dicht_za: true,
       fietsenstalling_secties: {
-        where: { isactief: true },
+        /* ColdFusion getBikeparkSections has no isactief filter */
         select: {
+          sectieId: true,
           externalId: true,
           titel: true,
           Bezetting: true,
-          capaciteit: true,
+          secties_fietstype: { select: { Capaciteit: true } },
         },
       },
     },
   });
   if (!stalling?.StallingsID) return null;
   const sections = await getSections(citycode, locationid, depth);
+  const ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
   return buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
-    council?.CompanyName ?? undefined
+    council?.CompanyName ?? undefined,
+    ocf
   );
 }
 
@@ -520,7 +625,7 @@ export async function getSections(
         },
         Status: "1",
       },
-      isactief: true,
+      /* ColdFusion getBikeparkSections has no isactief filter */
     },
     select: { externalId: true },
   });
