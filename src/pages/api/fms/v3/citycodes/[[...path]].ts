@@ -72,9 +72,8 @@ export default async function handle(
         res.status(404).json({ message: "Location not found" });
         return;
       }
-      // locations/{locationid} uses old API format: biketypes at top level (not sections)
-      const locationDetail = v3Service.toLocationDetailFormat(location);
-      res.status(200).json(locationDetail);
+      // Return full location with ColdFusion key order (occupied, exploitantcontact, locationtype, long, sections, etc.)
+      res.status(200).json(location);
       return;
     }
 

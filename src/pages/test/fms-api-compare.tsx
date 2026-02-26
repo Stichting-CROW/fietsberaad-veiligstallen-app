@@ -46,13 +46,18 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
 ];
 
+const GLOBAL_ENDPOINTS = ENDPOINTS.filter((e) => e.id.startsWith("v2-") || e.id === "v3-citycodes");
+const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e));
+
 const STORAGE_KEY = "fms-api-compare-params";
 const STORAGE_KEY_URLS = "fms-api-compare-urls";
+const STORAGE_KEY_FULL_DATASET = "fms-api-compare-full-dataset";
 
 const DEFAULT_PARAMS: Record<string, string> = {
   citycode: "9933",
   locationid: "9933_001",
   sectionid: "9933_001_1",
+  depth: "3",
 };
 
 function loadStoredParams(): Record<string, string> {
@@ -86,54 +91,106 @@ function loadStoredUrls(): { oldApiUrl: string; newApiUrl: string } {
   return { oldApiUrl: OLD_API_BASE, newApiUrl: "" };
 }
 
+type FullDatasetTestResult = {
+  testId: string;
+  type: "city" | "location" | "section";
+  citycode: string;
+  locationid?: string;
+  sectionid?: string;
+  endpointId: string;
+  endpointLabel: string;
+  status: "identical" | "diff" | "error";
+  error?: string;
+};
+
+type FullDatasetTestResponse = {
+  results: FullDatasetTestResult[];
+  summary: { total: number; identical: number; diff: number; error: number };
+};
+
+function loadStoredFullDataset(): FullDatasetTestResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_FULL_DATASET);
+    if (stored) return JSON.parse(stored) as FullDatasetTestResponse;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function saveFullDatasetToStorage(data: FullDatasetTestResponse) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY_FULL_DATASET, JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
+
+function appendDepthParam(url: string, depth: string, endpointId: string): string {
+  if (!endpointId.startsWith("v3-")) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}depth=${encodeURIComponent(depth)}`;
+}
+
 function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, oldApiBase: string): string {
+  let url: string;
   if (paramValues.citycode && endpoint.params.includes("citycode")) {
     let path = `/rest/v3/citycodes/${paramValues.citycode}`;
-    if (endpoint.id === "v3-citycode") return `${oldApiBase}${path}`;
-    if (endpoint.id === "v3-locations") return `${oldApiBase}${path}/locations`;
-    if (paramValues.locationid) {
+    if (endpoint.id === "v3-citycode") url = `${oldApiBase}${path}`;
+    else if (endpoint.id === "v3-locations") url = `${oldApiBase}${path}/locations`;
+    else if (paramValues.locationid) {
       path += `/locations/${paramValues.locationid}`;
-      if (endpoint.id === "v3-subscriptiontypes") return `${oldApiBase}${path}/subscriptiontypes`;
-      if (endpoint.id === "v3-sections") return `${oldApiBase}${path}/sections`;
-      if (paramValues.sectionid) {
+      if (endpoint.id === "v3-subscriptiontypes") url = `${oldApiBase}${path}/subscriptiontypes`;
+      else if (endpoint.id === "v3-sections") url = `${oldApiBase}${path}/sections`;
+      else if (endpoint.id === "v3-location") url = `${oldApiBase}${path}`;
+      else if (paramValues.sectionid) {
         path += `/sections/${paramValues.sectionid}`;
-        if (endpoint.id === "v3-places") return `${oldApiBase}${path}/places`;
-        if (endpoint.id === "v3-section") return `${oldApiBase}${path}`;
-      }
-      if (endpoint.id === "v3-location") return `${oldApiBase}${path}`;
-    }
+        if (endpoint.id === "v3-places") url = `${oldApiBase}${path}/places`;
+        else if (endpoint.id === "v3-section") url = `${oldApiBase}${path}`;
+        else url = "";
+      } else url = "";
+    } else url = "";
+  } else if (endpoint.id === "v3-citycodes") {
+    url = `${oldApiBase}/rest/v3/citycodes`;
+  } else {
+    const path = "oldPath" in endpoint && endpoint.oldPath ? endpoint.oldPath : endpoint.path;
+    url = `${oldApiBase}${path}`;
   }
-  if (endpoint.id === "v3-citycodes") return `${oldApiBase}/rest/v3/citycodes`;
-  const path = "oldPath" in endpoint && endpoint.oldPath ? endpoint.oldPath : endpoint.path;
-  return `${oldApiBase}${path}`;
+  return appendDepthParam(url, paramValues.depth ?? "3", endpoint.id);
 }
 
 function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, baseNew: string): string {
   const base = "/api/fms";
+  let url: string;
   if (endpoint.id.startsWith("v2-")) {
     const method = endpoint.path.split("/").pop() ?? "";
-    return `${baseNew}${base}/v2/${method}`;
-  }
-  if (endpoint.id.startsWith("v3-")) {
-    if (endpoint.id === "v3-citycodes") return `${baseNew}${base}/v3/citycodes`;
-    if (!paramValues.citycode) return `${baseNew}${base}/v3/citycodes`;
-    let p = `${baseNew}${base}/v3/citycodes/${paramValues.citycode}`;
-    if (endpoint.id === "v3-citycode") return p;
-    if (endpoint.id === "v3-locations") return `${p}/locations`;
-    if (paramValues.locationid) {
-      p += `/locations/${paramValues.locationid}`;
-      if (endpoint.id === "v3-location") return p;
-      if (endpoint.id === "v3-subscriptiontypes") return `${p}/subscriptiontypes`;
-      if (endpoint.id === "v3-sections") return `${p}/sections`;
-      if (paramValues.sectionid) {
-        p += `/sections/${paramValues.sectionid}`;
-        if (endpoint.id === "v3-section") return p;
-        if (endpoint.id === "v3-places") return `${p}/places`;
-      }
+    url = `${baseNew}${base}/v2/${method}`;
+  } else if (endpoint.id.startsWith("v3-")) {
+    if (endpoint.id === "v3-citycodes") url = `${baseNew}${base}/v3/citycodes`;
+    else if (!paramValues.citycode) url = `${baseNew}${base}/v3/citycodes`;
+    else {
+      let p = `${baseNew}${base}/v3/citycodes/${paramValues.citycode}`;
+      if (endpoint.id === "v3-citycode") url = p;
+      else if (endpoint.id === "v3-locations") url = `${p}/locations`;
+      else if (paramValues.locationid) {
+        p += `/locations/${paramValues.locationid}`;
+        if (endpoint.id === "v3-location") url = p;
+        else if (endpoint.id === "v3-subscriptiontypes") url = `${p}/subscriptiontypes`;
+        else if (endpoint.id === "v3-sections") url = `${p}/sections`;
+        else if (paramValues.sectionid) {
+          p += `/sections/${paramValues.sectionid}`;
+          if (endpoint.id === "v3-section") url = p;
+          else if (endpoint.id === "v3-places") url = `${p}/places`;
+          else url = p;
+        } else url = p;
+      } else url = p;
     }
-    return p;
+  } else {
+    return "";
   }
-  return "";
+  return appendDepthParam(url, paramValues.depth ?? "3", endpoint.id);
 }
 
 function canonicalJson(obj: unknown): string {
@@ -215,7 +272,7 @@ const FmsApiComparePage: React.FC = () => {
   useEffect(() => {
     if (!apiBase) return;
     setOptionsLoading((o) => ({ ...o, city: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes`)
+    fetch(`${apiBase}/api/fms/v3/citycodes?depth=1`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<{ citycode?: string; name?: string }>) => {
         const opts: OptionItem[] = (data ?? []).map((c) => ({
@@ -235,7 +292,7 @@ const FmsApiComparePage: React.FC = () => {
       return;
     }
     setOptionsLoading((o) => ({ ...o, location: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations`)
+    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations?depth=1`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<{ locationid?: string; name?: string }>) => {
         const opts: OptionItem[] = (data ?? []).map((l) => ({
@@ -243,6 +300,11 @@ const FmsApiComparePage: React.FC = () => {
           label: l.name ? `${l.locationid} – ${l.name}` : (l.locationid ?? ""),
         })).filter((o) => o.value);
         setLocationOptions(opts);
+        if (opts.length > 0) {
+          setParamValues((p) =>
+            p.locationid === "" ? { ...p, locationid: opts[0]!.value, sectionid: "" } : p
+          );
+        }
       })
       .catch(() => setLocationOptions([]))
       .finally(() => setOptionsLoading((o) => ({ ...o, location: false })));
@@ -256,7 +318,7 @@ const FmsApiComparePage: React.FC = () => {
       return;
     }
     setOptionsLoading((o) => ({ ...o, section: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations/${encodeURIComponent(lid)}/sections`)
+    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations/${encodeURIComponent(lid)}/sections?depth=1`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<{ sectionid?: string; name?: string }>) => {
         const opts: OptionItem[] = (data ?? []).map((s) => ({
@@ -264,6 +326,11 @@ const FmsApiComparePage: React.FC = () => {
           label: s.name ? `${s.sectionid} – ${s.name}` : (s.sectionid ?? ""),
         })).filter((o) => o.value);
         setSectionOptions(opts);
+        if (opts.length > 0) {
+          setParamValues((p) =>
+            p.sectionid === "" ? { ...p, sectionid: opts[0]!.value } : p
+          );
+        }
       })
       .catch(() => setSectionOptions([]))
       .finally(() => setOptionsLoading((o) => ({ ...o, section: false })));
@@ -286,13 +353,47 @@ const FmsApiComparePage: React.FC = () => {
       /* ignore */
     }
   }, [oldApiUrl, newApiUrl]);
+
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [rowResults, setRowResults] = useState<Record<string, { old: string; new: string }>>({});
   const [rowTiming, setRowTiming] = useState<Record<string, { oldSeconds: number; newSeconds: number }>>({});
   const [rowExpanded, setRowExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const locationIds = LOCATION_ENDPOINTS.map((e) => e.id);
+    setRowStatus((s) => {
+      const next = { ...s };
+      for (const id of locationIds) delete next[id];
+      return next;
+    });
+    setRowError((e) => {
+      const next = { ...e };
+      for (const id of locationIds) delete next[id];
+      return next;
+    });
+    setRowResults((r) => {
+      const next = { ...r };
+      for (const id of locationIds) delete next[id];
+      return next;
+    });
+    setRowTiming((t) => {
+      const next = { ...t };
+      for (const id of locationIds) delete next[id];
+      return next;
+    });
+    setRowExpanded((x) => {
+      const next = { ...x };
+      for (const id of locationIds) delete next[id];
+      return next;
+    });
+  }, [paramValues.depth]);
   const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
+  const [fullDatasetLoading, setFullDatasetLoading] = useState(false);
+  const [fullDatasetResults, setFullDatasetResults] = useState<FullDatasetTestResponse | null>(() => loadStoredFullDataset());
+  const [showOnlyFailedFullDataset, setShowOnlyFailedFullDataset] = useState(true);
+  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek">("algemeen");
 
   const hasAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
@@ -316,13 +417,39 @@ const FmsApiComparePage: React.FC = () => {
     }
   }, [hasAccess, session]);
 
-  const handleCompareAll = async () => {
+  const handleCompareAll = async (
+    overrideParams?: Record<string, string>,
+    endpointsSubset?: typeof ENDPOINTS
+  ) => {
+    const params = overrideParams ?? paramValues;
+    const endpoints = endpointsSubset ?? ENDPOINTS;
     const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
     setLoading(true);
-    setRowStatus({});
-    setRowError({});
-    setRowResults({});
-    setRowTiming({});
+    if (endpointsSubset) {
+      const loadingStatus: Record<string, RowStatus> = {};
+      for (const e of endpoints) loadingStatus[e.id] = "loading";
+      setRowStatus((s) => ({ ...s, ...loadingStatus }));
+      setRowError((err) => {
+        const next = { ...err };
+        for (const e of endpoints) delete next[e.id];
+        return next;
+      });
+      setRowResults((r) => {
+        const next = { ...r };
+        for (const e of endpoints) delete next[e.id];
+        return next;
+      });
+      setRowTiming((t) => {
+        const next = { ...t };
+        for (const e of endpoints) delete next[e.id];
+        return next;
+      });
+    } else {
+      setRowStatus({});
+      setRowError({});
+      setRowResults({});
+      setRowTiming({});
+    }
 
     const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
     if (credentialsFromApi && useAuth) {
@@ -331,10 +458,10 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
-    for (const endpoint of ENDPOINTS) {
+    for (const endpoint of endpoints) {
       setRowStatus((s) => ({ ...s, [endpoint.id]: "loading" }));
-      const oldUrl = getOldUrl(endpoint, paramValues, oldApiUrl);
-      const newUrl = getNewUrl(endpoint, paramValues, baseNew);
+      const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
+      const newUrl = getNewUrl(endpoint, params, baseNew);
 
       try {
         const res = await fetch("/api/protected/fms-api-compare", {
@@ -383,7 +510,7 @@ const FmsApiComparePage: React.FC = () => {
               },
             }));
           }
-          setRowExpanded((x) => ({ ...x, [endpoint.id]: true }));
+          setRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
           continue;
         }
 
@@ -413,14 +540,83 @@ const FmsApiComparePage: React.FC = () => {
         })();
         setRowStatus((s) => ({ ...s, [endpoint.id]: identical ? "identical" : "diff" }));
         setRowResults((r) => ({ ...r, [endpoint.id]: { old: formattedOld, new: formattedNew } }));
-        setRowExpanded((x) => ({ ...x, [endpoint.id]: !identical }));
+        setRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
       } catch (err) {
         setRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
         setRowError((e) => ({ ...e, [endpoint.id]: err instanceof Error ? err.message : "Fetch failed" }));
-        setRowExpanded((x) => ({ ...x, [endpoint.id]: true }));
+        setRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
       }
     }
     setLoading(false);
+  };
+
+  const handleFullDatasetTest = async (citycodeFilter?: string) => {
+    setFullDatasetLoading(true);
+    setFullDatasetResults(null);
+    const body: { useApiCredentials?: boolean; authorizationHeader?: string; oldApiUrl?: string; newApiUrl?: string; depth?: string; citycode?: string } = {
+      oldApiUrl: oldApiUrl || OLD_API_BASE,
+      newApiUrl: newApiUrl || (typeof window !== "undefined" ? window.location.origin : ""),
+      depth: paramValues.depth ?? "3",
+      ...(citycodeFilter && { citycode: citycodeFilter }),
+    };
+    if (credentialsFromApi && useAuth) {
+      body.useApiCredentials = true;
+    } else if (useAuth) {
+      body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
+    }
+    try {
+      const res = await fetch("/api/protected/fms-api-compare-full-dataset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as FullDatasetTestResponse & { message?: string };
+      if (!res.ok) {
+        throw new Error(data.message ?? "Request failed");
+      }
+      setFullDatasetResults(data);
+      saveFullDatasetToStorage(data);
+    } catch (err) {
+      setFullDatasetResults({
+        results: [],
+        summary: { total: 0, identical: 0, diff: 0, error: 1 },
+      });
+      console.error("Full dataset test failed:", err);
+    } finally {
+      setFullDatasetLoading(false);
+    }
+  };
+
+  const handleFullDatasetRowClick = (r: FullDatasetTestResult) => {
+    const results = fullDatasetResults?.results ?? [];
+    let locationid = r.locationid;
+    let sectionid = r.sectionid;
+    if (r.type === "city" && !locationid) {
+      const firstLoc = results.find((x) => x.citycode === r.citycode && x.locationid);
+      locationid = firstLoc?.locationid;
+    }
+    if ((r.type === "city" || r.type === "location") && !sectionid && locationid) {
+      const firstSec = results.find(
+        (x) => x.citycode === r.citycode && x.locationid === locationid && x.sectionid
+      );
+      sectionid = firstSec?.sectionid;
+    }
+    const newParams = {
+      ...paramValues,
+      citycode: r.citycode,
+      locationid: locationid ?? "",
+      sectionid: sectionid ?? "",
+    };
+    setParamValues(newParams);
+    void handleCompareAll(newParams, LOCATION_ENDPOINTS);
+  };
+
+  const handleResetResults = () => {
+    setRowStatus({});
+    setRowError({});
+    setRowResults({});
+    setRowTiming({});
+    setRowExpanded({});
   };
 
   const handleCompareOne = async (endpointId: string) => {
@@ -466,7 +662,7 @@ const FmsApiComparePage: React.FC = () => {
         if (newError) parts.push(`Nieuwe API: ${newError}`);
         setRowStatus((s) => ({ ...s, [endpointId]: "error" }));
         setRowError((e) => ({ ...e, [endpointId]: parts.length > 0 ? parts.join("; ") : data.message ?? "Request failed" }));
-        setRowExpanded((x) => ({ ...x, [endpointId]: true }));
+        setRowExpanded((x) => ({ ...x, [endpointId]: false }));
         return;
       }
       if (hasFetchError) {
@@ -498,7 +694,7 @@ const FmsApiComparePage: React.FC = () => {
             },
           }));
         }
-        setRowExpanded((x) => ({ ...x, [endpointId]: true }));
+        setRowExpanded((x) => ({ ...x, [endpointId]: false }));
         return;
       }
 
@@ -528,17 +724,12 @@ const FmsApiComparePage: React.FC = () => {
       })();
       setRowStatus((s) => ({ ...s, [endpointId]: identical ? "identical" : "diff" }));
       setRowResults((r) => ({ ...r, [endpointId]: { old: formattedOld, new: formattedNew } }));
-      setRowExpanded((x) => ({ ...x, [endpointId]: !identical }));
+      setRowExpanded((x) => ({ ...x, [endpointId]: false }));
     } catch (err) {
       setRowStatus((s) => ({ ...s, [endpointId]: "error" }));
       setRowError((e) => ({ ...e, [endpointId]: err instanceof Error ? err.message : "Fetch failed" }));
-      setRowExpanded((x) => ({ ...x, [endpointId]: true }));
+      setRowExpanded((x) => ({ ...x, [endpointId]: false }));
     }
-  };
-
-  const handleVergelijkAlle = () => {
-    // TODO: define later
-    handleCompareAll();
   };
 
   const handleCopyToClipboard = (endpoint: (typeof ENDPOINTS)[0]) => {
@@ -579,10 +770,12 @@ const FmsApiComparePage: React.FC = () => {
       "Nested objects show only the leaf paths that differ. Empty {} means no differences for that side.",
     ].join("\n");
 
+    const depth = paramValues.depth ?? "3";
     const instruction = [
       "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API. When differences exist, first check if the correct old and new API URLs/stubs are created (e.g. wrong URL routing can cause the old API to return wrong data like citycodes instead of a section). When there is a structure mismatch between the old and new API data, look in swagger description in the old documentation to resolve. Start by comparing the keys in the outermost object. Keys must match and be in the same order. For single value keys, values must be the same. For keys that have object values, take a recursive approach: compare the keys and values in the child object etc. For lists, look at each object in the list in the same way.",
       "",
       `Endpoint: ${endpoint.label}`,
+      `The data was requested with depth=${depth} and no parameter selection.`,
       Object.keys(parameters).length > 0 ? `Parameters: ${JSON.stringify(parameters)}` : null,
       `Status: ${resultDescription}`,
       "",
@@ -632,13 +825,293 @@ const FmsApiComparePage: React.FC = () => {
     );
   }
 
+  const renderEndpointTable = (endpoints: typeof ENDPOINTS) =>
+    endpoints.map((e) => {
+      const status = rowStatus[e.id] ?? "pending";
+      const results = rowResults[e.id];
+      const timing = rowTiming[e.id];
+      const expanded = rowExpanded[e.id] ?? false;
+      const hasResults = !!results || (status === "error" && rowError[e.id]);
+      const bg =
+        status === "identical"
+          ? "bg-green-100"
+          : status === "diff" || status === "error"
+            ? "bg-red-100"
+            : status === "loading"
+              ? "bg-gray-50"
+              : "";
+      return (
+        <tr key={e.id} className={`border-t ${bg}`}>
+          <td className="p-3 align-top whitespace-nowrap">{e.label}</td>
+          <td className="p-3 align-top whitespace-nowrap">
+            {status === "pending" && "—"}
+            {status === "loading" && "..."}
+            {status === "identical" && "Identiek"}
+            {status === "diff" && "Verschilt"}
+            {status === "error" && (() => {
+              const err = rowError[e.id] ?? "";
+              const oldFail = err.includes("Oude API:");
+              const newFail = err.includes("Nieuwe API:");
+              const which = oldFail && newFail ? "beide" : oldFail ? "Oude API" : newFail ? "Nieuwe API" : "";
+              return (
+                <span title={err} className="text-red-700">
+                  Fout{which ? ` (${which})` : ""}
+                </span>
+              );
+            })()}
+          </td>
+          <td className="p-3 align-top whitespace-nowrap text-xs text-gray-600">
+            {timing ? (
+              <>
+                <span title="Oude API">O: {timing.oldSeconds.toFixed(3)}</span>
+                {" · "}
+                <span title="Nieuwe API">N: {timing.newSeconds.toFixed(3)}</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </td>
+          <td className="p-3 align-top whitespace-nowrap">
+            <div className="flex flex-nowrap gap-1">
+              <button
+                type="button"
+                onClick={() => handleCompareOne(e.id)}
+                disabled={loading || status === "loading"}
+                className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
+              >
+                Vergelijk
+              </button>
+              {hasResults && (
+                <button
+                  type="button"
+                  onClick={() => handleCopyToClipboard(e)}
+                  className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200"
+                  title="Kopieer fix-prompt met data naar klembord"
+                >
+                  Fix prompt
+                </button>
+              )}
+            </div>
+          </td>
+          <td className="p-3 align-top min-w-0">
+            {hasResults ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setRowExpanded((x) => ({ ...x, [e.id]: !expanded }))}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
+                >
+                  <span className="transition-transform">{expanded ? "▼" : "▶"}</span>
+                  {expanded ? "Verberg" : "Toon"} resultaten
+                </button>
+                {expanded && (
+                  <div className="mt-2">
+                    {results ? (
+                      (() => {
+                        const display =
+                          showOnlyDifferences && status === "diff"
+                            ? getDiffOnly(results.old, results.new)
+                            : null;
+                        const oldDisplay = display?.oldOnly ?? results.old;
+                        const newDisplay = display?.newOnly ?? results.new;
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-[400px]">
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">
+                                Oude API
+                                {display && (
+                                  <span className="ml-1 text-amber-600">(alleen verschillen)</span>
+                                )}
+                              </div>
+                              <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
+                                {oldDisplay}
+                              </pre>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">
+                                Nieuwe API
+                                {display && (
+                                  <span className="ml-1 text-amber-600">(alleen verschillen)</span>
+                                )}
+                              </div>
+                              <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
+                                {newDisplay}
+                              </pre>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-red-700 text-xs">{rowError[e.id]}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              "—"
+            )}
+          </td>
+        </tr>
+      );
+    });
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-full">
       <h1 className="text-3xl font-bold text-gray-900 mb-6">FMS API vergelijking</h1>
 
-      <div className="max-w-4xl space-y-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* API URL fields - shared by both tabs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Oude API URL</label>
+          <input
+            type="text"
+            value={oldApiUrl}
+            onChange={(e) => setOldApiUrl(e.target.value)}
+            className="w-full p-2 border rounded"
+            placeholder="https://remote.veiligstallen.nl"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nieuwe API URL (basis)</label>
+          <input
+            type="text"
+            value={newApiUrl}
+            onChange={(e) => setNewApiUrl(e.target.value)}
+            className="w-full p-2 border rounded"
+            placeholder="Leeg = huidige host"
+          />
+        </div>
+        {credentialsFromApi ? (
+          <div className="md:col-span-2 flex items-end">
+            <div className="text-sm text-gray-600 w-full">
+              Basic Auth: geconfigureerde credentials (FMS_TEST_USER / FMS_TEST_PASS)
+              <button type="button" onClick={() => setCredentialsFromApi(false)} className="ml-2 text-blue-600 hover:underline">
+                Andere credentials gebruiken
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Basic Auth gebruikersnaam</label>
+              <input
+                type="text"
+                value={authUsername}
+                onChange={(e) => setAuthUsername(e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Optioneel"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Basic Auth wachtwoord</label>
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Optioneel"
+                autoComplete="new-password"
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("algemeen")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "algemeen"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Globale API-stubs
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("specifiek")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "specifiek"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Locatie-specifieke API-stubs
+          </button>
+        </nav>
+      </div>
+
+      <div className="w-full space-y-4 mb-6">
+        {activeTab === "algemeen" && (
           <div>
+            <div className="flex flex-wrap items-end gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">depth</label>
+                <select
+                  value={paramValues.depth ?? "3"}
+                  onChange={(e) => setParamValues((p) => ({ ...p, depth: e.target.value }))}
+                  className="w-auto min-w-[4rem] p-2 border rounded"
+                >
+                  {[1, 2, 3].map((d) => (
+                    <option key={d} value={String(d)}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 pb-2">
+                <input
+                  type="checkbox"
+                  checked={showOnlyDifferences}
+                  onChange={(e) => setShowOnlyDifferences(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Alleen verschillen tonen
+              </label>
+            </div>
+            <div className="w-full min-w-0 border rounded overflow-x-auto">
+              <table className="w-full text-sm table-auto">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
+                    <th className="text-left p-3 font-medium whitespace-nowrap">
+                      <span className="mr-2">Acties</span>
+                      <button
+                        onClick={() => void handleCompareAll(undefined, GLOBAL_ENDPOINTS)}
+                        disabled={loading}
+                        className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
+                      >
+                        {loading ? "Vergelijken..." : "Alles testen"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetResults}
+                        disabled={loading}
+                        className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
+                      >
+                        Reset
+                      </button>
+                    </th>
+                    <th className="text-left p-3 font-medium w-full">Resultaten</th>
+                  </tr>
+                </thead>
+                <tbody>{renderEndpointTable(GLOBAL_ENDPOINTS)}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "specifiek" && (
+          <>
+            <div className="flex flex-wrap items-end gap-4">
+          <div className="w-auto min-w-[12rem]">
             <label className="block text-sm font-medium text-gray-700 mb-1">citycode</label>
             <Autocomplete
               options={cityOptions}
@@ -665,11 +1138,12 @@ const FmsApiComparePage: React.FC = () => {
                   {...params}
                   placeholder={optionsLoading.city ? "Laden..." : "Typ om te zoeken..."}
                   size="small"
+                  className="w-full"
                 />
               )}
             />
           </div>
-          <div>
+          <div className="w-auto min-w-[20rem]">
             <label className="block text-sm font-medium text-gray-700 mb-1">locationid</label>
             <Autocomplete
               options={locationOptions}
@@ -690,6 +1164,9 @@ const FmsApiComparePage: React.FC = () => {
               isOptionEqualToValue={(a, b) => a.value === b.value}
               loading={optionsLoading.location}
               disabled={optionsLoading.location || !paramValues.citycode}
+              slotProps={{
+                paper: { sx: { minWidth: 280 } },
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -701,16 +1178,21 @@ const FmsApiComparePage: React.FC = () => {
                         : "Typ om te zoeken..."
                   }
                   size="small"
+                  className="w-full"
+                  inputProps={{
+                    ...params.inputProps,
+                    style: { ...params.inputProps?.style, overflow: "visible", textOverflow: "clip" },
+                  }}
                 />
               )}
             />
           </div>
-          <div>
+          <div className="w-auto min-w-[12rem]">
             <label className="block text-sm font-medium text-gray-700 mb-1">sectionid</label>
             <select
               value={paramValues.sectionid ?? ""}
               onChange={(e) => setParamValues((p) => ({ ...p, sectionid: e.target.value }))}
-              className="w-full p-2 border rounded"
+              className="w-auto min-w-[12rem] p-2 border rounded"
               disabled={optionsLoading.section || !paramValues.locationid}
             >
               <option value="">
@@ -726,75 +1208,21 @@ const FmsApiComparePage: React.FC = () => {
               )}
             </select>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Oude API URL</label>
-            <input
-              type="text"
-              value={oldApiUrl}
-              onChange={(e) => setOldApiUrl(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="https://remote.veiligstallen.nl"
-            />
+          <div className="w-auto min-w-[4rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">depth</label>
+            <select
+              value={paramValues.depth ?? "3"}
+              onChange={(e) => setParamValues((p) => ({ ...p, depth: e.target.value }))}
+              className="w-auto min-w-[4rem] p-2 border rounded"
+            >
+              {[1, 2, 3].map((d) => (
+                <option key={d} value={String(d)}>
+                  {d}
+                </option>
+              ))}
+            </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nieuwe API URL (basis)</label>
-            <input
-              type="text"
-              value={newApiUrl}
-              onChange={(e) => setNewApiUrl(e.target.value)}
-              className="w-full p-2 border rounded"
-              placeholder="Leeg = huidige host"
-            />
-          </div>
-          {credentialsFromApi ? (
-            <div className="md:col-span-2 flex items-end">
-              <div className="text-sm text-gray-600 w-full">
-                Basic Auth: geconfigureerde credentials (FMS_TEST_USER / FMS_TEST_PASS)
-                <button type="button" onClick={() => setCredentialsFromApi(false)} className="ml-2 text-blue-600 hover:underline">
-                  Andere credentials gebruiken
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Basic Auth gebruikersnaam</label>
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  placeholder="Optioneel"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Basic Auth wachtwoord</label>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  placeholder="Optioneel"
-                  autoComplete="new-password"
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleCompareAll}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? "Vergelijken..." : "Vergelijk alle"}
-          </button>
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 pb-2">
             <input
               type="checkbox"
               checked={showOnlyDifferences}
@@ -804,160 +1232,122 @@ const FmsApiComparePage: React.FC = () => {
             Alleen verschillen tonen
           </label>
         </div>
-      </div>
 
-      <div className="w-full min-w-0 border rounded overflow-x-auto">
-        <table className="w-full text-sm table-auto">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
-                <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
-                <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
-                <th className="text-left p-3 font-medium whitespace-nowrap">Acties</th>
-                <th className="text-left p-3 font-medium w-full">Resultaten</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ENDPOINTS.map((e) => {
-                const status = rowStatus[e.id] ?? "pending";
-                const results = rowResults[e.id];
-                const timing = rowTiming[e.id];
-                const hasParams = e.params.length > 0;
-                const expanded = rowExpanded[e.id] ?? (status === "identical" || status === "diff" || status === "error");
-                const hasResults = !!results || (status === "error" && rowError[e.id]);
-                const bg =
-                  status === "identical"
-                    ? "bg-green-100"
-                    : status === "diff" || status === "error"
-                      ? "bg-red-100"
-                      : status === "loading"
-                        ? "bg-gray-50"
-                        : "";
-                return (
-                  <tr key={e.id} className={`border-t ${bg}`}>
-                    <td className="p-3 align-top whitespace-nowrap">{e.label}</td>
-                    <td className="p-3 align-top whitespace-nowrap">
-                      {status === "pending" && "—"}
-                      {status === "loading" && "..."}
-                      {status === "identical" && "Identiek"}
-                      {status === "diff" && "Verschilt"}
-                      {status === "error" && (() => {
-                        const err = rowError[e.id] ?? "";
-                        const oldFail = err.includes("Oude API:");
-                        const newFail = err.includes("Nieuwe API:");
-                        const which = oldFail && newFail ? "beide" : oldFail ? "Oude API" : newFail ? "Nieuwe API" : "";
-                        return (
-                          <span title={err} className="text-red-700">
-                            Fout{which ? ` (${which})` : ""}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="p-3 align-top whitespace-nowrap text-xs text-gray-600">
-                      {timing ? (
-                        <>
-                          <span title="Oude API">O: {timing.oldSeconds.toFixed(3)}</span>
-                          {" · "}
-                          <span title="Nieuwe API">N: {timing.newSeconds.toFixed(3)}</span>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="p-3 align-top whitespace-nowrap">
-                      <div className="flex flex-nowrap gap-1">
+            {/* Table 2: Location-specific endpoints */}
+            <div>
+              <div className="w-full min-w-0 border rounded overflow-x-auto">
+                <table className="w-full text-sm table-auto">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
+                      <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
+                      <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
+                      <th className="text-left p-3 font-medium whitespace-nowrap">
+                        <span className="mr-2">Acties</span>
                         <button
-                          type="button"
-                          onClick={() => handleCompareOne(e.id)}
-                          disabled={loading || status === "loading"}
+                          onClick={() => void handleCompareAll(undefined, LOCATION_ENDPOINTS)}
+                          disabled={loading}
                           className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
                         >
-                          Vergelijk
+                          {loading ? "Vergelijken..." : "Alles testen"}
                         </button>
-                        {hasParams && (
-                          <button
-                            type="button"
-                            onClick={handleVergelijkAlle}
-                            disabled={loading}
-                            className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
-                          >
-                            Vergelijk alle
-                          </button>
-                        )}
                         <button
                           type="button"
-                          onClick={() => handleCopyToClipboard(e)}
-                          className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200"
-                          title="Kopieer fix-prompt met data naar klembord"
+                          onClick={handleResetResults}
+                          disabled={loading}
+                          className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
                         >
-                          Fix prompt
+                          Reset
                         </button>
-                      </div>
-                    </td>
-                    <td className="p-3 align-top min-w-0">
-                      {hasResults ? (
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setRowExpanded((x) => ({ ...x, [e.id]: !expanded }))}
-                            className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
-                          >
-                            <span className="transition-transform">{expanded ? "▼" : "▶"}</span>
-                            {expanded ? "Verberg" : "Toon"} resultaten
-                          </button>
-                          {expanded && (
-                            <div className="mt-2">
-                              {results ? (
-                                (() => {
-                                  const display =
-                                    showOnlyDifferences && status === "diff"
-                                      ? getDiffOnly(results.old, results.new)
-                                      : null;
-                                  const oldDisplay = display?.oldOnly ?? results.old;
-                                  const newDisplay = display?.newOnly ?? results.new;
-                                  return (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-[400px]">
-                                      <div>
-                                        <div className="text-xs font-medium text-gray-500 mb-1">
-                                          Oude API
-                                          {display && (
-                                            <span className="ml-1 text-amber-600">(alleen verschillen)</span>
-                                          )}
-                                        </div>
-                                        <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                          {oldDisplay}
-                                        </pre>
-                                      </div>
-                                      <div>
-                                        <div className="text-xs font-medium text-gray-500 mb-1">
-                                          Nieuwe API
-                                          {display && (
-                                            <span className="ml-1 text-amber-600">(alleen verschillen)</span>
-                                          )}
-                                        </div>
-                                        <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                          {newDisplay}
-                                        </pre>
-                                      </div>
-                                    </div>
-                                  );
-                                })()
-                              ) : (
-                                <span className="text-red-700 text-xs">{rowError[e.id]}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </th>
+                      <th className="text-left p-3 font-medium w-full">Resultaten</th>
+                    </tr>
+                  </thead>
+                  <tbody>{renderEndpointTable(LOCATION_ENDPOINTS)}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => void handleFullDatasetTest()}
+                disabled={fullDatasetLoading || loading}
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {fullDatasetLoading ? "Bezig..." : "Alle data-eigenaren testen"}
+              </button>
+              <button
+                onClick={() => void handleFullDatasetTest(paramValues.citycode ?? "")}
+                disabled={fullDatasetLoading || loading || !paramValues.citycode}
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
+                title={!paramValues.citycode ? "Selecteer eerst een citycode" : undefined}
+              >
+                Alles van deze data-eigenaar testen
+              </button>
+            </div>
+
+            {fullDatasetResults && (
+              <div className="mt-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">Alle data-eigenaren resultaten</h2>
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyFailedFullDataset}
+                      onChange={(e) => setShowOnlyFailedFullDataset(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    Alleen mislukte testen
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mb-2">
+                  {fullDatasetResults.summary.total} tests: {fullDatasetResults.summary.identical} identiek, {fullDatasetResults.summary.diff} verschillend, {fullDatasetResults.summary.error} fout.
+                  Klik op een rij om de formuliervelden in te stellen en de gerelateerde test uit te voeren.
+                </p>
+                <div className="w-full min-w-0 border rounded overflow-x-auto max-h-[400px] overflow-y-auto">
+                  <table className="w-full text-sm table-auto">
+                    <thead className="bg-gray-100 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">citycode</th>
+                        <th className="text-left p-2 font-medium">locationid</th>
+                        <th className="text-left p-2 font-medium">sectionid</th>
+                        <th className="text-left p-2 font-medium">Endpoint</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(showOnlyFailedFullDataset
+                        ? fullDatasetResults.results.filter((r) => r.status === "diff" || r.status === "error")
+                        : fullDatasetResults.results
+                      ).map((r) => (
+                        <tr
+                          key={r.testId}
+                          onClick={() => handleFullDatasetRowClick(r)}
+                          className={`border-t cursor-pointer hover:bg-gray-50 ${
+                            r.status === "identical" ? "bg-green-50" : r.status === "diff" || r.status === "error" ? "bg-red-50" : ""
+                          }`}
+                        >
+                          <td className="p-2">{r.type}</td>
+                          <td className="p-2">{r.citycode}</td>
+                          <td className="p-2">{r.locationid ?? "—"}</td>
+                          <td className="p-2">{r.sectionid ?? "—"}</td>
+                          <td className="p-2">{r.endpointLabel}</td>
+                          <td className="p-2">
+                            {r.status === "identical" && "Identiek"}
+                            {r.status === "diff" && "Verschilt"}
+                            {r.status === "error" && (r.error ? `Fout: ${r.error.slice(0, 50)}...` : "Fout")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };

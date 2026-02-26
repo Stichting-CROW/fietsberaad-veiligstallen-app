@@ -105,11 +105,12 @@ export type SectionSummary = {
   maxsubscriptions?: number;
 };
 
+/** ColdFusion-compatible place format: datelaststatusupdate, statuscode, name, id. statuscode = status % 10 (0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking). */
 export type PlaceSummary = {
-  placeid: number;
-  sectionid: string;
+  datelaststatusupdate: string;
+  statuscode: number;
   name?: string;
-  status?: number;
+  id: number;
 };
 
 export type SubscriptionTypeSummary = {
@@ -268,14 +269,74 @@ export async function getCityCodes(): Promise<CityCode[]> {
     }));
 }
 
+/** All IDs for full-dataset API comparison test. Matches getCities/getLocations/getSections filters. */
+export type FullDatasetIds = {
+  cities: Array<{ citycode: string }>;
+  locations: Array<{ citycode: string; locationid: string }>;
+  sections: Array<{ citycode: string; locationid: string; sectionid: string }>;
+};
+
+export async function getFullDatasetIds(options?: { citycode?: string }): Promise<FullDatasetIds> {
+  const councils = await prisma.contacts.findMany({
+    where: {
+      ID: { not: "1" },
+      ItemType: "organizations",
+      ZipID: { not: null },
+      Status: "1",
+      ...(options?.citycode && { ZipID: options.citycode }),
+      fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
+        some: {
+          Status: "1",
+          StallingsID: { not: null },
+          Title: { not: "Systeemstalling" },
+        },
+      },
+    },
+    select: { ZipID: true },
+  });
+  const cities = councils.filter((c) => c.ZipID).map((c) => ({ citycode: c.ZipID! }));
+
+  const locations: Array<{ citycode: string; locationid: string }> = [];
+  const sections: Array<{ citycode: string; locationid: string; sectionid: string }> = [];
+
+  for (const { citycode } of cities) {
+    const locRows = await prisma.fietsenstallingen.findMany({
+      where: {
+        contacts_fietsenstallingen_SiteIDTocontacts: {
+          ZipID: citycode,
+          ItemType: "organizations",
+        },
+        StallingsID: { not: null },
+        Status: "1",
+        Title: { not: "Systeemstalling" },
+      },
+      select: {
+        StallingsID: true,
+        fietsenstalling_secties: { select: { externalId: true } },
+      },
+    });
+    for (const row of locRows) {
+      if (row.StallingsID) {
+        locations.push({ citycode, locationid: row.StallingsID });
+        for (const s of row.fietsenstalling_secties) {
+          if (s.externalId) {
+            sections.push({ citycode, locationid: row.StallingsID, sectionid: s.externalId });
+          }
+        }
+      }
+    }
+  }
+  return { cities, locations, sections };
+}
+
 /** ColdFusion-compatible: full location objects for a city. Uses single query + bulk fetches, assembles in memory. */
 async function getLocationsFull(
   citycode: string,
-  options: { depth?: number; limit?: number; forV3Citycodes?: boolean } = {}
+  options: { depth?: number; limit?: number; forV3Citycodes?: boolean; omitSections?: boolean } = {}
 ): Promise<ColdFusionLocation[]> {
   const t0 = timeStart("getLocationsFull total");
-  const { depth = 3, limit, forV3Citycodes = false } = options;
-  const includeSections = depth >= 2;
+  const { depth = 3, limit, forV3Citycodes = false, omitSections = false } = options;
+  const includeSections = depth >= 2 && !omitSections;
 
   const tFind = timeStart("getLocationsFull findMany locations");
   const rows = await prisma.fietsenstallingen.findMany({
@@ -803,25 +864,25 @@ export function toLocationDetailFormat(loc: ColdFusionLocation): LocationDetailS
   };
 }
 
-/** Key order for each location in citycodes/{citycode}/locations array. Matches old API. */
+/** Key order for each location. Matches old API (locations list and locations/{id}). */
 function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation {
   const order = [
     "occupied",
-    "long",
+    "exploitantcontact",
     "locationtype",
-    "lat",
+    "long",
+    "sections",
+    "station",
     "occupationsource",
+    "lat",
     "name",
     "free",
+    "city",
     "capacity",
+    "address",
     "locationid",
     "openinghours",
     "exploitantname",
-    "exploitantcontact",
-    "sections",
-    "station",
-    "city",
-    "address",
     "postalcode",
     "costsdescription",
     "description",
@@ -855,7 +916,8 @@ export async function getLocations(
   citycode: string,
   options: { depth?: number; fields?: string } = {}
 ): Promise<ColdFusionLocation[]> {
-  return getLocationsFull(citycode, options);
+  // Old API: citycodes/{citycode}/locations returns locations WITHOUT sections array (sections via separate endpoint).
+  return getLocationsFull(citycode, { ...options, omitSections: true });
 }
 
 export async function getLocation(
@@ -1108,14 +1170,23 @@ export async function getPlaces(
 
   const plekken = await prisma.fietsenstalling_plek.findMany({
     where: { sectie_id: BigInt(sectie.sectieId) },
-    select: { id: true, titel: true, status: true },
+    select: { id: true, titel: true, status: true, dateLastStatusUpdate: true },
   });
-  return plekken.map((p) => ({
-    placeid: Number(p.id),
-    sectionid,
-    name: p.titel ?? undefined,
-    status: p.status ?? undefined,
-  }));
+  return plekken.map((p) => {
+    const status = p.status ?? 0;
+    const statuscode = typeof status === "number" ? status % 10 : 0;
+    const datelaststatusupdate = p.dateLastStatusUpdate
+      ? p.dateLastStatusUpdate instanceof Date
+        ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
+        : String(p.dateLastStatusUpdate).slice(0, 19)
+      : "";
+    return {
+      datelaststatusupdate,
+      statuscode,
+      name: p.titel ?? undefined,
+      id: Number(p.id),
+    };
+  });
 }
 
 export async function getSubscriptionTypes(

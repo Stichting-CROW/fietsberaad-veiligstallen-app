@@ -267,7 +267,7 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 | **Location (multi-section)** | Returns full location with `sections` array. Each section in the array has only `sectionid` and `name`; biketypes are not duplicated in sections. |
 | **Section (standalone)** | Full section: `sectionid`, `name`, `biketypes`, plus conditional `maxsubscriptions` (fietskluizen), `places` (depth>1), `rates` (hasUniBikeTypePrices). Key order: maxsubscriptions, sectionid, name, biketypes, places, rates. |
 | **Section fields** | `capacity`, `occupation`, `free`, `occupationsource` omitted when `fields` param not passed (FMS getSection does not pass fields). |
-| **Citycodes locations** | Locations in `citycodes` and `citycodes/{citycode}` omit `exploitantname`, `sections`, `station`, `city`, `address`, `postalcode` to match old API. `citycodes/{citycode}/locations` and `locations/{id}` keep them. |
+| **Citycodes locations** | Locations in `citycodes` and `citycodes/{citycode}` omit `exploitantname`, `sections`, `station`, `city`, `address`, `postalcode` to match old API. `citycodes/{citycode}/locations` omits `sections` (sections via separate endpoint). `locations/{id}` keeps full location with sections. |
 
 **Field comparison (ColdFusion vs Next.js):** ColdFusion `getLocation` outputs `thirdpartyreservationsurl` (Bikepark.getThirdPartyReservationsUrl); Next.js does not yet include it. All other location fields aligned.
 
@@ -291,6 +291,12 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 **Access:** Restricted to `VSSecurityTopic.fietsberaad_superadmin`.
 
 **Behavior:** List GET endpoints; user selects endpoint and fills parameters; "Compare" fetches from old API (remote.veiligstallen.nl) and new API (localhost); side-by-side JSON diff. Basic Auth from session or env.
+
+### 5.1 Depth Filter
+
+The comparison page includes a **depth** filter (values 1, 2, or 3, default 3) that is passed as `?depth=X` to all V3 API calls. Depth controls how much nested data is returned (e.g. depth≥2 includes sections and places in section responses).
+
+> **Note:** The parameter selection (e.g. `fields`, `limit`) is not yet implemented in the new version of the API. The old ColdFusion API supports additional query parameters that the Next.js API does not yet handle.
 
 ---
 
