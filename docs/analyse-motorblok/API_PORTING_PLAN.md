@@ -568,6 +568,32 @@ The FMS API compare page (`/test/fms-api-compare`) has an **Instellingen** tab w
 
 **How to fix in ColdFusion:** Add `orderby="SectionBiketypeID asc"` to the `sectionBikeTypes` relation in `BikeparkSection.cfc` and `orderby="SectionBiketypeID asc"` to `bikeparkBikeTypes` in `Bikepark.cfc`. See [Appendix A.11](#a11-biketype-array-order) for details.
 
+### 14.2 FMS API compare flow
+
+The compare page and full-dataset API use this flow:
+
+```mermaid
+flowchart TD
+    A[Fetch old + new API responses]
+    B{7300/6202 + V3 biketype endpoint?}
+    S[applyBiketypeSortForCitycode7300]
+    P[prepareForCompare]
+    M[responsesMatch]
+    R{Identical?}
+
+    A --> B
+    B -->|Yes| S
+    B -->|No| P
+    S --> P
+    P --> M
+    M --> R
+    R -->|Yes, sort was applied| U[uitzondering-biketypeid-sortering]
+    R -->|Yes| I[identical]
+    R -->|No| D[diff]
+```
+
+**Order:** Biketype sort (when applicable) → prepareForCompare (strip dynamic occupied/free) → responsesMatch (canonical JSON or special handling for getServerTime, subscriptiontypes).
+
 ---
 
 ## Appendix A: Dynamic and Conditional Parameters

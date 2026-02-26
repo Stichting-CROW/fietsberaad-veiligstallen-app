@@ -46,9 +46,11 @@ Comparison of how `occupied`, `free`, and `capacity` are calculated for V3 locat
 
 ---
 
-## Differences
+## Differences (pre-alignment)
 
-| Aspect | ColdFusion | Next.js |
+*The table below documented differences before the 2026-02 alignment. See **Status** section for current implementation.*
+
+| Aspect | ColdFusion | Next.js (before alignment) |
 |--------|------------|---------|
 | **Occupied (non-locker)** | Bezetting | Bezetting ✓ |
 | **Occupied (fietskluizen)** | Count locker statuses (place.getCurrentStatus) | Bezetting (may differ) |
