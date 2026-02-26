@@ -60,46 +60,46 @@ export default async function handle(
   };
 
   const [oldResult, newResult] = await Promise.all([
-    (async () => {
-      const start = performance.now();
-      try {
-        const r = await fetch(oldUrl, { headers });
-        const text = await r.text();
-        if (!r.ok) {
-          const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+      (async () => {
+        const start = performance.now();
+        try {
+          const r = await fetch(oldUrl, { headers });
+          const text = await r.text();
+          if (!r.ok) {
+            const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+            console.error("FMS API compare (old):", msg);
+            return { text: null, durationMs: performance.now() - start, error: msg };
+          }
+          const bodyError = looksLikeErrorResponse(text);
+          if (bodyError) {
+            console.error("FMS API compare (old):", bodyError);
+            return { text: null, durationMs: performance.now() - start, error: bodyError };
+          }
+          return { text, durationMs: performance.now() - start, error: null as string | null };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Fetch failed";
           console.error("FMS API compare (old):", msg);
-          return { text: null, durationMs: performance.now() - start, error: msg };
+          return { text: null, durationMs: null, error: msg };
         }
-        const bodyError = looksLikeErrorResponse(text);
-        if (bodyError) {
-          console.error("FMS API compare (old):", bodyError);
-          return { text: null, durationMs: performance.now() - start, error: bodyError };
-        }
-        return { text, durationMs: performance.now() - start, error: null as string | null };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Fetch failed";
-        console.error("FMS API compare (old):", msg);
-        return { text: null, durationMs: null, error: msg };
-      }
-    })(),
-    (async () => {
-      const start = performance.now();
-      try {
-        const r = await fetch(newUrl, { headers });
-        const text = await r.text();
-        if (!r.ok) {
-          const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+      })(),
+      (async () => {
+        const start = performance.now();
+        try {
+          const r = await fetch(newUrl, { headers });
+          const text = await r.text();
+          if (!r.ok) {
+            const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+            console.error("FMS API compare (new):", msg);
+            return { text: null, durationMs: performance.now() - start, error: msg };
+          }
+          return { text, durationMs: performance.now() - start, error: null as string | null };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Fetch failed";
           console.error("FMS API compare (new):", msg);
-          return { text: null, durationMs: performance.now() - start, error: msg };
+          return { text: null, durationMs: null, error: msg };
         }
-        return { text, durationMs: performance.now() - start, error: null as string | null };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Fetch failed";
-        console.error("FMS API compare (new):", msg);
-        return { text: null, durationMs: null, error: msg };
-      }
-    })(),
-  ]);
+      })(),
+    ]);
 
   const oldError = oldResult.error;
   const newError = newResult.error;

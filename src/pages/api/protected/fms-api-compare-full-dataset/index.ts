@@ -18,14 +18,27 @@ export type FullDatasetTestResult = {
   locationtype?: string;
   endpointId: string;
   endpointLabel: string;
-  status: "identical" | "diff" | "error";
+  status: "identical" | "diff" | "error" | "skipped";
   error?: string;
 };
 
 export type FullDatasetTestResponse = {
   results: FullDatasetTestResult[];
-  summary: { total: number; identical: number; diff: number; error: number };
+  summary: { total: number; identical: number; diff: number; error: number; skipped: number };
 };
+
+const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
+  "v3-location",
+  "v3-sections",
+  "v3-section",
+  "v3-places",
+  "v3-subscriptiontypes",
+];
+
+function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
+  if (!citycode || /^\d+$/.test(citycode)) return false;
+  return ENDPOINTS_OLD_API_FAILS_NON_NUMERIC.includes(endpointId);
+}
 
 /** Detect if response body indicates an error (old API may return 200 with error JSON). */
 function looksLikeErrorResponse(text: string): string | null {
@@ -177,11 +190,27 @@ export default async function handle(
     sectionid?: string,
     locationtype?: string
   ): Promise<void> => {
+    const testId = `${type}-${citycode}${locationid ? `-${locationid}` : ""}${sectionid ? `-${sectionid}` : ""}-${endpointId}`;
+    const label = ENDPOINT_LABELS[endpointId] ?? endpointId;
+
+    if (isSkippedForNonNumericCitycode(citycode, endpointId)) {
+      results.push({
+        testId,
+        type,
+        citycode,
+        locationid,
+        sectionid,
+        locationtype,
+        endpointId,
+        endpointLabel: label,
+        status: "skipped",
+      });
+      return;
+    }
+
     const oldUrl = buildOldUrl(endpointId, citycode, locationid, sectionid, oldBase, depthParam);
     const newUrl = buildNewUrl(endpointId, citycode, locationid, sectionid, newBase, depthParam);
     if (!oldUrl || !newUrl) return;
-
-    const testId = `${type}-${citycode}${locationid ? `-${locationid}` : ""}${sectionid ? `-${sectionid}` : ""}-${endpointId}`;
 
     const [oldRes, newRes] = await Promise.all([
       fetchWithAuth(oldUrl, headers),
@@ -189,7 +218,6 @@ export default async function handle(
     ]);
 
     testIndex++;
-    const label = ENDPOINT_LABELS[endpointId] ?? endpointId;
     const scope = sectionid ? `${citycode}/${locationid}/${sectionid}` : locationid ? `${citycode}/${locationid}` : citycode;
     console.log(`[FMS full-dataset ${testIndex}] ${label} ${scope}`);
 
@@ -262,12 +290,13 @@ export default async function handle(
     const identical = results.filter((r) => r.status === "identical").length;
     const diff = results.filter((r) => r.status === "diff").length;
     const error = results.filter((r) => r.status === "error").length;
+    const skipped = results.filter((r) => r.status === "skipped").length;
 
-    console.log(`[FMS full-dataset] Done: ${results.length} tests, ${identical} identical, ${diff} diff, ${error} error`);
+    console.log(`[FMS full-dataset] Done: ${results.length} tests, ${identical} identical, ${diff} diff, ${error} error, ${skipped} skipped`);
 
     const response: FullDatasetTestResponse = {
       results,
-      summary: { total: results.length, identical, diff, error },
+      summary: { total: results.length, identical, diff, error, skipped },
     };
     return res.status(200).json(response);
   } catch (err) {

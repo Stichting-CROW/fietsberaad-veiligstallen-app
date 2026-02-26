@@ -51,16 +51,16 @@ export default async function handle(
 
       if (subPath2 === "sections") {
         if (!sectionid) {
-          const sections = await v3Service.getSections(citycode, locationid, depth);
+          const sections = await v3Service.getSections(locationid, depth);
           res.status(200).json(sections);
           return;
         }
         if (subPath3 === "places") {
-          const places = await v3Service.getPlaces(citycode, locationid, sectionid);
+          const places = await v3Service.getPlaces(locationid, sectionid);
           res.status(200).json(places);
           return;
         }
-        const section = await v3Service.getSection(citycode, locationid, sectionid, depth);
+        const section = await v3Service.getSection(locationid, sectionid, depth);
         if (!section) {
           res.status(404).json({ message: "Section not found" });
           return;
@@ -70,12 +70,12 @@ export default async function handle(
       }
 
       if (subPath2 === "subscriptiontypes") {
-        const types = await v3Service.getSubscriptionTypes(citycode, locationid);
+        const types = await v3Service.getSubscriptionTypes(locationid);
         res.status(200).json(types);
         return;
       }
 
-      const location = await v3Service.getLocation(citycode, locationid, depth);
+      const location = await v3Service.getLocation(locationid, depth);
       if (!location) {
         res.status(404).json({ message: "Location not found" });
         return;

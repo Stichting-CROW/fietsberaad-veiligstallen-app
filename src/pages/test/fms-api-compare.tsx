@@ -51,6 +51,20 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
 const GLOBAL_ENDPOINTS = ENDPOINTS.filter((e) => e.id.startsWith("v2-") || e.id === "v3-citycodes") as EndpointDef[];
 const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e)) as EndpointDef[];
 
+/** Old API fails for non-numeric citycode (ColdFusion citycode type=numeric). These endpoints are skipped. */
+const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
+  "v3-location",
+  "v3-sections",
+  "v3-section",
+  "v3-places",
+  "v3-subscriptiontypes",
+];
+
+function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
+  if (!citycode || /^\d+$/.test(citycode)) return false;
+  return ENDPOINTS_OLD_API_FAILS_NON_NUMERIC.includes(endpointId);
+}
+
 function buildFullDatasetTestId(
   type: "city" | "location" | "section",
   citycode: string,
@@ -139,14 +153,14 @@ type FullDatasetTestResult = {
   locationtype?: string;
   endpointId: string;
   endpointLabel: string;
-  status: "identical" | "diff" | "error";
+  status: "identical" | "diff" | "error" | "skipped";
   error?: string;
 };
 
 
 type FullDatasetTestResponse = {
   results: FullDatasetTestResult[];
-  summary: { total: number; identical: number; diff: number; error: number };
+  summary: { total: number; identical: number; diff: number; error: number; skipped: number };
 };
 
 function loadStoredFullDataset(): FullDatasetTestResponse | null {
@@ -170,6 +184,7 @@ function saveFullDatasetToStorage(data: FullDatasetTestResponse) {
 }
 
 function appendDepthParam(url: string, depth: string, endpointId: string): string {
+  if (!url) return url; // Avoid returning "?depth=3" when url is empty (causes fetch to fail in Node)
   if (!endpointId.startsWith("v3-")) return url;
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}depth=${encodeURIComponent(depth)}`;
@@ -293,7 +308,7 @@ function responsesMatch(endpointId: string, oldRes: string, newRes: string): boo
   return responsesIdentical(oldRes, newRes);
 }
 
-type RowStatus = "pending" | "loading" | "identical" | "diff" | "error";
+type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped";
 
 type OptionItem = { value: string; label: string };
 
@@ -616,7 +631,13 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    const citycode = params.citycode ?? "";
     for (const endpoint of endpoints) {
+      if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
+        setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        continue;
+      }
       setRowStatus((s) => ({ ...s, [endpoint.id]: "loading" }));
       const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
       const newUrl = getNewUrl(endpoint, params, baseNew);
@@ -752,7 +773,7 @@ const FmsApiComparePage: React.FC = () => {
     } catch (err) {
       setFullDatasetResults({
         results: [],
-        summary: { total: 0, identical: 0, diff: 0, error: 1 },
+        summary: { total: 0, identical: 0, diff: 0, error: 1, skipped: 0 },
       });
       console.error("Full dataset test failed:", err);
     } finally {
@@ -761,7 +782,7 @@ const FmsApiComparePage: React.FC = () => {
   };
 
   const updateFullDatasetRowStatus = useCallback(
-    (endpointId: string, status: "identical" | "diff" | "error", error?: string, paramsOverride?: Record<string, string>) => {
+    (endpointId: string, status: "identical" | "diff" | "error" | "skipped", error?: string, paramsOverride?: Record<string, string>) => {
       const params = paramsOverride ?? autoCompareParamValues;
       const type = getTypeForEndpoint(endpointId);
       const citycode = params.citycode ?? "";
@@ -783,9 +804,10 @@ const FmsApiComparePage: React.FC = () => {
         const identical = next.filter((r) => r.status === "identical").length;
         const diff = next.filter((r) => r.status === "diff").length;
         const err = next.filter((r) => r.status === "error").length;
+        const skipped = next.filter((r) => r.status === "skipped").length;
         const updated = {
           results: next,
-          summary: { total: next.length, identical, diff, error: err },
+          summary: { total: next.length, identical, diff, error: err, skipped },
         };
         saveFullDatasetToStorage(updated);
         return updated;
@@ -794,7 +816,7 @@ const FmsApiComparePage: React.FC = () => {
     [autoCompareParamValues]
   );
 
-  const updateRowStatusByTestId = useCallback((testId: string, status: "identical" | "diff" | "error", error?: string) => {
+  const updateRowStatusByTestId = useCallback((testId: string, status: "identical" | "diff" | "error" | "skipped", error?: string) => {
     setFullDatasetResults((prev) => {
       if (!prev) return prev;
       const next = prev.results.map((row) =>
@@ -803,9 +825,10 @@ const FmsApiComparePage: React.FC = () => {
       const identical = next.filter((r) => r.status === "identical").length;
       const diff = next.filter((r) => r.status === "diff").length;
       const err = next.filter((r) => r.status === "error").length;
+      const skipped = next.filter((r) => r.status === "skipped").length;
       const updated = {
         results: next,
-        summary: { total: next.length, identical, diff, error: err },
+        summary: { total: next.length, identical, diff, error: err, skipped },
       };
       saveFullDatasetToStorage(updated);
       return updated;
@@ -860,7 +883,14 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    const citycode = params.citycode ?? "";
     for (const endpoint of LOCATION_ENDPOINTS) {
+      if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+        continue;
+      }
       const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
       const newUrl = getNewUrl(endpoint, params, baseNew);
 
@@ -976,6 +1006,10 @@ const FmsApiComparePage: React.FC = () => {
     for (const row of failedRows) {
       const endpoint = ENDPOINTS.find((e) => e.id === row.endpointId);
       if (!endpoint) continue;
+      if (isSkippedForNonNumericCitycode(row.citycode, row.endpointId)) {
+        updateRowStatusByTestId(row.testId, "skipped");
+        continue;
+      }
 
       const params: Record<string, string> = {
         citycode: row.citycode,
@@ -1031,8 +1065,14 @@ const FmsApiComparePage: React.FC = () => {
     const endpoint = LOCATION_ENDPOINTS.find((e) => e.id === endpointId);
     if (!endpoint) return;
     const params = autoCompareParamValues;
+    const citycode = params.citycode ?? "";
+    if (isSkippedForNonNumericCitycode(citycode, endpointId)) {
+      setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+      setAutoCompareRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (non-numeric citycode)" }));
+      updateFullDatasetRowStatus(endpointId, "skipped");
+      return;
+    }
     const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
-
     setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "loading" }));
     setAutoCompareRowError((e) => ({ ...e, [endpointId]: "" }));
     setAutoCompareRowResults((r) => {
@@ -1176,9 +1216,11 @@ const FmsApiComparePage: React.FC = () => {
           ? "Verschilt"
           : status === "error"
             ? `Fout: ${errorMsg ?? "Onbekend"}`
-            : status === "loading"
-              ? "Bezig..."
-              : "Nog niet vergeleken";
+            : status === "skipped"
+              ? "Overgeslagen (non-numeric citycode)"
+              : status === "loading"
+                ? "Bezig..."
+                : "Nog niet vergeleken";
 
     const truncate = (s: string): string =>
       s.length > 1024 ? s.slice(0, 1024) + "... <cut off>" : s;
@@ -1240,6 +1282,17 @@ const FmsApiComparePage: React.FC = () => {
   const handleCompareOne = async (endpointId: string) => {
     const endpoint = ENDPOINTS.find((e) => e.id === endpointId);
     if (!endpoint) return;
+    const citycode = paramValues.citycode ?? "";
+    if (isSkippedForNonNumericCitycode(citycode, endpointId)) {
+      setRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+      setRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (non-numeric citycode)" }));
+      setRowResults((r) => {
+        const next = { ...r };
+        delete next[endpointId];
+        return next;
+      });
+      return;
+    }
     const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
     setRowStatus((s) => ({ ...s, [endpointId]: "loading" }));
     setRowError((e) => ({ ...e, [endpointId]: "" }));
@@ -1372,9 +1425,11 @@ const FmsApiComparePage: React.FC = () => {
           ? "Verschilt"
           : status === "error"
             ? `Fout: ${errorMsg ?? "Onbekend"}`
-            : status === "loading"
-              ? "Bezig..."
-              : "Nog niet vergeleken";
+            : status === "skipped"
+              ? "Overgeslagen (non-numeric citycode)"
+              : status === "loading"
+                ? "Bezig..."
+                : "Nog niet vergeleken";
 
     const truncate = (s: string): string =>
       s.length > 1024 ? s.slice(0, 1024) + "... <cut off>" : s;
@@ -1928,7 +1983,11 @@ const FmsApiComparePage: React.FC = () => {
                   </label>
                 </div>
                 <p className="text-sm text-gray-600 mb-2 shrink-0">
-                  {fullDatasetResults.summary.total} tests: {fullDatasetResults.summary.identical} identiek, {fullDatasetResults.summary.diff} verschillend, {fullDatasetResults.summary.error} fout.
+                  {fullDatasetResults.summary.total} tests: {fullDatasetResults.summary.identical} identiek, {fullDatasetResults.summary.diff} verschillend, {fullDatasetResults.summary.error} fout
+                  {((fullDatasetResults.summary as { skipped?: number }).skipped ?? 0) > 0
+                    ? `, ${(fullDatasetResults.summary as { skipped: number }).skipped} overgeslagen (non-numeric citycode)`
+                    : ""}
+                  .
                   Klik op een rij om de formuliervelden in te stellen en de gerelateerde test uit te voeren.
                 </p>
                 <div className="w-full min-w-0 flex-1 min-h-0 border rounded overflow-auto">
@@ -1959,7 +2018,7 @@ const FmsApiComparePage: React.FC = () => {
                           key={r.testId}
                           onClick={() => handleFullDatasetRowClick(r)}
                           className={`border-t cursor-pointer hover:bg-gray-50 ${
-                            r.status === "identical" ? "bg-green-50" : r.status === "diff" || r.status === "error" ? "bg-red-50" : ""
+                            r.status === "identical" || r.status === "skipped" ? "bg-green-50" : r.status === "diff" || r.status === "error" ? "bg-red-50" : ""
                           }`}
                         >
                           <td className="p-2">{r.type}</td>
@@ -1982,6 +2041,7 @@ const FmsApiComparePage: React.FC = () => {
                             {r.status === "identical" && "Identiek"}
                             {r.status === "diff" && "Verschilt"}
                             {r.status === "error" && (r.error ? `Fout: ${r.error.slice(0, 50)}...` : "Fout")}
+                            {r.status === "skipped" && "Overgeslagen (non-numeric citycode)"}
                           </td>
                         </tr>
                       ))}

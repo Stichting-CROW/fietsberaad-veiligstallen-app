@@ -155,10 +155,16 @@ export function buildOpeningHours(
     }
   }
 
-  // When no opening hours data at all: ColdFusion would still compute from getOpeningHoursByDayCode.
-  // If we have no periods, return opennow=true, periods=[] (unknown => treat as open per isOpened).
+  // When no periods: either no data at all (unknown => open) or all days closed (=> closed).
+  // Don't assume opennow=true; compute from isOpenNow which handles both cases correctly.
   if (periods.length === 0) {
-    return { opennow: true, periods: [] };
+    let opennow: boolean;
+    try {
+      opennow = isOpenNow(input, now, { unknownAsOpen: true });
+    } catch {
+      opennow = true; // Fallback: treat as open on error
+    }
+    return { opennow, periods: [] };
   }
 
   // Check if all days are open 00:00-23:59 (isNonStopOpen when not fietskluizen)

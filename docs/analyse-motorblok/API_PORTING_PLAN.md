@@ -332,6 +332,27 @@ All other fields (name, lat, long, exploitantname, address, openinghours, servic
 
 *Note:* The Section REST endpoint (`getSection`) does not pass `fields` to `BaseRestService.getSection`, so in practice section occupation fields are omitted. The `getSections` endpoint accepts `fields` but does not forward it to `getSection`.
 
+### 5.3 Non-numeric ZipID (citycode) Special Case
+
+**Contacts:** Some contacts use a non-numeric `ZipID` (e.g. NS – `ZipID = "NS"`). The REST path `/{citycode}` passes this as a string.
+
+**ColdFusion behaviour:** `BaseRestService.cfc` declares `citycode` inconsistently:
+
+| Function        | citycode type | Works with non-numeric ZipID? |
+|----------------|---------------|-------------------------------|
+| getCity        | `string`      | ✓ Yes                         |
+| getLocations   | `string`      | ✓ Yes                         |
+| getLocation    | `numeric`     | ✗ No – "Cannot cast String [ns] to numeric" |
+| getSections    | `numeric`     | ✗ No                          |
+| getSection     | (via getLocation) | ✗ No                       |
+| getSubscriptionTypes | (via getLocation) | ✗ No                    |
+
+Functions with `type="numeric"` fail before the body runs because ColdFusion tries to cast the argument. `getCouncilByZipID()` and Council's `getZipID()` use strings; the mismatch is only in the argument type declaration.
+
+**Next.js:** All lookups use `ZipID` (string) from `contacts`. Non-numeric citycodes work. Ensure case matches DB (e.g. `contacts.ZipID` may be "NS").
+
+**FMS API compare exception:** Parts of the old API do not work for non-numeric citycodes. For any contact with a non-numeric ZipID, the following endpoints are excluded from the compare with status "Overgeslagen (non-numeric citycode)": `getLocation`, `getSections`, `getSection`, `getPlaces`, `getSubscriptionTypes`. `getCity` and `getLocations` are run normally.
+
 ---
 
 ## 6. Swagger Documentation
@@ -401,7 +422,7 @@ All other fields (name, lat, long, exploitantname, address, openinghours, servic
 ### 8.2 ID Conventions
 
 - **citycode:** 4 digits (postcode)
-- **locationid:** `citycode_001` (3-digit)
+- **locationid (StallingsID):** `citycode_001` (3-digit). Globally unique; Prisma schema has `@unique(map: "idxstallingsid")` on `fietsenstallingen`. Lookups use locationid only (no citycode).
 - **sectionid:** `citycode_001_1`
 - **placeid:** integer
 
