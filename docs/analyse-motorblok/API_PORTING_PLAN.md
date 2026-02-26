@@ -296,7 +296,41 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 
 The comparison page includes a **depth** filter (values 1, 2, or 3, default 3) that is passed as `?depth=X` to all V3 API calls. Depth controls how much nested data is returned (e.g. depth≥2 includes sections and places in section responses).
 
-> **Note:** The parameter selection (e.g. `fields`, `limit`) is not yet implemented in the new version of the API. The old ColdFusion API supports additional query parameters that the Next.js API does not yet handle.
+> **Note:** The `fields` parameter is not yet implemented in the new version of the API. See [§5.2 ColdFusion `fields` Parameter](#52-coldfusion-fields-parameter) for how the old API handles it.
+
+### 5.2 ColdFusion `fields` Parameter
+
+The ColdFusion REST API (`fms_service.cfc`, `BaseRestService.cfc`) uses a `fields` query parameter to control which properties are included in responses. The Next.js V3 API does not yet implement this; responses include all fields.
+
+**Parameter binding:** `fields` is declared with `restargsource="query"` and has **no default**. When the client omits `?fields=`, the argument is empty/undefined.
+
+**Decision logic:** Each field is included only when:
+
+1. `arguments.fields eq "*"`, or  
+2. The field name is present in the comma-separated `fields` list (e.g. via `ListFindNoCase(arguments.fields, "location.name")`).
+
+**Always-included fields:** There is no explicit configuration. A field is "always included" only if it is assigned without a `fields` check. In the ColdFusion code:
+
+| Response type | Always included |
+|---------------|-----------------|
+| Location      | `locationid`    |
+| City          | `citycode`      |
+
+All other fields (name, lat, long, exploitantname, address, openinghours, services, etc.) are conditional on the `fields` parameter.
+
+**Special case – `subscriptiontypes`:** This field is **never** included when `fields=*`. It must be explicitly requested as `location.subscriptiontypes`. The ColdFusion comment states: "hier moet expliciet om gevraagd worden, dus * voldoet niet" (must be explicitly requested; `*` does not satisfy).
+
+**Field names:** Examples include `location.name`, `location.lat`, `location.long`, `location.openinghours`, `location.services`, `location.exploitantname`, `location.address`, `city.name`, etc. Some accept aliases (e.g. `location.type` for `location.locationtype`).
+
+**Field classification (ColdFusion `BaseRestService.cfc`):**
+
+| Response | Always included | Selectable via `fields` | Explicit only (excluded by `*`) |
+|----------|------------------|--------------------------|----------------------------------|
+| **City** | `citycode` | `name` (`city.name`) | — |
+| **Location** | `locationid` | `name`, `lat`, `long`, `exploitantname`, `exploitantcontact`, `address`, `postalcode`, `city`, `costsdescription`, `thirdpartyreservationsurl`, `description`, `locationtype`, `station`, `occupied`, `free`, `capacity`, `occupationsource`, `openinghours` (incl. `opennow`, `periods`, `extrainfo`), `services`, `sections` | `subscriptiontypes` (`location.subscriptiontypes`) |
+| **Section** | `sectionid`, `name`, `biketypes`, `places`, `rates`, `maxsubscriptions` | `capacity`, `occupation`, `free`, `occupationsource` (`section.occupied`, `section.occupation`, etc.) | — |
+
+*Note:* The Section REST endpoint (`getSection`) does not pass `fields` to `BaseRestService.getSection`, so in practice section occupation fields are omitted. The `getSections` endpoint accepts `fields` but does not forward it to `getSection`.
 
 ---
 

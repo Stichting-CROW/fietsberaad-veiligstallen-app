@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
 
 /** Returns { oldOnly, newOnly } with only differing paths. Uses deep-object-diff: diff(a,b) = values from b that differ from a. */
 function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOnly: string } | null {
@@ -46,8 +47,24 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
 ];
 
-const GLOBAL_ENDPOINTS = ENDPOINTS.filter((e) => e.id.startsWith("v2-") || e.id === "v3-citycodes");
-const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e));
+const GLOBAL_ENDPOINTS = ENDPOINTS.filter((e) => e.id.startsWith("v2-") || e.id === "v3-citycodes") as EndpointDef[];
+const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e)) as EndpointDef[];
+
+function buildFullDatasetTestId(
+  type: "city" | "location" | "section",
+  citycode: string,
+  locationid?: string,
+  sectionid?: string,
+  endpointId?: string
+): string {
+  return `${type}-${citycode}${locationid ? `-${locationid}` : ""}${sectionid ? `-${sectionid}` : ""}${endpointId ? `-${endpointId}` : ""}`;
+}
+
+function getTypeForEndpoint(endpointId: string): "city" | "location" | "section" {
+  if (endpointId === "v3-citycode" || endpointId === "v3-locations") return "city";
+  if (endpointId === "v3-section" || endpointId === "v3-places") return "section";
+  return "location";
+}
 
 const STORAGE_KEY = "fms-api-compare-params";
 const STORAGE_KEY_URLS = "fms-api-compare-urls";
@@ -97,6 +114,7 @@ type FullDatasetTestResult = {
   citycode: string;
   locationid?: string;
   sectionid?: string;
+  locationtype?: string;
   endpointId: string;
   endpointLabel: string;
   status: "identical" | "diff" | "error";
@@ -266,65 +284,108 @@ const FmsApiComparePage: React.FC = () => {
   const [locationOptions, setLocationOptions] = useState<OptionItem[]>([]);
   const [sectionOptions, setSectionOptions] = useState<OptionItem[]>([]);
   const [optionsLoading, setOptionsLoading] = useState({ city: false, location: false, section: false });
+  /** Maps citycode (ZipID) → SiteID for fetching locations */
+  const [cityCodeToSiteId, setCityCodeToSiteId] = useState<Record<string, string>>({});
+  /** Maps locationid (StallingsID) → internal fietsenstalling ID for fetching sections */
+  const [locationIdToInternalId, setLocationIdToInternalId] = useState<Record<string, string>>({});
 
   const apiBase = typeof window !== "undefined" ? (newApiUrl || window.location.origin) : "";
 
+  // Cities: /api/protected/gemeenten (full, not compact)
   useEffect(() => {
-    if (!apiBase) return;
+    if (typeof window === "undefined") return;
     setOptionsLoading((o) => ({ ...o, city: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes?depth=1`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ citycode?: string; name?: string }>) => {
-        const opts: OptionItem[] = (data ?? []).map((c) => ({
-          value: c.citycode ?? "",
-          label: c.name ? `${c.citycode} – ${c.name}` : (c.citycode ?? ""),
-        })).filter((o) => o.value);
+    fetch("/api/protected/gemeenten")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res: { data?: Array<{ ID?: string; ZipID?: string; CompanyName?: string | null; fietsenstallingen_fietsenstallingen_SiteIDTocontacts?: unknown[] }> }) => {
+        const list = res.data ?? [];
+        const withStallingen = list.filter(
+          (g) => g.ZipID && (g.fietsenstallingen_fietsenstallingen_SiteIDTocontacts?.length ?? 0) > 0
+        );
+        const opts: OptionItem[] = withStallingen
+          .map((c) => ({
+            value: c.ZipID ?? "",
+            label: c.CompanyName ? `${c.CompanyName} (${c.ZipID})` : (c.ZipID ?? ""),
+          }))
+          .filter((o) => o.value)
+          .sort((a, b) => a.label.localeCompare(b.label));
+        const map: Record<string, string> = {};
+        for (const g of withStallingen) {
+          if (g.ZipID && g.ID) map[g.ZipID] = g.ID;
+        }
         setCityOptions(opts);
+        setCityCodeToSiteId(map);
       })
-      .catch(() => setCityOptions([]))
+      .catch(() => {
+        setCityOptions([]);
+        setCityCodeToSiteId({});
+      })
       .finally(() => setOptionsLoading((o) => ({ ...o, city: false })));
-  }, [apiBase]);
+  }, []);
 
+  // Locations: /api/protected/fietsenstallingen?GemeenteID=siteId
   useEffect(() => {
     const cc = paramValues.citycode;
-    if (!apiBase || !cc) {
+    const siteId = cityCodeToSiteId[cc ?? ""];
+    if (!siteId || !cc) {
       setLocationOptions([]);
+      setLocationIdToInternalId({});
+      setOptionsLoading((o) => ({ ...o, location: false }));
       return;
     }
     setOptionsLoading((o) => ({ ...o, location: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations?depth=1`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ locationid?: string; name?: string }>) => {
-        const opts: OptionItem[] = (data ?? []).map((l) => ({
-          value: l.locationid ?? "",
-          label: l.name ? `${l.locationid} – ${l.name}` : (l.locationid ?? ""),
-        })).filter((o) => o.value);
+    fetch(`/api/protected/fietsenstallingen?GemeenteID=${encodeURIComponent(siteId)}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res: { data?: Array<{ ID?: string; StallingsID?: string; Title?: string | null }> }) => {
+        const list = res.data ?? [];
+        const map: Record<string, string> = {};
+        const opts: OptionItem[] = list
+          .filter((f) => f.StallingsID)
+          .map((l) => {
+            if (l.ID && l.StallingsID) map[l.StallingsID] = l.ID;
+            return {
+              value: l.StallingsID ?? "",
+              label: l.Title ? `${l.Title} (${l.StallingsID})` : (l.StallingsID ?? ""),
+            };
+          })
+          .filter((o) => o.value)
+          .sort((a, b) => a.label.localeCompare(b.label));
         setLocationOptions(opts);
+        setLocationIdToInternalId(map);
         if (opts.length > 0) {
           setParamValues((p) =>
             p.locationid === "" ? { ...p, locationid: opts[0]!.value, sectionid: "" } : p
           );
         }
       })
-      .catch(() => setLocationOptions([]))
+      .catch(() => {
+        setLocationOptions([]);
+        setLocationIdToInternalId({});
+      })
       .finally(() => setOptionsLoading((o) => ({ ...o, location: false })));
-  }, [apiBase, paramValues.citycode]);
+  }, [paramValues.citycode, cityCodeToSiteId]);
 
+  // Sections: /api/protected/fietsenstallingen/secties/all?fietsenstallingId=internalId
   useEffect(() => {
-    const cc = paramValues.citycode;
     const lid = paramValues.locationid;
-    if (!apiBase || !cc || !lid) {
+    const internalId = locationIdToInternalId[lid ?? ""];
+    if (!internalId || !lid) {
       setSectionOptions([]);
+      setOptionsLoading((o) => ({ ...o, section: false }));
       return;
     }
     setOptionsLoading((o) => ({ ...o, section: true }));
-    fetch(`${apiBase}/api/fms/v3/citycodes/${encodeURIComponent(cc)}/locations/${encodeURIComponent(lid)}/sections?depth=1`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ sectionid?: string; name?: string }>) => {
-        const opts: OptionItem[] = (data ?? []).map((s) => ({
-          value: s.sectionid ?? "",
-          label: s.name ? `${s.sectionid} – ${s.name}` : (s.sectionid ?? ""),
-        })).filter((o) => o.value);
+    fetch(`/api/protected/fietsenstallingen/secties/all?fietsenstallingId=${encodeURIComponent(internalId)}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res: { data?: Array<{ externalId?: string | null; titel?: string }> }) => {
+        const list = res.data ?? [];
+        const opts: OptionItem[] = list
+          .filter((s) => s.externalId)
+          .map((s) => ({
+            value: s.externalId ?? "",
+            label: s.titel ? `${s.titel} (${s.externalId})` : (s.externalId ?? ""),
+          }))
+          .filter((o) => o.value);
         setSectionOptions(opts);
         if (opts.length > 0) {
           setParamValues((p) =>
@@ -334,7 +395,7 @@ const FmsApiComparePage: React.FC = () => {
       })
       .catch(() => setSectionOptions([]))
       .finally(() => setOptionsLoading((o) => ({ ...o, section: false })));
-  }, [apiBase, paramValues.citycode, paramValues.locationid]);
+  }, [paramValues.locationid, locationIdToInternalId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -389,11 +450,52 @@ const FmsApiComparePage: React.FC = () => {
       return next;
     });
   }, [paramValues.depth]);
-  const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(true);
   const [fullDatasetLoading, setFullDatasetLoading] = useState(false);
   const [fullDatasetResults, setFullDatasetResults] = useState<FullDatasetTestResponse | null>(() => loadStoredFullDataset());
   const [showOnlyFailedFullDataset, setShowOnlyFailedFullDataset] = useState(true);
-  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek">("algemeen");
+  const [fullDatasetLocationtypeFilter, setFullDatasetLocationtypeFilter] = useState("");
+  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd">("algemeen");
+
+  /** Geautomatiseerd tab: depth (separate from other tabs) */
+  const [fullDatasetDepth, setFullDatasetDepth] = useState("3");
+  /** Geautomatiseerd tab: "Alle Data-eigenaren" (default) or citycode for single data-owner */
+  const [fullDatasetScope, setFullDatasetScope] = useState("");
+  /** Geautomatiseerd tab: row clicked in full-dataset table; shows comparison component for that test case */
+  const [selectedFullDatasetRow, setSelectedFullDatasetRow] = useState<FullDatasetTestResult | null>(null);
+  /** Geautomatiseerd tab: comparison state for the selected row (separate from Locatie-specifieke tab) */
+  const [autoCompareParamValues, setAutoCompareParamValues] = useState<Record<string, string>>({});
+  const [autoCompareRowStatus, setAutoCompareRowStatus] = useState<Record<string, RowStatus>>({});
+  const [autoCompareRowError, setAutoCompareRowError] = useState<Record<string, string>>({});
+  const [autoCompareRowResults, setAutoCompareRowResults] = useState<Record<string, { old: string; new: string }>>({});
+  const [autoCompareRowTiming, setAutoCompareRowTiming] = useState<Record<string, { oldSeconds: number; newSeconds: number }>>({});
+  const [autoCompareRowExpanded, setAutoCompareRowExpanded] = useState<Record<string, boolean>>({});
+  const [autoCompareLoading, setAutoCompareLoading] = useState(false);
+
+  const prevFullDatasetDepthRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevFullDatasetDepthRef.current === null) {
+      prevFullDatasetDepthRef.current = fullDatasetDepth;
+      return;
+    }
+    if (prevFullDatasetDepthRef.current === fullDatasetDepth) return;
+    prevFullDatasetDepthRef.current = fullDatasetDepth;
+    setFullDatasetResults(null);
+    setSelectedFullDatasetRow(null);
+    setAutoCompareParamValues({});
+    setAutoCompareRowStatus({});
+    setAutoCompareRowError({});
+    setAutoCompareRowResults({});
+    setAutoCompareRowTiming({});
+    setAutoCompareRowExpanded({});
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(STORAGE_KEY_FULL_DATASET);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [fullDatasetDepth]);
 
   const hasAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
@@ -556,7 +658,7 @@ const FmsApiComparePage: React.FC = () => {
     const body: { useApiCredentials?: boolean; authorizationHeader?: string; oldApiUrl?: string; newApiUrl?: string; depth?: string; citycode?: string } = {
       oldApiUrl: oldApiUrl || OLD_API_BASE,
       newApiUrl: newApiUrl || (typeof window !== "undefined" ? window.location.origin : ""),
-      depth: paramValues.depth ?? "3",
+      depth: fullDatasetDepth ?? "3",
       ...(citycodeFilter && { citycode: citycodeFilter }),
     };
     if (credentialsFromApi && useAuth) {
@@ -587,6 +689,33 @@ const FmsApiComparePage: React.FC = () => {
     }
   };
 
+  const updateFullDatasetRowStatus = useCallback(
+    (endpointId: string, status: "identical" | "diff" | "error", error?: string) => {
+      const params = autoCompareParamValues;
+      const type = getTypeForEndpoint(endpointId);
+      const citycode = params.citycode ?? "";
+      const locationid = type === "location" || type === "section" ? params.locationid : undefined;
+      const sectionid = type === "section" ? params.sectionid : undefined;
+      const testId = buildFullDatasetTestId(type, citycode, locationid, sectionid, endpointId);
+      setFullDatasetResults((prev) => {
+        if (!prev) return prev;
+        const next = prev.results.map((row) =>
+          row.testId === testId ? { ...row, status, ...(error && { error }) } : row
+        );
+        const identical = next.filter((r) => r.status === "identical").length;
+        const diff = next.filter((r) => r.status === "diff").length;
+        const err = next.filter((r) => r.status === "error").length;
+        const updated = {
+          results: next,
+          summary: { total: next.length, identical, diff, error: err },
+        };
+        saveFullDatasetToStorage(updated);
+        return updated;
+      });
+    },
+    [autoCompareParamValues]
+  );
+
   const handleFullDatasetRowClick = (r: FullDatasetTestResult) => {
     const results = fullDatasetResults?.results ?? [];
     let locationid = r.locationid;
@@ -606,9 +735,326 @@ const FmsApiComparePage: React.FC = () => {
       citycode: r.citycode,
       locationid: locationid ?? "",
       sectionid: sectionid ?? "",
+      depth: fullDatasetDepth ?? "3",
     };
-    setParamValues(newParams);
-    void handleCompareAll(newParams, LOCATION_ENDPOINTS);
+    setSelectedFullDatasetRow(r);
+    setAutoCompareParamValues(newParams);
+    setAutoCompareRowStatus({});
+    setAutoCompareRowError({});
+    setAutoCompareRowResults({});
+    setAutoCompareRowTiming({});
+    setAutoCompareRowExpanded({});
+    void handleAutoCompareAll(newParams);
+  };
+
+  const handleAutoCompareAll = async (params: Record<string, string>) => {
+    const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
+    setAutoCompareLoading(true);
+    const loadingStatus: Record<string, RowStatus> = {};
+    for (const e of LOCATION_ENDPOINTS) loadingStatus[e.id] = "loading";
+    setAutoCompareRowStatus(loadingStatus);
+    setAutoCompareRowError({});
+    setAutoCompareRowResults({});
+    setAutoCompareRowTiming({});
+
+    const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
+    if (credentialsFromApi && useAuth) {
+      body.useApiCredentials = true;
+    } else if (useAuth) {
+      body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
+    }
+
+    for (const endpoint of LOCATION_ENDPOINTS) {
+      const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
+      const newUrl = getNewUrl(endpoint, params, baseNew);
+
+      try {
+        const res = await fetch("/api/protected/fms-api-compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, oldUrl, newUrl }),
+        });
+        const data = await res.json();
+        const { oldError, newError } = data as { oldError?: string; newError?: string };
+        const hasFetchError = !!oldError || !!newError;
+
+        if (!res.ok) {
+          const parts: string[] = [];
+          if (oldError) parts.push(`Oude API: ${oldError}`);
+          if (newError) parts.push(`Nieuwe API: ${newError}`);
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: parts.length > 0 ? parts.join("; ") : data.message ?? "Request failed" }));
+          updateFullDatasetRowStatus(endpoint.id, "error", parts.join("; "));
+          continue;
+        }
+        if (hasFetchError) {
+          const parts: string[] = [];
+          if (oldError) parts.push(`Oude API: ${oldError}`);
+          if (newError) parts.push(`Nieuwe API: ${newError}`);
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: parts.join("; ") }));
+          const formatResult = (s: string) => {
+            try {
+              return JSON.stringify(JSON.parse(s), null, 2);
+            } catch {
+              return s;
+            }
+          };
+          setAutoCompareRowResults((r) => ({
+            ...r,
+            [endpoint.id]: {
+              old: oldError ? `[Fout Oude API: ${oldError}]` : formatResult(data.oldResult ?? ""),
+              new: newError ? `[Fout Nieuwe API: ${newError}]` : formatResult(data.newResult ?? ""),
+            },
+          }));
+          if (data.oldDurationSeconds != null || data.newDurationSeconds != null) {
+            setAutoCompareRowTiming((t) => ({
+              ...t,
+              [endpoint.id]: {
+                oldSeconds: data.oldDurationSeconds ?? 0,
+                newSeconds: data.newDurationSeconds ?? 0,
+              },
+            }));
+          }
+          updateFullDatasetRowStatus(endpoint.id, "error", parts.join("; "));
+          continue;
+        }
+
+        const { oldResult: oldRes, newResult: newRes, oldDurationSeconds, newDurationSeconds } = data as {
+          oldResult: string;
+          newResult: string;
+          oldDurationSeconds?: number;
+          newDurationSeconds?: number;
+        };
+        if (oldDurationSeconds != null && newDurationSeconds != null) {
+          setAutoCompareRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
+        }
+        const identical = responsesMatch(endpoint.id, oldRes, newRes);
+        const status: "identical" | "diff" = identical ? "identical" : "diff";
+        const formattedOld = (() => {
+          try {
+            return JSON.stringify(JSON.parse(oldRes), null, 2);
+          } catch {
+            return oldRes;
+          }
+        })();
+        const formattedNew = (() => {
+          try {
+            return JSON.stringify(JSON.parse(newRes), null, 2);
+          } catch {
+            return newRes;
+          }
+        })();
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: identical ? "identical" : "diff" }));
+        setAutoCompareRowResults((r) => ({ ...r, [endpoint.id]: { old: formattedOld, new: formattedNew } }));
+        setAutoCompareRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
+        updateFullDatasetRowStatus(endpoint.id, status);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Fetch failed";
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: msg }));
+        updateFullDatasetRowStatus(endpoint.id, "error", msg);
+      }
+    }
+    setAutoCompareLoading(false);
+  };
+
+  const handleAutoCompareOne = async (endpointId: string) => {
+    const endpoint = LOCATION_ENDPOINTS.find((e) => e.id === endpointId);
+    if (!endpoint) return;
+    const params = autoCompareParamValues;
+    const baseNew = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
+
+    setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "loading" }));
+    setAutoCompareRowError((e) => ({ ...e, [endpointId]: "" }));
+    setAutoCompareRowResults((r) => {
+      const next = { ...r };
+      delete next[endpointId];
+      return next;
+    });
+    setAutoCompareRowTiming((t) => {
+      const next = { ...t };
+      delete next[endpointId];
+      return next;
+    });
+
+    const body: { useApiCredentials?: boolean; authorizationHeader?: string } = {};
+    if (credentialsFromApi && useAuth) {
+      body.useApiCredentials = true;
+    } else if (useAuth) {
+      body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
+    }
+
+    const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
+    const newUrl = getNewUrl(endpoint, params, baseNew);
+
+    try {
+      const res = await fetch("/api/protected/fms-api-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, oldUrl, newUrl }),
+      });
+      const data = await res.json();
+      const { oldError, newError } = data as { oldError?: string; newError?: string };
+      const hasFetchError = !!oldError || !!newError;
+
+      if (!res.ok) {
+        const parts: string[] = [];
+        if (oldError) parts.push(`Oude API: ${oldError}`);
+        if (newError) parts.push(`Nieuwe API: ${newError}`);
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "error" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: parts.length > 0 ? parts.join("; ") : data.message ?? "Request failed" }));
+        updateFullDatasetRowStatus(endpointId, "error", parts.join("; "));
+        return;
+      }
+      if (hasFetchError) {
+        const parts: string[] = [];
+        if (oldError) parts.push(`Oude API: ${oldError}`);
+        if (newError) parts.push(`Nieuwe API: ${newError}`);
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "error" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: parts.join("; ") }));
+        const formatResult = (s: string) => {
+          try {
+            return JSON.stringify(JSON.parse(s), null, 2);
+          } catch {
+            return s;
+          }
+        };
+        setAutoCompareRowResults((r) => ({
+          ...r,
+          [endpointId]: {
+            old: oldError ? `[Fout Oude API: ${oldError}]` : formatResult(data.oldResult ?? ""),
+            new: newError ? `[Fout Nieuwe API: ${newError}]` : formatResult(data.newResult ?? ""),
+          },
+        }));
+        if (data.oldDurationSeconds != null || data.newDurationSeconds != null) {
+          setAutoCompareRowTiming((t) => ({
+            ...t,
+            [endpointId]: {
+              oldSeconds: data.oldDurationSeconds ?? 0,
+              newSeconds: data.newDurationSeconds ?? 0,
+            },
+          }));
+        }
+        updateFullDatasetRowStatus(endpointId, "error", parts.join("; "));
+        return;
+      }
+
+      const { oldResult: oldRes, newResult: newRes, oldDurationSeconds, newDurationSeconds } = data as {
+        oldResult: string;
+        newResult: string;
+        oldDurationSeconds?: number;
+        newDurationSeconds?: number;
+      };
+      if (oldDurationSeconds != null && newDurationSeconds != null) {
+        setAutoCompareRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
+      }
+      const identical = responsesMatch(endpointId, oldRes, newRes);
+      const status: "identical" | "diff" = identical ? "identical" : "diff";
+      const formattedOld = (() => {
+        try {
+          return JSON.stringify(JSON.parse(oldRes), null, 2);
+        } catch {
+          return oldRes;
+        }
+      })();
+      const formattedNew = (() => {
+        try {
+          return JSON.stringify(JSON.parse(newRes), null, 2);
+        } catch {
+          return newRes;
+        }
+      })();
+      setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: identical ? "identical" : "diff" }));
+      setAutoCompareRowResults((r) => ({ ...r, [endpointId]: { old: formattedOld, new: formattedNew } }));
+      setAutoCompareRowExpanded((x) => ({ ...x, [endpointId]: false }));
+      updateFullDatasetRowStatus(endpointId, status);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Fetch failed";
+      setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "error" }));
+      setAutoCompareRowError((e) => ({ ...e, [endpointId]: msg }));
+      updateFullDatasetRowStatus(endpointId, "error", msg);
+    }
+  };
+
+  const handleAutoCompareReset = () => {
+    setAutoCompareRowStatus({});
+    setAutoCompareRowError({});
+    setAutoCompareRowResults({});
+    setAutoCompareRowTiming({});
+    setAutoCompareRowExpanded({});
+  };
+
+  const handleAutoCopyToClipboard = (endpoint: EndpointDef) => {
+    const status = autoCompareRowStatus[endpoint.id] ?? "pending";
+    const results = autoCompareRowResults[endpoint.id];
+    const errorMsg = autoCompareRowError[endpoint.id];
+    const params = autoCompareParamValues;
+
+    const parameters: Record<string, string> = {};
+    for (const p of endpoint.params) {
+      const v = params[p];
+      if (v != null) parameters[p] = v;
+    }
+
+    const resultDescription =
+      status === "identical"
+        ? "Identiek"
+        : status === "diff"
+          ? "Verschilt"
+          : status === "error"
+            ? `Fout: ${errorMsg ?? "Onbekend"}`
+            : status === "loading"
+              ? "Bezig..."
+              : "Nog niet vergeleken";
+
+    const truncate = (s: string): string =>
+      s.length > 1024 ? s.slice(0, 1024) + "... <cut off>" : s;
+
+    const oldData = results?.old ?? "(no data)";
+    const newData = results?.new ?? "(no data)";
+    const diffRecords = status === "diff" && results ? getDiffOnly(results.old, results.new) : null;
+
+    const diffExplanation = [
+      "",
+      "--- Diff (deep-object-diff) ---",
+      "We supply a diff based on the deep-object-diff tool. The diff isolates only the differing paths:",
+      "- oldOnly: keys/values present in the OLD API result that differ from or are missing in the NEW API result",
+      "- newOnly: keys/values present in the NEW API result that differ from or are missing in the OLD API result",
+      "Nested objects show only the leaf paths that differ. Empty {} means no differences for that side.",
+    ].join("\n");
+
+    const depth = params.depth ?? "3";
+    const instruction = [
+      "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API. When differences exist, first check if the correct old and new API URLs/stubs are created (e.g. wrong URL routing can cause the old API to return wrong data like citycodes instead of a section). When there is a structure mismatch between the old and new API data, look in swagger description in the old documentation to resolve. Start by comparing the keys in the outermost object. Keys must match and be in the same order. For single value keys, values must be the same. For keys that have object values, take a recursive approach: compare the keys and values in the child object etc. For lists, look at each object in the list in the same way.",
+      "",
+      `Endpoint: ${endpoint.label}`,
+      `The data was requested with depth=${depth} and no parameter selection.`,
+      Object.keys(parameters).length > 0 ? `Parameters: ${JSON.stringify(parameters)}` : null,
+      `Status: ${resultDescription}`,
+      "",
+      "Old API result:",
+      truncate(oldData),
+      "",
+      "New API result:",
+      truncate(newData),
+      diffRecords && (diffRecords.oldOnly !== "{}" || diffRecords.newOnly !== "{}")
+        ? [
+            diffExplanation,
+            "",
+            "Diff (oldOnly - values in old that differ from new):",
+            truncate(diffRecords.oldOnly),
+            "",
+            "Diff (newOnly - values in new that differ from old):",
+            truncate(diffRecords.newOnly),
+          ]
+        : null,
+    ]
+      .filter((line): line is string | string[] => line != null)
+      .flat()
+      .join("\n");
+
+    void navigator.clipboard.writeText(instruction);
   };
 
   const handleResetResults = () => {
@@ -825,136 +1271,6 @@ const FmsApiComparePage: React.FC = () => {
     );
   }
 
-  const renderEndpointTable = (endpoints: typeof ENDPOINTS) =>
-    endpoints.map((e) => {
-      const status = rowStatus[e.id] ?? "pending";
-      const results = rowResults[e.id];
-      const timing = rowTiming[e.id];
-      const expanded = rowExpanded[e.id] ?? false;
-      const hasResults = !!results || (status === "error" && rowError[e.id]);
-      const bg =
-        status === "identical"
-          ? "bg-green-100"
-          : status === "diff" || status === "error"
-            ? "bg-red-100"
-            : status === "loading"
-              ? "bg-gray-50"
-              : "";
-      return (
-        <tr key={e.id} className={`border-t ${bg}`}>
-          <td className="p-3 align-top whitespace-nowrap">{e.label}</td>
-          <td className="p-3 align-top whitespace-nowrap">
-            {status === "pending" && "—"}
-            {status === "loading" && "..."}
-            {status === "identical" && "Identiek"}
-            {status === "diff" && "Verschilt"}
-            {status === "error" && (() => {
-              const err = rowError[e.id] ?? "";
-              const oldFail = err.includes("Oude API:");
-              const newFail = err.includes("Nieuwe API:");
-              const which = oldFail && newFail ? "beide" : oldFail ? "Oude API" : newFail ? "Nieuwe API" : "";
-              return (
-                <span title={err} className="text-red-700">
-                  Fout{which ? ` (${which})` : ""}
-                </span>
-              );
-            })()}
-          </td>
-          <td className="p-3 align-top whitespace-nowrap text-xs text-gray-600">
-            {timing ? (
-              <>
-                <span title="Oude API">O: {timing.oldSeconds.toFixed(3)}</span>
-                {" · "}
-                <span title="Nieuwe API">N: {timing.newSeconds.toFixed(3)}</span>
-              </>
-            ) : (
-              "—"
-            )}
-          </td>
-          <td className="p-3 align-top whitespace-nowrap">
-            <div className="flex flex-nowrap gap-1">
-              <button
-                type="button"
-                onClick={() => handleCompareOne(e.id)}
-                disabled={loading || status === "loading"}
-                className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
-              >
-                Vergelijk
-              </button>
-              {hasResults && (
-                <button
-                  type="button"
-                  onClick={() => handleCopyToClipboard(e)}
-                  className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200"
-                  title="Kopieer fix-prompt met data naar klembord"
-                >
-                  Fix prompt
-                </button>
-              )}
-            </div>
-          </td>
-          <td className="p-3 align-top min-w-0">
-            {hasResults ? (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setRowExpanded((x) => ({ ...x, [e.id]: !expanded }))}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
-                >
-                  <span className="transition-transform">{expanded ? "▼" : "▶"}</span>
-                  {expanded ? "Verberg" : "Toon"} resultaten
-                </button>
-                {expanded && (
-                  <div className="mt-2">
-                    {results ? (
-                      (() => {
-                        const display =
-                          showOnlyDifferences && status === "diff"
-                            ? getDiffOnly(results.old, results.new)
-                            : null;
-                        const oldDisplay = display?.oldOnly ?? results.old;
-                        const newDisplay = display?.newOnly ?? results.new;
-                        return (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-[400px]">
-                            <div>
-                              <div className="text-xs font-medium text-gray-500 mb-1">
-                                Oude API
-                                {display && (
-                                  <span className="ml-1 text-amber-600">(alleen verschillen)</span>
-                                )}
-                              </div>
-                              <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                {oldDisplay}
-                              </pre>
-                            </div>
-                            <div>
-                              <div className="text-xs font-medium text-gray-500 mb-1">
-                                Nieuwe API
-                                {display && (
-                                  <span className="ml-1 text-amber-600">(alleen verschillen)</span>
-                                )}
-                              </div>
-                              <pre className="p-2 bg-white/80 rounded text-xs overflow-auto border border-gray-200 whitespace-pre-wrap break-words">
-                                {newDisplay}
-                              </pre>
-                            </div>
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      <span className="text-red-700 text-xs">{rowError[e.id]}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              "—"
-            )}
-          </td>
-        </tr>
-      );
-    });
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-full">
       <h1 className="text-3xl font-bold text-gray-900 mb-6">FMS API vergelijking</h1>
@@ -962,7 +1278,7 @@ const FmsApiComparePage: React.FC = () => {
       {/* API URL fields - shared by both tabs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Oude API URL</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Oude API url</label>
           <input
             type="text"
             value={oldApiUrl}
@@ -972,7 +1288,7 @@ const FmsApiComparePage: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nieuwe API URL (basis)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nieuwe API url (basis)</label>
           <input
             type="text"
             value={newApiUrl}
@@ -1043,6 +1359,17 @@ const FmsApiComparePage: React.FC = () => {
           >
             Locatie-specifieke API-stubs
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("geautomatiseerd")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "geautomatiseerd"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Geautomatiseerd Testen
+          </button>
         </nav>
       </div>
 
@@ -1051,7 +1378,7 @@ const FmsApiComparePage: React.FC = () => {
           <div>
             <div className="flex flex-wrap items-end gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">depth</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Depth</label>
                 <select
                   value={paramValues.depth ?? "3"}
                   onChange={(e) => setParamValues((p) => ({ ...p, depth: e.target.value }))}
@@ -1074,37 +1401,22 @@ const FmsApiComparePage: React.FC = () => {
                 Alleen verschillen tonen
               </label>
             </div>
-            <div className="w-full min-w-0 border rounded overflow-x-auto">
-              <table className="w-full text-sm table-auto">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
-                    <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
-                    <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
-                    <th className="text-left p-3 font-medium whitespace-nowrap">
-                      <span className="mr-2">Acties</span>
-                      <button
-                        onClick={() => void handleCompareAll(undefined, GLOBAL_ENDPOINTS)}
-                        disabled={loading}
-                        className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
-                      >
-                        {loading ? "Vergelijken..." : "Alles testen"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResetResults}
-                        disabled={loading}
-                        className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
-                      >
-                        Reset
-                      </button>
-                    </th>
-                    <th className="text-left p-3 font-medium w-full">Resultaten</th>
-                  </tr>
-                </thead>
-                <tbody>{renderEndpointTable(GLOBAL_ENDPOINTS)}</tbody>
-              </table>
-            </div>
+            <EndpointComparisonTable
+              endpoints={GLOBAL_ENDPOINTS}
+              paramValues={paramValues}
+              rowStatus={rowStatus}
+              rowError={rowError}
+              rowResults={rowResults}
+              rowTiming={rowTiming}
+              rowExpanded={rowExpanded}
+              loading={loading}
+              showOnlyDifferences={showOnlyDifferences}
+              onCompareOne={handleCompareOne}
+              onCompareAll={() => void handleCompareAll(undefined, GLOBAL_ENDPOINTS)}
+              onReset={handleResetResults}
+              onCopyToClipboard={handleCopyToClipboard}
+              onExpandedChange={(id, expanded) => setRowExpanded((x) => ({ ...x, [id]: expanded }))}
+            />
           </div>
         )}
 
@@ -1112,7 +1424,7 @@ const FmsApiComparePage: React.FC = () => {
           <>
             <div className="flex flex-wrap items-end gap-4">
           <div className="w-auto min-w-[12rem]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">citycode</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Organisatie</label>
             <Autocomplete
               options={cityOptions}
               getOptionLabel={(o) => o.label}
@@ -1144,7 +1456,7 @@ const FmsApiComparePage: React.FC = () => {
             />
           </div>
           <div className="w-auto min-w-[20rem]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">locationid</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stalling</label>
             <Autocomplete
               options={locationOptions}
               getOptionLabel={(o) => o.label}
@@ -1174,7 +1486,7 @@ const FmsApiComparePage: React.FC = () => {
                     optionsLoading.location
                       ? "Laden..."
                       : !paramValues.citycode
-                        ? "Selecteer eerst citycode"
+                        ? "Selecteer eerst organisatie"
                         : "Typ om te zoeken..."
                   }
                   size="small"
@@ -1188,7 +1500,7 @@ const FmsApiComparePage: React.FC = () => {
             />
           </div>
           <div className="w-auto min-w-[12rem]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">sectionid</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sectie</label>
             <select
               value={paramValues.sectionid ?? ""}
               onChange={(e) => setParamValues((p) => ({ ...p, sectionid: e.target.value }))}
@@ -1196,7 +1508,7 @@ const FmsApiComparePage: React.FC = () => {
               disabled={optionsLoading.section || !paramValues.locationid}
             >
               <option value="">
-                {optionsLoading.section ? "Laden..." : !paramValues.locationid ? "Selecteer eerst location" : "Selecteer section"}
+                {optionsLoading.section ? "Laden..." : !paramValues.locationid ? "Selecteer eerst Stalling" : "Selecteer Sectie"}
               </option>
               {sectionOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -1209,7 +1521,7 @@ const FmsApiComparePage: React.FC = () => {
             </select>
           </div>
           <div className="w-auto min-w-[4rem]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">depth</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Depth</label>
             <select
               value={paramValues.depth ?? "3"}
               onChange={(e) => setParamValues((p) => ({ ...p, depth: e.target.value }))}
@@ -1235,62 +1547,139 @@ const FmsApiComparePage: React.FC = () => {
 
             {/* Table 2: Location-specific endpoints */}
             <div>
-              <div className="w-full min-w-0 border rounded overflow-x-auto">
-                <table className="w-full text-sm table-auto">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
-                      <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
-                      <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
-                      <th className="text-left p-3 font-medium whitespace-nowrap">
-                        <span className="mr-2">Acties</span>
-                        <button
-                          onClick={() => void handleCompareAll(undefined, LOCATION_ENDPOINTS)}
-                          disabled={loading}
-                          className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
-                        >
-                          {loading ? "Vergelijken..." : "Alles testen"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetResults}
-                          disabled={loading}
-                          className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
-                        >
-                          Reset
-                        </button>
-                      </th>
-                      <th className="text-left p-3 font-medium w-full">Resultaten</th>
-                    </tr>
-                  </thead>
-                  <tbody>{renderEndpointTable(LOCATION_ENDPOINTS)}</tbody>
-                </table>
-              </div>
+              <EndpointComparisonTable
+                endpoints={LOCATION_ENDPOINTS}
+                paramValues={paramValues}
+                rowStatus={rowStatus}
+                rowError={rowError}
+                rowResults={rowResults}
+                rowTiming={rowTiming}
+                rowExpanded={rowExpanded}
+                loading={loading}
+                showOnlyDifferences={showOnlyDifferences}
+                onCompareOne={handleCompareOne}
+                onCompareAll={() => void handleCompareAll(undefined, LOCATION_ENDPOINTS)}
+                onReset={handleResetResults}
+                onCopyToClipboard={handleCopyToClipboard}
+                onExpandedChange={(id, expanded) => setRowExpanded((x) => ({ ...x, [id]: expanded }))}
+              />
             </div>
+          </>
+        )}
 
-            <div className="flex flex-wrap items-center gap-3">
+        {activeTab === "geautomatiseerd" && (
+          <div className="flex flex-col min-h-[calc(100vh-14rem)]">
+            {selectedFullDatasetRow && (
+              <div className="mb-6 shrink-0">
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">
+                  Vergelijking voor {selectedFullDatasetRow.citycode}
+                  {selectedFullDatasetRow.locationid && ` / ${selectedFullDatasetRow.locationid}`}
+                  {selectedFullDatasetRow.sectionid && ` / ${selectedFullDatasetRow.sectionid}`}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFullDatasetRow(null)}
+                    className="ml-2 text-sm font-normal text-gray-500 hover:text-gray-700"
+                  >
+                    Sluiten
+                  </button>
+                </h2>
+                <div className="flex flex-wrap items-end gap-4 mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyDifferences}
+                      onChange={(e) => setShowOnlyDifferences(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    Alleen verschillen tonen
+                  </label>
+                </div>
+                <EndpointComparisonTable
+                  endpoints={LOCATION_ENDPOINTS}
+                  paramValues={autoCompareParamValues}
+                  rowStatus={autoCompareRowStatus}
+                  rowError={autoCompareRowError}
+                  rowResults={autoCompareRowResults}
+                  rowTiming={autoCompareRowTiming}
+                  rowExpanded={autoCompareRowExpanded}
+                  loading={autoCompareLoading}
+                  showOnlyDifferences={showOnlyDifferences}
+                  onCompareOne={handleAutoCompareOne}
+                  onCompareAll={() => void handleAutoCompareAll(autoCompareParamValues)}
+                  onReset={handleAutoCompareReset}
+                  onCopyToClipboard={handleAutoCopyToClipboard}
+                  onExpandedChange={(id, expanded) => setAutoCompareRowExpanded((x) => ({ ...x, [id]: expanded }))}
+                />
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-end gap-4 mb-4 shrink-0">
+              <div className="w-auto min-w-[4rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Depth</label>
+                <select
+                  value={fullDatasetDepth}
+                  onChange={(e) => setFullDatasetDepth(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  {[1, 2, 3].map((d) => (
+                    <option key={d} value={String(d)}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-auto min-w-[16rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Scope</label>
+                <select
+                  value={fullDatasetScope}
+                  onChange={(e) => setFullDatasetScope(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="">Alle Data-eigenaren</option>
+                  {cityOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
-                onClick={() => void handleFullDatasetTest()}
+                onClick={() => void handleFullDatasetTest(fullDatasetScope || undefined)}
                 disabled={fullDatasetLoading || loading}
                 className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
               >
-                {fullDatasetLoading ? "Bezig..." : "Alle data-eigenaren testen"}
-              </button>
-              <button
-                onClick={() => void handleFullDatasetTest(paramValues.citycode ?? "")}
-                disabled={fullDatasetLoading || loading || !paramValues.citycode}
-                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
-                title={!paramValues.citycode ? "Selecteer eerst een citycode" : undefined}
-              >
-                Alles van deze data-eigenaar testen
+                {fullDatasetLoading ? "Bezig..." : "Testen"}
               </button>
             </div>
 
             {fullDatasetResults && (
-              <div className="mt-8">
-                <h2 className="text-xl font-semibold text-gray-900 mb-3">Alle data-eigenaren resultaten</h2>
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <div className="mt-6 flex flex-col flex-1 min-h-0">
+                <h2 className="text-xl font-semibold text-gray-900 mb-3 shrink-0">Alle data-eigenaren resultaten</h2>
+                <div className="flex flex-wrap items-end gap-3 mb-2 shrink-0">
+                  <div className="w-auto min-w-[10rem]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Locatietype</label>
+                    <select
+                      value={fullDatasetLocationtypeFilter}
+                      onChange={(e) => setFullDatasetLocationtypeFilter(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Alles</option>
+                      {[
+                        ...new Set(
+                          fullDatasetResults.results
+                            .map((r) => r.locationtype)
+                            .filter((t): t is string => !!t)
+                        ),
+                      ]
+                        .sort()
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 pb-2">
                     <input
                       type="checkbox"
                       checked={showOnlyFailedFullDataset}
@@ -1300,15 +1689,16 @@ const FmsApiComparePage: React.FC = () => {
                     Alleen mislukte testen
                   </label>
                 </div>
-                <p className="text-sm text-gray-600 mb-2">
+                <p className="text-sm text-gray-600 mb-2 shrink-0">
                   {fullDatasetResults.summary.total} tests: {fullDatasetResults.summary.identical} identiek, {fullDatasetResults.summary.diff} verschillend, {fullDatasetResults.summary.error} fout.
                   Klik op een rij om de formuliervelden in te stellen en de gerelateerde test uit te voeren.
                 </p>
-                <div className="w-full min-w-0 border rounded overflow-x-auto max-h-[400px] overflow-y-auto">
+                <div className="w-full min-w-0 flex-1 min-h-0 border rounded overflow-auto">
                   <table className="w-full text-sm table-auto">
                     <thead className="bg-gray-100 sticky top-0">
                       <tr>
                         <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">Locatietype</th>
                         <th className="text-left p-2 font-medium">citycode</th>
                         <th className="text-left p-2 font-medium">locationid</th>
                         <th className="text-left p-2 font-medium">sectionid</th>
@@ -1320,7 +1710,13 @@ const FmsApiComparePage: React.FC = () => {
                       {(showOnlyFailedFullDataset
                         ? fullDatasetResults.results.filter((r) => r.status === "diff" || r.status === "error")
                         : fullDatasetResults.results
-                      ).map((r) => (
+                      )
+                        .filter((r) => {
+                          if (!fullDatasetLocationtypeFilter) return true;
+                          if (r.type === "city") return false;
+                          return r.locationtype === fullDatasetLocationtypeFilter;
+                        })
+                        .map((r) => (
                         <tr
                           key={r.testId}
                           onClick={() => handleFullDatasetRowClick(r)}
@@ -1329,6 +1725,7 @@ const FmsApiComparePage: React.FC = () => {
                           }`}
                         >
                           <td className="p-2">{r.type}</td>
+                          <td className="p-2">{r.locationtype ?? "—"}</td>
                           <td className="p-2">{r.citycode}</td>
                           <td className="p-2">{r.locationid ?? "—"}</td>
                           <td className="p-2">{r.sectionid ?? "—"}</td>
@@ -1345,7 +1742,7 @@ const FmsApiComparePage: React.FC = () => {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

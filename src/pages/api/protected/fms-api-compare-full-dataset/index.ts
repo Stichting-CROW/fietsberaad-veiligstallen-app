@@ -15,6 +15,7 @@ export type FullDatasetTestResult = {
   citycode: string;
   locationid?: string;
   sectionid?: string;
+  locationtype?: string;
   endpointId: string;
   endpointLabel: string;
   status: "identical" | "diff" | "error";
@@ -152,7 +153,8 @@ export default async function handle(
     type: "city" | "location" | "section",
     citycode: string,
     locationid?: string,
-    sectionid?: string
+    sectionid?: string,
+    locationtype?: string
   ): Promise<void> => {
     const oldUrl = buildOldUrl(endpointId, citycode, locationid, sectionid, oldBase, depthParam);
     const newUrl = buildNewUrl(endpointId, citycode, locationid, sectionid, newBase, depthParam);
@@ -179,6 +181,7 @@ export default async function handle(
         citycode,
         locationid,
         sectionid,
+        locationtype,
         endpointId,
         endpointLabel: label,
         status: "error",
@@ -196,6 +199,7 @@ export default async function handle(
       citycode,
       locationid,
       sectionid,
+      locationtype,
       endpointId,
       endpointLabel: label,
       status,
@@ -211,15 +215,15 @@ export default async function handle(
       await runTest("v3-locations", "city", citycode);
 
       const cityLocations = locations.filter((l) => l.citycode === citycode);
-      for (const { locationid } of cityLocations) {
-        await runTest("v3-location", "location", citycode, locationid);
-        await runTest("v3-sections", "location", citycode, locationid);
-        await runTest("v3-subscriptiontypes", "location", citycode, locationid);
+      for (const { locationid, locationtype } of cityLocations) {
+        await runTest("v3-location", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v3-sections", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v3-subscriptiontypes", "location", citycode, locationid, undefined, locationtype);
 
         const locSections = sections.filter((s) => s.citycode === citycode && s.locationid === locationid);
-        for (const { sectionid } of locSections) {
-          await runTest("v3-section", "section", citycode, locationid, sectionid);
-          await runTest("v3-places", "section", citycode, locationid, sectionid);
+        for (const { sectionid, locationtype: secLocationtype } of locSections) {
+          await runTest("v3-section", "section", citycode, locationid, sectionid, secLocationtype);
+          await runTest("v3-places", "section", citycode, locationid, sectionid, secLocationtype);
         }
       }
     }

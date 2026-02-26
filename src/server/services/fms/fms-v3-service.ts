@@ -272,8 +272,8 @@ export async function getCityCodes(): Promise<CityCode[]> {
 /** All IDs for full-dataset API comparison test. Matches getCities/getLocations/getSections filters. */
 export type FullDatasetIds = {
   cities: Array<{ citycode: string }>;
-  locations: Array<{ citycode: string; locationid: string }>;
-  sections: Array<{ citycode: string; locationid: string; sectionid: string }>;
+  locations: Array<{ citycode: string; locationid: string; locationtype?: string }>;
+  sections: Array<{ citycode: string; locationid: string; sectionid: string; locationtype?: string }>;
 };
 
 export async function getFullDatasetIds(options?: { citycode?: string }): Promise<FullDatasetIds> {
@@ -296,8 +296,8 @@ export async function getFullDatasetIds(options?: { citycode?: string }): Promis
   });
   const cities = councils.filter((c) => c.ZipID).map((c) => ({ citycode: c.ZipID! }));
 
-  const locations: Array<{ citycode: string; locationid: string }> = [];
-  const sections: Array<{ citycode: string; locationid: string; sectionid: string }> = [];
+  const locations: Array<{ citycode: string; locationid: string; locationtype?: string }> = [];
+  const sections: Array<{ citycode: string; locationid: string; sectionid: string; locationtype?: string }> = [];
 
   for (const { citycode } of cities) {
     const locRows = await prisma.fietsenstallingen.findMany({
@@ -312,15 +312,17 @@ export async function getFullDatasetIds(options?: { citycode?: string }): Promis
       },
       select: {
         StallingsID: true,
+        Type: true,
         fietsenstalling_secties: { select: { externalId: true } },
       },
     });
     for (const row of locRows) {
       if (row.StallingsID) {
-        locations.push({ citycode, locationid: row.StallingsID });
+        const locationtype = row.Type ?? undefined;
+        locations.push({ citycode, locationid: row.StallingsID, locationtype });
         for (const s of row.fietsenstalling_secties) {
           if (s.externalId) {
-            sections.push({ citycode, locationid: row.StallingsID, sectionid: s.externalId });
+            sections.push({ citycode, locationid: row.StallingsID, sectionid: s.externalId, locationtype });
           }
         }
       }
@@ -916,8 +918,8 @@ export async function getLocations(
   citycode: string,
   options: { depth?: number; fields?: string } = {}
 ): Promise<ColdFusionLocation[]> {
-  // Old API: citycodes/{citycode}/locations returns locations WITHOUT sections array (sections via separate endpoint).
-  return getLocationsFull(citycode, { ...options, omitSections: true });
+  // Old API: citycodes/{citycode}/locations includes sections when depth > 1 (BaseRestService getLocation line 391).
+  return getLocationsFull(citycode, options);
 }
 
 export async function getLocation(
@@ -1223,13 +1225,11 @@ export async function getSubscriptionTypes(
     },
   });
 
-  const subscriptionIds = links
-    .filter((l) => l.abonnementsvormen?.isActief !== false)
-    .filter((l) => {
-      const bt = l.abonnementsvormen?.bikeparkTypeID;
-      return !bt || bt === stalling.Type;
-    })
-    .map((l) => l.SubscriptiontypeID);
+  const filteredLinks = links.filter((l) => {
+    const bt = l.abonnementsvormen?.bikeparkTypeID;
+    return !bt || bt === stalling.Type;
+  });
+  const subscriptionIds = filteredLinks.map((l) => l.SubscriptiontypeID);
 
   const bikeTypeLinks =
     subscriptionIds.length > 0
@@ -1249,16 +1249,11 @@ export async function getSubscriptionTypes(
     new Map<number, number[]>()
   );
 
-  return links
-    .filter((l) => l.abonnementsvormen?.isActief !== false)
-    .filter((l) => {
-      const bt = l.abonnementsvormen?.bikeparkTypeID;
-      return !bt || bt === stalling.Type;
-    })
+  const result = filteredLinks
     .map((l) => {
       const av = l.abonnementsvormen!;
       const biketypes = biketypesBySub.get(l.SubscriptiontypeID) ?? [];
-      return {
+      return toColdFusionSubscriptionTypeOrder({
         id: av.ID,
         name: av.naam ?? undefined,
         price: av.prijs ? Number(av.prijs) : undefined,
@@ -1266,6 +1261,23 @@ export async function getSubscriptionTypes(
         locationtype: (av.bikeparkTypeID ?? stalling.Type) ?? undefined,
         biketypes: [...new Set(biketypes)].sort((a, b) => a - b),
         idtypes: idmiddelenToIdTypes(av.idmiddelen),
-      };
-    });
+      });
+    })
+    .sort((a, b) => a.id - b.id);
+  return result;
+}
+
+/** ColdFusion REST.Subscriptiontype key order: price, duration, locationtype, biketypes, idtypes, name, id */
+function toColdFusionSubscriptionTypeOrder(
+  s: ColdFusionSubscriptionType
+): ColdFusionSubscriptionType {
+  return {
+    price: s.price,
+    duration: s.duration,
+    locationtype: s.locationtype,
+    biketypes: s.biketypes,
+    idtypes: s.idtypes,
+    name: s.name,
+    id: s.id,
+  };
 }
