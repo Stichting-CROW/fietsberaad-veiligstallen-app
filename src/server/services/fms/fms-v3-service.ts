@@ -42,7 +42,7 @@ export type CityWithLocations = CityCode & {
 };
 
 export type ColdFusionSection = {
-  sectionid: string;
+  sectionid: string | null;
   name?: string;
   biketypes?: Array<{
     allowed: boolean;
@@ -62,7 +62,7 @@ export type ColdFusionLocation = {
   occupied?: number;
   free?: number;
   capacity?: number;
-  occupationsource?: string;
+  occupationsource?: string | null;
   openinghours?: {
     opennow: boolean;
     periods: Array<Record<string, unknown>>;
@@ -77,6 +77,7 @@ export type ColdFusionLocation = {
   /** Only when non-empty (BaseRestService setIfExists). */
   postalcode?: string;
   costsdescription?: string;
+  thirdpartyreservationsurl?: string;
   description?: string;
   /** Array of service names (BaseRestService setIfExists). */
   services?: string[];
@@ -96,7 +97,7 @@ export type LocationDetail = LocationSummary & {
 /** ColdFusion-compatible section (BaseRestService.getSection). */
 /** ColdFusion-compatible section. capacity/occupation/free/occupationsource only when fields param passed. */
 export type SectionSummary = {
-  sectionid: string;
+  sectionid: string | null;
   name?: string;
   capacity?: number;
   occupation?: number;
@@ -375,6 +376,7 @@ async function getLocationsFull(
       Plaats: true,
       Description: true,
       OmschrijvingTarieven: true,
+      thirdPartyReservationsUrl: true,
       Url: true,
       Beheerder: true,
       BeheerderContact: true,
@@ -491,6 +493,7 @@ type LocationRow = {
   Plaats?: string | null;
   Description?: string | null;
   OmschrijvingTarieven?: string | null;
+  thirdPartyReservationsUrl?: string | null;
   Url?: string | null;
   Beheerder?: string | null;
   BeheerderContact?: string | null;
@@ -637,12 +640,10 @@ async function assembleSectionsFromRows(
   }
 
   return rows.map((row) => {
-    const secties = row.fietsenstalling_secties ?? [];
-    return secties
-      .filter((s) => s.externalId)
-      .map((s) => {
+    const secties = (row.fietsenstalling_secties ?? []).slice().sort((a, b) => a.sectieId - b.sectieId);
+    return secties.map((s) => {
         const data: Record<string, unknown> = {
-          sectionid: s.externalId ?? "",
+          sectionid: s.externalId ?? null,
           name: s.titel,
         };
         if (row.Type === "fietskluizen" && row.AantalReserveerbareKluizen != null) {
@@ -840,14 +841,15 @@ function computeOcfForRow(
   }
 
   // ColdFusion: capacity = getNettoCapacity() (always sections minus bulk); free = getCapacity() - occupied.
-  // getCapacity() returns fietsenstallingen.Capacity when set, else calculateCapacity() from sections.
-  // capacity is NEVER from fietsenstallingen.Capacity - only free uses it when set.
+  // getCapacity() returns fietsenstallingen.Capacity when "set and numeric", else calculateCapacity() from sections.
+  // "Set and numeric" includes 0: when Capacity=0, old API uses 0 for capacityForFree → free=0.
   const capVal = row.Capacity != null ? Number(row.Capacity) : NaN;
-  const stallingCapacitySet = !Number.isNaN(capVal) && capVal > 0;
+  const stallingCapacitySet = row.Capacity != null && !Number.isNaN(capVal);
   const capacity = totalCapacityNetto; // always getNettoCapacity()
   const capacityForFree = stallingCapacitySet ? capVal : totalCapacityRaw;
   const free = Math.max(0, capacityForFree - totalOccupied);
-  const includeCapacity = totalCapacityRaw > 0 || (row.Capacity != null && row.Capacity > 0);
+  // ColdFusion: capacity only when bikepark.getCapacity() > 0 (omit when Capacity=0)
+  const includeCapacity = capacityForFree > 0;
   return { occupied: totalOccupied, capacity, free, includeCapacity };
 }
 
@@ -912,7 +914,7 @@ function buildColdFusionLocation(
     locationid: row.StallingsID!,
     name: row.Title ?? undefined,
     locationtype: row.Type ?? undefined,
-    occupationsource: row.BronBezettingsdata ?? "FMS",
+    occupationsource: row.BronBezettingsdata ?? null,
     openinghours,
     ...(lat && { lat }),
     ...(long && { long }),
@@ -930,6 +932,7 @@ function buildColdFusionLocation(
     ...(!forV3Citycodes && row.Location && { address: row.Location }),
     ...(!forV3Citycodes && setIfExistsValue(row.Postcode) && { postalcode: row.Postcode! }),
     ...(!forV3Citycodes && setIfExistsValue(row.OmschrijvingTarieven) && { costsdescription: row.OmschrijvingTarieven! }),
+    ...(!forV3Citycodes && setIfExistsValue(row.thirdPartyReservationsUrl) && { thirdpartyreservationsurl: row.thirdPartyReservationsUrl! }),
     ...(!forV3Citycodes && setIfExistsValue(row.Description) && { description: row.Description! }),
   };
   return toColdFusionLocationOrder(loc);
@@ -937,7 +940,7 @@ function buildColdFusionLocation(
 
 /** Old API format for locations/{locationid} single-section: section data only, not full location. */
 export type LocationDetailSingleSection = {
-  sectionid: string;
+  sectionid: string | null;
   name?: string;
   biketypes: NonNullable<ColdFusionSection["biketypes"]>;
 };
@@ -991,6 +994,7 @@ function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation 
     "exploitantname",
     "postalcode",
     "costsdescription",
+    "thirdpartyreservationsurl",
     "description",
     "services",
   ];
@@ -1052,6 +1056,7 @@ export async function getLocation(
       Plaats: true,
       Description: true,
       OmschrijvingTarieven: true,
+      thirdPartyReservationsUrl: true,
       Url: true,
       Beheerder: true,
       BeheerderContact: true,
@@ -1107,20 +1112,57 @@ export async function getSections(
         StallingsID: locationid,
         Status: "1",
       },
-      /* ColdFusion getBikeparkSections has no isactief filter */
+      /* ColdFusion getBikeparkSections has no isactief filter – include all sections */
     },
-    select: { externalId: true },
+    select: { sectieId: true, externalId: true },
+    orderBy: { sectieId: "asc" },
   });
   timeEnd(`getSections ${locationid} findMany secties`, tFind);
-  const tGetSection = timeStart(`getSections ${locationid} getSection x${secties.filter((s) => s.externalId).length}`);
+  const tGetSection = timeStart(`getSections ${locationid} getSection x${secties.length}`);
   const sections = await Promise.all(
-    secties
-      .filter((s) => s.externalId)
-      .map((s) => getSection(locationid, s.externalId!, depth - 1))
+    secties.map((s) =>
+      s.externalId
+        ? getSection(locationid, s.externalId, depth - 1)
+        : getSectionBySectieId(locationid, s.sectieId, depth - 1)
+    )
   );
-  timeEnd(`getSections ${locationid} getSection x${secties.filter((s) => s.externalId).length}`, tGetSection);
+  timeEnd(`getSections ${locationid} getSection x${secties.length}`, tGetSection);
   timeEnd(`getSections ${locationid}`, t0);
   return sections.filter((s): s is SectionSummary => s != null);
+}
+
+/** Section for secties without externalId. ColdFusion getBikeparkSections includes all sections; sectionid is null when no externalId. */
+async function getSectionBySectieId(
+  locationid: string,
+  sectieId: number,
+  depth = 2
+): Promise<SectionSummary | null> {
+  const sectie = await prisma.fietsenstalling_sectie.findFirst({
+    where: {
+      sectieId,
+      fietsenstalling: {
+        StallingsID: locationid,
+        Status: "1",
+      },
+    },
+    include: {
+      fietsenstalling: {
+        select: {
+          ID: true,
+          BronBezettingsdata: true,
+          hasUniBikeTypePrices: true,
+          hasUniSectionPrices: true,
+          Type: true,
+          AantalReserveerbareKluizen: true,
+        },
+      },
+      secties_fietstype: {
+        include: { fietstype: { select: { ID: true } } },
+      },
+    },
+  });
+  if (!sectie) return null;
+  return buildSectionFromSectie(sectie, depth, locationid, null);
 }
 
 export async function getSection(
@@ -1156,11 +1198,30 @@ export async function getSection(
   });
   timeEnd(`getSection ${locationid}/${sectionid} findFirst`, tFind);
   if (!sectie) return null;
+  timeEnd(`getSection ${locationid}/${sectionid}`, t0);
+  return buildSectionFromSectie(sectie, depth, locationid, sectionid);
+}
 
+type SectieWithRelations = Awaited<
+  ReturnType<
+    typeof prisma.fietsenstalling_sectie.findFirst<{
+      include: {
+        fietsenstalling: { select: { ID: true; hasUniBikeTypePrices: true; hasUniSectionPrices: true; Type: true; AantalReserveerbareKluizen: true } };
+        secties_fietstype: { include: { fietstype: { select: { ID: true } } } };
+      };
+    }>
+  >
+>;
+
+async function buildSectionFromSectie(
+  sectie: NonNullable<SectieWithRelations>,
+  depth: number,
+  locationid: string,
+  sectionidForLookup: string | null
+): Promise<SectionSummary> {
   const stalling = sectie.fietsenstalling;
-
   const data: Record<string, unknown> = {};
-  data.sectionid = sectie.externalId ?? "";
+  data.sectionid = sectionidForLookup;
   data.name = sectie.titel;
   /* ColdFusion: maxsubscriptions only when Type eq "fietskluizen"; capacity/occupation/free/occupationsource only when fields; places when depth>1 and hasPlace; rates when hasUniBiketypePrices */
 
@@ -1194,14 +1255,16 @@ export async function getSection(
   type RateOrNull = { timespan: number; cost: number } | null;
   let sectionLevelRates: RateOrNull[] | null = null;
   if (stalling?.hasUniBikeTypePrices) {
-    const tUni = timeStart(`getSection ${locationid}/${sectionid} uniBikeTypePrices`);
+    const tUni = timeStart(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} uniBikeTypePrices`);
     /* ColdFusion BikeparkSection.getCostPeriods: hasUniSectionPrices is checked first; when true, rates come from Bikepark (stallingsID). */
-    const sectieWhere = {
-      OR: [
-        { sectieID: sectie.sectieId, sectionBikeTypeID: null },
-        { truncatedSectieID: sectionid, sectionBikeTypeID: null },
-      ],
-    };
+    const sectieWhere = sectionidForLookup
+      ? {
+          OR: [
+            { sectieID: sectie.sectieId, sectionBikeTypeID: null },
+            { truncatedSectieID: sectionidForLookup, sectionBikeTypeID: null },
+          ],
+        }
+      : { sectieID: sectie.sectieId, sectionBikeTypeID: null };
     const stallingWhere = { stallingsID: stalling.ID, sectieID: null, sectionBikeTypeID: null };
     if (stalling?.hasUniSectionPrices && stalling?.ID) {
       const stallingTariefregels = await prisma.tariefregels.findMany({
@@ -1233,7 +1296,7 @@ export async function getSection(
         sectionLevelRates = stallingTariefregels.length > 0 ? stallingTariefregels.map(toRateOrNull) : null;
       }
     }
-    timeEnd(`getSection ${locationid}/${sectionid} uniBikeTypePrices`, tUni);
+    timeEnd(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} uniBikeTypePrices`, tUni);
     const hasRates = sectionLevelRates && sectionLevelRates.some((r) => r != null);
     if (hasRates && sectionLevelRates) data.rates = sectionLevelRates.filter((r): r is { timespan: number; cost: number } => r != null);
   }
@@ -1243,7 +1306,7 @@ export async function getSection(
     const tariefByBikeTypeId = new Map<number, { tijdsspanne: number | null; kosten: unknown }[]>();
 
     if (!stalling?.hasUniBikeTypePrices) {
-      const tTarief = timeStart(`getSection ${locationid}/${sectionid} tariefregels`);
+      const tTarief = timeStart(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} tariefregels`);
       /* ColdFusion: when hasUniSectionPrices, rates come from stalling-level SectionBikeTypes (sectie_fietstype with StallingsID, sectieID null), not section-level. */
       const useStallingBiketypes = stalling?.hasUniSectionPrices && stalling?.ID;
       let sectionBikeTypeIds: number[];
@@ -1262,7 +1325,7 @@ export async function getSection(
         where: { sectionBikeTypeID: { in: sectionBikeTypeIds } },
         orderBy: { index: "asc" },
       });
-      timeEnd(`getSection ${locationid}/${sectionid} tariefregels`, tTarief);
+      timeEnd(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} tariefregels`, tTarief);
 
       if (useStallingBiketypes) {
         const sbtToBikeType = new Map(stallingSft.map((s) => [s.SectionBiketypeID, s.BikeTypeID]));
@@ -1289,13 +1352,11 @@ export async function getSection(
 
     let sectionLevelFallback: RateOrNull[] | null = null;
     if ((!sectionLevelRates || sectionLevelRates.length === 0) && !stalling?.hasUniBikeTypePrices) {
+      const sectieTariefWhere = sectionidForLookup
+        ? { OR: [{ sectieID: sectie.sectieId, sectionBikeTypeID: null }, { truncatedSectieID: sectionidForLookup, sectionBikeTypeID: null }] }
+        : { sectieID: sectie.sectieId, sectionBikeTypeID: null };
       const sectieTarief = await prisma.tariefregels.findMany({
-        where: {
-          OR: [
-            { sectieID: sectie.sectieId, sectionBikeTypeID: null },
-            { truncatedSectieID: sectionid, sectionBikeTypeID: null },
-          ],
-        },
+        where: sectieTariefWhere,
         orderBy: { index: "asc" },
       });
       const kostenperiodenFallback = await prisma.fietsenstalling_sectie_kostenperioden.findMany({
@@ -1356,13 +1417,14 @@ export async function getSection(
   }
 
   if (depth > 1) {
-    const tPlaces = timeStart(`getSection ${locationid}/${sectionid} getPlaces`);
-    const places = await getPlaces(locationid, sectionid);
-    timeEnd(`getSection ${locationid}/${sectionid} getPlaces`, tPlaces);
+    const tPlaces = timeStart(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} getPlaces`);
+    const places = sectionidForLookup
+      ? await getPlaces(locationid, sectionidForLookup)
+      : await getPlacesBySectieId(locationid, sectie.sectieId);
+    timeEnd(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} getPlaces`, tPlaces);
     if (places.length > 0) data.places = places;
   }
 
-  timeEnd(`getSection ${locationid}/${sectionid}`, t0);
   return toSectionOrder(data) as SectionSummary;
 }
 
@@ -1406,6 +1468,46 @@ export async function getPlaces(
           : String(p.dateLastStatusUpdate).slice(0, 19)
         : undefined;
     // ColdFusion getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode
+    const place: PlaceSummary = {
+      id: Number(p.id),
+      name: p.titel ?? undefined,
+      ...(datelaststatusupdate != null && { datelaststatusupdate }),
+      statuscode,
+    };
+    return place;
+  });
+}
+
+/** Places for secties without externalId (lookup by sectieId). */
+async function getPlacesBySectieId(
+  locationid: string,
+  sectieId: number
+): Promise<PlaceSummary[]> {
+  const sectie = await prisma.fietsenstalling_sectie.findFirst({
+    where: {
+      sectieId,
+      fietsenstalling: {
+        StallingsID: locationid,
+        Status: "1",
+      },
+    },
+    select: { sectieId: true },
+  });
+  if (!sectie) return [];
+
+  const plekken = await prisma.fietsenstalling_plek.findMany({
+    where: { sectie_id: BigInt(sectie.sectieId) },
+    select: { id: true, titel: true, status: true, dateLastStatusUpdate: true },
+  });
+  return plekken.map((p) => {
+    const status = p.status ?? 0;
+    const statuscode = typeof status === "number" ? status % 10 : 0;
+    const datelaststatusupdate =
+      p.dateLastStatusUpdate != null
+        ? p.dateLastStatusUpdate instanceof Date
+          ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
+          : String(p.dateLastStatusUpdate).slice(0, 19)
+        : undefined;
     const place: PlaceSummary = {
       id: Number(p.id),
       name: p.titel ?? undefined,

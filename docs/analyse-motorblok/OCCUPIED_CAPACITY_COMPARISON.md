@@ -71,6 +71,10 @@ Next.js implementation now matches ColdFusion:
 
 ---
 
+## Capacity=0 edge case (2026-02)
+
+**Bikepark.getCapacity()** returns `fietsenstallingen.Capacity` when "set and numeric". This includes `Capacity=0`: the old API then uses 0 for capacityForFree, so `free = max(0, 0 - occupied) = 0`. The Next.js implementation was incorrectly excluding 0 (`capVal > 0`); it now uses Capacity when set and numeric (`row.Capacity != null && !Number.isNaN(capVal)`), matching ColdFusion for citycode 5304 and similar cases.
+
 ## Known data accuracy issues (2026-02)
 
 **V3 citycodes**: Capacity and occupation data in the V3 citycodes response may not be accurate. Example: Aalburg (citycode 4200), location 4200_001 "De Kromme Nol" – old API and new API have shown differing capacity/free values (e.g. 10/10 vs 90/90). Root cause not yet identified; ColdFusion source code follows the documented flow. Treat capacity/occupied/free in citycodes as indicative only until resolved.

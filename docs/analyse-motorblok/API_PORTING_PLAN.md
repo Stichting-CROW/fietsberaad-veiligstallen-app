@@ -269,7 +269,7 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 | **Section fields** | `capacity`, `occupation`, `free`, `occupationsource` omitted when `fields` param not passed (FMS getSection does not pass fields). |
 | **Citycodes locations** | Locations in `citycodes` and `citycodes/{citycode}` omit `exploitantname`, `sections`, `station`, `city`, `address`, `postalcode` to match old API. `citycodes/{citycode}/locations` omits `sections` (sections via separate endpoint). `locations/{id}` keeps full location with sections. |
 
-**Field comparison (ColdFusion vs Next.js):** ColdFusion `getLocation` outputs `thirdpartyreservationsurl` (Bikepark.getThirdPartyReservationsUrl); Next.js does not yet include it. All other location fields aligned.
+**Field comparison (ColdFusion vs Next.js):** All location fields aligned, including `thirdpartyreservationsurl` (Bikepark.getThirdPartyReservationsUrl → fietsenstallingen.thirdPartyReservationsUrl).
 
 **Implementation:** `src/server/services/fms/fms-v3-service.ts` – `buildColdFusionLocation`, `toSectionForLocation`, `toSectionOrder`, `getSection`, `getLocation`.
 
@@ -612,7 +612,7 @@ flowchart TD
    - `Einddatumtijd` >= now
    - Not in `bulkreserveringuitzondering` for today
 3. **Location capacity:** Sum of section netto capacities (`max(0, sectionCapacity - bulk)`).
-4. **includeCapacity:** `capacity` is included in response only when `totalCapacityRaw > 0` OR `fietsenstallingen.Capacity > 0`.
+4. **includeCapacity:** `capacity` is included only when `bikepark.getCapacity() > 0` (omit when Capacity=0).
 
 ```mermaid
 flowchart LR
@@ -757,4 +757,7 @@ flowchart TD
 - `fietsenstallingen.Capacity` is set and > 0
 
 ColdFusion: `capacity` only when `bikepark.getCapacity() > 0`.
+
+---
+
 
