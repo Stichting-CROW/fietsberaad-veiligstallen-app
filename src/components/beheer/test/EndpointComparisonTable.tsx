@@ -78,18 +78,27 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
             <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
             <th className="text-left p-3 font-medium whitespace-nowrap">
               <span className="mr-2">Acties</span>
-              <button
-                onClick={onCompareAll}
-                disabled={loading}
-                className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
-              >
-                {loading ? "Vergelijken..." : "Alles testen"}
-              </button>
+              {loading ? (
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-blue-700">
+                  <span
+                    className="inline-block h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"
+                    aria-hidden
+                  />
+                  Vergelijken...
+                </span>
+              ) : (
+                <button
+                  onClick={onCompareAll}
+                  className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  Alles testen
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onReset}
                 disabled={loading}
-                className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50"
+                className="ml-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Reset
               </button>
@@ -145,14 +154,22 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
                 </td>
                 <td className="p-3 align-top whitespace-nowrap">
                   <div className="flex flex-nowrap gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onCompareOne(e.id)}
-                      disabled={loading || status === "loading"}
-                      className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
-                    >
-                      Vergelijk
-                    </button>
+                    {loading || status === "loading" ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-blue-700">
+                        <span
+                          className="inline-block h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"
+                          aria-hidden
+                        />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onCompareOne(e.id)}
+                        className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200"
+                      >
+                        Vergelijk
+                      </button>
+                    )}
                     {hasResults && (
                       <button
                         type="button"

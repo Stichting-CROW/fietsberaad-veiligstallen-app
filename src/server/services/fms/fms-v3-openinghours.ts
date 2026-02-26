@@ -5,6 +5,8 @@
  * Time: "HHmm" (e.g. "0800", "1830").
  */
 
+import { isOpenNow } from "~/utils/opening-hours";
+
 // ColdFusion days order: ["su","mo","tu","we","th","fr","sa"]
 type DayKey = "zo" | "ma" | "di" | "wo" | "do" | "vr" | "za";
 const DAY_ORDER: DayKey[] = ["zo", "ma", "di", "wo", "do", "vr", "za"];
@@ -104,8 +106,8 @@ export function buildOpeningHours(
   for (const day of DAY_ORDER) {
     const openKey = `Open_${day}` as keyof OpeningHoursInput;
     const dichtKey = `Dicht_${day}` as keyof OpeningHoursInput;
-    const openTime = input[openKey] as Date | null | undefined;
-    const closeTime = input[dichtKey] as Date | null | undefined;
+    const openTime = input[openKey];
+    const closeTime = input[dichtKey];
     const dayNum = DAY_TO_NUMBER[day];
 
     // ColdFusion: only process when StructKeyExists(openingByDay, "open") and StructKeyExists(openingByDay, "close")
@@ -164,8 +166,8 @@ export function buildOpeningHours(
   for (const day of DAY_ORDER) {
     const openKey = `Open_${day}` as keyof OpeningHoursInput;
     const dichtKey = `Dicht_${day}` as keyof OpeningHoursInput;
-    const openTime = input[openKey] as Date | null | undefined;
-    const closeTime = input[dichtKey] as Date | null | undefined;
+    const openTime = input[openKey];
+    const closeTime = input[dichtKey];
     if (!isOpeningUnknown(openTime, closeTime) && !isOpenAllDay(openTime, closeTime)) {
       allOpen24h = false;
       break;
@@ -178,38 +180,12 @@ export function buildOpeningHours(
     };
   }
 
-  // Compute opennow from periods
-  const currentDay = now.getDay();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  let opennow = false;
-
-  for (const p of periods) {
-    if ("day" in p && "open" in p && typeof p.open === "string") {
-      opennow = true;
-      break;
-    }
-    const open = "open" in p ? (p as { open: { day?: number; time?: string } }).open : undefined;
-    const close = "close" in p ? (p as { close?: { day?: number; time?: string } }).close : undefined;
-    if (!open) continue;
-
-    const openDay = open.day ?? 0;
-    const openTime = open.time ?? "0000";
-    const openMins = parseInt(openTime.slice(0, 2), 10) * 60 + parseInt(openTime.slice(2), 10);
-
-    if (close) {
-      const closeDay = close.day ?? 0;
-      const closeTime = close.time ?? "0000";
-      const closeMins = parseInt(closeTime.slice(0, 2), 10) * 60 + parseInt(closeTime.slice(2), 10);
-      const spansMidnight = closeMins < openMins || closeDay !== openDay;
-      if (spansMidnight) {
-        if (currentDay === openDay && currentMinutes >= openMins) opennow = true;
-        else if (currentDay === (openDay + 1) % 7 && currentMinutes < closeMins) opennow = true;
-      } else if (currentDay === openDay && currentMinutes >= openMins && currentMinutes < closeMins) {
-        opennow = true;
-      }
-    } else if (currentDay === openDay && currentMinutes >= openMins) {
-      opennow = true;
-    }
+  // Compute opennow using shared per-day logic (ColdFusion isOpened), not merged periods.
+  let opennow: boolean;
+  try {
+    opennow = isOpenNow(input, now, { unknownAsOpen: true });
+  } catch {
+    opennow = true; // Fallback: treat as open on error
   }
 
   return { opennow, periods };

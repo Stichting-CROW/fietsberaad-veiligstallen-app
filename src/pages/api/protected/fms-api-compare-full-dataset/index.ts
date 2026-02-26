@@ -5,7 +5,7 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { env } from "~/env.mjs";
 import { getFullDatasetIds } from "~/server/services/fms/fms-v3-service";
-import { responsesMatch } from "~/server/utils/fms-compare";
+import { responsesMatch, prepareForCompare } from "~/server/utils/fms-compare";
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 
@@ -27,6 +27,21 @@ export type FullDatasetTestResponse = {
   summary: { total: number; identical: number; diff: number; error: number };
 };
 
+/** Detect if response body indicates an error (old API may return 200 with error JSON). */
+function looksLikeErrorResponse(text: string): string | null {
+  if (!text || text.trim().length === 0) return "Empty response";
+  try {
+    const obj = JSON.parse(text) as unknown;
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      const o = obj as Record<string, unknown>;
+      if (typeof o.error === "string" && o.error.length > 0) return o.error;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return null;
+}
+
 async function fetchWithAuth(
   url: string,
   headers: Record<string, string>
@@ -36,6 +51,10 @@ async function fetchWithAuth(
     const text = await res.text();
     if (!res.ok) {
       return { text: "", error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+    }
+    const bodyError = looksLikeErrorResponse(text);
+    if (bodyError) {
+      return { text: "", error: bodyError };
     }
     return { text, error: null };
   } catch (err) {
@@ -122,13 +141,15 @@ export default async function handle(
     return res.status(403).json({ message: "Geen rechten" });
   }
 
-  const { oldApiUrl, newApiUrl, useApiCredentials, authorizationHeader, depth, citycode } = req.body as {
+  const { oldApiUrl, newApiUrl, useApiCredentials, authorizationHeader, depth, citycode, allowDynamicDiffs, maxverschil } = req.body as {
     oldApiUrl?: string;
     newApiUrl?: string;
     useApiCredentials?: boolean;
     authorizationHeader?: string;
     depth?: string;
     citycode?: string;
+    allowDynamicDiffs?: boolean;
+    maxverschil?: number;
   };
   const depthParam = typeof depth === "string" && depth ? depth : "3";
   const citycodeFilter = typeof citycode === "string" && citycode ? citycode : undefined;
@@ -190,7 +211,17 @@ export default async function handle(
       return;
     }
 
-    const identical = responsesMatch(endpointId, oldRes.text, newRes.text);
+    const maxVal =
+      typeof maxverschil === "number"
+        ? maxverschil
+        : typeof maxverschil === "string"
+          ? parseInt(maxverschil, 10)
+          : 1;
+    const { old: oldForCompare, new: newForCompare } = prepareForCompare(oldRes.text, newRes.text, {
+      allowDynamicDiffs: !!allowDynamicDiffs,
+      maxverschil: allowDynamicDiffs ? maxVal : 0,
+    });
+    const identical = responsesMatch(endpointId, oldForCompare, newForCompare);
     const status = identical ? "identical" : "diff";
     if (!identical) console.log(`  -> ${status}`);
     results.push({

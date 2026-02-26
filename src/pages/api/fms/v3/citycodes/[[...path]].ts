@@ -1,3 +1,11 @@
+/**
+ * V3 citycodes API stub. Routes: /v3/citycodes, /v3/citycodes/{citycode}, /v3/citycodes/{citycode}/locations, etc.
+ *
+ * Caching: getCity(citycode) uses an in-memory cache with 30-minute TTL in production (0 in development).
+ * Cached responses may have different fields than the current request: the cache stores the full response
+ * for (citycode, depth); requests with different params (e.g. fields) within TTL receive the cached value.
+ * See API_PORTING_PLAN.md §13 and fms-v3-service.ts.
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as v3Service from "~/server/services/fms/fms-v3-service";
 

@@ -44,11 +44,37 @@ export default async function handle(
     headers.Authorization = authorizationHeader;
   }
 
+  /** Detect if response body indicates an error (old API may return 200 with error JSON). */
+  const looksLikeErrorResponse = (text: string): string | null => {
+    if (!text || text.trim().length === 0) return "Empty response";
+    try {
+      const obj = JSON.parse(text) as unknown;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        const o = obj as Record<string, unknown>;
+        if (typeof o.error === "string" && o.error.length > 0) return o.error;
+      }
+    } catch {
+      /* not JSON */
+    }
+    return null;
+  };
+
   const [oldResult, newResult] = await Promise.all([
     (async () => {
       const start = performance.now();
       try {
-        const text = await fetch(oldUrl, { headers }).then((r) => r.text());
+        const r = await fetch(oldUrl, { headers });
+        const text = await r.text();
+        if (!r.ok) {
+          const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+          console.error("FMS API compare (old):", msg);
+          return { text: null, durationMs: performance.now() - start, error: msg };
+        }
+        const bodyError = looksLikeErrorResponse(text);
+        if (bodyError) {
+          console.error("FMS API compare (old):", bodyError);
+          return { text: null, durationMs: performance.now() - start, error: bodyError };
+        }
         return { text, durationMs: performance.now() - start, error: null as string | null };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Fetch failed";
@@ -59,7 +85,13 @@ export default async function handle(
     (async () => {
       const start = performance.now();
       try {
-        const text = await fetch(newUrl, { headers }).then((r) => r.text());
+        const r = await fetch(newUrl, { headers });
+        const text = await r.text();
+        if (!r.ok) {
+          const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
+          console.error("FMS API compare (new):", msg);
+          return { text: null, durationMs: performance.now() - start, error: msg };
+        }
         return { text, durationMs: performance.now() - start, error: null as string | null };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Fetch failed";

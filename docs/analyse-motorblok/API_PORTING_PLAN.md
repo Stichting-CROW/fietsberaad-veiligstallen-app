@@ -514,5 +514,226 @@ In-memory cache for `getCity(citycode)` to improve response time (ColdFusion ach
 
 **Cache key:** `citycode` + `depth` (query param)
 
+**Cached versions may have different fields than the request:** The cache stores the full response for a given `(citycode, depth)`. A subsequent request with different query parameters (e.g. `fields`) within the TTL will receive the cached response, which may include or omit fields based on the **first** request that populated the cache, not the current request. ColdFusion behaves similarly: its `getCities` cache is built with whatever `fields` value the first request had (see `docs/analyse-motorblok/OPENINGHOURS_CITYCODES_COLDFUSION.md`).
+
 **ColdFusion reference:** `fms_service.cfc` caches `getCities` (all citycodes) for 30 minutes in `application.citycodes`. The single-city endpoint `getCity` is **not** cached in ColdFusion.
+
+---
+
+## 14. Accepted Differences (FMS API Compare)
+
+The FMS API compare page (`/test/fms-api-compare`) has an **Instellingen** tab with the option **"Dynamische verschillen toestaan"** and **maxverschil**. This filters out small occupied/free differences before comparison.
+
+### Dynamic occupied/free differences (buurtstallingen)
+
+**Symptom:** Off-by-one differences in `occupied` and `free` between old and new API, typically only for **buurtstallingen** (locations without physical locker places). Example: Old 263/96 vs New 262/97.
+
+**Cause: Caching.** Both APIs read `fietsenstalling_sectie.Bezetting`, which is updated by the `resetOccupations` cronjob every ~5 minutes. The ColdFusion REST API uses ORM (Hibernate) entity caching: when a Bikepark/section is loaded, it may be served from cache on subsequent requests. The new API does a fresh Prisma query each time. As a result, one API can return a cached (stale) `Bezetting` while the other returns the latest value. The difference is dynamic: re-running the test after a short while often yields identical results once caches expire.
+
+**Accepted:** When the difference is within maxverschil and totals to 0 (e.g. occupied +1, free -1), the compare page can treat these as identical via the "Dynamische verschillen toestaan" setting.
+
+---
+
+## Appendix A: Dynamic and Conditional Parameters
+
+This appendix documents how dynamic parameters (occupation, free, capacity, etc.) and parameters that depend on conditions are calculated. Reference: `fms-v3-service.ts`, `OCCUPIED_CAPACITY_FLOW.md`, `OCCUPIED_CAPACITY_COMPARISON.md`.
+
+---
+
+### A.1 Occupation (occupied)
+
+**Scope:** Location-level (always in response); section-level (only when `fields` includes occupation; FMS getSection does not pass fields, so typically omitted).
+
+**Calculation:** Sum over all sections of the location.
+
+| Section type | Source |
+|-------------|--------|
+| **Non-locker** (buurtstalling, bewaakt, etc.) | `fietsenstalling_sectie.Bezetting` |
+| **Fietskluizen** (lockers) | Count of places where `place.status % 10 !== 0` OR (place has no status AND open transaction exists for that PlaceID) |
+
+**Bezetting update:** The `Bezetting` column is updated by the `resetOccupations` cronjob (~5 min):
+
+```
+Bezetting = occupation + wachtrij_in - wachtrij_uit
+```
+
+- `occupation` = open transacties (`transacties` met `Date_checkout IS NULL`)
+- `wachtrij_in` = `wachtrij_transacties` met `processed IN (0,8,9)` en `type = 'in'`
+- `wachtrij_uit` = idem voor `type = 'uit'`
+
+Only sections with `BronBezettingsdata = 'FMS'` are updated.
+
+```mermaid
+flowchart TD
+    subgraph Location["Location occupied"]
+        L[Sum section occupied]
+    end
+    subgraph Section["Per section occupied"]
+        A{Section has places?}
+        A -->|Yes fietskluizen| B[Count places: status % 10 ≠ 0 OR open tx]
+        A -->|No| C[Bezetting column]
+        B --> L
+        C --> L
+    end
+```
+
+---
+
+### A.2 Capacity
+
+**Scope:** Location-level (only when `includeCapacity`); section-level (when `fields` includes capacity).
+
+**Calculation:**
+
+1. **Per section:** Sum of `secties_fietstype.Capaciteit` over all section bike types (no Toegestaan filter).
+2. **Bulkreservations:** Subtract `bulkreservering.Aantal` when a bulk reservation exists for today:
+   - `Startdatumtijd` date = today
+   - `Einddatumtijd` >= now
+   - Not in `bulkreserveringuitzondering` for today
+3. **Location capacity:** Sum of section netto capacities (`max(0, sectionCapacity - bulk)`).
+4. **includeCapacity:** `capacity` is included in response only when `totalCapacityRaw > 0` OR `fietsenstallingen.Capacity > 0`.
+
+```mermaid
+flowchart LR
+    subgraph Section["Per section"]
+        S1[secties_fietstype.Capaciteit sum]
+        S2[− bulkreservering.Aantal]
+        S3[netto = max 0, cap − bulk]
+    end
+    S1 --> S2 --> S3
+    subgraph Location["Location"]
+        L[Sum section netto]
+        I{includeCapacity?}
+    end
+    S3 --> L
+    L --> I
+```
+
+---
+
+### A.3 Free
+
+**Scope:** Location-level (always); section-level (when `fields` includes free).
+
+**Calculation:**
+
+```
+free = max(0, capacityForFree − occupied)
+```
+
+**capacityForFree** (used only for free, not for `capacity` field):
+
+- If `fietsenstallingen.Capacity` is set and > 0 → use it
+- Else → sum of `secties_fietstype.Capaciteit` per section (raw, no bulk subtraction)
+
+```mermaid
+flowchart TD
+    A{fietsenstallingen.Capacity set?}
+    A -->|Yes| B[Use Capacity]
+    A -->|No| C[Sum secties_fietstype per section]
+    B --> D[capacityForFree]
+    C --> D
+    D --> E[free = max 0, capacityForFree − occupied]
+```
+
+---
+
+### A.4 Occupationsource
+
+**Scope:** Location-level (always).
+
+**Calculation:** `fietsenstallingen.BronBezettingsdata ?? "FMS"`
+
+Static per location; indicates the source of occupation data (FMS vs external).
+
+---
+
+### A.5 Maxsubscriptions
+
+**Scope:** Section-level (conditional).
+
+**Condition:** Included only when `fietsenstallingen.Type === "fietskluizen"` AND `AantalReserveerbareKluizen` is not null.
+
+**Value:** `fietsenstallingen.AantalReserveerbareKluizen`
+
+```mermaid
+flowchart TD
+    A{Type === fietskluizen?}
+    A -->|No| B[Omit]
+    A -->|Yes| C{AantalReserveerbareKluizen set?}
+    C -->|No| B
+    C -->|Yes| D[Include maxsubscriptions]
+```
+
+---
+
+### A.6 Section biketype capacity
+
+**Scope:** Per biketype in section `biketypes` array.
+
+**Condition:** Included only when `sectie_fietstype.Toegestaan === true` AND `sectie_fietstype.Capaciteit > 0`.
+
+**Value:** `sectie_fietstype.Capaciteit`
+
+*Note:* For location-level capacity/free/occupied, Toegestaan is **not** used; all section bike types are summed. Toegestaan only affects whether capacity is shown per biketype in the section response.
+
+---
+
+### A.7 Place statuscode
+
+**Scope:** Per place in section `places` (when depth > 1 and section has places).
+
+**Calculation:** `statuscode = (fietsenstalling_plek.status ?? 0) % 10`
+
+| statuscode | Meaning |
+|------------|---------|
+| 0 | vrij |
+| 1 | bezet |
+| 2 | abonnement |
+| 3 | gereserveerd |
+| 4 | buiten werking |
+
+---
+
+### A.8 Place datelaststatusupdate
+
+**Scope:** Per place (conditional).
+
+**Condition:** Included only when `fietsenstalling_plek.dateLastStatusUpdate` is not null.
+
+**Value:** ISO 8601 format `YYYY-MM-DDTHH:mm:ss` (first 19 chars).
+
+---
+
+### A.9 Opennow (openinghours)
+
+**Scope:** Location `openinghours.opennow`.
+
+**Calculation:** Derived from opening hours and current time:
+
+- **Fietskluizen:** Always `true` (24/7).
+- **Other types:** Compare current day/time with `Open_*`/`Dicht_*` periods. `opennow = true` when current time falls within an open period (including overnight spans).
+
+```mermaid
+flowchart TD
+    A{Type === fietskluizen?}
+    A -->|Yes| B[opennow = true]
+    A -->|No| C[Compare now with Open/Dicht periods]
+    C --> D{In open period?}
+    D -->|Yes| B
+    D -->|No| E[opennow = false]
+```
+
+---
+
+### A.10 Include capacity (conditional field)
+
+**Scope:** Location-level `capacity` field.
+
+**Condition:** `capacity` is included in the response only when:
+
+- Sum of `secties_fietstype.Capaciteit` over all sections > 0, OR
+- `fietsenstallingen.Capacity` is set and > 0
+
+ColdFusion: `capacity` only when `bikepark.getCapacity() > 0`.
 

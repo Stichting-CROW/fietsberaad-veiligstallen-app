@@ -1,5 +1,101 @@
 /** Shared comparison logic for FMS API old vs new. */
 
+export type DynamicDiffOptions = {
+  allowDynamicDiffs?: boolean;
+  maxverschil?: number;
+};
+
+/**
+ * Recursively strips occupied/free from objects where the difference is within maxverschil
+ * and totals to 0 (occDiff + freeDiff === 0). Used to filter out dynamic buurtstalling differences.
+ */
+function stripDynamicOccupationDifferences(
+  oldObj: unknown,
+  newObj: unknown,
+  maxverschil: number
+): { old: unknown; new: unknown } {
+  if (maxverschil <= 0) return { old: oldObj, new: newObj };
+
+  if (Array.isArray(oldObj) && Array.isArray(newObj)) {
+    const resultOld: unknown[] = [];
+    const resultNew: unknown[] = [];
+    const len = Math.max(oldObj.length, newObj.length);
+    for (let i = 0; i < len; i++) {
+      const { old: o, new: n } = stripDynamicOccupationDifferences(oldObj[i], newObj[i], maxverschil);
+      resultOld.push(o);
+      resultNew.push(n);
+    }
+    return { old: resultOld, new: resultNew };
+  }
+
+  if (
+    oldObj !== null &&
+    typeof oldObj === "object" &&
+    !Array.isArray(oldObj) &&
+    newObj !== null &&
+    typeof newObj === "object" &&
+    !Array.isArray(newObj)
+  ) {
+    const oldRec = oldObj as Record<string, unknown>;
+    const newRec = newObj as Record<string, unknown>;
+
+    const oldOcc = typeof oldRec.occupied === "number" ? oldRec.occupied : null;
+    const newOcc = typeof newRec.occupied === "number" ? newRec.occupied : null;
+    const oldFree = typeof oldRec.free === "number" ? oldRec.free : null;
+    const newFree = typeof newRec.free === "number" ? newRec.free : null;
+
+    let shouldStrip = false;
+    if (oldOcc !== null && newOcc !== null && oldFree !== null && newFree !== null) {
+      const occDiff = oldOcc - newOcc;
+      const freeDiff = oldFree - newFree;
+      if (
+        Math.abs(occDiff) <= maxverschil &&
+        Math.abs(freeDiff) <= maxverschil &&
+        occDiff + freeDiff === 0
+      ) {
+        shouldStrip = true;
+      }
+    }
+
+    const resultOld: Record<string, unknown> = {};
+    const resultNew: Record<string, unknown> = {};
+    const allKeys = new Set([...Object.keys(oldRec), ...Object.keys(newRec)]);
+
+    for (const k of allKeys) {
+      if (shouldStrip && (k === "occupied" || k === "free")) continue;
+      const { old: o, new: n } = stripDynamicOccupationDifferences(oldRec[k], newRec[k], maxverschil);
+      resultOld[k] = o;
+      resultNew[k] = n;
+    }
+    return { old: resultOld, new: resultNew };
+  }
+
+  return { old: oldObj, new: newObj };
+}
+
+/**
+ * Prepares old/new API responses for comparison by optionally stripping dynamic
+ * occupied/free differences (buurtstalling timing differences).
+ */
+export function prepareForCompare(
+  oldRes: string,
+  newRes: string,
+  options: DynamicDiffOptions
+): { old: string; new: string } {
+  if (!options.allowDynamicDiffs || (options.maxverschil ?? 0) <= 0) {
+    return { old: oldRes, new: newRes };
+  }
+  try {
+    const oldObj = JSON.parse(oldRes);
+    const newObj = JSON.parse(newRes);
+    const max = options.maxverschil ?? 1;
+    const { old: o, new: n } = stripDynamicOccupationDifferences(oldObj, newObj, max);
+    return { old: JSON.stringify(o), new: JSON.stringify(n) };
+  } catch {
+    return { old: oldRes, new: newRes };
+  }
+}
+
 function canonicalJson(obj: unknown): string {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
   if (Array.isArray(obj)) return "[" + obj.map(canonicalJson).join(",") + "]";

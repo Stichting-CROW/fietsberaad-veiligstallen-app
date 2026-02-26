@@ -3,7 +3,15 @@ import { buildOpeningHours } from "./fms-v3-openinghours";
 
 const FMS_TIMING = false;
 
-/** In-memory cache for citycodes/{citycode}. 0 = no caching. Disabled in development. 30 min in prod (matches ColdFusion getCities). */
+/**
+ * In-memory cache for citycodes/{citycode}. 0 = no caching. Disabled in development.
+ * 30 minutes in production (matches ColdFusion getCities).
+ *
+ * Cached versions may have different fields than the request: the cache stores the full
+ * response for a given (citycode, depth). A subsequent request with different query
+ * parameters (e.g. fields) within the TTL will receive the cached response, which may
+ * include or omit fields based on the first request that populated the cache.
+ */
 const CACHE_CITYCODES_DURATION_MINUTES =
   process.env.NODE_ENV === "development" ? 0 : 30;
 const cityCache = new Map<string, { data: CityWithLocations; expires: number }>();
@@ -105,9 +113,9 @@ export type SectionSummary = {
   maxsubscriptions?: number;
 };
 
-/** ColdFusion-compatible place format: datelaststatusupdate, statuscode, name, id. statuscode = status % 10 (0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking). */
+/** ColdFusion-compatible place format: datelaststatusupdate (only when set), statuscode, name, id. statuscode = status % 10 (0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking). */
 export type PlaceSummary = {
-  datelaststatusupdate: string;
+  datelaststatusupdate?: string;
   statuscode: number;
   name?: string;
   id: number;
@@ -354,6 +362,7 @@ async function getLocationsFull(
     },
     orderBy: { Title: "asc" },
     select: {
+      ID: true,
       StallingsID: true,
       Title: true,
       Coordinaten: true,
@@ -372,6 +381,7 @@ async function getLocationsFull(
       ExtraServices: true,
       Openingstijden: true,
       hasUniBikeTypePrices: true,
+      hasUniSectionPrices: true,
       AantalReserveerbareKluizen: true,
       fietsenstallingen_services: {
         select: { services: { select: { Name: true } } },
@@ -461,8 +471,10 @@ type SectieForAssembly = SectionForOccupied & {
 };
 
 type LocationRowWithSections = Omit<LocationRow, "fietsenstalling_secties"> & {
+  ID?: string;
   fietsenstalling_secties: SectieForAssembly[];
   hasUniBikeTypePrices?: boolean | null;
+  hasUniSectionPrices?: boolean | null;
   AantalReserveerbareKluizen?: number | null;
 };
 
@@ -514,6 +526,7 @@ async function assembleSectionsFromRows(
 ): Promise<ColdFusionSection[][]> {
   const allSectionBikeTypeIds: number[] = [];
   const uniSectieIds: number[] = [];
+  const stallingIdsForUniRates: string[] = [];
   for (const row of rows) {
     for (const s of row.fietsenstalling_secties ?? []) {
       for (const sf of s.secties_fietstype ?? []) {
@@ -521,9 +534,12 @@ async function assembleSectionsFromRows(
       }
       if (row.hasUniBikeTypePrices && s.sectieId) uniSectieIds.push(s.sectieId);
     }
+    if (row.hasUniBikeTypePrices && row.hasUniSectionPrices && row.ID) {
+      stallingIdsForUniRates.push(row.ID);
+    }
   }
 
-  const [tariefregelsBySbt, uniTariefregels, kostenperioden] = await Promise.all([
+  const [tariefregelsBySbt, uniTariefregels, kostenperioden, stallingTariefregels] = await Promise.all([
     allSectionBikeTypeIds.length > 0
       ? prisma.tariefregels.findMany({
           where: { sectionBikeTypeID: { in: allSectionBikeTypeIds } },
@@ -539,6 +555,12 @@ async function assembleSectionsFromRows(
     uniSectieIds.length > 0
       ? prisma.fietsenstalling_sectie_kostenperioden.findMany({
           where: { sectieId: { in: uniSectieIds } },
+          orderBy: { index: "asc" },
+        })
+      : Promise.resolve([]),
+    stallingIdsForUniRates.length > 0
+      ? prisma.tariefregels.findMany({
+          where: { stallingsID: { in: stallingIdsForUniRates }, sectieID: null, sectionBikeTypeID: null },
           orderBy: { index: "asc" },
         })
       : Promise.resolve([]),
@@ -568,6 +590,14 @@ async function assembleSectionsFromRows(
       kostenBySectie.set(kp.sectieId, arr);
     }
   }
+  const tariefByStalling = new Map<string, typeof stallingTariefregels>();
+  for (const t of stallingTariefregels) {
+    if (t.stallingsID) {
+      const arr = tariefByStalling.get(t.stallingsID) ?? [];
+      arr.push(t);
+      tariefByStalling.set(t.stallingsID, arr);
+    }
+  }
 
   return rows.map((row) => {
     const secties = row.fietsenstalling_secties ?? [];
@@ -581,12 +611,43 @@ async function assembleSectionsFromRows(
         if (row.Type === "fietskluizen" && row.AantalReserveerbareKluizen != null) {
           data.maxsubscriptions = row.AantalReserveerbareKluizen;
         }
+        const toRate = (t: { tijdsspanne: number | null; kosten: unknown }): { timespan: number; cost: number } => {
+          const cost = Number(t.kosten ?? 0);
+          return { timespan: t.tijdsspanne ?? 0, cost: Number.isFinite(cost) ? cost : 0 };
+        };
+        const toRateFromKp = (kp: { tijdsspanne: string | null; kosten: string | null }) => ({
+          timespan: parseFloat(kp.tijdsspanne ?? "0") || 0,
+          cost: parseFloat(kp.kosten ?? "0") || 0,
+        });
+
+        let sectionRates: Array<{ timespan: number; cost: number }> | null = null;
+        if (row.hasUniBikeTypePrices) {
+          const sectieTr = s.sectieId ? tariefByUniSectie.get(s.sectieId) : null;
+          const sectieKp = s.sectieId ? kostenBySectie.get(s.sectieId) : null;
+          const fromSectie =
+            sectieTr && sectieTr.length > 0
+              ? sectieTr.map(toRate)
+              : (sectieKp ?? []).map(toRateFromKp);
+          if (fromSectie.length > 0) {
+            sectionRates = fromSectie;
+          } else if (row.hasUniSectionPrices && row.ID) {
+            const stallingTr = tariefByStalling.get(row.ID);
+            sectionRates = stallingTr && stallingTr.length > 0 ? stallingTr.map(toRate) : null;
+          }
+          if (sectionRates && sectionRates.length > 0) data.rates = sectionRates;
+        }
+
         type SfRow = { SectionBiketypeID: number; Toegestaan: boolean | null; BikeTypeID: number | null; Capaciteit: number | null };
         const sft = (s.secties_fietstype ?? []) as SfRow[];
         if (sft.length > 0) {
           const mapped = sft.map((sf) => {
-            const tr = tariefBySbt.get(sf.SectionBiketypeID);
-            const rates = tr ? tr.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) })) : [];
+            const rates: Array<{ timespan: number; cost: number }> =
+              sectionRates && sectionRates.length > 0
+                ? sectionRates
+                : (() => {
+                    const tr = tariefBySbt.get(sf.SectionBiketypeID);
+                    return tr ? tr.map(toRate) : [];
+                  })();
             const allowed = sf.Toegestaan ?? false;
             const out: { allowed: boolean; biketypeid: number; rates: Array<{ timespan: number; cost: number }>; capacity?: number } = {
               allowed,
@@ -597,18 +658,6 @@ async function assembleSectionsFromRows(
             return out;
           });
           data.biketypes = mapped.sort((a, b) => a.biketypeid - b.biketypeid);
-        }
-        if (row.hasUniBikeTypePrices && s.sectieId) {
-          const sectieTr = tariefByUniSectie.get(s.sectieId);
-          const sectieKp = kostenBySectie.get(s.sectieId);
-          const rates =
-            sectieTr && sectieTr.length > 0
-              ? sectieTr.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) }))
-              : (sectieKp ?? []).map((kp) => ({
-                  timespan: parseFloat(kp.tijdsspanne ?? "0") || 0,
-                  cost: parseFloat(kp.kosten ?? "0") || 0,
-                }));
-          if (rates.length > 0) data.rates = rates;
         }
         return toSectionOrder(data) as ColdFusionSection;
       });
@@ -1048,8 +1097,10 @@ export async function getSection(
     include: {
       fietsenstalling: {
         select: {
+          ID: true,
           BronBezettingsdata: true,
           hasUniBikeTypePrices: true,
+          hasUniSectionPrices: true,
           Type: true,
           AantalReserveerbareKluizen: true,
         },
@@ -1073,26 +1124,98 @@ export async function getSection(
     data.maxsubscriptions = stalling.AantalReserveerbareKluizen;
   }
 
-  if (sectie.secties_fietstype.length > 0) {
-    const sectionBikeTypeIds = sectie.secties_fietstype.map((sf) => sf.SectionBiketypeID);
-    const tTarief = timeStart(`getSection ${locationid}/${sectionid} tariefregels`);
-    const tariefregels = await prisma.tariefregels.findMany({
-      where: { sectionBikeTypeID: { in: sectionBikeTypeIds } },
+  /* ColdFusion: each biketype gets rates from section.getCostPeriods(biketype). When hasUniBikeTypePrices, same rates apply to all biketypes. Rates can be at section-level (sectieID) or stalling-level (stallingsID, sectieID=null) when hasUniSectionPrices. */
+  const toRate = (t: { tijdsspanne: number | null; kosten: unknown }): { timespan: number; cost: number } => {
+    const cost = Number(t.kosten ?? 0);
+    return { timespan: t.tijdsspanne ?? 0, cost: Number.isFinite(cost) ? cost : 0 };
+  };
+  const toRateFromKostenperiode = (kp: { tijdsspanne: string | null; kosten: string | null }): { timespan: number; cost: number } => ({
+    timespan: parseFloat(kp.tijdsspanne ?? "0") || 0,
+    cost: parseFloat(kp.kosten ?? "0") || 0,
+  });
+
+  let sectionLevelRates: Array<{ timespan: number; cost: number }> | null = null;
+  if (stalling?.hasUniBikeTypePrices) {
+    const tUni = timeStart(`getSection ${locationid}/${sectionid} uniBikeTypePrices`);
+    const sectieTariefregels = await prisma.tariefregels.findMany({
+      where: { sectieID: sectie.sectieId, sectionBikeTypeID: null },
       orderBy: { index: "asc" },
     });
-    timeEnd(`getSection ${locationid}/${sectionid} tariefregels`, tTarief);
-    const tariefBySbt = new Map<number, typeof tariefregels>();
-    for (const t of tariefregels) {
-      if (t.sectionBikeTypeID != null) {
-        const arr = tariefBySbt.get(t.sectionBikeTypeID) ?? [];
-        arr.push(t);
-        tariefBySbt.set(t.sectionBikeTypeID, arr);
+    const kostenperioden = await prisma.fietsenstalling_sectie_kostenperioden.findMany({
+      where: { sectieId: sectie.sectieId },
+      orderBy: { index: "asc" },
+    });
+    sectionLevelRates =
+      sectieTariefregels.length > 0
+        ? sectieTariefregels.map(toRate)
+        : kostenperioden.map(toRateFromKostenperiode);
+    if (sectionLevelRates.length === 0 && stalling?.hasUniSectionPrices && stalling?.ID) {
+      const stallingTariefregels = await prisma.tariefregels.findMany({
+        where: { stallingsID: stalling.ID, sectieID: null, sectionBikeTypeID: null },
+        orderBy: { index: "asc" },
+      });
+      sectionLevelRates = stallingTariefregels.length > 0 ? stallingTariefregels.map(toRate) : null;
+    }
+    timeEnd(`getSection ${locationid}/${sectionid} uniBikeTypePrices`, tUni);
+    if (sectionLevelRates && sectionLevelRates.length > 0) data.rates = sectionLevelRates;
+  }
+
+  if (sectie.secties_fietstype.length > 0) {
+    const tariefBySbt = new Map<number, { tijdsspanne: number | null; kosten: unknown }[]>();
+
+    if (!stalling?.hasUniBikeTypePrices) {
+      const sectionBikeTypeIds = sectie.secties_fietstype.map((sf) => sf.SectionBiketypeID);
+      const tTarief = timeStart(`getSection ${locationid}/${sectionid} tariefregels`);
+      const tariefregels = await prisma.tariefregels.findMany({
+        where: { sectionBikeTypeID: { in: sectionBikeTypeIds } },
+        orderBy: { index: "asc" },
+      });
+      timeEnd(`getSection ${locationid}/${sectionid} tariefregels`, tTarief);
+      for (const t of tariefregels) {
+        if (t.sectionBikeTypeID != null) {
+          const arr = tariefBySbt.get(t.sectionBikeTypeID) ?? [];
+          arr.push(t);
+          tariefBySbt.set(t.sectionBikeTypeID, arr);
+        }
+      }
+    }
+
+    let sectionLevelFallback: Array<{ timespan: number; cost: number }> | null = null;
+    if ((!sectionLevelRates || sectionLevelRates.length === 0) && !stalling?.hasUniBikeTypePrices) {
+      const sectieTarief = await prisma.tariefregels.findMany({
+        where: { sectieID: sectie.sectieId, sectionBikeTypeID: null },
+        orderBy: { index: "asc" },
+      });
+      const kostenperioden = await prisma.fietsenstalling_sectie_kostenperioden.findMany({
+        where: { sectieId: sectie.sectieId },
+        orderBy: { index: "asc" },
+      });
+      const fromSectie =
+        sectieTarief.length > 0
+          ? sectieTarief.map(toRate)
+          : kostenperioden.map(toRateFromKostenperiode);
+      if (fromSectie.length > 0) {
+        sectionLevelFallback = fromSectie;
+      } else if (stalling?.hasUniSectionPrices && stalling?.ID) {
+        const stallingTarief = await prisma.tariefregels.findMany({
+          where: { stallingsID: stalling.ID, sectieID: null, sectionBikeTypeID: null },
+          orderBy: { index: "asc" },
+        });
+        sectionLevelFallback = stallingTarief.length > 0 ? stallingTarief.map(toRate) : null;
       }
     }
 
     const mapped = sectie.secties_fietstype.map((sf) => {
-      const tr = tariefBySbt.get(sf.SectionBiketypeID);
-      const rates = tr ? tr.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) })) : [];
+      let rates: Array<{ timespan: number; cost: number }>;
+      if (sectionLevelRates && sectionLevelRates.length > 0) {
+        rates = sectionLevelRates;
+      } else {
+        const tr = tariefBySbt.get(sf.SectionBiketypeID);
+        rates = tr ? tr.map(toRate) : [];
+        if (rates.length === 0 && sectionLevelFallback && sectionLevelFallback.length > 0) {
+          rates = sectionLevelFallback;
+        }
+      }
       const allowed = sf.Toegestaan ?? false;
       const out: { allowed: boolean; biketypeid: number; rates: Array<{ timespan: number; cost: number }>; capacity?: number } = {
         allowed,
@@ -1114,34 +1237,13 @@ export async function getSection(
     if (places.length > 0) data.places = places;
   }
 
-  if (stalling?.hasUniBikeTypePrices) {
-    const tUni = timeStart(`getSection ${locationid}/${sectionid} uniBikeTypePrices`);
-    const sectieTariefregels = await prisma.tariefregels.findMany({
-      where: { sectieID: sectie.sectieId, sectionBikeTypeID: null },
-      orderBy: { index: "asc" },
-    });
-    const kostenperioden = await prisma.fietsenstalling_sectie_kostenperioden.findMany({
-      where: { sectieId: sectie.sectieId },
-      orderBy: { index: "asc" },
-    });
-    const rates =
-      sectieTariefregels.length > 0
-        ? sectieTariefregels.map((t) => ({ timespan: t.tijdsspanne ?? 0, cost: Number(t.kosten ?? 0) }))
-        : kostenperioden.map((kp) => ({
-            timespan: parseFloat(kp.tijdsspanne ?? "0") || 0,
-            cost: parseFloat(kp.kosten ?? "0") || 0,
-          }));
-    timeEnd(`getSection ${locationid}/${sectionid} uniBikeTypePrices`, tUni);
-    if (rates.length > 0) data.rates = rates;
-  }
-
   timeEnd(`getSection ${locationid}/${sectionid}`, t0);
   return toSectionOrder(data) as SectionSummary;
 }
 
-/** Key order for sections inside location. Matches old API: biketypes, sectionid, name, then optional maxsubscriptions, places, rates. */
+/** Key order for section response. Matches old API (BaseRestService.getSection): maxsubscriptions, sectionid, name, biketypes, places, rates. */
 function toSectionOrder(obj: Record<string, unknown>): Record<string, unknown> {
-  const order = ["biketypes", "sectionid", "name", "maxsubscriptions", "places", "rates"];
+  const order = ["maxsubscriptions", "sectionid", "name", "biketypes", "places", "rates"];
   const out: Record<string, unknown> = {};
   for (const k of order) {
     if (k in obj && obj[k] !== undefined) out[k] = obj[k];
@@ -1177,17 +1279,20 @@ export async function getPlaces(
   return plekken.map((p) => {
     const status = p.status ?? 0;
     const statuscode = typeof status === "number" ? status % 10 : 0;
-    const datelaststatusupdate = p.dateLastStatusUpdate
-      ? p.dateLastStatusUpdate instanceof Date
-        ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
-        : String(p.dateLastStatusUpdate).slice(0, 19)
-      : "";
-    return {
-      datelaststatusupdate,
-      statuscode,
-      name: p.titel ?? undefined,
+    const datelaststatusupdate =
+      p.dateLastStatusUpdate != null
+        ? p.dateLastStatusUpdate instanceof Date
+          ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
+          : String(p.dateLastStatusUpdate).slice(0, 19)
+        : undefined;
+    // ColdFusion getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode
+    const place: PlaceSummary = {
       id: Number(p.id),
+      name: p.titel ?? undefined,
+      ...(datelaststatusupdate != null && { datelaststatusupdate }),
+      statuscode,
     };
+    return place;
   });
 }
 
