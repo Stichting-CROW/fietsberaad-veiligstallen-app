@@ -5,7 +5,7 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { env } from "~/env.mjs";
 import { getFullDatasetIds } from "~/server/services/fms/fms-v3-service";
-import { responsesMatch, prepareForCompare } from "~/server/utils/fms-compare";
+import { responsesMatch, prepareForCompare, applyBiketypeSortForCitycode7300 } from "~/server/utils/fms-compare";
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 
@@ -18,13 +18,13 @@ export type FullDatasetTestResult = {
   locationtype?: string;
   endpointId: string;
   endpointLabel: string;
-  status: "identical" | "diff" | "error" | "skipped";
+  status: "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering";
   error?: string;
 };
 
 export type FullDatasetTestResponse = {
   results: FullDatasetTestResult[];
-  summary: { total: number; identical: number; diff: number; error: number; skipped: number };
+  summary: { total: number; identical: number; diff: number; error: number; skipped: number; uitzonderingBiketypeidSortering: number };
 };
 
 const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
@@ -245,12 +245,22 @@ export default async function handle(
         : typeof maxverschil === "string"
           ? parseInt(maxverschil, 10)
           : 1;
-    const { old: oldForCompare, new: newForCompare } = prepareForCompare(oldRes.text, newRes.text, {
+    const { old: oldAfterBiketypeSort, new: newAfterBiketypeSort } = applyBiketypeSortForCitycode7300(
+      oldRes.text,
+      newRes.text,
+      citycode,
+      endpointId
+    );
+    const { old: oldForCompare, new: newForCompare } = prepareForCompare(oldAfterBiketypeSort, newAfterBiketypeSort, {
       allowDynamicDiffs: !!allowDynamicDiffs,
       maxverschil: allowDynamicDiffs ? maxVal : 0,
     });
     const identical = responsesMatch(endpointId, oldForCompare, newForCompare);
-    const status = identical ? "identical" : "diff";
+    const status: FullDatasetTestResult["status"] = identical
+      ? ["7300", "6202"].includes(citycode) && ["v3-citycode", "v3-locations", "v3-location", "v3-sections", "v3-section"].includes(endpointId)
+        ? "uitzondering-biketypeid-sortering"
+        : "identical"
+      : "diff";
     if (!identical) console.log(`  -> ${status}`);
     results.push({
       testId,
@@ -288,15 +298,18 @@ export default async function handle(
     }
 
     const identical = results.filter((r) => r.status === "identical").length;
+    const uitzonderingBiketypeidSortering = results.filter((r) => r.status === "uitzondering-biketypeid-sortering").length;
     const diff = results.filter((r) => r.status === "diff").length;
     const error = results.filter((r) => r.status === "error").length;
     const skipped = results.filter((r) => r.status === "skipped").length;
 
-    console.log(`[FMS full-dataset] Done: ${results.length} tests, ${identical} identical, ${diff} diff, ${error} error, ${skipped} skipped`);
+    console.log(
+      `[FMS full-dataset] Done: ${results.length} tests, ${identical} identical, ${uitzonderingBiketypeidSortering} uitzondering biketypeid, ${diff} diff, ${error} error, ${skipped} skipped`
+    );
 
     const response: FullDatasetTestResponse = {
       results,
-      summary: { total: results.length, identical, diff, error, skipped },
+      summary: { total: results.length, identical, diff, error, skipped, uitzonderingBiketypeidSortering },
     };
     return res.status(200).json(response);
   } catch (err) {

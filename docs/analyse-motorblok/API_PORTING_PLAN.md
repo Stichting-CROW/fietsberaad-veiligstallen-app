@@ -38,7 +38,7 @@
 | **Scheduler/cron** | ❌ Pending | Phase 3 – `/api/cron/process-queues` |
 | **Business logic services** | ❌ Pending | bikeparkService, transactionService, accountService |
 | **Archive process** | ❌ Pending | Daily archive of processed queue records |
-| **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). |
+| **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). Biketypes ordered by SectionBiketypeID; ColdFusion has no orderby (see §14.1, A.11). |
 | **Testing** | ❌ Pending | Unit tests, integration tests |
 | **API migration guide** | ❌ Pending | Documentation for clients |
 
@@ -265,7 +265,7 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 |----------|-----------|
 | **Location (single section)** | Returns `{ sectionid, name, biketypes }` at root – not the full location object (address, capacity, city, etc.). Matches old API. |
 | **Location (multi-section)** | Returns full location with `sections` array. Each section in the array has only `sectionid` and `name`; biketypes are not duplicated in sections. |
-| **Section (standalone)** | Full section: `sectionid`, `name`, `biketypes`, plus conditional `maxsubscriptions` (fietskluizen), `places` (depth>1), `rates` (hasUniBikeTypePrices). Key order: maxsubscriptions, sectionid, name, biketypes, places, rates. |
+| **Section (standalone)** | Full section: `sectionid`, `name`, `biketypes`, plus conditional `maxsubscriptions` (fietskluizen), `places` (depth>1), `rates` (hasUniBikeTypePrices). Key order: maxsubscriptions, sectionid, name, biketypes, places, rates. Biketype array order: Next.js uses `SectionBiketypeID` (insertion order); ColdFusion has no explicit order (see §14.1). |
 | **Section fields** | `capacity`, `occupation`, `free`, `occupationsource` omitted when `fields` param not passed (FMS getSection does not pass fields). |
 | **Citycodes locations** | Locations in `citycodes` and `citycodes/{citycode}` omit `exploitantname`, `sections`, `station`, `city`, `address`, `postalcode` to match old API. `citycodes/{citycode}/locations` omits `sections` (sections via separate endpoint). `locations/{id}` keeps full location with sections. |
 
@@ -448,6 +448,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | `src/pages/api/fms/v2/[[...path]].ts` | ✅ | V2 routes (read + write ops done) |
 | `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ | V3 routes (citycodes, locations, sections, places, subscriptiontypes) |
 | `src/pages/test/fms-api-compare.tsx` | ✅ | GET comparison UI |
+| `src/server/utils/fms-compare.ts` | ✅ | Comparison logic: prepareForCompare, applyBiketypeSortForCitycode7300, responsesMatch |
 | `src/lib/openapi/fms-api.json` | ✅ | OpenAPI 3.0 spec |
 | `src/pages/test/fms-api-docs.tsx` | ✅ | Swagger UI |
 | `src/components/beheer/database/DataApiComponent.tsx` | ✅ | Data API page |
@@ -486,6 +487,8 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | [wachtrij-transactie-processing-stappen.md](wachtrij-transactie-processing-stappen.md) | Queue processing steps |
 | [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md) | Transaction flow diagram |
 | [FMSservice-rest_v3.0.4.pdf](../documentatie-crow/1-api/FMSservice-rest_v3.0.4.pdf) | Official CROW FMS REST API v3 documentation |
+| [OCCUPIED_CAPACITY_FLOW.md](OCCUPIED_CAPACITY_FLOW.md) | ColdFusion → DB source mapping (occupation, capacity, sectionBikeTypes) |
+| [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md) | Capacity comparison old vs new API |
 | `scripts/README-extract-stallings.md` | Extract stallings for test municipality |
 
 ---
@@ -552,6 +555,18 @@ The FMS API compare page (`/test/fms-api-compare`) has an **Instellingen** tab w
 **Cause: Caching.** Both APIs read `fietsenstalling_sectie.Bezetting`, which is updated by the `resetOccupations` cronjob every ~5 minutes. The ColdFusion REST API uses ORM (Hibernate) entity caching: when a Bikepark/section is loaded, it may be served from cache on subsequent requests. The new API does a fresh Prisma query each time. As a result, one API can return a cached (stale) `Bezetting` while the other returns the latest value. The difference is dynamic: re-running the test after a short while often yields identical results once caches expire.
 
 **Accepted:** When the difference is within maxverschil and totals to 0 (e.g. occupied +1, free -1), the compare page can treat these as identical via the "Dynamische verschillen toestaan" setting.
+
+### 14.1 Biketype sort uitzondering (citycodes 7300, 6202)
+
+**Symptom:** The `biketypes` array in section responses can differ in order between old and new API. ColdFusion returns biketypes in database/ORM order (no explicit `orderby` on `sectionBikeTypes`); Next.js returns them ordered by `SectionBiketypeID` (insertion order).
+
+**Affected endpoints:** V3 citycodes/{citycode}, V3 citycodes/{citycode}/locations, V3 locations/{locationid}, V3 locations/{locationid}/sections, V3 sections/{sectionid}.
+
+**Accepted:** For citycodes **7300** and **6202**, the FMS API compare page sorts both old and new responses by `biketypeid` ascending before comparison. When the test passes after this normalization, the status is shown as **"Uitzondering - biketypeid sortering"** instead of "Identiek".
+
+**Implementation:** `src/server/utils/fms-compare.ts` – `applyBiketypeSortForCitycode7300()`, `sortBiketypesByBiketypeid()`.
+
+**How to fix in ColdFusion:** Add `orderby="SectionBiketypeID asc"` to the `sectionBikeTypes` relation in `BikeparkSection.cfc` and `orderby="SectionBiketypeID asc"` to `bikeparkBikeTypes` in `Bikepark.cfc`. See [Appendix A.11](#a11-biketype-array-order) for details.
 
 ---
 
@@ -760,4 +775,38 @@ ColdFusion: `capacity` only when `bikepark.getCapacity() > 0`.
 
 ---
 
+### A.11 Biketype array order
+
+**Scope:** Per section in `biketypes` array; affects V3 citycodes/{citycode}, citycodes/{citycode}/locations, locations/{locationid}, locations/{locationid}/sections, sections/{sectionid}.
+
+**Current behaviour:**
+
+| API | Order |
+|-----|-------|
+| **ColdFusion** | Undefined – `sectionBikeTypes` relation has no `orderby`; Hibernate returns rows in database default order. |
+| **Next.js** | `ORDER BY SectionBiketypeID ASC` – insertion order (Prisma `orderBy` on all sectie_fietstype queries). |
+
+**Database:** `sectie_fietstype.SectionBiketypeID` is the primary key (auto-increment). Ascending order = insertion order.
+
+**FMS API compare uitzondering:** For citycodes 7300 and 6202, both responses are normalized by sorting `biketypes` by `biketypeid` ascending before comparison. If identical, status = "Uitzondering - biketypeid sortering".
+
+**How to fix in ColdFusion** (to align with Next.js and remove the uitzondering):
+
+1. **BikeparkSection.cfc** – add `orderby` to `sectionBikeTypes`:
+
+```cfm
+<cfproperty  name="sectionBikeTypes"  fieldtype="one-to-many" cascade="all-delete-orphan"
+	cfc="SectionBikeType" fkcolumn="SectieID" inverse="true" orderby="SectionBiketypeID asc">
+```
+
+2. **Bikepark.cfc** – add `orderby` to `bikeparkBikeTypes` (used when `hasUniSectionPrices`):
+
+```cfm
+<cfproperty  name="bikeparkBikeTypes" fieldtype="one-to-many" cascade="all-delete-orphan"
+	cfc="SectionBikeType" fkcolumn="StallingsID" inverse="true" orderby="SectionBiketypeID asc">
+```
+
+**Files:** `cflib/nl/fietsberaad/model/bikepark/BikeparkSection.cfc` (line ~26), `cflib/nl/fietsberaad/model/bikepark/Bikepark.cfc` (line ~135).
+
+---
 

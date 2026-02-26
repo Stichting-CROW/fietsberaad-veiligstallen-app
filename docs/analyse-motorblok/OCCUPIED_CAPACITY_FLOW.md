@@ -58,6 +58,7 @@ Traced from `coldfusion-broncode/` – output fields to database source.
 ### getSectionBikeTypes()
 - ORM relation `sectionBikeTypes`: one-to-many SectionBikeType, `fkcolumn="SectieID"`
 - **No `where` clause** → all rows from **sectie_fietstype** for this section
+- **No `orderby`** → order is undefined (database default). Next.js uses `ORDER BY SectionBiketypeID ASC` (insertion order). See API_PORTING_PLAN.md §14.1 and Appendix A.11 for the biketype sort uitzondering and ColdFusion fix.
 
 ---
 

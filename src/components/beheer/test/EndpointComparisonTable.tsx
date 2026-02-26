@@ -9,7 +9,7 @@ export type EndpointDef = {
   oldPath?: string;
 };
 
-export type RowStatus = "pending" | "loading" | "identical" | "diff" | "error";
+export type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering";
 
 function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOnly: string } | null {
   try {
@@ -114,7 +114,7 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
             const expanded = rowExpanded[e.id] ?? false;
             const hasResults = !!results || (status === "error" && rowError[e.id]);
             const bg =
-              status === "identical"
+              status === "identical" || status === "uitzondering-biketypeid-sortering" || status === "skipped"
                 ? "bg-green-100"
                 : status === "diff" || status === "error"
                   ? "bg-red-100"
@@ -128,7 +128,9 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
                   {status === "pending" && "—"}
                   {status === "loading" && "..."}
                   {status === "identical" && "Identiek"}
+                  {status === "uitzondering-biketypeid-sortering" && "Uitzondering - biketypeid sortering"}
                   {status === "diff" && "Verschilt"}
+                  {status === "skipped" && "Overgeslagen"}
                   {status === "error" && (() => {
                     const err = rowError[e.id] ?? "";
                     const oldFail = err.includes("Oude API:");

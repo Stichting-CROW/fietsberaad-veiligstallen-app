@@ -409,6 +409,7 @@ async function getLocationsFull(
           titel: true,
           Bezetting: true,
           secties_fietstype: {
+            orderBy: { SectionBiketypeID: "asc" },
             select: {
               SectionBiketypeID: true,
               Toegestaan: true,
@@ -550,6 +551,7 @@ async function assembleSectionsFromRows(
     stallingsNeedingStallingBiketypes.length > 0
       ? await prisma.sectie_fietstype.findMany({
           where: { StallingsID: { in: stallingsNeedingStallingBiketypes }, sectieID: null },
+          orderBy: { SectionBiketypeID: "asc" },
           select: { SectionBiketypeID: true, BikeTypeID: true, StallingsID: true },
         })
       : [];
@@ -713,7 +715,7 @@ async function assembleSectionsFromRows(
             if (allowed && sf.Capaciteit != null && sf.Capaciteit > 0) out.capacity = sf.Capaciteit;
             return out;
           });
-          data.biketypes = mapped.sort((a, b) => a.biketypeid - b.biketypeid);
+          data.biketypes = mapped;
         }
         return toSectionOrder(data) as ColdFusionSection;
       });
@@ -1157,6 +1159,7 @@ async function getSectionBySectieId(
         },
       },
       secties_fietstype: {
+        orderBy: { SectionBiketypeID: "asc" },
         include: { fietstype: { select: { ID: true } } },
       },
     },
@@ -1192,6 +1195,7 @@ export async function getSection(
         },
       },
       secties_fietstype: {
+        orderBy: { SectionBiketypeID: "asc" },
         include: { fietstype: { select: { ID: true } } },
       },
     },
@@ -1314,6 +1318,7 @@ async function buildSectionFromSectie(
       if (useStallingBiketypes) {
         stallingSft = await prisma.sectie_fietstype.findMany({
           where: { StallingsID: stalling!.ID, sectieID: null },
+          orderBy: { SectionBiketypeID: "asc" },
           select: { SectionBiketypeID: true, BikeTypeID: true },
         });
         sectionBikeTypeIds = stallingSft.map((sft) => sft.SectionBiketypeID);
@@ -1413,7 +1418,7 @@ async function buildSectionFromSectie(
       }
       return out;
     });
-    data.biketypes = mapped.sort((a, b) => a.biketypeid - b.biketypeid);
+    data.biketypes = mapped;
   }
 
   if (depth > 1) {

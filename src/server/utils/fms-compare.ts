@@ -1,5 +1,62 @@
 /** Shared comparison logic for FMS API old vs new. */
 
+/** V3 endpoints that return locations/sections with biketypes. Used for citycode 7300 biketype sort uitzondering. */
+export const V3_ENDPOINTS_WITH_BIKETYPES = [
+  "v3-citycode",
+  "v3-locations",
+  "v3-location",
+  "v3-sections",
+  "v3-section",
+] as const;
+
+/**
+ * Recursively sorts biketypes arrays by biketypeid ascending.
+ * Detects arrays of objects with biketypeid property (locations.sections.biketypes).
+ */
+export function sortBiketypesByBiketypeid(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    const arr = obj.map(sortBiketypesByBiketypeid);
+    if (
+      arr.length > 0 &&
+      arr.every((x) => x != null && typeof x === "object" && "biketypeid" in (x as object))
+    ) {
+      return [...arr].sort(
+        (a, b) => ((a as { biketypeid: number }).biketypeid ?? 0) - ((b as { biketypeid: number }).biketypeid ?? 0)
+      );
+    }
+    return arr;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    result[k] = sortBiketypesByBiketypeid(v);
+  }
+  return result;
+}
+
+/**
+ * Applies biketype sort when citycode is 7300 or 6202 and endpoint returns sections.
+ * Returns { old, new } with biketypes sorted by biketypeid ascending.
+ */
+export function applyBiketypeSortForCitycode7300(
+  oldRes: string,
+  newRes: string,
+  citycode: string,
+  endpointId: string
+): { old: string; new: string } {
+  const citycodesWithBiketypeSortUitzondering = ["7300", "6202"];
+  if (!citycodesWithBiketypeSortUitzondering.includes(citycode) || !(V3_ENDPOINTS_WITH_BIKETYPES as readonly string[]).includes(endpointId)) {
+    return { old: oldRes, new: newRes };
+  }
+  try {
+    const oldObj = sortBiketypesByBiketypeid(JSON.parse(oldRes));
+    const newObj = sortBiketypesByBiketypeid(JSON.parse(newRes));
+    return { old: JSON.stringify(oldObj), new: JSON.stringify(newObj) };
+  } catch {
+    return { old: oldRes, new: newRes };
+  }
+}
+
 export type DynamicDiffOptions = {
   allowDynamicDiffs?: boolean;
   maxverschil?: number;
