@@ -368,7 +368,6 @@ async function getLocationsFull(
       Title: true,
       Coordinaten: true,
       Type: true,
-      fietsenstalling_type: { select: { id: true } },
       Capacity: true,
       IsStationsstalling: true,
       BronBezettingsdata: true,
@@ -487,7 +486,6 @@ type LocationRow = {
   Title: string | null;
   Coordinaten: string | null;
   Type: string | null;
-  fietsenstalling_type?: { id: string } | null;
   Capacity: number | null;
   IsStationsstalling: boolean | null;
   BronBezettingsdata: string | null;
@@ -914,12 +912,10 @@ function buildColdFusionLocation(
   const allServices = [...servicesFromTable, ...servicesFromExtra];
   const services = allServices.length > 0 ? allServices : undefined;
 
-  // ColdFusion: bikepark.getType() returns getBikeparkType().getID() from fietsenstallingtypen
-  const locationtype = row.fietsenstalling_type?.id ?? row.Type ?? undefined;
   const loc: ColdFusionLocation = {
     locationid: row.StallingsID!,
     name: row.Title ?? undefined,
-    locationtype,
+    locationtype: row.Type ?? undefined,
     occupationsource: row.BronBezettingsdata ?? null,
     openinghours,
     ...(lat && { lat }),
@@ -1039,12 +1035,10 @@ export async function getLocations(
 /**
  * StallingsID (locationid) is globally unique. Prisma schema: @unique(map: "idxstallingsid") on fietsenstallingen.
  * DB enforces uniqueness; lookups use locationid only (no citycode).
- * When useNewTables: occupancy from new_transacties (open records) instead of Bezetting.
  */
 export async function getLocation(
   locationid: string,
-  depth = 2,
-  useNewTables = false
+  depth = 2
 ): Promise<ColdFusionLocation | null> {
   const stalling = await prisma.fietsenstallingen.findFirst({
     where: {
@@ -1052,12 +1046,10 @@ export async function getLocation(
       Status: "1",
     },
     select: {
-      ID: true,
       StallingsID: true,
       Title: true,
       Coordinaten: true,
       Type: true,
-      fietsenstalling_type: { select: { id: true } },
       Capacity: true,
       IsStationsstalling: true,
       BronBezettingsdata: true,
@@ -1101,43 +1093,7 @@ export async function getLocation(
   });
   if (!stalling?.StallingsID) return null;
   const sections = await getSections(locationid, depth);
-  let ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
-  if (useNewTables && stalling.ID) {
-    const openCounts = await prisma.new_transacties.groupBy({
-      by: ["SectieID"],
-      where: {
-        FietsenstallingID: stalling.ID,
-        Date_checkout: null,
-      },
-      _count: { ID: true },
-    });
-    const bySection = new Map<string, number>();
-    let totalOccupied = 0;
-    for (const r of openCounts) {
-      if (r.SectieID) {
-        bySection.set(r.SectieID, r._count.ID);
-        totalOccupied += r._count.ID;
-      }
-    }
-    const capacityForFree = ocf.includeCapacity ? ocf.capacity : ocf.free + ocf.occupied;
-    const free = Math.max(0, capacityForFree - totalOccupied);
-    ocf = { occupied: totalOccupied, capacity: ocf.capacity, free, includeCapacity: ocf.includeCapacity };
-    const loc = buildColdFusionLocation(
-      stalling as LocationRow,
-      sections as ColdFusionSection[],
-      ocf,
-      depth >= 2
-    );
-    if (loc.sections) {
-      for (const s of loc.sections) {
-        const occ = s.sectionid ? bySection.get(s.sectionid) : undefined;
-        if (occ != null) s.occupation = occ;
-      }
-    }
-    loc.occupied = totalOccupied;
-    loc.free = free;
-    return loc;
-  }
+  const ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
   return buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
@@ -1538,7 +1494,7 @@ export async function getPlaces(
           ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
           : String(p.dateLastStatusUpdate).slice(0, 19)
         : undefined;
-    // ColdFusion BaseRestService.getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode - key order must match
+    // ColdFusion getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode
     const place: PlaceSummary = {
       id: Number(p.id),
       name: p.titel ?? undefined,

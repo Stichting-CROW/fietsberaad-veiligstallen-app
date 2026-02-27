@@ -41,8 +41,6 @@ export type EndpointComparisonTableProps = {
   rowExpanded: Record<string, boolean>;
   loading: boolean;
   showOnlyDifferences: boolean;
-  /** Returns old and new API URLs for building curl commands. */
-  getUrlsForEndpoint: (endpoint: EndpointDef) => { oldUrl: string; newUrl: string };
   onCompareOne: (endpointId: string) => void;
   onCompareAll: () => void;
   onReset: () => void;
@@ -60,7 +58,6 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
   rowExpanded,
   loading,
   showOnlyDifferences,
-  getUrlsForEndpoint,
   onCompareOne,
   onCompareAll,
   onReset,
@@ -71,24 +68,6 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
     onExpandedChange?.(endpointId, expanded);
   };
 
-  const copyUrlToClipboard = (url: string) => {
-    void navigator.clipboard.writeText(url);
-  };
-
-  const CopyIcon: React.FC<{ onClick: () => void; title: string }> = ({ onClick, title }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className="p-1 rounded hover:bg-gray-200 text-gray-600 hover:text-gray-900"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-      </svg>
-    </button>
-  );
-
   return (
     <div className="w-full min-w-0 border rounded overflow-x-auto">
       <table className="w-full text-sm table-auto">
@@ -97,8 +76,6 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
             <th className="text-left p-3 font-medium whitespace-nowrap">Endpoint</th>
             <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
             <th className="text-left p-3 font-medium whitespace-nowrap">Timing (s)</th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">Fetch Oude API</th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">Fetch Nieuwe API</th>
             <th className="text-left p-3 font-medium whitespace-nowrap">
               <span className="mr-2">Acties</span>
               {loading ? (
@@ -176,32 +153,6 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
                   ) : (
                     "—"
                   )}
-                </td>
-                <td className="p-3 align-top whitespace-nowrap">
-                  {(() => {
-                    const { oldUrl } = getUrlsForEndpoint(e);
-                    return oldUrl ? (
-                      <CopyIcon
-                        onClick={() => copyUrlToClipboard(oldUrl)}
-                        title="Kopieer URL Oude API"
-                      />
-                    ) : (
-                      "—"
-                    );
-                  })()}
-                </td>
-                <td className="p-3 align-top whitespace-nowrap">
-                  {(() => {
-                    const { newUrl } = getUrlsForEndpoint(e);
-                    return newUrl ? (
-                      <CopyIcon
-                        onClick={() => copyUrlToClipboard(newUrl)}
-                        title="Kopieer URL Nieuwe API"
-                      />
-                    ) : (
-                      "—"
-                    );
-                  })()}
                 </td>
                 <td className="p-3 align-top whitespace-nowrap">
                   <div className="flex flex-nowrap gap-1">

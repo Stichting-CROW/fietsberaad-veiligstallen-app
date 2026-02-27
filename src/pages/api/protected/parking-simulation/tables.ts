@@ -6,31 +6,32 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
-import { createParkingsimulationTables } from "~/backend/services/database/ParkingsimulationTableActions";
+import { createParkingmgmtTables } from "~/backend/services/database/ParkingmgmtTableActions";
 
-const PARKINGSIMULATION_TABLES = [
-  "parkingsimulation_section_assignments",
-  "parkingsimulation_bicycles",
-  "parkingsimulation_simulation_config",
+const PARKINGMGMT_TABLES = [
+  "parkingmgmt_occupation",
+  "parkingmgmt_spot_detection",
+  "parkingmgmt_bicycles",
+  "parkingmgmt_simulation_config",
 ];
 
 async function checkTablesExist(): Promise<boolean> {
   const result = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
     `SELECT COUNT(*) as count FROM information_schema.tables 
      WHERE table_schema = DATABASE() 
-     AND table_name IN (${PARKINGSIMULATION_TABLES.map((t) => `'${t}'`).join(",")})`
+     AND table_name IN (${PARKINGMGMT_TABLES.map((t) => `'${t}'`).join(",")})`
   );
   const count = Number(result?.[0]?.count ?? 0);
-  return count === PARKINGSIMULATION_TABLES.length;
+  return count === PARKINGMGMT_TABLES.length;
 }
 
 /**
- * Create / reset / remove parkingsimulation tables. Fietsberaad superadmin only.
+ * Create / reset / remove parkingmgmt tables. Fietsberaad superadmin only.
  * GET: status { tablesExist: boolean }
  * POST Body: { action: 'create'|'reset'|'remove', startDate?: string }
- * create: create parkingsimulation tables via raw SQL (same pattern as cache tables)
+ * create: create parkingmgmt tables via raw SQL (same pattern as cache tables)
  * reset: clear data, reset clock (see below)
- * remove: drop parkingsimulation_* tables
+ * remove: drop parkingmgmt_* tables
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -59,7 +60,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const action = body.action ?? "reset";
 
   if (action === "reset") {
-    console.log("[parking-simulation/reset] Start of reset");
     // startDate from body is ISO string (UTC); store as UTC in DB
     const startDate = body.startDate ? new Date(body.startDate) : DEFAULT_SIMULATION_START_DATE;
     const contact = await prisma.contacts.findFirst({
@@ -67,14 +67,14 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       select: { ID: true },
     });
     if (contact) {
-      const pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
+      const pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
         where: { siteID: contact.ID },
       });
       if (pmConfig) {
         const nowMs = Date.now();
         const startMs = startDate.getTime();
         const offsetSeconds = Math.floor((nowMs - startMs) / 1000);
-        await prisma.parkingsimulation_simulation_config.update({
+        await prisma.parkingmgmt_simulation_config.update({
           where: { id: pmConfig.id },
           data: { simulationTimeOffsetSeconds: offsetSeconds, simulationStartDate: startDate },
         });
@@ -103,7 +103,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             prisma.new_wachtrij_sync.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
             prisma.new_transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
-            prisma.new_financialtransactions.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
           );
         }
         if (stallingsIds.length > 0) {
@@ -113,35 +112,20 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           );
         }
         await prisma.$transaction(deletes);
-
-        // new_accounts_pasids and new_accounts: scoped by SiteID (testgemeente contact)
-        const pasidsToDelete = await prisma.new_accounts_pasids.findMany({
-          where: { SiteID: contact.ID },
-          select: { AccountID: true },
-        });
-        const accountIds = [...new Set(pasidsToDelete.map((p) => p.AccountID).filter((id): id is string => id != null))];
-        if (accountIds.length > 0) {
-          await prisma.$transaction([
-            prisma.new_financialtransactions.deleteMany({ where: { accountID: { in: accountIds } } }),
-            prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } }),
-            prisma.new_accounts.deleteMany({ where: { ID: { in: accountIds } } }),
-          ]);
-        } else {
-          await prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } });
-        }
       }
 
-      await prisma.parkingsimulation_section_assignments.deleteMany({});
+      await prisma.parkingmgmt_occupation.deleteMany({});
+      await prisma.parkingmgmt_spot_detection.deleteMany({});
       if (pmConfig) {
-        await prisma.parkingsimulation_bicycles.updateMany({
+        await prisma.parkingmgmt_bicycles.updateMany({
           where: { simulationConfigId: pmConfig.id },
           data: { status: "available" },
         });
       }
     } else {
-      await prisma.parkingsimulation_section_assignments.deleteMany({});
+      await prisma.parkingmgmt_occupation.deleteMany({});
+      await prisma.parkingmgmt_spot_detection.deleteMany({});
     }
-    console.log("[parking-simulation/reset] End of reset");
     return res.status(200).json({ ok: true, message: "Data reset" });
   }
 
@@ -150,7 +134,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     if (alreadyExist) {
       return res.status(200).json({ ok: true, message: "Tabellen bestaan al", tablesExist: true });
     }
-    const success = await createParkingsimulationTables();
+    const success = await createParkingmgmtTables();
     const tablesExist = await checkTablesExist();
     if (success && tablesExist) {
       return res.status(200).json({ ok: true, message: "Tabellen aangemaakt", tablesExist: true });
@@ -160,29 +144,23 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
     return res.status(200).json({
       ok: true,
-      message: "Controleer of parkingsimulation-tabellen bestaan",
+      message: "Controleer of parkingmgmt-tabellen bestaan",
       tablesExist,
     });
   }
 
   if (action === "remove") {
+    const tablesExist = await checkTablesExist();
+    if (!tablesExist) {
+      return res.status(200).json({ ok: true, message: "Tabellen bestaan niet", tablesExist: false });
+    }
     try {
       await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
-      const tablesToDrop = [
-        ...PARKINGSIMULATION_TABLES,
-        "parkingsimulation_slots",
-        "parkingmgmt_occupation",
-        "parkingmgmt_spot_detection",
-        "parkingmgmt_slots",
-        "parkingmgmt_bicycles",
-        "parkingmgmt_simulation_config",
-      ];
-      for (const table of tablesToDrop) {
+      for (const table of PARKINGMGMT_TABLES) {
         await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS \`${table}\``);
       }
       await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 1");
-      const tablesExist = await checkTablesExist();
-      return res.status(200).json({ ok: true, message: "Tabellen verwijderd", tablesExist });
+      return res.status(200).json({ ok: true, message: "Tabellen verwijderd", tablesExist: false });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return res.status(500).json({ ok: false, message: "Fout bij verwijderen: " + msg });

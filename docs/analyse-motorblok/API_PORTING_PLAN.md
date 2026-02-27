@@ -22,22 +22,22 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| **Duplicate tables + triggers** | ✅ Done | Prisma schema, migration, trigger SQL; create/drop new_* tables via Database → Beheer page; triggers require manual SQL (amber box after create-tables) |
+| **Duplicate tables + triggers** | ✅ Done | Prisma schema, migration, trigger SQL; create/drop new_* tables via Database → Beheer page |
 | **Parking Simulation tables** | ✅ Done | Create/remove via SettingsTab Bootstrap; tables API (GET status, POST create/remove) |
 | **Test municipality** | ✅ Done | Create/delete with 7 stallings (config-driven); documenttemplates, contact_report_settings copied from Utrecht |
 | **Extract stallings script** | ✅ Done | `scripts/extract-stallings.ts` + config; outputs to generated file |
 | **FMS migration** | ✅ Done | `new_wachtrij_*` tables and triggers |
-| **FMS v2 read endpoints** | ✅ Done | getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes, getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo, updateLocker, isAllowedToUse |
+| **FMS v2 read endpoints** | ✅ Done | getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes |
 | **FMS v2 write endpoints** | ✅ Done | saveJsonBike(s), uploadJsonTransaction(s), addJsonSaldo(s), syncSector |
 | **Wachtrij service** | ✅ Done | `src/server/services/fms/wachtrij-service.ts` – inserts into queue tables |
 | **Swagger/OpenAPI** | ✅ Done | Spec + UI at `/api/docs` (public); write ops documented |
 | **GET comparison page** | ✅ Done | `/test/fms-api-compare` |
-| **Queue processor** | ✅ Done | Process `new_wachtrij_*` → `new_transacties`, `new_accounts`, etc.; latestProcessedTransactionDate for sync |
-| **fms-table-resolver.ts** | ✅ Done | Resolve table names for processor |
-| **new_webservice_log** | ⏳ Optional | Log FMS API calls; may need to create `new_webservice_log` table (mirror from webservice_log). Parking-simulation stallings list uses webservice_log; add new_webservice_log to union when it exists. Next.js logs updateLocker to webservice_log; ColdFusion method name (if different) should be verified in BaseFMSService.cfc. |
-| **Scheduler/cron** | ✅ Done | `/api/cron/process-queues` (Bearer CRON_SECRET) |
-| **Business logic services** | ✅ Done | bikeparkService, transactionService, accountService |
-| **Archive process** | ⏳ Phase 2 | Daily archive of processed queue records |
+| **Queue processor** | ❌ Pending | Process `new_wachtrij_*` → `new_transacties`, `new_accounts`, etc. |
+| **fms-table-resolver.ts** | ❌ Pending | Resolve table names for processor |
+| **new_webservice_log** | ❌ Pending | Log FMS API calls |
+| **Scheduler/cron** | ❌ Pending | Phase 3 – `/api/cron/process-queues` |
+| **Business logic services** | ❌ Pending | bikeparkService, transactionService, accountService |
+| **Archive process** | ❌ Pending | Daily archive of processed queue records |
 | **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). Biketypes ordered by SectionBiketypeID; ColdFusion has no orderby (see §14.1, A.11). |
 | **Testing** | ❌ Pending | Unit tests, integration tests |
 | **API migration guide** | ❌ Pending | Documentation for clients |
@@ -62,7 +62,7 @@ flowchart TB
     subgraph Client [Client]
         ComparePage[FMS API vergelijking /test/fms-api-compare]
         SwaggerUI[Swagger UI /api/docs]
-        Parkingsimulation[Parking Simulation /beheer/parking-simulation]
+        ParkingMgmt[Parking Simulation /beheer/parking-simulation]
     end
 
     subgraph API [API Layer]
@@ -75,7 +75,7 @@ flowchart TB
         Wachtrij[("wachtrij_*")]
         Trigger[AFTER INSERT Trigger]
         NewWachtrij[("new_wachtrij_*")]
-        ParkingsimulationTables[("parkingsimulation_*")]
+        ParkingMgmtTables[("parkingmgmt_*")]
         MainSchema[("contacts, fietsenstallingen")]
     end 
 
@@ -88,18 +88,18 @@ flowchart TB
 
     subgraph Processors [Queue Processors]
         CFProc[ColdFusion Processor]
-        NextProc[Next.js Processor ✅]
+        NextProc[Next.js Processor ❌ Pending]
     end
 
     ComparePage --> CFAPI
     ComparePage --> NextAPI
     SwaggerUI --> NextAPI
-    Parkingsimulation --> ProtectedAPI
-    Parkingsimulation -->|check-in/out, layout| NextAPI
+    ParkingMgmt --> ProtectedAPI
+    ParkingMgmt -->|check-in/out, layout| NextAPI
 
     CFAPI -->|writes| Wachtrij
     NextAPI -->|writes| Wachtrij
-    ProtectedAPI -->|parking-simulation| ParkingsimulationTables
+    ProtectedAPI -->|parking-simulation| ParkingMgmtTables
     ProtectedAPI -->|parking-simulation test-gemeente| MainSchema
 
     Wachtrij --> Trigger
@@ -122,9 +122,9 @@ flowchart TB
 | **FMS V3 API** | `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ Done | Resource hierarchy (citycodes, locations, sections, places, subscriptiontypes) |
 | **FMS V3 Service** | `src/server/services/fms/fms-v3-service.ts` | ✅ Done | Location/section/place assembly, ColdFusion-compatible response structure |
 | **Wachtrij Service** | `src/server/services/fms/wachtrij-service.ts` | ✅ Done | Insert into wachtrij_* queue tables |
-| **new_* tables create/drop** | `src/components/beheer/database/DataApiComponent.tsx` | ✅ Done | Create/drop new_* tables; triggers via manual SQL (amber box after create-tables) |
+| **new_* tables create/drop** | `src/components/beheer/database/DataApiComponent.tsx` | ✅ Done | Create/drop new_* tables and triggers; on Database → Beheer page |
 | **Parking Simulation** | `src/components/beheer/parking-simulation/` | ✅ Done | Simulation UI: DashboardOverview, SettingsTab, StallingPanel; tables bootstrap |
-| **Queue Processor** | `src/server/services/queue/processor.ts` | ✅ Done | Process new_wachtrij_* → new_transacties, new_accounts; latestProcessedTransactionDate for sync |
+| **Queue Processor** | `src/server/services/queue/processor.ts` | ❌ Pending | Process new_wachtrij_* → new_transacties, new_accounts |
 | **Swagger UI** | `/api/docs`, `src/pages/test/fms-api-docs.tsx` | ✅ Done | OpenAPI 3.0 spec, write ops documented |
 | **FMS Compare** | `src/pages/test/fms-api-compare.tsx` | ✅ Done | Side-by-side old vs new API comparison |
 
@@ -138,7 +138,7 @@ flowchart TB
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/protected/data-api/fms-tables` | POST | Create/drop new_* tables; returns manual SQL for triggers (UI: Database → Beheer) |
+| `/api/protected/data-api/fms-tables` | POST | Create/drop new_* tables and triggers (UI: Database → Beheer) |
 
 ### Parking Simulation
 
@@ -149,14 +149,15 @@ flowchart TB
 | `/api/protected/parking-simulation/test-gemeente/delete` | POST | Delete test municipality |
 | `/api/protected/parking-simulation/tables` | GET | Check if parkingmgmt tables exist |
 | `/api/protected/parking-simulation/tables` | POST | create/remove/reset tables |
-| `/api/protected/parking-simulation/config` | GET, PATCH | Simulation config (credentials, clock); parkingsimulation_simulation_config |
+| `/api/protected/parking-simulation/config` | GET, PATCH | Simulation config (credentials, clock); parkingmgmt_simulation_config |
 | `/api/protected/parking-simulation/state` | GET, POST | Bicycles, occupation (GET); park/remove/move (POST) |
 | `/api/protected/parking-simulation/time` | GET | Current simulation time |
 | `/api/protected/parking-simulation/sections-places/[locationid]` | GET | Sections and places for location |
 | `/api/protected/parking-simulation/bicycle-pool` | POST, DELETE | Create/delete bicycle pool |
-| `/api/protected/parking-simulation/process-queue` | POST | Call process-queue (local or remote based on useLocalProcessor) |
+| `/api/protected/parking-simulation/process-queue` | POST | Call remote process-queue (ColdFusion) |
 | `/api/protected/parking-simulation/clone-stalling` | POST | Clone stalling to testgemeente |
 | `/api/protected/parking-simulation/dataprovider` | GET, POST, DELETE | Simulatie dataprovider status/create/delete |
+| `/api/protected/parking-simulation/test-users` | GET | Test users for simulation |
 
 ### FMS Compare
 
@@ -169,11 +170,11 @@ flowchart TB
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/protected/wachtrij/wachtrij_transacties` | GET | Queue monitor; optional `bikeparkID`, `transactionDateFrom`, `useNewTables` |
-| `/api/protected/transacties` | GET | Transacties; optional `bikeparkID`, `FietsenstallingID`, `dateCheckinFrom`, `useNewTables` |
-| `/api/protected/wachtrij/wachtrij_pasids` | GET | Queue monitor; optional `bikeparkID`, `useNewTables` |
-| `/api/protected/wachtrij/wachtrij_betalingen` | GET | Queue monitor; optional `bikeparkID`, `useNewTables` |
-| `/api/protected/wachtrij/wachtrij_sync` | GET | Queue monitor; optional `bikeparkID`, `useNewTables` |
+| `/api/protected/wachtrij/wachtrij_transacties` | GET | Queue monitor; optional `bikeparkID`, `transactionDateFrom` |
+| `/api/protected/transacties` | GET | Transacties; optional `bikeparkID`, `FietsenstallingID`, `dateCheckinFrom` |
+| `/api/protected/wachtrij/wachtrij_pasids` | GET | Queue monitor; optional `bikeparkID` |
+| `/api/protected/wachtrij/wachtrij_betalingen` | GET | Queue monitor; optional `bikeparkID` |
+| `/api/protected/wachtrij/wachtrij_sync` | GET | Queue monitor; optional `bikeparkID` |
 
 ---
 
@@ -197,14 +198,16 @@ Both the ColdFusion and Next.js flows run in parallel. The trigger **mirrors** t
 
 *Downstream tables (Next.js processor output):* `new_transacties`, `new_transacties_archief`, `new_accounts`, `new_accounts_pasids`, `new_financialtransactions`
 
-**Minimum for test phase: 9 tables** (4 queue + 5 downstream). Created via `NewFmsTableActions.createNewFmsTables()` (inline SQL, same pattern as ParkingmgmtTableActions).
+**Minimum for test phase: 9 tables** (4 queue + 5 downstream). Migration: `prisma/migrations/20250224000000_add_new_fms_tables/migration.sql`.
 
 ### 1.3 Triggers
 
-- **Wachtrij triggers (1–4):** `AFTER INSERT` on `wachtrij_transacties`, `wachtrij_pasids`, `wachtrij_betalingen`, `wachtrij_sync`. Condition: `bikeparkID` belongs to testgemeente via `fietsenstallingen.SiteID` → `contacts` where `CompanyName = 'testgemeente API'`. Action: `INSERT` into corresponding `new_wachtrij_*` table. No DELETE – rows remain in `wachtrij_*` for the ColdFusion processor.
-- **Bezettingsdata triggers (5):** `AFTER INSERT` and `AFTER UPDATE` on `bezettingsdata_tmp` mirror testgemeente rows to `new_bezettingsdata_tmp` (for Lumiguide occupation when `useLocalProcessor`).
+- **Event:** `AFTER INSERT` on `wachtrij_transacties`, `wachtrij_pasids`, `wachtrij_betalingen`, `wachtrij_sync`
+- **Condition:** `bikeparkID` belongs to testgemeente via `fietsenstallingen.SiteID` → `contacts` where `CompanyName = 'testgemeente API'`
+- **Action:** `INSERT` into corresponding `new_wachtrij_*` table (same row data)
+- **No DELETE** – rows remain in `wachtrij_*` for the ColdFusion processor
 
-Create/drop via `POST /api/protected/data-api/fms-tables` with `action: 'create-tables'`, `'create-triggers'`, or `'drop'`. **Triggers:** create-tables returns `manualSql` with trigger SQL; run it manually in a MySQL client (amber box in UI). Script: `src/server/sql/fms-mirror-triggers.sql` (includes all triggers).
+Create/drop via `POST /api/protected/data-api/fms-tables` with `action: 'create-tables'`, `'create-triggers'`, or `'drop'`.
 
 ---
 
@@ -214,8 +217,8 @@ Create/drop via `POST /api/protected/data-api/fms-tables` with `action: 'create-
 
 **Location:** Beheer → Database → Beheer. The DataApiComponent provides UI to create/drop the `new_*` tables and triggers.
 
-- **Create test tabellen** – creates `new_wachtrij_*`, `new_transacties`, `new_accounts`, etc., `new_bezettingsdata_tmp`, `new_bezettingsdata`; returns manual SQL for triggers (run in MySQL client)
-- **Maak triggers** – returns manual SQL for wachtrij_* → new_wachtrij_* triggers and bezettingsdata_tmp → new_bezettingsdata_tmp triggers (Trigger 5)
+- **Create test tabellen** – creates `new_wachtrij_transacties`, `new_wachtrij_pasids`, `new_wachtrij_betalingen`, `new_wachtrij_sync`
+- **Maak triggers** – creates `AFTER INSERT` triggers on `wachtrij_*` that mirror testgemeente rows to `new_wachtrij_*`
 - **Verwijder test tabellen** – drops the `new_*` tables and triggers
 
 **API:** `POST /api/protected/data-api/fms-tables` with `action: 'create-tables'`, `'create-triggers'`, or `'drop'`.
@@ -228,16 +231,16 @@ Create/drop via `POST /api/protected/data-api/fms-tables` with `action: 'create-
 
 **Location:** Beheer → Parking Simulation → Instellingen tab → Bootstrap section.
 
-The Parking Simulation simulation uses four `parkingsimulation_*` tables: `parkingsimulation_simulation_config`, `parkingsimulation_bicycles`, `parkingsimulation_spot_detection`, `parkingsimulation_occupation`. These can be created or removed via the Bootstrap UI. (Cost calculation mode comes from FMS `BerekentStallingskosten` on fietsenstallingen.)
+The Parking Simulation simulation uses four `parkingmgmt_*` tables: `parkingmgmt_simulation_config`, `parkingmgmt_bicycles`, `parkingmgmt_spot_detection`, `parkingmgmt_occupation`. These can be created or removed via the Bootstrap UI. (Cost calculation mode comes from FMS `BerekentStallingskosten` on fietsenstallingen.)
 
-**Table structure:** `parkingsimulation_simulation_config` is the singleton config per testgemeente (one row per siteID). It stores API credentials, baseUrl, processQueueBaseUrl, simulation clock offset, etc. Bicycles and spot_detection reference it via `simulationConfigId`.
+**Table structure:** `parkingmgmt_simulation_config` is the singleton config per testgemeente (one row per siteID). It stores API credentials, baseUrl, processQueueBaseUrl, simulation clock offset, etc. Bicycles and spot_detection reference it via `simulationConfigId`.
 
 ### API
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/protected/parking-simulation/tables` | GET | Check if all 4 parkingmgmt tables exist → `{ tablesExist: boolean }` |
-| `/api/protected/parking-simulation/tables` | POST | `action: 'create'` – create parkingmgmt tables via raw SQL; `action: 'remove'` – drop tables; `action: 'reset'` – clear data, reset clock |
+| `/api/protected/parking-simulation/tables` | POST | `action: 'create'` – run `prisma migrate deploy`; `action: 'remove'` – drop tables; `action: 'reset'` – clear data, reset clock |
 
 **Access:** `fietsberaad_superadmin` only.
 
@@ -317,9 +320,9 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 
 ## 4. FMS REST API (V2/V3)
 
-**Status: 🔶 Partial** – Read-only and write endpoints done. **V2:** getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo, updateLocker, isAllowedToUse, addSubscription, subscribe implemented. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). **TODO:** balances, subscriptions, bikeupdates (V3 protected).
+**Status: 🔶 Partial** – Read-only and write endpoints done. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). **TODO:** getSectors, getBikes, getSubscriptors, updateLocker, isAllowedToUse (V2); balances, subscriptions, bikeupdates (V3 protected).
 
-**Reference:** [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix E – only REST is used; SOAP/CFC remote is deprecated.
+**Reference:** [wachtrij-tables-api-methods.md](wachtrij-tables-api-methods.md) – only REST is used; SOAP/CFC remote is deprecated.
 
 **Scope:** Implement only endpoints from ColdFusion REST (`remote/REST/FMSService.cfc`, `remote/REST/v3/fms_service.cfc`). Do not add SOAP-only methods (e.g. `getJsonBikeType`). See [§12.1 REST-only: No SOAP methods](#121-rest-only-no-soap-methods).
 
@@ -343,10 +346,8 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 | Add balance | POST | `/api/fms/v2/addJsonSaldo/{bikeparkID}` | wachtrij_betalingen |
 | Add balances (bulk) | POST | `/api/fms/v2/addJsonSaldos/{bikeparkID}` | wachtrij_betalingen |
 | Sync sector | PUT | `/api/fms/v2/syncSector/{bikeparkID}/{sectionID}` | wachtrij_sync |
-| Add subscription | POST | `/api/fms/v2/addSubscription/{bikeparkID}` | abonnementen, financialtransactions |
-| Subscribe (link pass to subscription) | POST | `/api/fms/v2/subscribe/{bikeparkID}` | abonnementen, accounts_pasids |
 
-**Read-only:** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes, getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo. **Locker:** updateLocker (POST), isAllowedToUse (GET, rfid/passID query).
+**Read-only:** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes.
 
 ### 4.3 V3 Endpoints
 
@@ -467,9 +468,9 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 ## 7. Transaction Processing Backend (Phase 3)
 
-**Status: ✅ Done**
+**Status: ❌ Pending**
 
-**Location:** `src/server/services/queue/processor.ts`
+**Location:** `/src/server/services/queue/processor.ts`
 
 | Queue | Batch size | Logic |
 |-------|------------|-------|
@@ -482,7 +483,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 **Next.js processor (test phase):** Processes `new_wachtrij_*` (testgemeente only) → writes to `new_transacties`, `new_accounts`, etc. Both flows run; compare production data (filtered by testgemeente) with `new_*` data to validate.
 
-**Reference:** [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md), [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix A.
+**Reference:** [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md), [wachtrij-transactie-processing-stappen.md](wachtrij-transactie-processing-stappen.md).
 
 ### 7.1 Transaction Flow
 
@@ -494,10 +495,9 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 ### 7.2 Scheduler & Archive
 
-- **Cron:** `/api/cron/process-queues` (Bearer CRON_SECRET) – calls `processQueues()` from processor
-- **Process button:** StallingPanel calls `/api/protected/parking-simulation/process-queue`; uses `processQueues()` when `useLocalProcessor` is true, else remote ColdFusion
-- **Config:** `parkingsimulation_simulation_config.useLocalProcessor` (default true); SettingsTab toggle
-- **Archive:** Daily `wachtrij_*_archive{yyyymmdd}` – Phase 2, not implemented
+- Endpoint: `/api/cron/process-queues` (callable via cron)
+- Error handling, email alerts for financial errors
+- Archive: Daily `wachtrij_*_archive{yyyymmdd}`
 
 ---
 
@@ -511,7 +511,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | idtype | 0–4 | 0=barcode, 1=ov-chipkaart, 2=cijfercode, 3=tijdelijk ov, 4=tijdelijk barcode |
 | typecheck | user, controle, reservation | |
 | type | in, out | |
-| paymenttypeid | 1–2 | 1=betaald, 2=kwijtschelding. With amountpaid > 0: payment at check-in (wachtrij_betalingen). Appendix N in QUEUE_PROCESSOR_PORTING_PLAN. |
+| paymenttypeid | 1–2 | 1=betaald, 2=kwijtschelding |
 | locationtypeid | 1–7 | Maps to fietsenstallingtypen |
 | statuscode | 0–4 | 0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking |
 
@@ -540,10 +540,9 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `NewFmsTableActions.ts` | ✅ | 9 new_* tables (inline SQL); triggers: `src/server/sql/fms-mirror-triggers.sql` |
+| `prisma/migrations/20250224000000_add_new_fms_tables/` | ✅ | 9 new_* tables + trigger SQL |
 | `src/server/services/fms/wachtrij-service.ts` | ✅ | Insert into queue tables |
-| `src/server/utils/fms-table-resolver.ts` | ✅ | Resolve table names for processor |
-| `src/server/services/queue/processor.ts` | ✅ | processQueues(); pasids → transacties → betalingen → sync |
+| `src/server/utils/fms-table-resolver.ts` | ⏳ | Resolve table names for processor |
 | `src/pages/api/fms/v2/[[...path]].ts` | ✅ | V2 routes (read + write ops done) |
 | `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ | V3 routes (citycodes, locations, sections, places, subscriptiontypes) |
 | `src/pages/test/fms-api-compare.tsx` | ✅ | GET comparison UI |
@@ -551,7 +550,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | `src/lib/openapi/fms-api.json` | ✅ | OpenAPI 3.0 spec |
 | `src/pages/test/fms-api-docs.tsx` | ✅ | Swagger UI |
 | `src/components/beheer/database/DataApiComponent.tsx` | ✅ | new_* tables create/drop (Database → Beheer) |
-| `src/pages/api/protected/data-api/fms-tables.ts` | ✅ | Create/drop new_* tables; returns manualSql for triggers (UI: Database → Beheer) |
+| `src/pages/api/protected/data-api/fms-tables.ts` | ✅ | Create/drop new_* tables and triggers (UI: Database → Beheer) |
 | `src/pages/api/protected/parking-simulation/test-gemeente/status.ts` | ✅ | Check if test municipality exists |
 | `src/pages/api/protected/parking-simulation/test-gemeente/create.ts` | ✅ | Create (7 stallings, documenttemplates, contact_report_settings) |
 | `src/pages/api/protected/parking-simulation/test-gemeente/delete.ts` | ✅ | Delete test municipality |
@@ -567,7 +566,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 4. ~~FMS services (read + write)~~ ✅
 5. ~~GET comparison page~~ ✅
 6. ~~Swagger~~ ✅
-7. ~~Phase 3 – Transaction processing (queue processor)~~ ✅
+7. Phase 3 – Transaction processing (queue processor)
 8. ~~documenttemplates, contact_report_settings for test municipality~~ ✅
 9. ~~V3 open data endpoints~~ ✅ (locations, sections, places, subscriptiontypes)
 10. Testing
@@ -584,11 +583,11 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 |----------|---------|
 | [SERVICES_FMS.md](SERVICES_FMS.md) | FMS API behaviour (ColdFusion reference) |
 | [DATASTANDARD_REPORTING_API_PLAN.md](DATASTANDARD_REPORTING_API_PLAN.md) | Datastandard and Reporting APIs (separate plan) |
-| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix E | Which REST methods write to queue tables |
-| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix A | Queue processing steps |
+| [wachtrij-tables-api-methods.md](wachtrij-tables-api-methods.md) | Which REST methods write to queue tables |
+| [wachtrij-transactie-processing-stappen.md](wachtrij-transactie-processing-stappen.md) | Queue processing steps |
 | [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md) | Transaction flow diagram |
 | [FMSservice-rest_v3.0.4.pdf](../documentatie-crow/1-api/FMSservice-rest_v3.0.4.pdf) | Official CROW FMS REST API v3 documentation |
-| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix C | ColdFusion → DB source mapping (occupation, capacity, sectionBikeTypes) |
+| [OCCUPIED_CAPACITY_FLOW.md](OCCUPIED_CAPACITY_FLOW.md) | ColdFusion → DB source mapping (occupation, capacity, sectionBikeTypes) |
 | [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md) | Capacity comparison old vs new API |
 | `scripts/README-extract-stallings.md` | Extract stallings for test municipality |
 
@@ -699,7 +698,7 @@ flowchart TD
 
 ## Appendix A: Dynamic and Conditional Parameters
 
-This appendix documents how dynamic parameters (occupation, free, capacity, etc.) and parameters that depend on conditions are calculated. Reference: `fms-v3-service.ts`, [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix C, `OCCUPIED_CAPACITY_COMPARISON.md`.
+This appendix documents how dynamic parameters (occupation, free, capacity, etc.) and parameters that depend on conditions are calculated. Reference: `fms-v3-service.ts`, `OCCUPIED_CAPACITY_FLOW.md`, `OCCUPIED_CAPACITY_COMPARISON.md`.
 
 ---
 
@@ -939,7 +938,7 @@ ColdFusion: `capacity` only when `bikepark.getCapacity() > 0`.
 
 ## Bicycle Parking Simulation
 
-A bicycle parking simulation for testing FMS REST v2/v3 write methods, built in Beheer → Parking Simulation. The simulation state (bikes, occupation, spot detection) is persisted in `parkingsimulation_*` database tables. It adapts to selected stallings from testgemeente, triggers real FMS v2 API calls for check-in/out and sync, and integrates with the process-queue.
+A bicycle parking simulation for testing FMS REST v2/v3 write methods, built in Beheer → Parking Simulation. The simulation state (bikes, occupation, spot detection) is persisted in `parkingmgmt_*` database tables. It adapts to selected stallings from testgemeente, triggers real FMS v2 API calls for check-in/out and sync, and integrates with the process-queue.
 
 ### Simulation Architecture
 
@@ -959,7 +958,7 @@ flowchart TB
     end
 
     subgraph DB [Database]
-        Parkingsimulation[("parkingsimulation_*")]
+        ParkingMgmt[("parkingmgmt_*")]
         Fietsenstallingen[(fietsenstallingen)]
         Sectie[(fietsenstalling_sectie)]
         Plek[(fietsenstalling_plek)]
@@ -983,17 +982,18 @@ flowchart TB
     V3API --> Plek
 ```
 
-**Simulation state:** Persisted in database (`parkingsimulation_simulation_config`, `parkingsimulation_bicycles`, `parkingsimulation_occupation`, `parkingsimulation_spot_detection`), not in memory.
+**Simulation state:** Persisted in database (`parkingmgmt_simulation_config`, `parkingmgmt_bicycles`, `parkingmgmt_occupation`, `parkingmgmt_spot_detection`), not in memory.
 
 ### Simulation Component Design
 
 #### 1. Simulation State (Database)
 
-**Location:** `parkingsimulation_*` tables in database
+**Location:** `parkingmgmt_*` tables in database
 
-- **parkingsimulation_simulation_config**: Singleton per testgemeente – credentials, baseUrl, processQueueBaseUrl, useLocalProcessor (default true), simulationTimeOffsetSeconds, simulationStartDate
-- **parkingsimulation_bicycles**: Bicycle pool `{ id, barcode, passID, biketypeID, status }` – linked via `simulationConfigId`
-- **parkingsimulation_section_assignments**: Bicycles linked to sections (bicycleId, locationid, sectionid, checkedIn, passID). No place/slot; visualization by bicycle types parked + Onbezet column. Capacity from sectie_fietstype.
+- **parkingmgmt_simulation_config**: Singleton per testgemeente – credentials, baseUrl, processQueueBaseUrl, simulationTimeOffsetSeconds, simulationStartDate
+- **parkingmgmt_bicycles**: Bicycle pool `{ id, barcode, passID, biketypeID, status }` – linked via `simulationConfigId`
+- **parkingmgmt_occupation**: Which bike is parked where (bicycleId, locationid, sectionid, placeId, checkedIn)
+- **parkingmgmt_spot_detection**: Per-spot detection state (Lumiguide simulation)
 
 #### 2. Stalling Dashboard (Main UI)
 
@@ -1009,8 +1009,8 @@ flowchart TB
 - **Layout**: Sections, places (fietskluizen), occupation from V3 API
 - **Bicycle selector**: Dropdown of available bikes from pool
 - **Actions**: Check-in, Check-out → calls FMS v2 directly (client credentials)
-- **Motorblok tab**: Wachtrij + transacties for selected stalling; shows `new_*` when `useLocalProcessor` is on
-- **Process queue**: Button calls process-queue API (local or remote based on `useLocalProcessor`); sync dialog shows open transactions
+- **Motorblok tab**: Wachtrij + transacties for selected stalling
+- **Process queue**: Button to call remote process-queue (ColdFusion)
 
 #### 3. Bootstrap / Instellingen Tab
 
@@ -1030,14 +1030,15 @@ flowchart TB
 | `test-gemeente/create` | POST | Create test municipality (7 stallings) |
 | `test-gemeente/delete` | POST | Delete test municipality |
 | `tables` | GET, POST | Check/create/remove/reset parkingmgmt tables |
-| `config` | GET, PATCH | Simulation config (credentials, clock, useLocalProcessor); parkingsimulation_simulation_config |
+| `config` | GET, PATCH | Simulation config (credentials, clock); parkingmgmt_simulation_config |
 | `state` | GET, POST | Bicycles, occupation (GET); park/remove/move (POST) |
 | `time` | GET | Current simulation time |
 | `sections-places/[locationid]` | GET | Sections and places for location |
 | `bicycle-pool` | POST, DELETE | Create/delete bicycle pool |
-| `process-queue` | POST | Call process-queue (local or remote based on useLocalProcessor) |
+| `process-queue` | POST | Call remote process-queue |
 | `clone-stalling` | POST | Clone stalling to testgemeente |
 | `dataprovider` | GET, POST, DELETE | Simulatie dataprovider |
+| `test-users` | GET | Test users for simulation |
 
 **Stallings list, delete, clone source:** Use `GET /api/protected/fietsenstallingen?GemeenteID=<site_id>` (filter by type/search client-side for clone source) and `DELETE /api/protected/fietsenstallingen/[id]`. Test gemeente: `GET /api/protected/parking-simulation/test-gemeente/status`, `POST create`, `POST delete`.
 
@@ -1056,12 +1057,6 @@ flowchart TB
 | **Undetected spot (Lumiguide)** | Spot marked as undetected; bike can park but Lumiguide doesn't "see" it | Sim state only                                       |
 | **Add balance**                 | User adds saldo to pass                                                 | `POST addJsonSaldo`                                  |
 | **Save bike (link pass)**       | Register bike–pass link                                                 | `POST saveJsonBike`                                  |
-
-### Statistics Tab (Parkeer Simulatie → Statistieken)
-
-Shows write-method call counts per stalling: `uploadJsonTransaction(s)`, `saveJsonBike(s)`, `addJsonSaldo(s)`, `syncSector`, `reportOccupationData` / `reportJsonOccupationData`. Data from `wachtrij_*`, `bezettingsdata_tmp`, `new_*` tables; stallings list from union including `webservice_log`.
-
-**updateLocker column:** Hidden for now. ColdFusion never logs updateLocker to `webservice_log`; Next.js FMS API does log it, but the column is commented out in `StatisticsTab.tsx` until needed. Backend (`data.ts`) still returns `countUpdateLocker`; uncomment the column in COLUMNS to show it.
 
 ### Simulation Data Flow: Layout
 
@@ -1083,11 +1078,10 @@ src/
         DashboardOverview.tsx            # Stallings overview
         SettingsTab.tsx                  # Instellingen (bootstrap, credentials)
         StallingPanel.tsx                # Per-stalling view + actions
-        StatisticsTab.tsx                # Write-method counts per stalling (stallings + data APIs)
         SimulationClockOverlay.tsx       # Clock display
   lib/
     parking-simulation/
-      fms-api-write-client.ts # FMS v2 write calls with auth
+      fms-api-client.ts       # FMS v2 calls with auth
       types.ts                # Types (DEFAULT_SIMULATION_START_DATE, etc.)
   pages/api/protected/
     parking-simulation/
@@ -1103,6 +1097,7 @@ src/
       time.ts
       clone-stalling.ts
       dataprovider/index.ts
+      test-users.ts
 ```
 
 ### Simulation Implementation Phases
@@ -1113,12 +1108,12 @@ src/
 - Dashboard: layout visualization (sections, places for fietskluizen)
 - Check-in / check-out via `uploadJsonTransaction` (client)
 - Sync via `syncSector`
-- Simulation state in database (parkingsimulation_*)
+- Simulation state in database (parkingmgmt_*)
 
-#### Phase 2: Lumiguide & Occupation ✅ Done
+#### Phase 2: Lumiguide & Occupation
 
-- Lumiguide stalls: `reportOccupationData` called on park/remove for sections with BronBezettingsdata != 'FMS'. No per-spot detection in section-based model.
-- `reportOccupationData` ported – FMS v2 REST, `report-occupation-service.ts`; writes to `bezettingsdata_tmp`; trigger mirrors to `new_bezettingsdata_tmp` for testgemeente; `update-bezettingsdata` processes tmp → `new_bezettingsdata`
+- Lumiguide stalls: `parkingmgmt_spot_detection` for per-spot detection state
+- `reportOccupationData` not yet ported – Lumiguide occupation simulated in UI/DB only
 
 #### Phase 3: Financial & Subscriptions
 
@@ -1131,56 +1126,12 @@ src/
 - **Existing**: `wachtrij-service`, FMS v2 routes, `fms-v3-service` (layout), `fms-test-credentials`
 - **Auth**: `fietsberaad_superadmin` for FMS credentials; consider `beheer` role for stallings list
 - **Testgemeente**: Use testgemeente stallings for safe testing (writes go to `wachtrij_*`, mirrored to `new_wachtrij_*`)
-- **Read Access Strategy**: Protected API provides read access to `new_*` tables (transacties, wachtrij_*, pasids, sections-places with useNewTables). We keep these; no replacement with FMS planned. FMS v2/v3 API never reads from `new_*` tables. The simulation does not use FMS v2 locker methods (`getLockerInfo`, `updateLocker`, `isAllowedToUse`); those are for external fietskluizen hardware.
-
-### Parking Simulation: Protected vs FMS API Reference
-
-**Protected API endpoints used by parkingsimulation** (setup, metadata, wachtrij/transacties visualisation):
-
-| Endpoint | Used in | Purpose |
-|----------|---------|---------|
-| `/api/protected/parking-simulation/config` | StallingPanel, SettingsTab, SimulationClockOverlay | Simulation config (credentials, clock, useLocalProcessor) |
-| `/api/protected/parking-simulation/state` | ActiesPanel, FietsenTab, StallingPanel, DashboardOverview, SimulationClockOverlay | Bicycles, occupation; park/remove/move |
-| `/api/protected/parking-simulation/pasids` | ActiesPanel | Metadata: list pasids for test site (new_accounts_pasids) |
-| `/api/protected/parking-simulation/time` | ActiesPanel, FietsenTab, StallingPanel, SimulationClockOverlay | Current simulation time |
-| `/api/protected/parking-simulation/tables` | SettingsTab, ParkingManagementDashboard, DashboardOverview | Create/remove/reset parkingsimulation tables |
-| `/api/protected/parking-simulation/test-gemeente/status` | SettingsTab, ParkingManagementDashboard | Test municipality exists? Return contact ID |
-| `/api/protected/parking-simulation/bicycle-pool` | DashboardOverview | Create/delete bicycle pool |
-| `/api/protected/parking-simulation/process-queue` | StallingPanel | Process queue (local or remote) |
-| `/api/protected/parking-simulation/clone-stalling` | SettingsTab | Clone stalling to testgemeente |
-| `/api/protected/parking-simulation/dataprovider` | SettingsTab | Dataprovider status/create/delete |
-| `/api/protected/parking-simulation/slots/[locationid]` | StallingSlotOverview | Section-based occupation (parkingsimulation_section_assignments) |
-| `/api/protected/wachtrij/wachtrij_transacties` | StallingPanel | Queue: transacties in wachtrij |
-| `/api/protected/wachtrij/wachtrij_pasids` | StallingPanel | Queue: pasids in wachtrij |
-| `/api/protected/wachtrij/wachtrij_betalingen` | StallingPanel | Queue: betalingen in wachtrij |
-| `/api/protected/wachtrij/wachtrij_sync` | StallingPanel | Queue: sync in wachtrij |
-| `/api/protected/wachtrij/reset-transactie` | StallingPanel | Reset single transactie in wachtrij |
-| `/api/protected/transacties` | StallingPanel | Processed transacties (dateCheckinFrom filter) |
-| `/api/protected/parking-simulation/sections-places/[locationid]` | StallingPanel, ActiesPanel | Stalling layout (sections, places) |
-| `/api/protected/parking-simulation/update-bezettingsdata` | StallingPanel | Process bezettingsdata_tmp → bezettingsdata |
-| `/api/protected/fietsenstallingen?GemeenteID=` | SettingsTab, ParkingManagementDashboard | Stallings list by municipality |
-
-*Inserts into wachtrijtabellen are done via FMS v2 (uploadJsonTransaction, syncSector, etc.) from the frontend.*
-
-**FMS v2/v3 available endpoints (relevant subset):**
-
-| Endpoint | Auth | Purpose |
-|----------|------|---------|
-| **V2** `getJsonSectors/{bikeparkID}` | Basic | Sectors: name, places, rates, maxParkingTime |
-| **V2** `getJsonBikes/{bikeparkID}` | Basic | All bikes in municipality (barcoderegister) |
-| **V2** `getJsonBikeUpdates/{bikeparkID}?fromDate=` | Basic | Bikes changed since fromDate (transacties-based) |
-| **V2** `getJsonSubscriptors/{bikeparkID}` | Basic | Key fobs with active subscriptions |
-| **V2** `getLockerInfo/{bikeparkID}/{sectionID}/{placeID}` | Basic | Locker status (fietskluizen) |
-| **V2** `updateLocker`, `isAllowedToUse` | Basic | Locker status update, RFID check (fietskluizen; not used by simulation) |
-| **V2** `getServerTime` | Public | Server time |
-| **V2** `getJsonBikeTypes`, `getJsonPaymentTypes`, `getJsonClientTypes` | Public | Reference data |
-| **V3** `citycodes`, `citycodes/{citycode}`, `citycodes/{citycode}/locations`, etc. | Public | Locations, sections, places |
-| **V2** `uploadJsonTransaction`, `syncSector`, `addJsonSaldo`, `saveJsonBike`, `reportOccupationData` | Basic | Writes (used by simulation via fms-api-write-client) |
 
 ### Simulation Open Questions
 
-1. **Test users**: Phase 3 – create test accounts with passIDs for subscription scenarios.
-2. **Automatic simulation**: Optional future – auto park/unpark on timer for stress testing.
+1. **reportOccupationData**: Not implemented in Next.js. For Lumiguide simulation, we can either (a) add a minimal protected endpoint that writes to `fietsenstalling_sectie.Bezetting` for simulation, or (b) keep Lumiguide as UI-only simulation until the method is ported.
+2. **Test users**: Phase 3 – create test accounts with passIDs for subscription scenarios.
+3. **Automatic simulation**: Optional future – auto park/unpark on timer for stress testing.
 
 ---
 

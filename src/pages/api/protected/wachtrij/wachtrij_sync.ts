@@ -18,11 +18,8 @@ export default async function handler(
     return;
   }
 
-  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default).
-  // Also allow fietsberaad_superadmin for parking simulation context (user may have switched to testgemeente contact).
-  const hasAccess =
-    userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij) ||
-    userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default)
+  const hasAccess = userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij);
 
   if (!hasAccess) {
     console.error("Access denied - insufficient permissions for wachtrij_sync");
@@ -47,55 +44,28 @@ export default async function handler(
       const orderByField = sortableColumns.includes(sortBy as typeof sortableColumns[number]) ? sortBy : 'dateCreated';
 
       const bikeparkID = req.query.bikeparkID as string | undefined;
-      const transactionDateFrom = req.query.transactionDateFrom as string | undefined;
-      const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
-      const where: { bikeparkID?: string; transactionDate?: { gte: Date } } = {};
-      if (bikeparkID) where.bikeparkID = bikeparkID;
-      if (transactionDateFrom) {
-        const from = new Date(transactionDateFrom);
-        if (!isNaN(from.getTime())) where.transactionDate = { gte: from };
-      }
+      const where = bikeparkID ? { bikeparkID } : {};
 
       // Perform count and page fetch in parallel (summary removed)
-      const [total, records] = useNewTables
-        ? await Promise.all([
-            prisma.new_wachtrij_sync.count({ where }),
-            prisma.new_wachtrij_sync.findMany({
-              where,
-              select: {
-                ID: true,
-                bikeparkID: true,
-                sectionID: true,
-                transactionDate: true,
-                processed: true,
-                processDate: true,
-                error: true,
-                dateCreated: true,
-              },
-              orderBy: { [orderByField]: sortOrder },
-              skip: (page - 1) * finalPageSize,
-              take: finalPageSize,
-            }),
-          ])
-        : await Promise.all([
-            prisma.wachtrij_sync.count({ where }),
-            prisma.wachtrij_sync.findMany({
-              where,
-              select: {
-                ID: true,
-                bikeparkID: true,
-                sectionID: true,
-                transactionDate: true,
-                processed: true,
-                processDate: true,
-                error: true,
-                dateCreated: true
-              },
-              orderBy: { [orderByField]: sortOrder },
-              skip: (page - 1) * finalPageSize,
-              take: finalPageSize
-            })
-          ]);
+      const [total, records] = await Promise.all([
+        prisma.wachtrij_sync.count({ where }),
+        prisma.wachtrij_sync.findMany({
+          where,
+          select: {
+            ID: true,
+            bikeparkID: true,
+            sectionID: true,
+            transactionDate: true,
+            processed: true,
+            processDate: true,
+            error: true,
+            dateCreated: true
+          },
+          orderBy: { [orderByField]: sortOrder },
+          skip: (page - 1) * finalPageSize,
+          take: finalPageSize
+        })
+      ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 
