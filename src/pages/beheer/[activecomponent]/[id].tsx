@@ -263,10 +263,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
       try {
         const response = await fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`);
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(`Failed to fetch modules for ${selectedContactID}`);
+          const msg = (data as { error?: string })?.error ?? response.statusText;
+          throw new Error(`Failed to fetch modules for ${selectedContactID}: ${response.status} ${msg}`);
         }
-        const modules: VSmodules_contacts[] = await response.json();
+        const modules = data as VSmodules_contacts[];
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
         }

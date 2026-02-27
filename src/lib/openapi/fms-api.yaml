@@ -1,0 +1,194 @@
+openapi: 3.0.3
+info:
+  title: FMS REST API
+  description: Fietsenstallingen Management Service REST API (V2 en V3)
+  version: 1.0.0
+
+servers:
+  - url: /api/fms
+    description: Next.js API
+
+security:
+  - basicAuth: []
+
+paths:
+  /v2/getServerTime:
+    get:
+      summary: Server tijd
+      tags: [V2]
+      security: []
+      responses:
+        '200':
+          description: ISO 8601 timestamp
+          content:
+            application/json:
+              schema:
+                type: string
+                format: date-time
+
+  /v2/getJsonBikeTypes:
+    get:
+      summary: Alle fietstypen
+      tags: [V2]
+      security: []
+      responses:
+        '200':
+          description: Array van fietstypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BikeType'
+
+  /v2/getJsonPaymentTypes:
+    get:
+      summary: Betalingstypen
+      tags: [V2]
+      security: []
+      responses:
+        '200':
+          description: Array van betalingstypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentType'
+
+  /v2/getJsonClientTypes:
+    get:
+      summary: Klanttypen
+      tags: [V2]
+      security: []
+      responses:
+        '200':
+          description: Array van klanttypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientType'
+
+  /v3/citycodes:
+    get:
+      summary: Lijst van citycodes (gemeenten)
+      tags: [V3]
+      security: []
+      responses:
+        '200':
+          description: Array van citycodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CityCode'
+
+  /v3/citycodes/{citycode}:
+    get:
+      summary: Gemeente met locaties
+      tags: [V3]
+      security: []
+      parameters:
+        - name: citycode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "9933"
+      responses:
+        '200':
+          description: Gemeente inclusief locaties
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CityWithLocations'
+        '404':
+          description: Niet gevonden
+
+  /v3/citycodes/{citycode}/locations:
+    get:
+      summary: Locaties in gemeente
+      tags: [V3]
+      security: []
+      parameters:
+        - name: citycode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array van locaties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LocationSummary'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic Auth (UrlName + Password uit contacts)
+
+  schemas:
+    BikeType:
+      type: object
+      properties:
+        bikeTypeID:
+          type: integer
+          description: "1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden"
+        name:
+          type: string
+        naamenkelvoud:
+          type: string
+
+    PaymentType:
+      type: object
+      properties:
+        paymentTypeID:
+          type: integer
+          description: "1=betaald, 2=kwijtschelding"
+        name:
+          type: string
+
+    ClientType:
+      type: object
+      properties:
+        clientTypeID:
+          type: integer
+        name:
+          type: string
+
+    CityCode:
+      type: object
+      properties:
+        citycode:
+          type: string
+        name:
+          type: string
+
+    LocationSummary:
+      type: object
+      properties:
+        locationid:
+          type: string
+        name:
+          type: string
+
+    CityWithLocations:
+      type: object
+      properties:
+        citycode:
+          type: string
+        name:
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocationSummary'

@@ -3,6 +3,11 @@ import moment from "moment";
 
 import type { DayPrefix } from "~/types/index";
 import type { ParkingDetailsType, UitzonderingenOpeningstijden } from "~/types/parking";
+import {
+  isOpenNow,
+  formatTimeHHmm,
+  type OpeningHoursSchedule,
+} from "~/utils/opening-hours";
 
 const getOpenTimeKey = (day: DayPrefix): keyof ParkingDetailsType => {
   return ('Open_' + day) as keyof ParkingDetailsType;
@@ -22,6 +27,29 @@ const getExceptionTypes = () => {
     "fietskluizen",
     "buurtstalling"
   ]
+}
+
+const DAYS: DayPrefix[] = ["zo", "ma", "di", "wo", "do", "vr", "za"];
+
+function buildSchedule(
+  parkingdata: ParkingDetailsType,
+  daytxt: DayPrefix,
+  customOpenTime: string | Date | null | undefined,
+  customCloseTime: string | Date | null | undefined
+): OpeningHoursSchedule {
+  const schedule: OpeningHoursSchedule = {};
+  for (const d of DAYS) {
+    if (d === daytxt && (customOpenTime != null || customCloseTime != null)) {
+      schedule[`Open_${d}`] = customOpenTime ?? null;
+      schedule[`Dicht_${d}`] = customCloseTime ?? null;
+    } else {
+      const openVal = parkingdata[getOpenTimeKey(d)];
+      const dichtVal = parkingdata[getDichtTimeKey(d)];
+      schedule[`Open_${d}`] = openVal ?? null;
+      schedule[`Dicht_${d}`] = dichtVal ?? null;
+    }
+  }
+  return schedule;
 }
 
 export type openingTodayType = {
@@ -51,24 +79,17 @@ const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopening
 
 export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: moment.Moment): openingTodayType => {
   const dayidx = thedate.day();
-  const daytxt = ["zo", "ma", "di", "wo", "do", "vr", "za"][dayidx] as DayPrefix;
+  const daytxt = DAYS[dayidx] as DayPrefix;
 
   // Get manually added exceptions (uitzonderingenopeningstijden)
   const [customOpenTime, customCloseTime] = getTodaysCustomOpeningTimes(thedate, parkingdata.uitzonderingenopeningstijden);
 
-  // Check if thedate is today
-  const isToday = thedate.isSame(moment(), 'day');
-
   const opentime = (customOpenTime != null
     ? customOpenTime
-    : (daytxt && daytxt !== null && daytxt !== undefined
-        ? parkingdata[getOpenTimeKey(daytxt as DayPrefix)]
-        : null));
+    : (daytxt ? parkingdata[getOpenTimeKey(daytxt)] : null));
   const closetime = (customCloseTime != null
     ? customCloseTime
-    : (daytxt && daytxt !== null && daytxt !== undefined
-        ? parkingdata[getDichtTimeKey(daytxt as DayPrefix)]
-        : null));
+    : (daytxt ? parkingdata[getDichtTimeKey(daytxt)] : null));
 
   const openinfo = typeof opentime === 'string' ? moment.utc(opentime) : moment.invalid();
   const closeinfo = typeof closetime === 'string' ? moment.utc(closetime) : moment.invalid();
@@ -76,95 +97,34 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
   const isNS = parkingdata.EditorCreated === "NS-connector";
 
   // handle exceptions
-  let result = undefined;
   if (getExceptionTypes().includes((parkingdata.Type||""))) {
-    result = { isOpen: undefined, message: "" }; // no opening times
-  } else if (null === opentime || null === closetime) {
-    result = { isOpen: undefined, message: "" }; // undefined
-  } else {
-    if (openinfo.hours() === 0 && openinfo.minutes() === 0 && closeinfo.hours() === 23 && closeinfo.minutes() === 59) {
-      result = { isOpen: true, message: '24 uur open' }
-    }
-    else if (openinfo.hours() === 0 && openinfo.minutes() === 0 && closeinfo.hours() === 0 && closeinfo.minutes() === 0) {        // Exception for NS parkings: If NS parking AND open from 1am to 1am,
-      // then the parking is open 24 hours per day.
-      if (isNS) {
-        result = { isOpen: true, message: '24 uur open' }
-      } else {
-        result = { isOpen: false, message: 'gesloten' }
-      }
-    }
+    return { isOpen: undefined, message: "" }; // no opening times
+  }
+  if (null === opentime || null === closetime) {
+    return { isOpen: undefined, message: "" }; // undefined
+  }
+  if (openinfo.hours() === 0 && openinfo.minutes() === 0 && closeinfo.hours() === 23 && closeinfo.minutes() === 59) {
+    return { isOpen: true, message: '24 uur open' };
+  }
+  if (openinfo.hours() === 0 && openinfo.minutes() === 0 && closeinfo.hours() === 0 && closeinfo.minutes() === 0) {
+    // Exception for NS parkings: If NS parking AND open from 1am to 1am, then the parking is open 24 hours per day.
+    return isNS ? { isOpen: true, message: '24 uur open' } : { isOpen: false, message: 'gesloten' };
   }
 
-  if (undefined !== result) {
-    return result
-  }
-
-  const currentMinutes = thedate.hours() * 60 + thedate.minutes();
-  const openingMinutes = openinfo.hours() * 60 + openinfo.minutes();
-  let closingMinutes = closeinfo.hours() * 60 + closeinfo.minutes();
-  if (closingMinutes < openingMinutes) {
-    // Closing time is on the next day, add 24 hours to closing time
-    closingMinutes += 24 * 60;
-  }
-
-  let isOpen = currentMinutes >= openingMinutes && currentMinutes <= closingMinutes;
-  if (openinfo.hours() === closingMinutes && openingMinutes === 60 && closingMinutes === 60) {
-    isOpen = isNS;
-  }
-  else if (openinfo.hours() === 0 && openinfo.minutes() === 0 && closeinfo.hours() === 23 && closeinfo.minutes() === 59) {
-    isOpen = true;
-  }
+  // Use shared opening-hours logic (handles overnight spans, yesterday's span in early morning)
+  const schedule = buildSchedule(parkingdata, daytxt, customOpenTime, customCloseTime);
+  const { isOpen, closeTimeForDisplay } = isOpenNow(schedule, thedate.toDate(), {
+    withCloseTime: true,
+    unknownAsOpen: false,
+  });
 
   if (isOpen) {
-    let str = `open`;
-
-    // Exception: If this is a 24/h a day
-    // NS parking -> don't show "until ..."
-    if (opentime !== closetime) { // ||(openinfo==="00:00" && closeinfo==="23:59")
-      str += `, sluit om ${formatTime(closeinfo)}`;
-    }
-
-    result = { isOpen: true, message: str };
-  } else {
-    result = { isOpen: false, message: "gesloten" };
+    const str = closeTimeForDisplay && opentime !== closetime
+      ? `open, sluit om ${formatTimeHHmm(closeTimeForDisplay)}`
+      : "open";
+    return { isOpen: true, message: str };
   }
-
-  if (result.isOpen === false) {
-    // Extra check: see if the current time is part of yesterdays opening times
-    const yesterdayidx = thedate.day() === 0 ? 6 : thedate.day() - 1;
-    const yesterdaytxt = ["zo", "ma", "di", "wo", "do", "vr", "za"][yesterdayidx] as DayPrefix;
-
-    const y_opentime = parkingdata[getOpenTimeKey(yesterdaytxt)]
-    const y_closetime = parkingdata[getDichtTimeKey(yesterdaytxt)]
-
-    if (null !== y_opentime && null !== y_closetime) {
-      const y_openinfo = y_opentime ? moment.utc(y_opentime) : moment.invalid();
-      const y_closeinfo = y_closetime ? moment.utc(y_closetime) : moment.invalid();
-
-      const y_openingMinutes = y_openinfo.hours() * 60 + y_openinfo.minutes();
-      const y_closingMinutes = y_closeinfo.hours() * 60 + y_closeinfo.minutes();
-
-      // const exception = 
-      //     y_openingMinutes === 0 && y_closingMinutes === 0 ||
-      //     y_openingMinutes === 0 && y_closingMinutes === 60*23 + 59
-      // never applies when condition below is true
-
-      if (y_closingMinutes < y_openingMinutes && // closing time wraps to today
-        currentMinutes >= 0 &&
-        currentMinutes < y_closingMinutes) {
-        // open when current time is between 0:00 and yesterdays closing time
-        result.isOpen = true;
-        result.message = "open";
-        // Exception: If this is a 24/h a day
-        // NS parking -> don't show "until ..."
-        if (opentime !== closetime) {
-          result.message += `, sluit om ${formatTime(y_closeinfo)}`;
-        }
-      }
-    }
-  }
-
-  return result;
+  return { isOpen: false, message: "gesloten" };
 };
 
 export const hasCustomOpeningTimesComingWeek = (parkingdata: ParkingDetailsType): boolean => {

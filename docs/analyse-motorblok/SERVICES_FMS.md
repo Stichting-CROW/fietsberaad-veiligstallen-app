@@ -1,5 +1,7 @@
 # Documentation of Coldfusion API services #
 
+**Related plans:** [API_PORTING_PLAN.md](API_PORTING_PLAN.md) – FMS REST porting and queue processing. Cursor plan "FMS API Next.js Migration" – Next.js port of V1/V2/V3 with duplicate tables, Data\|API page, test gemeente.
+
 ## API Overview ##
 
 The following table shows which methods are available in each API version. Methods with the same functionality but different names (e.g., `getBikeUpdates` vs `getJsonBikeUpdates`) are grouped together on a single row.

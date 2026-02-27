@@ -1567,7 +1567,7 @@ model wachtrij_transacties {
   typeCheck       String?   @db.VarChar(60)
   price           Decimal?  @db.Decimal(5, 2)
   transaction     String    @db.Text
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   dateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1887,4 +1887,352 @@ model transacties_archief_day_cache {
 
   @@unique([locationID, checkoutdate], map: "uk_location_date")
   @@index([locationID, checkoutdate], map: "idx_location_date")
+}
+
+// --- FMS test phase: duplicate tables for parallel ColdFusion/Next.js processor comparison ---
+
+model new_wachtrij_transacties {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  sectionID       String    @db.VarChar(13)
+  placeID         Int?
+  externalPlaceID String?   @db.VarChar(100)
+  transactionID   Int       @default(0)
+  passID          String    @db.VarChar(35)
+  passtype        String?   @db.VarChar(20)
+  type            String    @db.VarChar(10)
+  typeCheck       String?   @db.VarChar(60)
+  price           Decimal?  @db.Decimal(5, 2)
+  transaction     String    @db.Text
+  processed       Boolean   @default(false)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, sectionID, transactionID, passID, passtype, type], map: "new_wt_uk_transactionDate")
+  @@index([passID], map: "new_wt_passID")
+  @@index([processed], map: "new_wt_processed")
+  @@index([transactionDate], map: "new_wt_idx_transactionDate")
+  @@index([type], map: "new_wt_type")
+}
+
+model new_wachtrij_pasids {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  passID          String    @db.VarChar(35)
+  barcode         String    @db.VarChar(35)
+  RFID            String    @db.VarChar(35)
+  RFIDBike        String    @db.VarChar(35)
+  biketypeID      Int?
+  bike            String    @db.Text
+  processed       Boolean   @default(false)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  DateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, passID, barcode], map: "new_wp_uk_transactionDate")
+  @@index([processed], map: "new_wp_processed")
+}
+
+model new_wachtrij_betalingen {
+  ID              Int       @id @default(autoincrement())
+  bikeparkID      String    @db.VarChar(8)
+  passID          String    @db.VarChar(35)
+  idtype          Int?
+  transactionDate DateTime  @db.DateTime(0)
+  paymentTypeID   Int
+  amount          Decimal   @db.Decimal(8, 2)
+  processed       Boolean   @default(false)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([bikeparkID, passID, transactionDate, paymentTypeID, amount], map: "new_wb_bikeparkID")
+}
+
+model new_wachtrij_sync {
+  ID              Int       @id @default(autoincrement())
+  bikes           String    @db.LongText
+  bikeparkID      String    @db.VarChar(8)
+  sectionID       String    @db.VarChar(13)
+  transactionDate DateTime? @db.DateTime(0)
+  processed       Int       @default(0)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@index([bikeparkID], map: "new_ws_bikeparkID")
+  @@index([processed], map: "new_ws_processed")
+  @@index([sectionID], map: "new_ws_sectionID")
+  @@index([transactionDate], map: "new_ws_transactionDate")
+}
+
+model new_transacties {
+  ID                Int       @id @default(autoincrement())
+  ZipID             String?   @db.VarChar(4)
+  FietsenstallingID String    @db.VarChar(35)
+  SectieID          String?   @db.VarChar(13)
+  SectieID_uit      String?   @db.VarChar(13)
+  PlaceID           BigInt?
+  ExternalPlaceID   String?   @db.VarChar(100)
+  PassUUID          String?   @db.VarChar(35)
+  PasID             String    @db.VarChar(35)
+  Pastype           Int?
+  BarcodeFiets_in   String?   @db.VarChar(36)
+  BarcodeFiets_uit  String?   @db.VarChar(36)
+  Date_checkin      DateTime  @default(now()) @db.DateTime(0)
+  Date_checkout     DateTime? @db.DateTime(0)
+  Stallingsduur     Int?      @db.UnsignedInt
+  Type_checkin      String?   @db.VarChar(40)
+  Type_checkout     String?   @db.VarChar(40)
+  Stallingskosten   Decimal?  @default(0.00) @db.Decimal(8, 2)
+  Tariefstaffels    String?   @db.VarChar(255)
+  BikeTypeID        Int       @default(1) @db.SmallInt
+  ClientTypeID      Int       @default(1)
+  Reserveringsduur  Int?
+  ExploitantID      String?   @db.VarChar(35)
+  dateModified      DateTime? @db.Timestamp(0)
+  dateCreated       DateTime  @default(now()) @db.Timestamp(0)
+
+  @@index([BarcodeFiets_in], map: "new_t_BarcodeFiets_in")
+  @@index([BikeTypeID], map: "new_t_BikeTypeID")
+  @@index([ClientTypeID], map: "new_t_ClientTypeID")
+  @@index([Date_checkin], map: "new_t_Date_checkin")
+  @@index([Date_checkout], map: "new_t_Date_checkout")
+  @@index([ExploitantID], map: "new_t_ExploitantID")
+  @@index([FietsenstallingID], map: "new_t_FietsenstallingID")
+  @@index([PasID], map: "new_t_PasID")
+  @@index([PassUUID], map: "new_t_PassUUID")
+  @@index([Pastype], map: "new_t_Pastype")
+  @@index([PlaceID], map: "new_t_PlaceID")
+  @@index([SectieID], map: "new_t_SectieID")
+  @@index([Type_checkin], map: "new_t_Type_checkin")
+  @@index([Type_checkout], map: "new_t_Type_checkout")
+  @@index([ZipID], map: "new_t_ZipID")
+  @@index([dateCreated], map: "new_t_dateCreated")
+  @@index([dateModified], map: "new_t_dateModified")
+}
+
+model new_transacties_archief {
+  ID               Int                               @id @default(autoincrement())
+  citycode         String                            @db.VarChar(4)
+  locationid       String                            @db.VarChar(8)
+  sectionid        String                            @db.VarChar(13)
+  sectionid_out    String?                           @db.VarChar(13)
+  placeid          Int?
+  externalplaceid  String?                            @db.VarChar(100)
+  checkindate      DateTime                          @db.DateTime(0)
+  checkoutdate     DateTime?                         @db.DateTime(0)
+  checkintype      transacties_archief_checkintype
+  checkouttype     transacties_archief_checkouttype?
+  daybeginsat      DateTime                          @db.Time(0)
+  reservationtime  Int?
+  price            Decimal                           @default(0.00) @db.Decimal(8, 2)
+  clienttypeid     Int
+  biketypeid       Int
+  source           String?                           @db.VarChar(35)
+  exploitantid     String?                           @db.VarChar(35)
+  modified         DateTime                          @default(now()) @db.Timestamp(0)
+  created          DateTime                          @default(now()) @db.Timestamp(0)
+
+  @@index([biketypeid], map: "new_ta_biketypeid")
+  @@index([checkindate], map: "new_ta_checkindate")
+  @@index([checkoutdate], map: "new_ta_checkoutdate")
+  @@index([citycode], map: "new_ta_citycode")
+  @@index([clienttypeid], map: "new_ta_clienttypeid")
+  @@index([exploitantid], map: "new_ta_exploitantid")
+  @@index([citycode, locationid, checkoutdate, sectionid], map: "new_ta_idx_citycode_locationid")
+  @@index([locationid], map: "new_ta_locationid")
+  @@index([modified], map: "new_ta_modified")
+  @@index([placeid], map: "new_ta_placeid")
+  @@index([sectionid], map: "new_ta_sectionid")
+  @@index([source], map: "new_ta_source")
+}
+
+model new_accounts {
+  ID                  String    @id @default("") @db.VarChar(35)
+  Email               String?   @unique(map: "new_a_Email") @db.VarChar(100)
+  EncryptedPassword   String?   @db.VarChar(60)
+  Sex                 String?   @db.VarChar(10)
+  FirstName           String?   @db.VarChar(100)
+  MiddleName          String?   @db.VarChar(50)
+  LastName            String?   @db.VarChar(100)
+  Address             String?   @db.VarChar(255)
+  Address_Nr          String?   @db.VarChar(10)
+  Zip                 String?   @db.VarChar(10)
+  City                String?   @db.VarChar(100)
+  Phone               String?   @db.VarChar(50)
+  Mobile              String?   @db.VarChar(50)
+  Nieuwsbrief         String?   @db.VarChar(4)
+  Status              String?   @default("1") @db.VarChar(4)
+  DateRegistration   DateTime? @db.DateTime(0)
+  LastLogin           DateTime? @db.DateTime(0)
+  DateDeleted         DateTime? @db.DateTime(0)
+  WinkansInzetMehode  accounts_WinkansInzetMehode? @default(AUTO)
+  saldo               Decimal?  @default(0.00) @db.Decimal(10, 2)
+  account_type        accounts_account_type? @default(USER)
+  dateLastSaldoUpdate DateTime? @db.Timestamp(0)
+  dateLastPrize      DateTime? @db.DateTime(0)
+  nameLastPrize      String?   @db.VarChar(255)
+
+  @@index([Email], map: "new_a_Email_idx")
+  @@index([EncryptedPassword], map: "new_a_EncryptedPassword")
+  @@index([LastName], map: "new_a_LastName")
+  @@index([account_type], map: "new_a_account_type")
+  @@index([dateLastSaldoUpdate], map: "new_a_dateLastSaldoUpdate")
+  @@index([saldo], map: "new_a_saldo")
+}
+
+model new_accounts_pasids {
+  ID                         String    @id @db.VarChar(35)
+  AccountID                  String?   @db.VarChar(35)
+  SiteID                     String?   @db.VarChar(36)
+  PasID                      String    @default("") @db.VarChar(36)
+  Pastype                    String    @default("sleutelhanger") @db.VarChar(20)
+  BikeTypeID                 Int?      @default(1)
+  Naam                       String?   @db.VarChar(255)
+  RFID                       String?   @db.VarChar(36)
+  RFIDBike                   String?   @db.VarChar(36)
+  barcodeFiets               String?   @db.VarChar(36)
+  dateLastIdUpdate           DateTime? @db.DateTime(0)
+  dateCreated                DateTime? @db.DateTime(0)
+  huidigeFietsenstallingId   String?   @db.VarChar(10)
+  huidigeSectieId            String?   @db.VarChar(15)
+  huidigeStallingskosten     Decimal   @default(0.00) @db.Decimal(8, 2)
+  dateLastCheck              DateTime? @db.DateTime(0)
+  dateModified               DateTime  @default(now()) @db.Timestamp(0)
+  dateLastSaldoUpdate        DateTime? @db.Timestamp(0)
+  dateLastSubscriptionUpdate DateTime? @db.Timestamp(0)
+  typeLastCheckin            String?   @db.VarChar(60)
+  transactionID              Int?
+
+  @@unique([SiteID, PasID, Pastype], map: "new_ap_SiteID")
+  @@index([AccountID, PasID], map: "new_ap_AccountID_pasID")
+  @@index([Naam], map: "new_ap_Naam")
+  @@index([Pastype], map: "new_ap_Pastype")
+  @@index([AccountID], map: "new_ap_accountID")
+  @@index([barcodeFiets], map: "new_ap_barcodeFiets")
+  @@index([huidigeFietsenstallingId, huidigeSectieId], map: "new_ap_currently_parked")
+  @@index([dateModified], map: "new_ap_dateModified")
+  @@index([huidigeFietsenstallingId], map: "new_ap_huidigeFietsenstallingId")
+  @@index([huidigeSectieId], map: "new_ap_huidigeSectieId")
+  @@index([SiteID], map: "new_ap_idx_SiteID")
+  @@index([PasID], map: "new_ap_pasID")
+  @@index([RFID], map: "new_ap_rfid")
+}
+
+model new_financialtransactions {
+  ID                  String    @id @db.VarChar(35)
+  mollieTransactionID String?   @db.VarChar(20)
+  amount              Decimal?  @db.Decimal(8, 2)
+  btw                 Decimal?  @db.Decimal(8, 2)
+  btwPercentage       Float?
+  transactionDate     DateTime? @db.DateTime(0)
+  transactiekosten    Decimal   @default(0.00) @db.Decimal(8, 2)
+  depositDate         DateTime? @db.DateTime(0)
+  paymentMethod       String?   @db.VarChar(15)
+  status              String?   @db.VarChar(10)
+  description         String?   @db.VarChar(255)
+  code                String?   @db.VarChar(50)
+  accountID           String?   @db.VarChar(35)
+  paidToSiteID        String?   @db.VarChar(35)
+  paidBySiteID        String?   @db.VarChar(35)
+  sourceSiteID        String?   @db.VarChar(35)
+  targetSiteID        String?   @db.VarChar(35)
+  siteID              String?   @db.VarChar(35)
+  bikeparkID          String?   @db.VarChar(8)
+  sectionID           String?   @db.VarChar(13)
+  placeID             BigInt?
+  transactionID       Int?
+  subscriptiontypeID  Int?
+  subscriptionID      Int?
+  reservationID       Int?
+  dateCreated         DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([accountID, transactionDate, amount, status, code, bikeparkID], map: "new_ft_uk_accountID")
+  @@index([accountID], map: "new_ft_accountID_idx")
+  @@index([code], map: "new_ft_code")
+  @@index([mollieTransactionID], map: "new_ft_mollieTransactionID")
+  @@index([paidBySiteID], map: "new_ft_paidBySiteID")
+  @@index([paidToSiteID], map: "new_ft_paidToSiteID")
+  @@index([siteID], map: "new_ft_siteID")
+  @@index([sourceSiteID], map: "new_ft_sourceSiteID")
+  @@index([status], map: "new_ft_status")
+  @@index([subscriptionID], map: "new_ft_subscriptionID")
+  @@index([targetSiteID], map: "new_ft_targetSiteID")
+  @@index([transactionDate], map: "new_ft_transactionDate")
+  @@index([transactionID], map: "new_ft_transactionID")
+}
+
+// Parking Management simulation (separate from Veiligstallen core)
+model parkingmgmt_simulation_config {
+  id                    String    @id @default(cuid()) @db.VarChar(36)
+  siteID                String    @db.VarChar(35)
+  apiUsername           String?   @db.VarChar(255)
+  apiPasswordEncrypted  String?   @db.VarChar(255)
+  baseUrl               String?   @db.VarChar(500)
+  processQueueBaseUrl   String?   @db.VarChar(500)
+  defaultBiketypeID              Int       @default(1)
+  defaultIdtype                  Int       @default(0)
+  simulationTimeOffsetSeconds    Int       @default(0)
+  simulationStartDate            DateTime? @db.DateTime(0)
+  createdAt             DateTime  @default(now()) @db.DateTime(0)
+  updatedAt             DateTime  @updatedAt @db.DateTime(0)
+
+  bicycles       parkingmgmt_bicycles[]
+  spotDetection  parkingmgmt_spot_detection[]
+
+  @@unique([siteID], map: "parkingmgmt_simulation_config_siteID_key")
+  @@index([siteID], map: "parkingmgmt_simulation_config_siteID_idx")
+}
+
+model parkingmgmt_bicycles {
+  id                  String   @id @default(cuid()) @db.VarChar(36)
+  simulationConfigId  String   @db.VarChar(36)
+  barcode    String   @db.VarChar(50)
+  RFIDBike   String?  @db.VarChar(50)
+  passID     String?  @db.VarChar(50)
+  RFID       String?  @db.VarChar(50)
+  biketypeID Int      @default(1)
+  status     String   @default("available") @db.VarChar(20)
+  createdAt  DateTime @default(now()) @db.DateTime(0)
+  updatedAt  DateTime @updatedAt @db.DateTime(0)
+
+  simulationConfig parkingmgmt_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
+  occupation parkingmgmt_occupation[]
+
+  @@index([simulationConfigId], map: "parkingmgmt_bicycles_simulationConfigId_idx")
+  @@index([barcode], map: "parkingmgmt_bicycles_barcode_idx")
+}
+
+model parkingmgmt_occupation {
+  id         String    @id @default(cuid()) @db.VarChar(36)
+  bicycleId  String    @db.VarChar(36)
+  locationid String    @db.VarChar(35)
+  sectionid  String    @db.VarChar(35)
+  placeId    Int?      @db.Int
+  checkedIn  Boolean   @default(false)
+  createdAt  DateTime  @default(now()) @db.DateTime(0)
+
+  bicycle parkingmgmt_bicycles @relation(fields: [bicycleId], references: [id], onDelete: Cascade)
+
+  @@index([bicycleId], map: "parkingmgmt_occupation_bicycleId_idx")
+  @@index([locationid, sectionid], map: "parkingmgmt_occupation_location_idx")
+}
+
+model parkingmgmt_spot_detection {
+  id                  String   @id @default(cuid()) @db.VarChar(36)
+  simulationConfigId  String   @db.VarChar(36)
+  locationid String   @db.VarChar(35)
+  sectionid  String   @db.VarChar(35)
+  placeId    Int      @db.Int
+  detected   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime(0)
+
+  simulationConfig parkingmgmt_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([simulationConfigId, locationid, sectionid, placeId], map: "parkingmgmt_spot_detection_uk")
+  @@index([simulationConfigId], map: "parkingmgmt_spot_detection_simulationConfigId_idx")
 }

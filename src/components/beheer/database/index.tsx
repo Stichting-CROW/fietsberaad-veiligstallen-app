@@ -8,6 +8,7 @@ import UserContactRoleTableComponent from './UserContactRoleTable';
 import UserStatusTableComponent from './UserStatusTable';
 import HelpdeskHandmatigIngesteldTableComponent from './HelpdeskHandmatigIngesteldTable';
 import OrphanedSectionsCleanup from './OrphanedSectionsCleanup';
+import DataApiComponent from './DataApiComponent';
 
 interface DatabaseComponentProps {
   firstDate: Date;
@@ -76,6 +77,7 @@ const DatabaseComponent: React.FC<DatabaseComponentProps> = ({ firstDate, lastDa
         lastDate={lastDate}
         bikeparks={bikeparks}
       />
+      <DataApiComponent />
     </div>
   );
 };
