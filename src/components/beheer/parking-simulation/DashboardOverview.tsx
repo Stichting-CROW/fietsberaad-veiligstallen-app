@@ -225,7 +225,7 @@ const DashboardOverview: React.FC<{ hasStallings?: boolean }> = ({ hasStallings 
               className="border rounded px-3 py-2"
             />
             <Button onClick={resetSimulation} disabled={resetLoading}>
-              {resetLoading ? "Bezig…" : "Reset"}
+              Reset
             </Button>
           </div>
           {resetMessage && (

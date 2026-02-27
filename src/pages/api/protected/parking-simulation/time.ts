@@ -34,14 +34,14 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(200).json({ simulationTime: new Date().toISOString() });
   }
 
-  let pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
+  let pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
     where: { siteID: contact.ID },
     select: { simulationTimeOffsetSeconds: true },
   });
   if (!pmConfig) {
     const startDate = DEFAULT_SIMULATION_START_DATE;
     const simulationTimeOffsetSeconds = Math.floor((Date.now() - startDate.getTime()) / 1000);
-    pmConfig = await prisma.parkingsimulation_simulation_config.create({
+    pmConfig = await prisma.parkingmgmt_simulation_config.create({
       data: {
         siteID: contact.ID,
         defaultBiketypeID: 1,

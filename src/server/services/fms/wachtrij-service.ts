@@ -14,7 +14,7 @@ type BikeInput = {
 };
 
 type TransactionInput = {
-  type: "in" | "out" | "In" | "Out" | "afboeking" | "Afboeking";
+  type: "in" | "out" | "In" | "Out";
   typeCheck?: string;
   transactionDate: string;
   idcode?: string;
@@ -27,8 +27,6 @@ type TransactionInput = {
   externalPlaceID?: string;
   paymenttypeid?: number;
   amountpaid?: number | string;
-  paymentTypeID?: number;
-  amountPaid?: number | string;
   clienttypeid?: number;
   [key: string]: unknown;
 };
@@ -85,8 +83,7 @@ export async function addTransactionToWachtrij(
   sectionID: string,
   tx: TransactionInput,
   placeID?: number,
-  externalPlaceID?: string,
-  transactionID?: number
+  externalPlaceID?: string
 ): Promise<{ id: number }> {
   const transactionDate = parseDate(tx.transactionDate);
   const passID = tx.idcode ?? tx.passID ?? "";
@@ -94,10 +91,7 @@ export async function addTransactionToWachtrij(
     throw new Error("passID or idcode required");
   }
   const passtype = tx.idtype === 1 ? "ovchip" : tx.idtype === 2 ? "barcodebike" : "sleutelhanger";
-  const type: string =
-    tx.type === "in" || tx.type === "In"
-      ? "In"
-      : (tx.type === "afboeking" || tx.type === "Afboeking" ? "afboeking" : "Uit");
+  const type = (tx.type === "in" || tx.type === "In" ? "In" : "Uit") as "In" | "Uit";
   const transactionJson = JSON.stringify(tx);
 
   const row = await prisma.wachtrij_transacties.create({
@@ -107,7 +101,7 @@ export async function addTransactionToWachtrij(
       sectionID,
       placeID: placeID ?? null,
       externalPlaceID: externalPlaceID ?? null,
-      transactionID: transactionID ?? 0,
+      transactionID: 0,
       passID,
       passtype,
       type,
@@ -116,26 +110,6 @@ export async function addTransactionToWachtrij(
       transaction: transactionJson,
     },
   });
-
-  // Payment at check-in: when transaction JSON has paymenttypeid + amountpaid > 0,
-  // also add to wachtrij_betalingen so processor creates financialtransactions (ColdFusion parity).
-  const paymentTypeID = tx.paymenttypeid ?? tx.paymentTypeID ?? 1;
-  const amountpaid = Number(tx.amountpaid ?? tx.amountPaid ?? 0);
-  if (paymentTypeID != null && amountpaid > 0) {
-    try {
-      await addSaldoToWachtrij(bikeparkID, {
-        passID,
-        transactionDate: tx.transactionDate ?? transactionDate.toISOString(),
-        paymentTypeID,
-        amount: amountpaid,
-      });
-    } catch (e) {
-      // Duplicate (unique constraint) or other error – log but don't fail transaction insert.
-      // ColdFusion addSaldoUpdateToWachtrij returns false on duplicate; transaction still succeeds.
-      console.warn("Payment at check-in: could not add wachtrij_betalingen", e);
-    }
-  }
-
   return { id: row.ID };
 }
 

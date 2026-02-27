@@ -7,7 +7,6 @@ import { prisma } from "~/server/db";
 import { formatPrismaErrorCompact, logPrismaError } from "~/utils/formatPrismaError";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { createNewFmsTables } from "~/backend/services/database/NewFmsTableActions";
 
 const FMS_TABLES = [
   "new_wachtrij_transacties",
@@ -19,8 +18,6 @@ const FMS_TABLES = [
   "new_accounts",
   "new_accounts_pasids",
   "new_financialtransactions",
-  "new_bezettingsdata_tmp",
-  "new_bezettingsdata",
 ];
 
 const TRIGGER_NAMES = [
@@ -28,8 +25,6 @@ const TRIGGER_NAMES = [
   "trg_wachtrij_pasids_mirror_to_new",
   "trg_wachtrij_betalingen_mirror_to_new",
   "trg_wachtrij_sync_mirror_to_new",
-  "trg_bezettingsdata_tmp_mirror_insert",
-  "trg_bezettingsdata_tmp_mirror_update",
 ];
 
 function getDropSql(): string {
@@ -91,7 +86,25 @@ async function getTableCounts(): Promise<Record<string, number>> {
 }
 
 async function createTables(): Promise<void> {
-  await createNewFmsTables();
+  const migrationPath = join(
+    process.cwd(),
+    "prisma/migrations/20250224000000_add_new_fms_tables/migration.sql"
+  );
+  const sql = readFileSync(migrationPath, "utf-8");
+  const statements = sql
+    .split(/;\s*\n/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  for (const raw of statements) {
+    const stmt = raw.replace(/^--[^\n]*\n?/, "").trim();
+    if (stmt.startsWith("CREATE TABLE")) {
+      const withIfNotExists = stmt.replace(
+        /CREATE TABLE (`\w+`)/,
+        "CREATE TABLE IF NOT EXISTS $1"
+      );
+      await prisma.$executeRawUnsafe(withIfNotExists + ";");
+    }
+  }
 }
 
 export default async function handle(
@@ -148,18 +161,15 @@ export default async function handle(
       if (action === "create-tables") {
         const tablesExist = await checkTablesExist();
         if (tablesExist) {
-          const triggersExist = await checkTriggersExist();
           return res.status(200).json({
             success: true,
             message: "Test tabellen bestaan al",
-            manualSql: triggersExist ? undefined : getCreateTriggersSql(),
           });
         }
         await createTables();
         return res.status(200).json({
           success: true,
-          message: "Test tabellen aangemaakt. Voer de SQL hieronder uit om de triggers aan te maken (wachtrij_* → new_wachtrij_*):",
-          manualSql: getCreateTriggersSql(),
+          message: "Test tabellen aangemaakt",
         });
       }
 

@@ -46,11 +46,8 @@ export default async function handler(
     return;
   }
 
-  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default).
-  // Also allow fietsberaad_superadmin for parking simulation context (user may have switched to testgemeente contact).
-  const hasAccess =
-    userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij) ||
-    userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default)
+  const hasAccess = userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij);
 
   if (!hasAccess) {
     res.status(403).json({ error: "Access denied - insufficient permissions" });
@@ -68,7 +65,6 @@ export default async function handler(
     const bikeparkID = req.query.bikeparkID as string | undefined;
     const FietsenstallingID = req.query.FietsenstallingID as string | undefined;
     const dateCheckinFrom = req.query.dateCheckinFrom as string | undefined;
-    const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
 
     const validPageSizes = [25, 100, 1000, 10000];
     const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 25;
@@ -96,55 +92,30 @@ export default async function handler(
       if (!isNaN(from.getTime())) where.Date_checkin = { gte: from };
     }
 
-    const [total, records] = useNewTables
-      ? await Promise.all([
-          prisma.new_transacties.count({ where }),
-          prisma.new_transacties.findMany({
-            where,
-            select: {
-              ID: true,
-              FietsenstallingID: true,
-              SectieID: true,
-              PasID: true,
-              BarcodeFiets_in: true,
-              BarcodeFiets_uit: true,
-              Date_checkin: true,
-              Date_checkout: true,
-              Stallingsduur: true,
-              Type_checkin: true,
-              Type_checkout: true,
-              Stallingskosten: true,
-              dateCreated: true,
-            },
-            orderBy: { dateCreated: "desc" },
-            skip: (page - 1) * finalPageSize,
-            take: finalPageSize,
-          }),
-        ])
-      : await Promise.all([
-          prisma.transacties.count({ where }),
-          prisma.transacties.findMany({
-            where,
-            select: {
-              ID: true,
-              FietsenstallingID: true,
-              SectieID: true,
-              PasID: true,
-              BarcodeFiets_in: true,
-              BarcodeFiets_uit: true,
-              Date_checkin: true,
-              Date_checkout: true,
-              Stallingsduur: true,
-              Type_checkin: true,
-              Type_checkout: true,
-              Stallingskosten: true,
-              dateCreated: true,
-            },
-            orderBy: { dateCreated: "desc" },
-            skip: (page - 1) * finalPageSize,
-            take: finalPageSize,
-          }),
-        ]);
+    const [total, records] = await Promise.all([
+      prisma.transacties.count({ where }),
+      prisma.transacties.findMany({
+        where,
+        select: {
+          ID: true,
+          FietsenstallingID: true,
+          SectieID: true,
+          PasID: true,
+          BarcodeFiets_in: true,
+          BarcodeFiets_uit: true,
+          Date_checkin: true,
+          Date_checkout: true,
+          Stallingsduur: true,
+          Type_checkin: true,
+          Type_checkout: true,
+          Stallingskosten: true,
+          dateCreated: true,
+        },
+        orderBy: { dateCreated: "desc" },
+        skip: (page - 1) * finalPageSize,
+        take: finalPageSize,
+      }),
+    ]);
 
     const totalPages = Math.ceil(total / finalPageSize);
 

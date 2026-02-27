@@ -4,17 +4,6 @@ import {
   validateFmsAuth,
 } from "~/server/services/fms/fms-auth";
 import * as fmsService from "~/server/services/fms/fms-service";
-import {
-  getSectors,
-  getBikes,
-  getBikeUpdates,
-  getSubscriptors,
-  getLockerInfo,
-} from "~/server/services/fms/fms-read-service";
-import { updateLocker, isAllowedToUse } from "~/server/services/fms/fms-locker-service";
-import { reportOccupationData } from "~/server/services/fms/report-occupation-service";
-import { addSubscription, subscribe } from "~/server/services/fms/subscription-service";
-import { logFmsCall } from "~/server/services/fms/webservice-log";
 import * as wachtrijService from "~/server/services/fms/wachtrij-service";
 
 function set401(res: NextApiResponse, hadAuthHeader: boolean) {
@@ -72,17 +61,12 @@ export default async function handle(
     "addJsonSaldo",
     "addJsonSaldos",
     "syncSector",
-    "reportOccupationData",
-    "reportJsonOccupationData",
-    "updateLocker",
-    "addSubscription",
-    "subscribe",
   ];
 
-  const writeMethodRequiresBikepark = ["saveJsonBike", "saveJsonBikes", "addJsonSaldo", "addJsonSaldos", "uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "addSubscription", "subscribe"];
-  const writeMethodRequiresSection = ["uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "getLockerInfo", "isAllowedToUse"];
+  const writeMethodRequiresBikepark = ["saveJsonBike", "saveJsonBikes", "addJsonSaldo", "addJsonSaldos", "uploadJsonTransaction", "uploadJsonTransactions", "syncSector"];
+  const writeMethodRequiresSection = ["uploadJsonTransaction", "uploadJsonTransactions", "syncSector"];
 
-  if (writeMethods.includes(method) || ["getLockerInfo", "isAllowedToUse", "updateLocker"].includes(method)) {
+  if (writeMethods.includes(method)) {
     if (!bikeparkID && writeMethodRequiresBikepark.includes(method)) {
       res.status(400).json({ message: "bikeparkID required", status: 0 });
       return;
@@ -120,116 +104,6 @@ export default async function handle(
         const types = await fmsService.getClientTypes();
         const legacy = types.map((t) => ({ CLIENTTYPEID: t.clientTypeID, NAME: t.name }));
         res.status(200).json(legacy);
-        break;
-      }
-      case "getJsonSectors": {
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const sectors = await getSectors(bikeparkID);
-        res.status(200).json(sectors);
-        break;
-      }
-      case "getJsonBikes": {
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const bikes = await getBikes(bikeparkID);
-        res.status(200).json(bikes);
-        break;
-      }
-      case "getJsonBikeUpdates": {
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const fromDateStr = (req.query.fromDate as string) ?? req.query.fromdate;
-        if (!fromDateStr || typeof fromDateStr !== "string") {
-          res.status(400).json({ message: "fromDate required (ISO or yyyy-mm-dd hh:mm:ss)", status: 0 });
-          return;
-        }
-        const fromDate = new Date(fromDateStr);
-        if (Number.isNaN(fromDate.getTime())) {
-          res.status(400).json({ message: "Invalid fromDate", status: 0 });
-          return;
-        }
-        const updates = await getBikeUpdates(bikeparkID, fromDate);
-        res.status(200).json(updates);
-        break;
-      }
-      case "getJsonSubscriptors": {
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const subscriptors = await getSubscriptors(bikeparkID);
-        res.status(200).json(subscriptors);
-        break;
-      }
-      case "getLockerInfo": {
-        if (!bikeparkID || !sectionID) {
-          res.status(400).json({ message: "bikeparkID and sectionID required", status: 0 });
-          return;
-        }
-        const placeID = path[3] ?? req.query.placeID;
-        if (!placeID || typeof placeID !== "string") {
-          res.status(400).json({ message: "placeID required", status: 0 });
-          return;
-        }
-        const locker = await getLockerInfo(bikeparkID, sectionID, placeID);
-        res.status(200).json(locker);
-        break;
-      }
-      case "isAllowedToUse": {
-        if (!bikeparkID || !sectionID) {
-          res.status(400).json({ message: "bikeparkID and sectionID required", status: 0 });
-          return;
-        }
-        const placeID = path[3] ?? req.query.placeID;
-        const rfid = (req.query.rfid as string) ?? (req.query.passID as string);
-        if (!placeID || typeof placeID !== "string") {
-          res.status(400).json({ message: "placeID required", status: 0 });
-          return;
-        }
-        if (!rfid || typeof rfid !== "string") {
-          res.status(400).json({ message: "rfid or passID required", status: 0 });
-          return;
-        }
-        const result = await isAllowedToUse(bikeparkID, sectionID, placeID, rfid);
-        res.status(200).json(result);
-        break;
-      }
-      case "updateLocker": {
-        if (req.method !== "POST" && req.method !== "PUT") {
-          res.status(405).json({ message: "Method not allowed", status: 0 });
-          return;
-        }
-        if (!bikeparkID || !sectionID) {
-          res.status(400).json({ message: "bikeparkID and sectionID required", status: 0 });
-          return;
-        }
-        const placeID = path[3] ?? req.query.placeID;
-        if (!placeID || typeof placeID !== "string") {
-          res.status(400).json({ message: "placeID required", status: 0 });
-          return;
-        }
-        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-        const result = await updateLocker(bikeparkID, sectionID, placeID, {
-          statuscode: body.statuscode ?? body.statusCode ?? 0,
-          transactionDate: body.transactionDate,
-          transactionExpiryDate: body.transactionExpiryDate,
-          cost: body.cost ?? body.price,
-          paymentTypeID: body.paymentTypeID ?? body.paymenttypeid,
-          typeCheck: body.typeCheck ?? body.typecheck ?? "user",
-        });
-        void logFmsCall(
-          "updateLocker",
-          bikeparkID,
-          `${sectionID}/${placeID} status=${body.statuscode ?? body.statusCode ?? 0} result=${result.status}`
-        );
-        res.status(200).json({ message: result.message, status: result.status });
         break;
       }
       case "saveJsonBike": {
@@ -353,77 +227,6 @@ export default async function handle(
         };
         const result = await wachtrijService.addSyncToWachtrij(sync);
         res.status(200).json({ message: "Ok", status: 1, id: result.id });
-        break;
-      }
-      case "reportOccupationData":
-      case "reportJsonOccupationData": {
-        if (req.method !== "POST") {
-          res.status(405).json({ message: "Method not allowed", status: 0 });
-          return;
-        }
-        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-        const payload = {
-          occupation: body.occupation ?? body.Bezetting ?? 0,
-          timestamp: body.timestamp,
-          capacity: body.capacity ?? body.Capacity,
-          checkins: body.checkins ?? body.Checkins,
-          checkouts: body.checkouts ?? body.Checkouts,
-          open: body.open ?? body.Open,
-          interval: body.interval ?? body.Interval,
-          source: body.source ?? body.Source,
-          rawData: body.rawData ?? body.RawData,
-        };
-        if (typeof payload.occupation !== "number" || payload.occupation < 0) {
-          res.status(400).json({ message: "occupation (number >= 0) required", status: 0 });
-          return;
-        }
-        const result = await reportOccupationData(bikeparkID!, sectionID!, payload);
-        res.status(200).json({ message: "Ok", status: 1, id: result.tmpId });
-        break;
-      }
-      case "addSubscription": {
-        if (req.method !== "POST") {
-          res.status(405).json({ message: "Method not allowed", status: 0 });
-          return;
-        }
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-        const result = await addSubscription(bikeparkID, {
-          subscriptiontypeID: body.subscriptiontypeID ?? body.subscriptionTypeID ?? 0,
-          passID: body.passID ?? body.idcode,
-          accountID: body.accountID ?? body.AccountID,
-          amount: body.amount ?? body.prijsInclBtw,
-          paymentTypeID: body.paymentTypeID ?? body.paymenttypeid ?? 1,
-          ingangsdatum: body.ingangsdatum ?? body.transactionDate,
-          afloopdatum: body.afloopdatum,
-          transactionDate: body.transactionDate,
-        });
-        void logFmsCall("addSubscription", bikeparkID, `subscriptiontype=${body.subscriptiontypeID} result=${result.status}`);
-        res.status(200).json({ message: result.message, status: result.status, id: result.id });
-        break;
-      }
-      case "subscribe": {
-        if (req.method !== "POST") {
-          res.status(405).json({ message: "Method not allowed", status: 0 });
-          return;
-        }
-        if (!bikeparkID) {
-          res.status(400).json({ message: "bikeparkID required", status: 0 });
-          return;
-        }
-        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-        const subscriptionID = body.subscriptionID ?? body.subscriptionId ?? body.abonnementID ?? 0;
-        const passID = body.passID ?? body.idcode ?? body.passId ?? "";
-        if (!subscriptionID || !passID) {
-          res.status(400).json({ message: "subscriptionID and passID required", status: 0 });
-          return;
-        }
-        const result = await subscribe(bikeparkID, { subscriptionID, passID });
-        void logFmsCall("subscribe", bikeparkID, `subscription=${subscriptionID} passID=${passID} result=${result.status}`);
-        res.status(200).json({ message: result.message, status: result.status });
         break;
       }
       default:
