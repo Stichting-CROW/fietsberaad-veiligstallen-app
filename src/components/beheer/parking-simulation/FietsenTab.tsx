@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
+import { uploadTransaction } from "~/lib/parking-simulation/fms-api-client";
+import { ActiesPanel, type Stalling } from "./ActiesPanel";
 
 const FIETSEN_TAB_STORAGE_KEY = "parking-mgmt-fietsen-tab";
 
@@ -13,70 +15,24 @@ type OccupationEntry = {
   placeId?: number | null;
   bicycle?: Bicycle;
 };
-type LayoutSection = {
-  sectionid: string | null;
-  name?: string;
-  biketypes?: Array<{ allowed: boolean; biketypeid: number; capacity?: number }>;
-  places?: Array<{ id: number; name?: string }>;
-};
-type Layout = {
-  sections?: LayoutSection[];
-  sectionid?: string | null;
-  biketypes?: LayoutSection["biketypes"];
-  places?: LayoutSection["places"];
-  locationid?: string;
-};
 
-type Stalling = { id: string; locationid: string; title: string };
-
-function loadStoredSelections(): { biketypeId: number | ""; locationId: string } {
-  try {
-    const raw = localStorage.getItem(FIETSEN_TAB_STORAGE_KEY);
-    if (!raw) return { biketypeId: "", locationId: "" };
-    const parsed = JSON.parse(raw) as { biketypeId?: number; locationId?: string };
-    return {
-      biketypeId: typeof parsed.biketypeId === "number" ? parsed.biketypeId : "",
-      locationId: typeof parsed.locationId === "string" ? parsed.locationId : "",
-    };
-  } catch {
-    return { biketypeId: "", locationId: "" };
-  }
-}
-
-function saveStoredSelections(biketypeId: number | "", locationId: string) {
-  try {
-    localStorage.setItem(FIETSEN_TAB_STORAGE_KEY, JSON.stringify({ biketypeId, locationId }));
-  } catch {
-    /* ignore */
-  }
+function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
+  if (typeof window === "undefined") return null;
+  const u = localStorage.getItem("parking-sim-apiUsername");
+  const p = localStorage.getItem("parking-sim-apiPassword");
+  const b = localStorage.getItem("parking-sim-baseUrl");
+  if (!u || !p) return null;
+  return { username: u, password: p, baseUrl: b || undefined };
 }
 
 const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
   const { data: bikeTypes } = useBikeTypes();
   const [state, setState] = useState<{ bicycles: Bicycle[]; occupation: OccupationEntry[] } | null>(null);
-  const [selectedBiketypeId, setSelectedBiketypeId] = useState<number | "">(() => loadStoredSelections().biketypeId);
-  const [selectedBicycleId, setSelectedBicycleId] = useState<string>("");
-  const [selectedLocationId, setSelectedLocationId] = useState<string>(() => {
-    const stored = loadStoredSelections().locationId;
-    return stored || "";
-  });
-
-  useEffect(() => {
-    if (stallings.length === 0) return;
-    const stored = loadStoredSelections().locationId;
-    const validStored = stallings.some((s) => s.locationid === stored);
-    setSelectedLocationId((prev) => {
-      const prevValid = prev && stallings.some((s) => s.locationid === prev);
-      if (prevValid) return prev;
-      return validStored ? stored : stallings[0]?.locationid ?? "";
-    });
-  }, [stallings]);
-  const [layout, setLayout] = useState<Layout | null>(null);
   const [statusFilter, setStatusFilter] = useState<"occupied" | "free" | "all">("occupied");
   const [parkingFilter, setParkingFilter] = useState<string>("all");
   const [fietstypeFilter, setFietstypeFilter] = useState<number | "all">("all");
-  const [parkLoading, setParkLoading] = useState(false);
   const [removeLoading, setRemoveLoading] = useState<string | null>(null);
+  const [checkOutLoading, setCheckOutLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const loadState = () => {
@@ -101,140 +57,6 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
     return () => window.removeEventListener("simulation-clock-updated", handler);
   }, []);
 
-  useEffect(() => {
-    saveStoredSelections(selectedBiketypeId, selectedLocationId);
-  }, [selectedBiketypeId, selectedLocationId]);
-
-  useEffect(() => {
-    if (selectedLocationId) {
-      fetch(`/api/protected/parking-simulation/sections-places/${selectedLocationId}`)
-        .then((r) => (r.ok ? r.json() : {}))
-        .then((data: Layout) => setLayout(data))
-        .catch(() => setLayout(null));
-    } else {
-      setLayout(null);
-    }
-  }, [selectedLocationId]);
-
-  const occupiedBicycleIds = new Set((state?.occupation ?? []).map((o) => o.bicycleId));
-  const freeBicycles = (state?.bicycles ?? []).filter((b) => !occupiedBicycleIds.has(b.id));
-  const biketypeIdsWithFree = [...new Set(freeBicycles.map((b) => b.biketypeID ?? 1))];
-  const freeBicyclesOfType = freeBicycles.filter((b) => (b.biketypeID ?? 1) === selectedBiketypeId);
-
-  useEffect(() => {
-    if (!state) return;
-    const occIds = new Set((state.occupation ?? []).map((o) => o.bicycleId));
-    const free = (state.bicycles ?? []).filter((b) => !occIds.has(b.id));
-    if (free.length === 0) return;
-    const btIds = [...new Set(free.map((b) => b.biketypeID ?? 1))];
-    const firstBiketypeId = btIds[0];
-    const firstBikeOfType = free.filter((b) => (b.biketypeID ?? 1) === firstBiketypeId)[0];
-    setSelectedBiketypeId((prev) => (btIds.includes(prev) ? prev : (firstBiketypeId ?? "")));
-    setSelectedBicycleId((prev) => (free.some((b) => b.id === prev) ? prev : (firstBikeOfType?.id ?? "")));
-  }, [state?.bicycles, state?.occupation]);
-
-  const normalizedSections = ((): LayoutSection[] => {
-    if (!layout) return [];
-    if (layout.sections && layout.sections.length > 0) return layout.sections;
-    if (layout.sectionid != null || layout.biketypes) {
-      return [{
-        sectionid: layout.sectionid ?? layout.locationid ?? null,
-        biketypes: layout.biketypes,
-        places: layout.places,
-      }];
-    }
-    return [];
-  })();
-
-  const findFirstSuitableSpot = (
-    locationid: string,
-    biketypeId: number,
-    sections: LayoutSection[],
-    occupation: OccupationEntry[]
-  ): { sectionid: string; placeId?: number } | null => {
-    const occupiedInLocation = occupation.filter((o) => o.locationid === locationid);
-    const occupiedSet = new Set(
-      occupiedInLocation.map((o) => `${o.sectionid}:${o.placeId ?? "n"}`)
-    );
-
-    for (const sec of sections) {
-      const sectionid = sec.sectionid;
-      if (!sectionid) continue;
-      const bt = sec.biketypes?.find((b) => b.biketypeid === biketypeId);
-      if (!bt?.allowed) continue;
-
-      if (sec.places && sec.places.length > 0) {
-        for (const place of sec.places) {
-          const key = `${sectionid}:${place.id}`;
-          if (!occupiedSet.has(key)) {
-            return { sectionid, placeId: place.id };
-          }
-        }
-      } else {
-        const capacity = bt.capacity ?? 999;
-        const count = occupiedInLocation.filter(
-          (o) => o.sectionid === sectionid && o.placeId == null
-        ).length;
-        if (count < capacity) {
-          return { sectionid };
-        }
-      }
-    }
-    return null;
-  };
-
-  const handlePark = async () => {
-    if (!selectedBicycleId || !selectedLocationId) {
-      setMessage("Selecteer fiets en stalling.");
-      return;
-    }
-    if (normalizedSections.length === 0) {
-      setMessage("Geen secties gevonden voor deze stalling.");
-      return;
-    }
-    const bike = state?.bicycles?.find((b) => b.id === selectedBicycleId);
-    if (!bike) return;
-    const biketypeId = bike.biketypeID ?? 1;
-
-    const spot = findFirstSuitableSpot(
-      selectedLocationId,
-      biketypeId,
-      normalizedSections,
-      state?.occupation ?? []
-    );
-    if (!spot) {
-      setMessage("Geen geschikte vrije plek gevonden. Controleer of het fiets type toegestaan is.");
-      return;
-    }
-
-    setParkLoading(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/protected/parking-simulation/state", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "park",
-          bicycleId: selectedBicycleId,
-          locationid: selectedLocationId,
-          sectionid: spot.sectionid,
-          placeId: spot.placeId ?? undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setMessage("Fiets gestald.");
-        loadState();
-      } else {
-        setMessage(data.message ?? "Fout");
-      }
-    } catch (e) {
-      setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setParkLoading(false);
-    }
-  };
-
   const handleRemove = async (bicycleId: string) => {
     setRemoveLoading(bicycleId);
     setMessage(null);
@@ -255,6 +77,59 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setRemoveLoading(null);
+    }
+  };
+
+  const handleCheckOut = async (bicycleId: string) => {
+    const creds = getStoredCredentials();
+    if (!creds) {
+      setMessage("Geen credentials. Configureer in Instellingen of voeg Simulatie Dataprovider toe.");
+      return;
+    }
+    const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bicycleId);
+    if (!occ) {
+      setMessage("Fiets niet gestald.");
+      return;
+    }
+    const bike = state?.bicycles?.find((b) => b.id === bicycleId);
+    if (!bike) return;
+    setCheckOutLoading(bicycleId);
+    setMessage(null);
+    try {
+      const simulationTime = await fetchSimulationTime();
+      const tx = {
+        type: "out" as const,
+        transactionDate: simulationTime,
+        passID: "SIM-PASS-001",
+        idtype: 0,
+        barcodeBike: bike.barcode,
+        bikeid: bike.barcode,
+      };
+      const res = await uploadTransaction(creds, occ.locationid, occ.sectionid, tx);
+      if (res.status === 1) {
+        const removeRes = await fetch("/api/protected/parking-simulation/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "remove", bicycleId }),
+        });
+        const removeData = await removeRes.json();
+        if (removeData.ok) {
+          setMessage("Check-out succesvol.");
+          loadState();
+        } else {
+          setMessage(removeData.message ?? "Remove mislukt");
+        }
+      } else {
+        const msg = res.message ?? "onbekend";
+        const hint = /unauthorized|401/i.test(String(msg))
+          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
+          : "";
+        setMessage("Fout: " + msg + hint);
+      }
+    } catch (e) {
+      setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setCheckOutLoading(null);
     }
   };
 
@@ -284,72 +159,17 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
 
   return (
     <div className="bg-white border rounded-lg p-6 space-y-8">
-      <div>
-        <h3 className="text-lg font-bold mb-3">Stallen (zonder check-in)</h3>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Fiets type</label>
-            <select
-              value={biketypeIdsWithFree.includes(selectedBiketypeId) ? selectedBiketypeId : ""}
-              onChange={(e) => {
-                setSelectedBiketypeId(e.target.value === "" ? "" : Number(e.target.value));
-                setSelectedBicycleId("");
-              }}
-              disabled={biketypeIdsWithFree.length === 0}
-              className="border rounded px-3 py-2 disabled:opacity-60 disabled:bg-gray-100"
-            >
-              <option value="">—</option>
-              {bikeTypes
-                .filter((t) => biketypeIdsWithFree.includes(t.ID))
-                .map((t) => (
-                  <option key={t.ID} value={t.ID}>
-                    {t.Name ?? t.naamenkelvoud}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Fiets</label>
-            <select
-              value={freeBicyclesOfType.some((b) => b.id === selectedBicycleId) ? selectedBicycleId : ""}
-              onChange={(e) => setSelectedBicycleId(e.target.value)}
-              disabled={freeBicyclesOfType.length === 0}
-              className="border rounded px-3 py-2 disabled:opacity-60 disabled:bg-gray-100"
-            >
-              <option value="">—</option>
-              {freeBicyclesOfType.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.barcode}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Stalling</label>
-            <select
-              value={selectedLocationId}
-              onChange={(e) => setSelectedLocationId(e.target.value)}
-              className="border rounded px-3 py-2"
-            >
-              <option value="">—</option>
-              {stallings.map((s) => (
-                <option key={s.id} value={s.locationid}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button
-            onClick={() => void handlePark()}
-            disabled={parkLoading || !selectedBicycleId || !selectedLocationId}
-          >
-            Stallen (zonder check-in)
-          </Button>
-        </div>
-      </div>
+      <ActiesPanel
+        stallings={stallings}
+        storageKey={FIETSEN_TAB_STORAGE_KEY}
+        onMessage={setMessage}
+      />
 
       <div>
-        <h3 className="text-lg font-bold mb-3">Pool state</h3>
+        <h3 className="text-lg font-bold mb-3">Fysieke toestand</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Deze toestand kan afwijken van de toestand in de stalling als fietsen niet gescand zijn of buiten het bereik van de detectie zijn gestald.
+        </p>
         <div className="flex flex-wrap gap-4 mb-3">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Status</label>
@@ -421,13 +241,22 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
                   </td>
                   <td className="px-3 py-2 text-right">
                     {isOccupied && (
-                      <Button
-                        onClick={() => void handleRemove(bike.id)}
-                        disabled={removeLoading === bike.id}
-                        className="mb-0 whitespace-nowrap"
-                      >
-                        Uit stalling (zonder check-uit)
-                      </Button>
+                      <span className="flex gap-2 justify-end">
+                        <Button
+                          onClick={() => void handleRemove(bike.id)}
+                          disabled={removeLoading === bike.id}
+                          className="mb-0 whitespace-nowrap"
+                        >
+                          Uit stalling (zonder check-uit)
+                        </Button>
+                        <Button
+                          onClick={() => void handleCheckOut(bike.id)}
+                          disabled={checkOutLoading === bike.id || !getStoredCredentials()}
+                          className="mb-0 whitespace-nowrap"
+                        >
+                          Check-out
+                        </Button>
+                      </span>
                     )}
                   </td>
                 </tr>

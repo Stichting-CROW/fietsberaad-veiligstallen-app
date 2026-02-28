@@ -7,6 +7,7 @@ import { prisma } from "~/server/db";
 import { formatPrismaErrorCompact, logPrismaError } from "~/utils/formatPrismaError";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { createNewFmsTables } from "~/backend/services/database/NewFmsTableActions";
 
 const FMS_TABLES = [
   "new_wachtrij_transacties",
@@ -86,25 +87,7 @@ async function getTableCounts(): Promise<Record<string, number>> {
 }
 
 async function createTables(): Promise<void> {
-  const migrationPath = join(
-    process.cwd(),
-    "prisma/migrations/20250224000000_add_new_fms_tables/migration.sql"
-  );
-  const sql = readFileSync(migrationPath, "utf-8");
-  const statements = sql
-    .split(/;\s*\n/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  for (const raw of statements) {
-    const stmt = raw.replace(/^--[^\n]*\n?/, "").trim();
-    if (stmt.startsWith("CREATE TABLE")) {
-      const withIfNotExists = stmt.replace(
-        /CREATE TABLE (`\w+`)/,
-        "CREATE TABLE IF NOT EXISTS $1"
-      );
-      await prisma.$executeRawUnsafe(withIfNotExists + ";");
-    }
-  }
+  await createNewFmsTables();
 }
 
 export default async function handle(

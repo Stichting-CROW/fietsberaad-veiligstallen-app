@@ -55,24 +55,24 @@ const SimulationClockOverlay: React.FC = () => {
   return (
     <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
       <div className="flex items-center gap-3">
-        <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Simulatietijd</span>
-        <span className="text-base font-mono font-semibold text-gray-900 min-w-[140px]">
+        <span className="text-lg font-medium text-gray-700 whitespace-nowrap">Simulatietijd</span>
+        <span className="text-xl font-mono font-semibold text-gray-900 min-w-[140px]">
           {simTime
             ? new Date(simTime).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "medium" })
             : "—"}
         </span>
         <div className="flex gap-1">
-          <Button onClick={() => advance(60)} disabled={loading} className="text-xs px-2 py-1 mb-0">
-            +1m
+          <Button onClick={() => advance(60)} disabled={loading} className="text-lg px-3 py-1.5 mb-0">
+            +1 M
           </Button>
-          <Button onClick={() => advance(3600)} disabled={loading} className="text-xs px-2 py-1 mb-0">
-            +1u
+          <Button onClick={() => advance(3600)} disabled={loading} className="text-lg px-3 py-1.5 mb-0">
+            +1 U
           </Button>
-          <Button onClick={() => advance(86400)} disabled={loading} className="text-xs px-2 py-1 mb-0">
-            +1d
+          <Button onClick={() => advance(86400)} disabled={loading} className="text-lg px-3 py-1.5 mb-0">
+            +1 D
           </Button>
-          <Button onClick={() => advance(604800)} disabled={loading} className="text-xs px-2 py-1 mb-0">
-            +7d
+          <Button onClick={() => advance(604800)} disabled={loading} className="text-lg px-3 py-1.5 mb-0">
+            +7 D
           </Button>
         </div>
       </div>

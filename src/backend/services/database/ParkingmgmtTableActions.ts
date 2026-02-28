@@ -17,6 +17,7 @@ export async function createParkingmgmtTables(): Promise<boolean> {
       \`defaultIdtype\` INTEGER NOT NULL DEFAULT 0,
       \`simulationTimeOffsetSeconds\` INTEGER NOT NULL DEFAULT 0,
       \`simulationStartDate\` DATETIME(0) NULL,
+      \`useLocalProcessor\` BOOLEAN NOT NULL DEFAULT false,
       \`createdAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
       \`updatedAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0) ON UPDATE CURRENT_TIMESTAMP(0),
       UNIQUE INDEX \`parkingmgmt_simulation_config_siteID_key\`(\`siteID\`),

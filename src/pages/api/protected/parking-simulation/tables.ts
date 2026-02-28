@@ -60,6 +60,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const action = body.action ?? "reset";
 
   if (action === "reset") {
+    console.log("[parking-simulation/reset] Start of reset");
     // startDate from body is ISO string (UTC); store as UTC in DB
     const startDate = body.startDate ? new Date(body.startDate) : DEFAULT_SIMULATION_START_DATE;
     const contact = await prisma.contacts.findFirst({
@@ -103,6 +104,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             prisma.new_wachtrij_sync.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
             prisma.new_transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
+            prisma.new_financialtransactions.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
           );
         }
         if (stallingsIds.length > 0) {
@@ -112,6 +114,22 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           );
         }
         await prisma.$transaction(deletes);
+
+        // new_accounts_pasids and new_accounts: scoped by SiteID (testgemeente contact)
+        const pasidsToDelete = await prisma.new_accounts_pasids.findMany({
+          where: { SiteID: contact.ID },
+          select: { AccountID: true },
+        });
+        const accountIds = [...new Set(pasidsToDelete.map((p) => p.AccountID).filter((id): id is string => id != null))];
+        if (accountIds.length > 0) {
+          await prisma.$transaction([
+            prisma.new_financialtransactions.deleteMany({ where: { accountID: { in: accountIds } } }),
+            prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } }),
+            prisma.new_accounts.deleteMany({ where: { ID: { in: accountIds } } }),
+          ]);
+        } else {
+          await prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } });
+        }
       }
 
       await prisma.parkingmgmt_occupation.deleteMany({});
@@ -126,6 +144,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       await prisma.parkingmgmt_occupation.deleteMany({});
       await prisma.parkingmgmt_spot_detection.deleteMany({});
     }
+    console.log("[parking-simulation/reset] End of reset");
     return res.status(200).json({ ok: true, message: "Data reset" });
   }
 
