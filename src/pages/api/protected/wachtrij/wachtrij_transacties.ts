@@ -36,6 +36,7 @@ export default async function handler(
       const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
       const bikeparkID = req.query.bikeparkID as string | undefined;
       const transactionDateFrom = req.query.transactionDateFrom as string | undefined;
+      const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
 
       // Validate pageSize
       const validPageSizes = [25, 100, 1000, 10000];
@@ -54,34 +55,80 @@ export default async function handler(
       }
 
       // Perform count and page fetch in parallel (summary removed)
-      const [total, records] = await Promise.all([
-        prisma.wachtrij_transacties.count({ where }),
-        prisma.wachtrij_transacties.findMany({
-          where,
-          select: {
-            ID: true,
-            bikeparkID: true,
-            sectionID: true,
-            placeID: true,
-            passID: true,
-            passtype: true,
-            type: true,
-            transactionDate: true,
-            processed: true,
-            processDate: true,
-            error: true,
-            dateCreated: true
-          },
-          orderBy: { [orderByField]: sortOrder },
-          skip: (page - 1) * finalPageSize,
-          take: finalPageSize
-        })
-      ]);
+      const [total, records] = useNewTables
+        ? await Promise.all([
+            prisma.new_wachtrij_transacties.count({ where }),
+            prisma.new_wachtrij_transacties.findMany({
+              where,
+              select: {
+                ID: true,
+                bikeparkID: true,
+                sectionID: true,
+                placeID: true,
+                passID: true,
+                passtype: true,
+                type: true,
+                transaction: true,
+                transactionDate: true,
+                processed: true,
+                processDate: true,
+                error: true,
+                dateCreated: true,
+              },
+              orderBy: { [orderByField]: sortOrder },
+              skip: (page - 1) * finalPageSize,
+              take: finalPageSize,
+            }),
+          ])
+        : await Promise.all([
+            prisma.wachtrij_transacties.count({ where }),
+            prisma.wachtrij_transacties.findMany({
+              where,
+              select: {
+                ID: true,
+                bikeparkID: true,
+                sectionID: true,
+                placeID: true,
+                passID: true,
+                passtype: true,
+                type: true,
+                transaction: true,
+                transactionDate: true,
+                processed: true,
+                processDate: true,
+                error: true,
+                dateCreated: true,
+              },
+              orderBy: { [orderByField]: sortOrder },
+              skip: (page - 1) * finalPageSize,
+              take: finalPageSize,
+            }),
+          ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 
+      // new_wachtrij_transacties has processed as Int (0,9,8,1,2); normalize for response compatibility
+      // Extract bikeid from transaction JSON (barcodeBike or bikeid, case-insensitive)
+      const normalizedRecords = records.map((r) => {
+        const rec = r as { processed?: number | boolean; transaction?: string } & Record<string, unknown>;
+        let bikeid: string | null = null;
+        if (rec.transaction && typeof rec.transaction === "string") {
+          try {
+            const tx = JSON.parse(rec.transaction) as Record<string, unknown>;
+            bikeid = (tx.barcodeBike ?? tx.bikeid ?? tx.BIKEID ?? tx.BarcodeBike ?? null) as string | null;
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+        return {
+          ...rec,
+          processed: typeof rec.processed === "number" ? rec.processed : rec.processed === true ? 1 : 0,
+          bikeid,
+        };
+      });
+
       const response: WachtrijResponse<WachtrijTransacties> = {
-        data: records,
+        data: normalizedRecords,
         pagination: {
           page,
           pageSize: finalPageSize,

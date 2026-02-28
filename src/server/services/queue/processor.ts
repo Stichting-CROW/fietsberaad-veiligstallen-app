@@ -7,7 +7,7 @@
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
 import { getBikepassByPassId, addSaldoObject } from "./account-service";
-import { putTransaction, putTransactionByID } from "./transaction-service";
+import { putTransaction } from "./transaction-service";
 
 const USE_NEW_TABLES = true;
 const LIMIT_PASIDS = 50;
@@ -24,8 +24,6 @@ export type ProcessQueuesResult = {
   betalingen: { processed: number; errors: number };
   sync: { processed: number; errors: number };
 };
-
-type ProcessTransactiesResult = { processed: number; errors: number; latestProcessedTransactionDate: Date };
 
 function parsePastypeFromBike(bike: unknown): string {
   if (!bike || typeof bike !== "object") return "sleutelhanger";
@@ -49,10 +47,9 @@ export async function processQueues(): Promise<ProcessQueuesResult> {
 
   await prisma.$transaction(async (tx) => {
     result.pasids = await processPasids(tx);
-    const transactiesResult = await processTransacties(tx);
-    result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
+    result.transacties = await processTransacties(tx);
     result.betalingen = await processBetalingen(tx);
-    result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate);
+    result.sync = await processSync(tx);
   });
 
   return result;
@@ -142,7 +139,7 @@ async function processPasids(
 
 async function processTransacties(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
-): Promise<ProcessTransactiesResult> {
+): Promise<{ processed: number; errors: number }> {
   const model = tx.new_wachtrij_transacties;
 
   // Step 1: Isolate – atomically mark batch 0→9
@@ -158,9 +155,7 @@ async function processTransacties(
     where: { processed: PROCESSED.ISOLATED },
     orderBy: [{ transactionDate: "asc" }, { type: "asc" }],
   });
-  if (rows.length === 0) {
-    return { processed: 0, errors: 0, latestProcessedTransactionDate: new Date() };
-  }
+  if (rows.length === 0) return { processed: 0, errors: 0 };
 
   await model.updateMany({
     where: { ID: { in: rows.map((r) => r.ID) } },
@@ -169,7 +164,6 @@ async function processTransacties(
 
   let processed = 0;
   let errors = 0;
-  let latestProcessedTransactionDate = new Date();
 
   for (const row of rows) {
     try {
@@ -190,42 +184,8 @@ async function processTransacties(
       const typeCheck = (row.typeCheck || transactionJson.typeCheck || "user") as string;
       const typeFixed = typeCheck === "section" ? "user" : typeCheck;
       const transactionDate = row.transactionDate ?? new Date(transactionJson.transactionDate as string);
-      const transactionID = row.transactionID ?? 0;
-      const typeNorm = (row.type || "").toLowerCase();
-      const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
-
-      // Afboeking (transactionID ≠ 0): close by ID or skip when price=0. Skip type/section/bikepass for this path.
-      if (transactionID !== 0) {
-        if (typeNorm === "afboeking" && (price == null || price === 0)) {
-          await model.update({
-            where: { ID: row.ID },
-            data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-          });
-          processed++;
-          latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
-          continue;
-        }
-        await putTransactionByID(tx, {
-          transactionID,
-          transactionDate: transactionDate instanceof Date ? transactionDate : new Date(transactionDate),
-          bikeparkID: row.bikeparkID,
-          stallingID: bikepark.ID,
-          siteID: bikepark.SiteID,
-          sectionID: row.sectionID,
-          typeCheck: typeFixed,
-          berekentStallingskosten: bikepark.BerekentStallingskosten ?? false,
-          useNewTables: USE_NEW_TABLES,
-        });
-        await model.update({
-          where: { ID: row.ID },
-          data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-        });
-        processed++;
-        latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
-        continue;
-      }
-
       const type = (row.type === "Out" ? "Uit" : row.type) as "In" | "Uit";
+
       if (type !== "In" && type !== "Uit") {
         await model.update({
           where: { ID: row.ID },
@@ -251,6 +211,7 @@ async function processTransacties(
       const barcodeBike = (transactionJson.barcodeBike ?? transactionJson.bikeid ?? null) as string | null;
       const bikeTypeID = (transactionJson.bikeTypeID ?? transactionJson.bikeTypeId ?? 1) as number;
       const clientTypeID = (transactionJson.clientTypeID ?? transactionJson.clientTypeId ?? 1) as number;
+      const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
 
       if (row.placeID != null || row.externalPlaceID) {
         const place = await getPlace(row.placeID ?? 0, row.sectionID);
@@ -286,7 +247,6 @@ async function processTransacties(
         data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
       });
       processed++;
-      latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       await model.update({
@@ -297,7 +257,7 @@ async function processTransacties(
     }
   }
 
-  return { processed, errors, latestProcessedTransactionDate };
+  return { processed, errors };
 }
 
 async function processBetalingen(
@@ -364,15 +324,16 @@ async function processBetalingen(
   return { processed, errors };
 }
 
-/**
- * Process wachtrij_sync. Uses latestProcessedTransactionDate from processTransacties (ColdFusion: processTransactions2.cfm lines 80, 146, 226).
- * ColdFusion: latestProcessedTransactionDate = now() when no wachtrij_transacties to process; else = last processed row's transactionDate.
- */
 async function processSync(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  latestProcessedTransactionDate: Date
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 ): Promise<{ processed: number; errors: number }> {
   const transactiesModel = tx.new_transacties;
+  const lastTx = await transactiesModel.findFirst({
+    orderBy: { Date_checkin: "desc" },
+    select: { Date_checkin: true },
+  });
+  const latestProcessedTransactionDate = lastTx?.Date_checkin ?? new Date(0);
+
   const model = tx.new_wachtrij_sync;
 
   // Step 1: Isolate – atomically mark one record 0→9 (only when transactionDate <= latest processed)

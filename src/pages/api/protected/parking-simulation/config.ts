@@ -8,7 +8,7 @@ import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 
 /**
- * GET config, PATCH to update (simulationTimeOffsetSeconds, apiUsername, apiPasswordEncrypted, baseUrl, processQueueBaseUrl).
+ * GET config, PATCH to update (simulationTimeOffsetSeconds, apiUsername, apiPasswordEncrypted, baseUrl, processQueueBaseUrl, useLocalProcessor).
  * Reads/writes parkingmgmt_simulation_config. Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -52,6 +52,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         apiUsername: pmConfig.apiUsername,
         baseUrl: pmConfig.baseUrl,
         processQueueBaseUrl: pmConfig.processQueueBaseUrl,
+        useLocalProcessor: pmConfig.useLocalProcessor ?? false,
         defaultBiketypeID: pmConfig.defaultBiketypeID,
         defaultIdtype: pmConfig.defaultIdtype,
         simulationTimeOffsetSeconds: pmConfig.simulationTimeOffsetSeconds,
@@ -68,6 +69,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     if (body.apiPasswordEncrypted != null) data.apiPasswordEncrypted = body.apiPasswordEncrypted;
     if (body.baseUrl != null) data.baseUrl = body.baseUrl;
     if (body.processQueueBaseUrl != null) data.processQueueBaseUrl = body.processQueueBaseUrl;
+    if (typeof body.useLocalProcessor === "boolean") data.useLocalProcessor = body.useLocalProcessor;
 
     const updated = await prisma.parkingmgmt_simulation_config.update({
       where: { id: pmConfig.id },
@@ -77,6 +79,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       session: {
         id: updated.id,
         simulationTimeOffsetSeconds: updated.simulationTimeOffsetSeconds,
+        useLocalProcessor: updated.useLocalProcessor ?? false,
       },
     });
   }

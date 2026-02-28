@@ -4,6 +4,7 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { processQueues } from "~/server/services/queue/processor";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
 const DEFAULT_PROCESS_QUEUE_BASE = "https://remote.veiligstallenontwikkel.nl";
@@ -38,8 +39,27 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   const pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
     where: { siteID: contact.ID },
-    select: { processQueueBaseUrl: true },
+    select: { processQueueBaseUrl: true, useLocalProcessor: true },
   });
+
+  if (pmConfig?.useLocalProcessor) {
+    try {
+      const result = await processQueues();
+      return res.status(200).json({
+        ok: true,
+        result: {
+          pasids: result.pasids,
+          transacties: result.transacties,
+          betalingen: result.betalingen,
+          sync: result.sync,
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[process-queue] Local processor error:", msg);
+      return res.status(500).json({ ok: false, message: "Fout: " + msg });
+    }
+  }
 
   const base = (pmConfig?.processQueueBaseUrl ?? DEFAULT_PROCESS_QUEUE_BASE).replace(/\/$/, "");
   const url = `${base}/remote/processTransactions2.cfm`;
