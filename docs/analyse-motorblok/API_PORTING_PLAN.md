@@ -198,7 +198,7 @@ Both the ColdFusion and Next.js flows run in parallel. The trigger **mirrors** t
 
 *Downstream tables (Next.js processor output):* `new_transacties`, `new_transacties_archief`, `new_accounts`, `new_accounts_pasids`, `new_financialtransactions`
 
-**Minimum for test phase: 9 tables** (4 queue + 5 downstream). Migration: `prisma/migrations/20250224000000_add_new_fms_tables/migration.sql`.
+**Minimum for test phase: 9 tables** (4 queue + 5 downstream). Created via `NewFmsTableActions.createNewFmsTables()` (inline SQL, same pattern as ParkingmgmtTableActions).
 
 ### 1.3 Triggers
 
@@ -240,7 +240,7 @@ The Parking Simulation simulation uses four `parkingmgmt_*` tables: `parkingmgmt
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/protected/parking-simulation/tables` | GET | Check if all 4 parkingmgmt tables exist → `{ tablesExist: boolean }` |
-| `/api/protected/parking-simulation/tables` | POST | `action: 'create'` – run `prisma migrate deploy`; `action: 'remove'` – drop tables; `action: 'reset'` – clear data, reset clock |
+| `/api/protected/parking-simulation/tables` | POST | `action: 'create'` – create parkingmgmt tables via raw SQL; `action: 'remove'` – drop tables; `action: 'reset'` – clear data, reset clock |
 
 **Access:** `fietsberaad_superadmin` only.
 
@@ -322,7 +322,7 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 
 **Status: 🔶 Partial** – Read-only and write endpoints done. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). **TODO:** getSectors, getBikes, getSubscriptors, updateLocker, isAllowedToUse (V2); balances, subscriptions, bikeupdates (V3 protected).
 
-**Reference:** [wachtrij-tables-api-methods.md](wachtrij-tables-api-methods.md) – only REST is used; SOAP/CFC remote is deprecated.
+**Reference:** [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix E – only REST is used; SOAP/CFC remote is deprecated.
 
 **Scope:** Implement only endpoints from ColdFusion REST (`remote/REST/FMSService.cfc`, `remote/REST/v3/fms_service.cfc`). Do not add SOAP-only methods (e.g. `getJsonBikeType`). See [§12.1 REST-only: No SOAP methods](#121-rest-only-no-soap-methods).
 
@@ -483,7 +483,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 **Next.js processor (test phase):** Processes `new_wachtrij_*` (testgemeente only) → writes to `new_transacties`, `new_accounts`, etc. Both flows run; compare production data (filtered by testgemeente) with `new_*` data to validate.
 
-**Reference:** [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md), [wachtrij-transactie-processing-stappen.md](wachtrij-transactie-processing-stappen.md).
+**Reference:** [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md), [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix A.
 
 ### 7.1 Transaction Flow
 
@@ -540,7 +540,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `prisma/migrations/20250224000000_add_new_fms_tables/` | ✅ | 9 new_* tables + trigger SQL |
+| `NewFmsTableActions.ts` | ✅ | 9 new_* tables (inline SQL); triggers: `src/server/sql/fms-mirror-triggers.sql` |
 | `src/server/services/fms/wachtrij-service.ts` | ✅ | Insert into queue tables |
 | `src/server/utils/fms-table-resolver.ts` | ⏳ | Resolve table names for processor |
 | `src/pages/api/fms/v2/[[...path]].ts` | ✅ | V2 routes (read + write ops done) |
@@ -583,11 +583,11 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 |----------|---------|
 | [SERVICES_FMS.md](SERVICES_FMS.md) | FMS API behaviour (ColdFusion reference) |
 | [DATASTANDARD_REPORTING_API_PLAN.md](DATASTANDARD_REPORTING_API_PLAN.md) | Datastandard and Reporting APIs (separate plan) |
-| [wachtrij-tables-api-methods.md](wachtrij-tables-api-methods.md) | Which REST methods write to queue tables |
-| [wachtrij-transactie-processing-stappen.md](wachtrij-transactie-processing-stappen.md) | Queue processing steps |
+| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix E | Which REST methods write to queue tables |
+| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix A | Queue processing steps |
 | [stroomdiagram-stallingstransacties_v2.md](stroomdiagram-stallingstransacties_v2.md) | Transaction flow diagram |
 | [FMSservice-rest_v3.0.4.pdf](../documentatie-crow/1-api/FMSservice-rest_v3.0.4.pdf) | Official CROW FMS REST API v3 documentation |
-| [OCCUPIED_CAPACITY_FLOW.md](OCCUPIED_CAPACITY_FLOW.md) | ColdFusion → DB source mapping (occupation, capacity, sectionBikeTypes) |
+| [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix C | ColdFusion → DB source mapping (occupation, capacity, sectionBikeTypes) |
 | [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md) | Capacity comparison old vs new API |
 | `scripts/README-extract-stallings.md` | Extract stallings for test municipality |
 
@@ -698,7 +698,7 @@ flowchart TD
 
 ## Appendix A: Dynamic and Conditional Parameters
 
-This appendix documents how dynamic parameters (occupation, free, capacity, etc.) and parameters that depend on conditions are calculated. Reference: `fms-v3-service.ts`, `OCCUPIED_CAPACITY_FLOW.md`, `OCCUPIED_CAPACITY_COMPARISON.md`.
+This appendix documents how dynamic parameters (occupation, free, capacity, etc.) and parameters that depend on conditions are calculated. Reference: `fms-v3-service.ts`, [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix C, `OCCUPIED_CAPACITY_COMPARISON.md`.
 
 ---
 

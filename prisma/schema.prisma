@@ -1490,7 +1490,7 @@ model wachtrij_betalingen {
   transactionDate DateTime  @db.DateTime(0)
   paymentTypeID   Int
   amount          Decimal   @db.Decimal(8, 2)
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   dateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1508,7 +1508,7 @@ model wachtrij_pasids {
   RFIDBike        String    @db.VarChar(35)
   biketypeID      Int?
   bike            String    @db.Text
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   DateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1527,7 +1527,7 @@ model wachtrij_pasids_archive20240915 {
   RFIDBike        String    @db.VarChar(35)
   biketypeID      Int?
   bike            String    @db.Text
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   DateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1905,7 +1905,7 @@ model new_wachtrij_transacties {
   typeCheck       String?   @db.VarChar(60)
   price           Decimal?  @db.Decimal(5, 2)
   transaction     String    @db.Text
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   dateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1927,7 +1927,7 @@ model new_wachtrij_pasids {
   RFIDBike        String    @db.VarChar(35)
   biketypeID      Int?
   bike            String    @db.Text
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   DateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -1944,7 +1944,7 @@ model new_wachtrij_betalingen {
   transactionDate DateTime  @db.DateTime(0)
   paymentTypeID   Int
   amount          Decimal   @db.Decimal(8, 2)
-  processed       Boolean   @default(false)
+  processed       Int       @default(0) @db.TinyInt
   processDate     DateTime? @db.Timestamp(0)
   error           String?   @db.Text
   dateCreated     DateTime  @default(now()) @db.Timestamp(0)
@@ -2174,6 +2174,7 @@ model parkingmgmt_simulation_config {
   apiPasswordEncrypted  String?   @db.VarChar(255)
   baseUrl               String?   @db.VarChar(500)
   processQueueBaseUrl   String?   @db.VarChar(500)
+  useLocalProcessor     Boolean   @default(false)
   defaultBiketypeID              Int       @default(1)
   defaultIdtype                  Int       @default(0)
   simulationTimeOffsetSeconds    Int       @default(0)

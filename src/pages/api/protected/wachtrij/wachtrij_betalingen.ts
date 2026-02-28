@@ -44,29 +44,57 @@ export default async function handler(
       const orderByField = sortableColumns.includes(sortBy as typeof sortableColumns[number]) ? sortBy : 'dateCreated';
 
       const bikeparkID = req.query.bikeparkID as string | undefined;
-      const where = bikeparkID ? { bikeparkID } : {};
+      const transactionDateFrom = req.query.transactionDateFrom as string | undefined;
+      const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
+      const where: { bikeparkID?: string; transactionDate?: { gte: Date } } = {};
+      if (bikeparkID) where.bikeparkID = bikeparkID;
+      if (transactionDateFrom) {
+        const from = new Date(transactionDateFrom);
+        if (!isNaN(from.getTime())) where.transactionDate = { gte: from };
+      }
 
       // Perform count and page fetch in parallel (summary removed)
-      const [total, records] = await Promise.all([
-        prisma.wachtrij_betalingen.count({ where }),
-        prisma.wachtrij_betalingen.findMany({
-          where,
-          select: {
-            ID: true,
-            bikeparkID: true,
-            passID: true,
-            transactionDate: true,
-            amount: true,
-            processed: true,
-            processDate: true,
-            error: true,
-            dateCreated: true
-          },
-          orderBy: { [orderByField]: sortOrder },
-          skip: (page - 1) * finalPageSize,
-          take: finalPageSize
-        })
-      ]);
+      const [total, records] = useNewTables
+        ? await Promise.all([
+            prisma.new_wachtrij_betalingen.count({ where }),
+            prisma.new_wachtrij_betalingen.findMany({
+              where,
+              select: {
+                ID: true,
+                bikeparkID: true,
+                passID: true,
+                transactionDate: true,
+                amount: true,
+                processed: true,
+                processDate: true,
+                error: true,
+                dateCreated: true,
+              },
+              orderBy: { [orderByField]: sortOrder },
+              skip: (page - 1) * finalPageSize,
+              take: finalPageSize,
+            }),
+          ])
+        : await Promise.all([
+            prisma.wachtrij_betalingen.count({ where }),
+            prisma.wachtrij_betalingen.findMany({
+              where,
+              select: {
+                ID: true,
+                bikeparkID: true,
+                passID: true,
+                transactionDate: true,
+                amount: true,
+                processed: true,
+                processDate: true,
+                error: true,
+                dateCreated: true
+              },
+              orderBy: { [orderByField]: sortOrder },
+              skip: (page - 1) * finalPageSize,
+              take: finalPageSize
+            })
+          ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 

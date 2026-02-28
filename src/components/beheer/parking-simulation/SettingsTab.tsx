@@ -16,6 +16,7 @@ const SettingsTab: React.FC = () => {
   const [apiPassword, setApiPassword] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [processQueueBaseUrl, setProcessQueueBaseUrl] = useState("https://remote.veiligstallenontwikkel.nl");
+  const [useLocalProcessor, setUseLocalProcessor] = useState(false);
   const [simulationDataproviderExists, setSimulationDataproviderExists] = useState<boolean | null>(null);
   const [simulationDataproviderLoading, setSimulationDataproviderLoading] = useState(false);
   const [bootstrapMessage, setBootstrapMessage] = useState<string | null>(null);
@@ -83,9 +84,11 @@ const SettingsTab: React.FC = () => {
       if (session) {
         setBaseUrl(session.baseUrl ?? "");
         setProcessQueueBaseUrl(session.processQueueBaseUrl ?? "https://remote.veiligstallenontwikkel.nl");
+        setUseLocalProcessor(session.useLocalProcessor ?? false);
       } else {
         setBaseUrl("");
         setProcessQueueBaseUrl("https://remote.veiligstallenontwikkel.nl");
+        setUseLocalProcessor(false);
       }
     } catch {
       // ignore
@@ -192,7 +195,11 @@ const SettingsTab: React.FC = () => {
       await fetch("/api/protected/parking-simulation/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseUrl: baseUrl || null, processQueueBaseUrl: processQueueBaseUrl || null }),
+        body: JSON.stringify({
+          baseUrl: baseUrl || null,
+          processQueueBaseUrl: processQueueBaseUrl || null,
+          useLocalProcessor,
+        }),
       });
     } catch (e) {
       console.error(e);
@@ -556,15 +563,33 @@ const SettingsTab: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Process queue URL (motorblok)</label>
-            <input
-              type="text"
-              value={processQueueBaseUrl}
-              onChange={(e) => setProcessQueueBaseUrl(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-              placeholder="https://remote.veiligstallenontwikkel.nl"
-            />
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useLocalProcessor}
+                onChange={(e) => setUseLocalProcessor(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Lokale processor + new_* tabellen (i.p.v. remote + standaard)
+              </span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1">
+              Bij aan: Process (new)-knop, wachtrij en transacties uit new_* tabellen.
+            </p>
           </div>
+          {!useLocalProcessor && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Process queue URL (motorblok)</label>
+              <input
+                type="text"
+                value={processQueueBaseUrl}
+                onChange={(e) => setProcessQueueBaseUrl(e.target.value)}
+                className="border rounded px-3 py-2 w-full"
+                placeholder="https://remote.veiligstallenontwikkel.nl"
+              />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 items-center">
             <Button onClick={saveToStorage}>
               Opslaan

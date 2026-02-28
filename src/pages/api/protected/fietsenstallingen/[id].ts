@@ -592,13 +592,24 @@ export default async function handle(
       try {
         const stalling = await prisma.fietsenstallingen.findFirst({
           where: { ID: id },
-          select: { ID: true, fietsenstalling_secties: { select: { sectieId: true } } },
+          select: { ID: true, StallingsID: true, fietsenstalling_secties: { select: { sectieId: true } } },
         });
         if (!stalling) {
           res.status(404).json({ error: "Stalling not found" });
           return;
         }
         const sectieIds = stalling.fietsenstalling_secties.map((s) => s.sectieId);
+
+        // Check if new_* tables exist (they may not in environments without FMS simulation setup)
+        const newTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_transacties'`
+        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
+
+        const parkingmgmtTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() AND table_name = 'parkingmgmt_occupation'`
+        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
 
         await prisma.$transaction(async (tx) => {
           const plekIds = await tx.fietsenstalling_plek.findMany({
@@ -637,6 +648,39 @@ export default async function handle(
           await tx.fietsenstallingen_winkansen.deleteMany({
             where: { FietsenstallingID: stalling.ID },
           });
+          // Queue and transaction data (no FK cascade)
+          if (stalling.StallingsID) {
+            await tx.wachtrij_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+            await tx.wachtrij_pasids.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+            await tx.wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+            await tx.wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+            if (newTablesExist) {
+              await tx.new_wachtrij_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.new_wachtrij_pasids.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.new_wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.new_wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.new_transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
+              await tx.new_financialtransactions.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              // Clear parked state so pasids don't retain stale time-related info (avoids negative Stallingsduur)
+              await tx.new_accounts_pasids.updateMany({
+                where: { huidigeFietsenstallingId: stalling.StallingsID },
+                data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
+              });
+            }
+            await tx.accounts_pasids.updateMany({
+              where: { huidigeFietsenstallingId: stalling.StallingsID },
+              data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
+            });
+            await tx.transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
+            if (parkingmgmtTablesExist) {
+              await tx.parkingmgmt_occupation.deleteMany({ where: { locationid: stalling.StallingsID } });
+              await tx.parkingmgmt_spot_detection.deleteMany({ where: { locationid: stalling.StallingsID } });
+            }
+          }
+          await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
+          if (newTablesExist) {
+            await tx.new_transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
+          }
           await tx.fietsenstallingen.delete({
             where: { ID: stalling.ID },
           });

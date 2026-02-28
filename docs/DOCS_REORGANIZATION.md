@@ -8,9 +8,7 @@
 | docs/analyse-motorblok/SERVICES_REPORTING.md | Reporting API documentation | |
 | docs/analyse-motorblok/SERVICES_DATASTANDARD.md | Datastandard REST API v2 documentation | |
 | docs/analyse-motorblok/stroomdiagram-stallingstransacties_v2.md | Mermaid flowchart for transactions | |
-| docs/analyse-motorblok/wachtrij-transactie-processing-stappen.md | Wachtrij processing steps (detailed) | |
-| docs/analyse-motorblok/wachtrij-transacties-processing-flow.md | Wachtrij transactions processing flow overview | |
-| docs/analyse-motorblok/wachtrij-tables-api-methods.md | Wachtrij tables and API methods | |
+| docs/analyse-motorblok/QUEUE_PROCESSOR_PORTING_PLAN.md | Queue processor port plan (includes wachtrij processing steps, flow, API methods, occupied/capacity) | |
 | docs/analyse-modules/controle-transaction-flow.md | Control transaction flow | |
 | docs/analyse-modules/abonnementsvormen-access.md | Abonnementsvormen access | |
 
@@ -48,6 +46,7 @@ Plans stored in `~/.cursor/plans/`:
 
 | Plan file | Topic |
 |-----------|-------|
+| **QUEUE_PROCESSOR_PORTING_PLAN.md** | **Leading plan** – Queue processor port (processTransactions2.cfm → Next.js); wachtrij processing, data flow, tables without UI |
 | API_PORTING_PLAN.md | FMS REST API and transaction processing |
 | DATASTANDARD_REPORTING_API_PLAN.md | Datastandard and Reporting APIs (separate implementation) |
 
