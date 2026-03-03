@@ -5,6 +5,7 @@ import { wrapper } from "../store/store";
 import Head from "next/head";
 
 import { api } from "~/utils/api";
+import { getRobotsContent } from "~/utils/seo";
 
 import "@fontsource/roboto/300.css";
 import "@fontsource/roboto/400.css";
@@ -29,6 +30,7 @@ const MyApp: AppType = ({
           name="viewport"
           content="minimum-scale=1, initial-scale=1, width=device-width, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
         />
+        <meta name="robots" content={getRobotsContent()} />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -43,7 +45,6 @@ const MyApp: AppType = ({
       `,
           }}
         />
-        <title>VeiligStallen</title>
       </Head>
       <SessionProvider session={pageProps.session}>
         <Component {...pageProps} />

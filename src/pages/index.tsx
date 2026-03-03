@@ -1,10 +1,12 @@
 import { type NextPage } from "next";
-import type { Metadata } from "next";
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { type Session } from "next-auth";
 import HomeComponent from "~/components/HomeComponent";
+import SeoHead from "~/components/SeoHead";
+import { prisma } from "~/server/db";
+import { toMetaDescription } from "~/utils/seo";
 
 export async function getServerSideProps(context: any) {
   try {
@@ -14,10 +16,48 @@ export async function getServerSideProps(context: any) {
       authOptions,
     );
 
+    const stallingId = context.query.stallingid;
+    let parkingMeta: {
+      title: string;
+      description: string;
+      image: string | null;
+      url: string;
+    } | null = null;
+
+    if (stallingId && typeof stallingId === "string") {
+      const parking = await prisma.fietsenstallingen.findFirst({
+        where: {
+          ID: stallingId,
+          Status: "1",
+        },
+        include: {
+          contacts_fietsenstallingen_SiteIDTocontacts: {
+            select: { UrlName: true },
+          },
+        },
+      });
+
+      if (parking) {
+        const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName;
+        const path = urlName ? `/${urlName}/?stallingid=${parking.ID}` : `/?stallingid=${parking.ID}`;
+        const title = [parking.Title, parking.Plaats ?? parking.Location]
+          .filter(Boolean)
+          .join(" – ");
+        parkingMeta = {
+          title: title ? `${title} | VeiligStallen` : "VeiligStallen",
+          description: toMetaDescription(parking.Description) ||
+            `Fietsenstalling ${parking.Title ?? ""} in ${parking.Plaats ?? parking.Location ?? "Nederland"}. Bekijk openingstijden en meer op VeiligStallen.`.trim(),
+          image: parking.Image,
+          url: path,
+        };
+      }
+    }
+
     return {
       props: {
         online: true,
         message: "",
+        parkingMeta,
       },
     };
   } catch (ex: any) {
@@ -26,23 +66,45 @@ export async function getServerSideProps(context: any) {
       props: {
         online: false,
         message: ex.message,
+        parkingMeta: null,
       },
     };
   }
 }
 
 interface HomeProps {
-  online: boolean,
-  message: string,
+  online: boolean;
+  message: string;
+  parkingMeta: {
+    title: string;
+    description: string;
+    image: string | null;
+    url: string;
+  } | null;
 }
 
-const Home: NextPage<HomeProps> = ({ online, message }) => {
-  return <HomeComponent online={online} message={message} url_municipality={undefined} url_municipalitypage={undefined} />
-};
+const Home: NextPage<HomeProps> = ({ online, message, parkingMeta }) => {
+  const title = parkingMeta?.title ?? "VeiligStallen";
+  const description = parkingMeta?.description ?? "Nederlandse fietsenstallingen op de kaart. Waar is een goede, veilige of overdekte plek voor je fiets?";
+  const url = parkingMeta?.url ?? "/";
+  const image = parkingMeta?.image ?? null;
 
-export const metadata: Metadata = {
-  title: "VeiligStallen",
-  description: "Nederlandse fietsenstallingen op de kaart",
+  return (
+    <>
+      <SeoHead
+        title={title}
+        description={description}
+        url={url}
+        image={image}
+      />
+      <HomeComponent
+        online={online}
+        message={message}
+        url_municipality={undefined}
+        url_municipalitypage={undefined}
+      />
+    </>
+  );
 };
 
 export default Home;
