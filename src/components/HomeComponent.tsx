@@ -241,38 +241,35 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     }, [activeArticleMunicipality, activeArticleTitle]);
 
     useEffect(() => {
-      // console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
+      // Don't update URL when parking modal is open - map may have flown to the
+      // parking's location (possibly in another municipality). Preserve the URL.
+      // Use activeParkingId and stallingid only - NOT selectedParkingId, which
+      // persists after closing the modal and would block URL updates indefinitely.
+      const hasStallingInUrl = router.query.stallingid !== undefined && !Array.isArray(router.query.stallingid);
+      if (activeParkingId || hasStallingInUrl) {
+        return;
+      }
+
       (async () => {
         const ddmunicipality = await getMunicipalityBasedOnLatLng(currentLatLng);
         if (!ddmunicipality) {
-          // console.debug("#### HomeComponent - no municipality found", currentLatLng);
-          // updateUrl("root");
           return;
         }
 
         const cbsCode = cbsCodeFromMunicipality(ddmunicipality);
         if(cbsCode === false) {
-          // console.warn("#### HomeComponent - no valid cbsCode for the current location");
-          // updateUrl("root");
           return;
         }
   
-        // Get the municipality info from the database
         const municipalityInfo = await getMunicipalityBasedOnCbsCode(cbsCode);
-        // Set municipality slug in URL
         if (mapZoom >= 12 && municipalityInfo && municipalityInfo.UrlName) {
           updateUrl("municipality", municipalityInfo.UrlName);
-        }
-        // If zoomed out, have just `/` as URL
-        else {
+        } else {
           updateUrl("root");
         }
-
-        // Set the municipality info in redux
-        // console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
-    }, [currentLatLng]);
+    }, [currentLatLng, activeParkingId, router.query.stallingid]);
 
     useEffect(() => {
       console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
@@ -563,8 +560,10 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const updateUrl = (to: string, path?: string) => {
       // console.debug("#### HomeComponent - updateUrl", to, path);
 
-      // If activeParkingId is set: Don't update URL
+      // Don't update URL when viewing a parking: preserve the current municipality.
+      // (Map may have flown to the parking's location, which could be in another municipality)
       if (activeParkingId) return;
+      if (router.query.stallingid !== undefined && !Array.isArray(router.query.stallingid)) return;
 
       // Determine the desired URL
       let desiredUrl = "/";
@@ -599,21 +598,33 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       );
     }
   
+    // Get current municipality from browser URL (updates when user pans map and pushState changes URL).
+    // url_municipality from props is stale after client-side navigation via pushState.
+    const getCurrentMunicipalityFromUrl = (): string | undefined => {
+      if (typeof window === "undefined") return url_municipality;
+      const segment = window.location.pathname.split("/").filter(Boolean)[0];
+      return segment || undefined;
+    };
+
     const updateStallingId = (id: string | undefined): void => {
+      const municipality = getCurrentMunicipalityFromUrl();
+      const pathname = municipality ? `/${municipality}` : "/";
       if (undefined === id) {
         delete query.stallingid;
         delete query.name;
-        router.push({ query: { ...query } });
+        router.push({ pathname, query: { ...query } });
       } else {
         const parking = allparkingdata?.find((p) => p.ID === id);
         const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
-        const newQuery = { ...query, stallingid: id };
+        const newQuery: Record<string, string | string[] | undefined> = { ...query, stallingid: id };
         if (nameSlug) {
           newQuery.name = nameSlug;
         } else {
           delete newQuery.name;
         }
-        router.push({ query: newQuery });
+        if (municipality) newQuery.municipality = municipality;
+        else delete newQuery.municipality;
+        router.push({ pathname, query: newQuery });
       }
   
       if (activeParkingId !== id) {
@@ -623,9 +634,11 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
     const handleCloseParking = () => {
       if (router.query.stallingid !== undefined) {
+        const municipality = getCurrentMunicipalityFromUrl();
+        const pathname = municipality ? `/${municipality}` : "/";
         delete query.stallingid;
         delete query.name;
-        router.push({ query: { ...query } });
+        router.push({ pathname, query: { ...query } });
       }
       dispatch(setActiveParkingId(undefined));
     };

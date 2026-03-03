@@ -558,13 +558,18 @@ function MapboxMap({
       // Make clicked parking active
       dispatch(setSelectedParkingId(e.features[0].properties.id));
       
-      // If mobile: Show parking details
+      // If mobile: Show parking details. Use current URL path (from pushState when user panned).
       if (isMobile) {
         const props = e.features[0].properties;
         const nameSlug = props.title ? titleToSlug(props.title) : undefined;
         const newQuery = { ...query, stallingid: props.id };
         if (nameSlug) newQuery.name = nameSlug;
-        router.push({ query: newQuery });
+        const municipality = typeof window !== "undefined"
+          ? (window.location.pathname.split("/").filter(Boolean)[0] || undefined)
+          : undefined;
+        if (municipality) newQuery.municipality = municipality;
+        const pathname = municipality ? `/${municipality}` : "/";
+        router.push({ pathname, query: newQuery });
       }
       // If desktop: Make clicked parking active
       else {
