@@ -1,15 +1,54 @@
 import { type VSArticle } from "~/types/articles";
 import { hasContent } from "~/utils/articles";
 
+// In-memory cache for articles by municipality (siteId) - makes menu load instant on repeat opens
+const articlesCache = new Map<string, VSArticle[]>();
+const inflightRequests = new Map<string, Promise<VSArticle[]>>();
+
 export const getArticlesForMunicipality = async (siteId: string | null): Promise<VSArticle[]> => {
-  try {
-    const url = siteId ? `/api/protected/articles/?compact=false&SiteID=${siteId}` : "/api/protected/articles/";
-    const response = await fetch(url);
-    const json = await response.json();
-    return json.data as VSArticle[];
-  } catch (err) {
-    console.error(err);
-    return [];
+  const cacheKey = siteId ?? "default";
+  
+  // Return cached result immediately if available
+  const cached = articlesCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  
+  // Coalesce concurrent requests for the same siteId
+  const inflight = inflightRequests.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const url = siteId ? `/api/protected/articles/?compact=false&SiteID=${siteId}` : "/api/protected/articles/";
+      const response = await fetch(url);
+      const json = await response.json();
+      const data = (json.data ?? []) as VSArticle[];
+      articlesCache.set(cacheKey, data);
+      return data;
+    } catch (err) {
+      console.error(err);
+      inflightRequests.delete(cacheKey);
+      return [];
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, fetchPromise);
+  return fetchPromise;
+};
+
+/** Preload articles for the given siteIds to warm the cache before user opens the menu */
+export const prefetchNavArticles = (municipalitySiteId: string | undefined, fietsberaadSiteId = "1"): void => {
+  const muniKey = municipalitySiteId ?? "1";
+  if (!articlesCache.has(muniKey)) {
+    getArticlesForMunicipality(muniKey).catch(() => {});
+  }
+  if (!articlesCache.has(fietsberaadSiteId)) {
+    getArticlesForMunicipality(fietsberaadSiteId).catch(() => {});
   }
 }
 

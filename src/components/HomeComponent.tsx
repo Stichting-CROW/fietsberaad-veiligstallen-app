@@ -27,6 +27,7 @@ import {
   getMunicipalityBasedOnUrlName,
   cbsCodeFromMunicipality,
 } from "~/utils/municipality";
+import { prefetchNavArticles } from "~/utils/navigation";
 
 import { convertCoordinatenToCoords } from "~/utils/map/index";
 
@@ -129,6 +130,11 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     );
   
     const mapZoom = useSelector((state: AppState) => state.map.zoom);
+
+    // Preload menu articles when municipality is known - makes hamburger menu open instantly
+    useEffect(() => {
+      prefetchNavArticles(activeMunicipalityInfo?.ID, "1");
+    }, [activeMunicipalityInfo?.ID]);
 
     useEffect(() => {
       // handle aanmelden sequence
