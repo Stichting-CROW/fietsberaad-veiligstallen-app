@@ -69,8 +69,10 @@ const Error: NextPage = () => {
 							"
 						>
 							<img src="/images/bike-blue-green.png"
-								width="100%"
-								style={{ maxWidth: '350px' }}
+								width={350}
+								height={350}
+								style={{ maxWidth: '350px', width: '100%', height: 'auto' }}
+								alt=""
 							/>
 						</div>
 						<div
@@ -91,7 +93,9 @@ const Error: NextPage = () => {
 									<div>
 										<img src="/images/logo-without-text.png" alt="VeiligStallen logo"
 											className="inline-block mr-6"
-											style={{ height: '60px' }}
+											width={120}
+											height={60}
+											style={{ height: '60px', width: 'auto' }}
 										/>
 										<b>Fout bij inloggen</b>
 									</div>

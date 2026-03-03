@@ -107,7 +107,7 @@ const TopBar: React.FC<TopBarProps> = ({
     
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
       //console.log('renderLogo :: activecontact.CompanyLogo starts with http');
-      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto object-contain" />
+      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto object-contain" width={64} height={48} alt="Logo" />
     }
 
     let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -131,7 +131,7 @@ const TopBar: React.FC<TopBarProps> = ({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto object-contain" />
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto object-contain" width={64} height={48} alt="Logo" />
   }
 
 
@@ -188,7 +188,7 @@ const TopBar: React.FC<TopBarProps> = ({
             }}
             className="flex h-12 w-12 items-center justify-center rounded-xl border border-transparent bg-sky-50 text-sky-600 transition hover:border-sky-200 hover:bg-sky-100"
           >
-            <img src="/images/icon-map.png" className="h-6 w-6" alt="Kaart" />
+            <img src="/images/icon-map.png" className="h-6 w-6" alt="Kaart" width={24} height={24} />
           </button>
           <div className="min-w-0">
             <p className="text-base font-semibold text-slate-900">{title}</p>

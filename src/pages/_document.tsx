@@ -60,10 +60,7 @@ class MainDocument extends Document {
           <link rel="manifest" href="/manifest.json" />
           {/*<link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5bbad5" />*/}
           <link rel="shortcut icon" href="/favicon.ico" />
-          <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/css?family=Roboto:300,400,500"
-          />
+          {/* Roboto loaded via @fontsource in _app - avoid duplicate render-blocking request */}
 
           <meta property="twitter:card" content="summary_large_image" />
           <meta name="twitter:url" content={process.env.NEXT_PUBLIC_SITE_URL || "https://beta.veiligstallen.nl"} />
@@ -139,7 +136,6 @@ class MainDocument extends Document {
               dangerouslySetInnerHTML={{
                 __html: `
                   var _paq = window._paq = window._paq || [];
-                  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
                   _paq.push(["setDoNotTrack", true]);
                   _paq.push(['trackPageView']);
                   _paq.push(['enableLinkTracking']);

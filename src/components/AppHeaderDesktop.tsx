@@ -119,7 +119,7 @@ function AppHeaderDesktop({
 
     // If logo URL starts with http, return the image
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-      return <img src={activecontact?.CompanyLogo} className="max-h-full w-auto bg-white mr-2" />
+      return <img src={activecontact?.CompanyLogo} className="max-h-full w-auto bg-white mr-2" width={64} height={64} alt="Logo" />
     }
 
     let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -144,7 +144,7 @@ function AppHeaderDesktop({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-full w-auto bg-white mr-2" />
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-full w-auto bg-white mr-2" width={64} height={64} alt="Logo" />
   }
 
   return (

@@ -168,7 +168,7 @@ function ParkingFacilityBlock({
                 e.preventDefault();
                 openRoute(parking.Coordinaten)
               }}>
-              <img src="/images/icon-route.png" alt="Open route" className="w-5" />
+              <img src="/images/icon-route.png" alt="Open route" className="w-5" width={20} height={20} />
             </a>
           </>)}
 

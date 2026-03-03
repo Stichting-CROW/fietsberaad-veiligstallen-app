@@ -11,6 +11,8 @@ const WorkInProgressComponent: React.FC<WorkInProgressProps> = ({ title = "Werk 
                 src="/images/werk-in-uitvoering.webp" 
                 alt="Work in Progress"
                 className="max-w-full h-auto"
+                width={400}
+                height={300}
             />
             <div className="text-4xl font-bold text-gray-700">{title}</div>
             </div>

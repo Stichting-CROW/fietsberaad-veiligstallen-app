@@ -44,8 +44,14 @@ import FilterBox from "~/components/FilterBox";
 import { IconButton } from "~/components/Button";
 import { ToggleMenuIcon } from "~/components/ToggleMenuIcon";
 import AppNavigationMobile from "~/components/AppNavigationMobile";
-import MapboxMap from "~/components/MapComponent";
+import dynamic from "next/dynamic";
 import FooterNav from "~/components/FooterNav";
+
+// MapboxMap loads maplibre-gl (~500KB+) - defer to improve LCP and TTI
+const MapboxMap = dynamic(() => import("~/components/MapComponent"), {
+  ssr: false,
+  loading: () => <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-gray-100 animate-pulse" aria-label="Kaart laden" />,
+});
 
 import { useSession } from "next-auth/react";
 import { type AppState } from "~/store/store";
@@ -244,7 +250,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
       // If logo URL starts with http, return the image
       if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-        return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" />
+        return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
       }
   
       let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -266,10 +272,11 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           width={64}
           height={64}
           className="max-h-12 w-auto bg-white mr-2"
+          priority
         />
       }
   
-      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" />
+      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
     }
 
     const renderDesktopParkingList = () => {

@@ -1552,7 +1552,7 @@ const ParkingEdit = ({
                 }
               }}
             >
-              <img src="/images/beeldmerk.png" alt="Bekijk op website" className="w-4 h-4 inline-block" />
+              <img src="/images/beeldmerk.png" alt="Bekijk op website" className="w-4 h-4 inline-block" width={16} height={16} />
               <span className="ml-2 hidden group-hover:inline-block">Bekijk op website</span>
             </Button>
           )}

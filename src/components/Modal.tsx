@@ -92,7 +92,7 @@ const Modal: React.FC<ModalProps> = ({
             p-4
             -m-4
           ">
-            <img src="/images/icon-close-gray.png" alt="Sluiten" className="w-4" />
+            <img src="/images/icon-close-gray.png" alt="Sluiten" className="w-4" width={16} height={16} />
           </a>
           <div
             className="modal-body relative"
