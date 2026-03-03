@@ -40,11 +40,11 @@ export async function getServerSideProps(context: any) {
       if (parking) {
         const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName;
         const path = urlName ? `/${urlName}/?stallingid=${parking.ID}` : `/?stallingid=${parking.ID}`;
-        const title = [parking.Title, parking.Plaats ?? parking.Location]
-          .filter(Boolean)
-          .join(" – ");
+        const title = parking.Title
+          ? `${parking.Title} - VeiligStallen`
+          : "VeiligStallen";
         parkingMeta = {
-          title: title ? `${title} | VeiligStallen` : "VeiligStallen",
+          title,
           description: toMetaDescription(parking.Description) ||
             `Fietsenstalling ${parking.Title ?? ""} in ${parking.Plaats ?? parking.Location ?? "Nederland"}. Bekijk openingstijden en meer op VeiligStallen.`.trim(),
           image: parking.Image,
@@ -84,7 +84,7 @@ interface HomeProps {
 }
 
 const Home: NextPage<HomeProps> = ({ online, message, parkingMeta }) => {
-  const title = parkingMeta?.title ?? "VeiligStallen";
+  const title = parkingMeta?.title ?? "VeiligStallen - Nederlandse fietsenstallingen";
   const description = parkingMeta?.description ?? "Nederlandse fietsenstallingen op de kaart. Waar is een goede, veilige of overdekte plek voor je fiets?";
   const url = parkingMeta?.url ?? "/";
   const image = parkingMeta?.image ?? null;

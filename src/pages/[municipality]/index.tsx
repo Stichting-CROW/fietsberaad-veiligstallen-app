@@ -57,11 +57,11 @@ export const getServerSideProps = async (context: any) => {
       if (parking) {
         const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName ?? municipalitySlug;
         const path = urlName ? `/${urlName}/?stallingid=${parking.ID}` : `/?stallingid=${parking.ID}`;
-        const title = [parking.Title, parking.Plaats ?? parking.Location]
-          .filter(Boolean)
-          .join(" – ");
+        const title = parking.Title
+          ? `${parking.Title} - VeiligStallen`
+          : baseTitle;
         seoMeta = {
-          title: title ? `${title} | VeiligStallen` : baseTitle,
+          title,
           description: toMetaDescription(parking.Description) ||
             `Fietsenstalling ${parking.Title ?? ""} in ${parking.Plaats ?? parking.Location ?? "Nederland"}. Bekijk openingstijden en meer op VeiligStallen.`.trim(),
           url: path,
