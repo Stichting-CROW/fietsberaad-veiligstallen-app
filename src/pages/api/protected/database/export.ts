@@ -4,6 +4,7 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { titleToSlug } from "~/utils/slug";
 
 type ExportRow = {
   id: string | null;
@@ -279,7 +280,15 @@ export default async function handle(
         escapeCsvField(row.status || ''),                  // String - quoted
         formatNumericField(Number(row.totale_capaciteit)), // Number - unquoted
         escapeCsvField(row.coordinaten||''),               // String - quoted
-        escapeCsvField(`https://beta.veiligstallen.nl/${(row as any).data_eigenaar_urlname}/?stallingid=${row.id || ''}`), // String - quoted
+        escapeCsvField((() => {
+          const base = "https://beta.veiligstallen.nl";
+          const path = (row as any).data_eigenaar_urlname ? `/${(row as any).data_eigenaar_urlname}` : "";
+          const qs = new URLSearchParams();
+          const nameSlug = row.titel ? titleToSlug(row.titel) : undefined;
+          if (nameSlug) qs.set("name", nameSlug);
+          if (row.id) qs.set("stallingid", row.id);
+          return `${base}${path}/?${qs.toString()}`;
+        })()), // String - quoted
         escapeCsvField(row.date_modified ? formatDate(row.date_modified) : ''), // Date string - quoted
       ];
 

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
+import { titleToSlug } from "~/utils/slug";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
 const BASE = BASE_URL.replace(/\/$/, "");
@@ -47,6 +48,7 @@ export default async function handler(
       },
       select: {
         ID: true,
+        Title: true,
         contacts_fietsenstallingen_SiteIDTocontacts: {
           select: { UrlName: true },
         },
@@ -55,10 +57,15 @@ export default async function handler(
 
     for (const p of parkings) {
       const urlName = p.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName;
+      const nameSlug = p.Title ? titleToSlug(p.Title) : undefined;
+      const qs = new URLSearchParams();
+      if (nameSlug) qs.set("name", nameSlug);
+      qs.set("stallingid", p.ID);
+      const queryString = qs.toString();
       if (urlName) {
-        urls.push(urlEntry(`${BASE}/${urlName}/?stallingid=${p.ID}`, "weekly", "0.8"));
+        urls.push(urlEntry(`${BASE}/${urlName}/?${queryString}`, "weekly", "0.8"));
       } else {
-        urls.push(urlEntry(`${BASE}/?stallingid=${p.ID}`, "weekly", "0.8"));
+        urls.push(urlEntry(`${BASE}/?${queryString}`, "weekly", "0.8"));
       }
     }
 

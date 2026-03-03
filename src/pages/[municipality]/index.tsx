@@ -8,6 +8,7 @@ import HomeComponent, { type HomeComponentProps } from "~/components/HomeCompone
 import SeoHead from "~/components/SeoHead";
 import { prisma } from "~/server/db";
 import { toMetaDescription } from "~/utils/seo";
+import { titleToSlug } from "~/utils/slug";
 
 export const getServerSideProps = async (context: any) => {
   try {
@@ -56,7 +57,11 @@ export const getServerSideProps = async (context: any) => {
 
       if (parking) {
         const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName ?? municipalitySlug;
-        const path = urlName ? `/${urlName}/?stallingid=${parking.ID}` : `/?stallingid=${parking.ID}`;
+        const nameSlug = parking.Title ? titleToSlug(parking.Title) : undefined;
+        const qs = new URLSearchParams();
+        if (nameSlug) qs.set("name", nameSlug);
+        qs.set("stallingid", parking.ID);
+        const path = urlName ? `/${urlName}/?${qs.toString()}` : `/?${qs.toString()}`;
         const title = parking.Title
           ? `${parking.Title} - VeiligStallen`
           : baseTitle;

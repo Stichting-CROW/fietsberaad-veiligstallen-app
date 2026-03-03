@@ -7,6 +7,7 @@ import HomeComponent from "~/components/HomeComponent";
 import SeoHead from "~/components/SeoHead";
 import { prisma } from "~/server/db";
 import { toMetaDescription } from "~/utils/seo";
+import { titleToSlug } from "~/utils/slug";
 
 export async function getServerSideProps(context: any) {
   try {
@@ -39,7 +40,11 @@ export async function getServerSideProps(context: any) {
 
       if (parking) {
         const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName;
-        const path = urlName ? `/${urlName}/?stallingid=${parking.ID}` : `/?stallingid=${parking.ID}`;
+        const nameSlug = parking.Title ? titleToSlug(parking.Title) : undefined;
+        const qs = new URLSearchParams();
+        if (nameSlug) qs.set("name", nameSlug);
+        qs.set("stallingid", parking.ID);
+        const path = urlName ? `/${urlName}/?${qs.toString()}` : `/?${qs.toString()}`;
         const title = parking.Title
           ? `${parking.Title} - VeiligStallen`
           : "VeiligStallen";
