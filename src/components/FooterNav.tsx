@@ -96,6 +96,8 @@ const FooterNav = ({ onStallingAanmelden, children }: {
       flex
       text-xs
       z-10
+      flex-wrap
+      gap-y-2 space-evenly
     ">
       {/* {!session && mapZoom >= 12 ?
         <FooterNavItemClick
@@ -168,6 +170,8 @@ const FooterNav_overlay = ({ onStallingAanmelden, children }: {
       flex
       text-xs
       z-10
+      flex-wrap
+      gap-y-2 space-evenly
     ">
       {!session ?
         <FooterNavItemClick
