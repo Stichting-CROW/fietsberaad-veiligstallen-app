@@ -231,7 +231,16 @@ function MapboxMap({
   React.useEffect(() => {
     if (!stateMap) return;
     if (!initialLatLng) return;
-    if (createdWithRestorePosition.current) return;
+    // Only skip when we have restore position AND the requested position matches it (redundant fly).
+    // User-initiated flies (e.g. clicking municipality in search) must still work.
+    if (createdWithRestorePosition.current && defaultCenter) {
+      const [reqLng, reqLat] = initialLatLng;
+      const [restoreLng, restoreLat] = defaultCenter;
+      const isSamePosition =
+        Math.abs(reqLng - restoreLng) < 0.001 &&
+        Math.abs(reqLat - restoreLat) < 0.001;
+      if (isSamePosition) return;
+    }
 
     if (initialViewAnimate) {
       stateMap.flyTo({
