@@ -25,6 +25,10 @@ const server = z.object({
  */
 const client = z.object({
   // NEXT_PUBLIC_CLIENTVAR: z.string().min(1),
+  // SEO: Set in Azure deployment - production: https://beta.veiligstallen.nl, acceptance: https://vstfb-eu-acc-app01.azurewebsites.net
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+  // production = index,follow | acceptance = noindex,nofollow
+  NEXT_PUBLIC_APP_ENV: z.enum(["production", "acceptance"]).optional(),
 });
 
 /**
@@ -46,6 +50,8 @@ const processEnv = {
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
   SMTP_FROM: process.env.SMTP_FROM,
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 

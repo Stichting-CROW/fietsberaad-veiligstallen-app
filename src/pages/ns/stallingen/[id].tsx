@@ -3,6 +3,7 @@
 
 import { prisma } from "~/server/db";
 import { type GetServerSideProps } from 'next';
+import { titleToSlug } from "~/utils/slug";
 
 /* This stub redirects NS stallingen to a generic stalling ID 
    in the format https://www.veiligstallen.nl/stalling/[id]  
@@ -29,14 +30,19 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }
     },
     select: {
-      ID: true
+      ID: true,
+      Title: true,
     }
   });
 
   if(theStalling) {
+    const qs = new URLSearchParams();
+    const nameSlug = theStalling.Title ? titleToSlug(theStalling.Title) : undefined;
+    if (nameSlug) qs.set("name", nameSlug);
+    qs.set("stallingid", theStalling.ID);
     return {
       redirect: {
-        destination: `/?stallingid=${theStalling.ID}`,
+        destination: `/?${qs.toString()}`,
         permanent: false,
       },
     };

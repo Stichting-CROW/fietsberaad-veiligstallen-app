@@ -50,7 +50,8 @@ import FooterNav from "~/components/FooterNav";
 import { useSession } from "next-auth/react";
 import { type AppState } from "~/store/store";
 import { createNewStalling } from "~/utils/parkings";
-import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality"; 
+import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
+import { titleToSlug } from "~/utils/slug"; 
 
 import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
@@ -134,6 +135,28 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         dispatch(setSelectedParkingId(router.query.stallingid));
       }
     }, [router.query, router.query.stallingid, router.query.revision]);
+
+    // Upgrade URL: add name slug when we have stallingid but no name (e.g. from old/shared links)
+    useEffect(() => {
+      const stallingid = router.query.stallingid;
+      const hasName = router.query.name !== undefined && !Array.isArray(router.query.name);
+      if (
+        stallingid &&
+        !Array.isArray(stallingid) &&
+        !hasName &&
+        allparkingdata?.length
+      ) {
+        const parking = allparkingdata.find((p) => p.ID === stallingid);
+        const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
+        if (nameSlug) {
+          router.replace(
+            { query: { ...router.query, name: nameSlug, stallingid } },
+            undefined,
+            { shallow: true }
+          );
+        }
+      }
+    }, [router.query.stallingid, router.query.name, allparkingdata]);
 
     useEffect(() => {
       (async () => {
@@ -538,9 +561,18 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const updateStallingId = (id: string | undefined): void => {
       if (undefined === id) {
         delete query.stallingid;
+        delete query.name;
         router.push({ query: { ...query } });
       } else {
-        router.push({ query: { ...query, stallingid: id } });
+        const parking = allparkingdata?.find((p) => p.ID === id);
+        const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
+        const newQuery = { ...query, stallingid: id };
+        if (nameSlug) {
+          newQuery.name = nameSlug;
+        } else {
+          delete newQuery.name;
+        }
+        router.push({ query: newQuery });
       }
   
       if (activeParkingId !== id) {
@@ -551,6 +583,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const handleCloseParking = () => {
       if (router.query.stallingid !== undefined) {
         delete query.stallingid;
+        delete query.name;
         router.push({ query: { ...query } });
       }
       dispatch(setActiveParkingId(undefined));

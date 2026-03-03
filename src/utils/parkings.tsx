@@ -4,6 +4,7 @@ import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
 import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
 import type { VSContactGemeente } from "~/types/contacts";
+import { titleToSlug } from "~/utils/slug";
 
 export const findParkingIndex = (parkings: fietsenstallingen[], parkingId: string) => {
   let index = 0,
@@ -184,7 +185,11 @@ export const createVeiligstallenOrgLink = async (parkingdata: ParkingDetailsType
   if (!parkingdata.ID) {
     return "";
   }
-  return `/?stallingid=${parkingdata.ID}`;
+  const nameSlug = parkingdata.Title ? titleToSlug(parkingdata.Title) : undefined;
+  const params = new URLSearchParams();
+  if (nameSlug) params.set("name", nameSlug);
+  params.set("stallingid", parkingdata.ID);
+  return `/?${params.toString()}`;
 }
 
 export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetailsType, fietsenstallingen: fietsenstallingen[], contacts: contacts[]): string => {
