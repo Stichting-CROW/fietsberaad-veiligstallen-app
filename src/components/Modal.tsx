@@ -82,7 +82,6 @@ const Modal: React.FC<ModalProps> = ({
       <div ref={modalWrapperRef} className={`modal-wrapper ${modalWrapperClassName || ''}`}>
         <div className={`
           modal
-          pl-5 pr-5 pb-5 pt-5 sm:pl-10 sm:pr-10 sm:pt-10 sm:pb-10
         `}
         style={modalStyle}
         >
@@ -95,7 +94,10 @@ const Modal: React.FC<ModalProps> = ({
             <img src="/images/icon-close-gray.png" alt="" className="w-4" width={16} height={16} />
           </a>
           <div
-            className="modal-body relative"
+            className="
+              modal-body relative
+              pl-5 pr-5 pb-5 pt-5 sm:pl-10 sm:pr-10 sm:pt-10 sm:pb-10
+            "
             style={modalBodyStyle}
           >
             {children}
