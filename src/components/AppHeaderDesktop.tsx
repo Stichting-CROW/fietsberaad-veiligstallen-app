@@ -168,6 +168,7 @@ function AppHeaderDesktop({
         <Link
           href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}
           className="flex flex-col justify-center"
+          aria-label="Ga naar startpagina"
         >
           {renderLogo()}
         </Link>

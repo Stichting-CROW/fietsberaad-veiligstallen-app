@@ -104,6 +104,7 @@ const Login: NextPage = () => {
             >
               <img
                 src="/images/bike-blue-green.png"
+                alt="Illustratie van een fiets"
                 width="100%"
                 style={{ maxWidth: "350px" }}
               />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
-const ImageWithFallback = ({ src, fallbackSrc, ...props }: { src: string, fallbackSrc: string, [key: string]: any }, alt: string) => {
+const ImageWithFallback = ({ src, fallbackSrc, alt = '', ...props }: { src: string, fallbackSrc: string, alt?: string, [key: string]: any }) => {
   const [imgSrc, setImgSrc] = useState(src);
   const isLocalUpload = src.includes('[local]');
 

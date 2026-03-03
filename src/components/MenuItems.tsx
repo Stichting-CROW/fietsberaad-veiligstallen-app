@@ -28,7 +28,7 @@ export const PrimaryMenuItem = (props: any) => {
 
       push(props.url);
     }}>
-      {props.icon ? <img src={props.icon} alt="" width={30} height={30} style={{ height: '30px', width: 'auto' }} /> : ''}
+      {props.icon ? <img src={props.icon} alt={props.title ? `${props.title} - icoon` : 'Menu icoon'} width={30} height={30} style={{ height: '30px', width: 'auto' }} /> : ''}
       {props.title}
     </a>
   </div>
@@ -64,7 +64,7 @@ export const PrimaryMenuItem_overlay = ({targetmunicipality, targetpage, title, 
       // console.debug("#### AppHeaderDesktop - PrimaryMenuItem - set active article ", title);
       dispatch(setActiveArticle({municipality: targetmunicipality, articleTitle: targetpage}));
     }}>
-      {icon ? <img src={icon} alt="" width={30} height={30} style={{ height: '30px', width: 'auto' }} /> : ''}
+      {icon ? <img src={icon} alt={title ? `${title} - icoon` : 'Menu icoon'} width={30} height={30} style={{ height: '30px', width: 'auto' }} /> : ''}
       {title}
     </a>
   </div>

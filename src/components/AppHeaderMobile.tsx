@@ -107,7 +107,7 @@ function AppHeaderMobile({
           justify-between
         ">
           <div className="flex flex-col justify-center">
-            <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
+            <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`} aria-label="Ga naar startpagina">
               {renderLogo()}
             </Link>
           </div>
@@ -132,7 +132,7 @@ function AppHeaderMobile({
             if (handleCloseClick) handleCloseClick();
             // Or default action
             else dispatch(setIsMobileNavigationVisible(true));
-          }} className="
+          }} aria-label={(handleCloseClick) ? "Sluiten" : "Open menu"} className="
             overlay-close-button
             mt-4
             mr-2

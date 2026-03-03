@@ -8,10 +8,10 @@ class MainDocument extends Document {
 
   render() {
     return (
-      <Html>
+      <Html lang="nl">
         <Head>
           {/* Title and meta title/og/twitter come from page-level SeoHead to support dynamic parking titles */}
-          <meta name="viewport" content="initial-scale=1, width=device-width" />
+          {/* Viewport is set in _app.tsx with accessibility-friendly settings (maximum-scale=5) */}
 
           <meta name="application-name" content="VeiligStallen" />
           <meta name="apple-mobile-web-app-capable" content="yes" />

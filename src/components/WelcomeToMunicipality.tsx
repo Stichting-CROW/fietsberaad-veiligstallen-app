@@ -114,7 +114,7 @@ function WelcomeToMunicipality({
     </div>
 
     <p className="mt-6">
-      <a href={`/${municipalityInfo.UrlName}/home`} className="text-gray-500 underline" onClick={(e) => {
+      <a href={`/${municipalityInfo.UrlName}/home`} className="text-gray-600 underline" onClick={(e) => {
         e.preventDefault();
         push(`/${municipalityInfo.UrlName}/home`);
         // Close modal
