@@ -96,7 +96,7 @@ function AppHeader({
         `}
       >
         <AppHeaderMobile hideLogo={false} handleCloseClick={() => {
-          router.push('/');
+          router.push(activeMunicipalityInfo?.UrlName ? `/${activeMunicipalityInfo.UrlName}` : '/');
         }} />
       </div>}
     </>

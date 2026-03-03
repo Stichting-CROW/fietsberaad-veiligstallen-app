@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setSelectedParkingId, setInitialLatLng } from "~/store/mapSlice";
+import { setSelectedParkingId, setInitialLatLng, setInitialViewAnimate } from "~/store/mapSlice";
 import { setQuery } from "~/store/filterSlice";
 import { setMunicipalities } from "~/store/geoSlice";
 
@@ -374,9 +374,10 @@ function ParkingFacilityBrowser({
               key={x.ID}
               title={x.CompanyName}
               onClick={() => {
-                // Fly to municipality
+                // Fly to municipality (with animation)
                 const initialLatLng = convertCoordinatenToCoords(x.Coordinaten);
-                dispatch(setInitialLatLng(initialLatLng))
+                dispatch(setInitialViewAnimate(true));
+                dispatch(setInitialLatLng(initialLatLng));
                 // Reset filterQuery
                 dispatch(setQuery(''));
                 // Hide parking list

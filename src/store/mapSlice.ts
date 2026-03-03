@@ -3,6 +3,13 @@ import { AppState } from "./store";
 import { HYDRATE } from "next-redux-wrapper";
 import { type VSContactGemeente } from "~/types/contacts";
 
+// Saved map view when navigating from map to article (to restore when closing article)
+export interface SavedMapState {
+  center: [string, string];
+  zoom: number;
+  municipality: string; // Only restore when returning to same municipality
+}
+
 // Type for our state
 export interface MapState {
   extent: number[];
@@ -12,9 +19,11 @@ export interface MapState {
   activeMunicipalityInfo: VSContactGemeente | undefined;
   initialLatLng: string[] | undefined;
   initialZoom: number | undefined;
+  initialViewAnimate: boolean; // false = instant (e.g. restore), true = flyTo animation
   currentLatLng: string[] | undefined;
   visibleFeatures: string[];
   visibleFeaturesHash: string;
+  savedMapStateBeforeArticle: SavedMapState | null;
 }
 
 // Initial state
@@ -28,7 +37,9 @@ const initialState: MapState = {
   activeMunicipalityInfo: undefined,
   initialLatLng: undefined,
   initialZoom: undefined,
+  initialViewAnimate: true,
   currentLatLng: undefined,
+  savedMapStateBeforeArticle: null,
 };
 
 // Actual Slice
@@ -78,14 +89,27 @@ export const mapSlice = createSlice({
     setInitialZoom(state, action) {
       state.initialZoom = action.payload;
     },
+    setInitialViewAnimate(state, action) {
+      state.initialViewAnimate = action.payload;
+    },
+    setSavedMapStateBeforeArticle(state, action) {
+      state.savedMapStateBeforeArticle = action.payload;
+    },
+    clearSavedMapStateBeforeArticle(state) {
+      state.savedMapStateBeforeArticle = null;
+    },
   },
 
   // Special reducer for hydrating the state. Special case for next-redux-wrapper
   extraReducers: {
     [HYDRATE]: (state, action) => {
+      const payload = action.payload as { map?: MapState };
       return {
         ...state,
-        ...action.payload.map,
+        ...payload?.map,
+        // Preserve client-only map state (never from server)
+        savedMapStateBeforeArticle: state.savedMapStateBeforeArticle,
+        initialViewAnimate: state.initialViewAnimate,
       };
     },
   },
@@ -101,5 +125,8 @@ export const {
   // setActiveMunicipality,
   setActiveMunicipalityInfo,
   setInitialLatLng,
-  setInitialZoom
+  setInitialZoom,
+  setInitialViewAnimate,
+  setSavedMapStateBeforeArticle,
+  clearSavedMapStateBeforeArticle,
 } = mapSlice.actions;

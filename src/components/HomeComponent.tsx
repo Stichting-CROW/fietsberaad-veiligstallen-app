@@ -18,6 +18,8 @@ import {
   setInitialLatLng,
   setInitialZoom,
   setSelectedParkingId,
+  setInitialViewAnimate,
+  clearSavedMapStateBeforeArticle,
 } from "~/store/mapSlice";
 
 import { setQuery } from "~/store/filterSlice";
@@ -131,6 +133,31 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
     const mapZoom = useSelector((state: AppState) => state.map.zoom);
 
+    const savedMapStateBeforeArticle = useSelector(
+      (state: AppState) => state.map.savedMapStateBeforeArticle,
+    );
+
+    // Restore map position/zoom only when MOUNTING after return from article page.
+    // Must NOT run when user clicks menu item (saves state) - that would trigger
+    // restore + flyTo before navigation, moving the map. Use mount-only effect.
+    // Note: currentLatLng from registerMapView is stored as [lat, lng] (turf.points
+    // receives swapped coords), but MapLibre flyTo expects [lng, lat]. Swap on restore.
+    useEffect(() => {
+      if (
+        savedMapStateBeforeArticle &&
+        savedMapStateBeforeArticle.municipality === url_municipality &&
+        url_municipalitypage === undefined &&
+        url_municipality
+      ) {
+        const [a, b] = savedMapStateBeforeArticle.center;
+        dispatch(setInitialViewAnimate(false));
+        dispatch(setInitialLatLng([b, a]));
+        dispatch(setInitialZoom(savedMapStateBeforeArticle.zoom));
+        dispatch(clearSavedMapStateBeforeArticle());
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount when returning from article
+    }, []);
+
     // Preload menu articles when municipality is known - makes hamburger menu open instantly
     useEffect(() => {
       prefetchNavArticles(activeMunicipalityInfo?.ID, "1");
@@ -192,6 +219,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
             info.Coordinaten,
           );
           if (initialLatLng) {
+              dispatch(setInitialViewAnimate(true));
               dispatch(setInitialLatLng(initialLatLng));
           }
           // Set zoom from contact's Zoom field, or default to 13
@@ -690,7 +718,26 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           {/* <ParkingFacilities fietsenstallingen={fietsenstallingen} onStallingAamelden={handleStallingAanmelden}/> */}
           <div data-name="parking-facilities">
             <div className="flex flex-col items-center justify-center">
-                <MapboxMap fietsenstallingen={allparkingdata} />
+                <MapboxMap
+                  fietsenstallingen={allparkingdata}
+                  initialCenter={
+                    savedMapStateBeforeArticle &&
+                    savedMapStateBeforeArticle.municipality === url_municipality &&
+                    url_municipalitypage === undefined
+                      ? [
+                          parseFloat(savedMapStateBeforeArticle.center[1]),
+                          parseFloat(savedMapStateBeforeArticle.center[0]),
+                        ]
+                      : undefined
+                  }
+                  initialZoom={
+                    savedMapStateBeforeArticle &&
+                    savedMapStateBeforeArticle.municipality === url_municipality &&
+                    url_municipalitypage === undefined
+                      ? savedMapStateBeforeArticle.zoom
+                      : undefined
+                  }
+                />
             </div>
 
             <div data-comment="Show only on desktop" className="hidden sm:flex">

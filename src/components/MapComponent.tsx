@@ -12,6 +12,7 @@ import {
   // setActiveMunicipality,
   setSelectedParkingId,
   setActiveParkingId,
+  setInitialViewAnimate,
 } from "~/store/mapSlice";
 
 import {
@@ -97,7 +98,15 @@ const createGeoJson = (input: ParkingDetailsType[]) => {
   };
 };
 
-function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetailsType[] }) {
+function MapboxMap({
+  fietsenstallingen = [],
+  initialCenter: defaultCenter,
+  initialZoom: defaultZoom,
+}: {
+  fietsenstallingen?: ParkingDetailsType[];
+  initialCenter?: [number, number];
+  initialZoom?: number;
+}) {
 
   // this is where the map instance will be stored after initialization
   const [stateMap, setStateMap] = React.useState<maplibregl.Map>();
@@ -127,6 +136,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   const initialZoom = useSelector(
     (state: AppState) => state.map.initialZoom
   );
+  const initialViewAnimate = useSelector(
+    (state: AppState) => state.map.initialViewAnimate
+  );
 
   // const municipalities = useSelector(
   //   (state: AppState) => state.geo.municipalities
@@ -144,6 +156,9 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
   // as a required parameter `container` when initializing the mapbox-gl
   // will contain `null` by default
   const mapNode = React.useRef(null);
+  // When we create map with defaultCenter/defaultZoom (restore scenario), skip the
+  // flyTo/jumpTo effect - map is already at correct position, avoids any flicker
+  const createdWithRestorePosition = React.useRef(!!(defaultCenter && defaultZoom));
 
   // Highlight marker if selectedParkingId changes
   React.useEffect(() => {
@@ -190,8 +205,8 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
       accessToken: process ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : "",
       // style: "maplibre://styles/mapbox/streets-v11",
       style: nine3030,
-      center: [5, 52],
-      zoom: 7,
+      center: defaultCenter ?? [5, 52],
+      zoom: defaultZoom ?? 7,
       // Disable map rotation
       dragRotate: false,
       // Disable rotation through touch gestures
@@ -212,19 +227,27 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
     };
   }, []);
 
-  // Fly to municipality if initial municipality is given
+  // Fly to or jump to initial position (jumpTo when restoring, no animation)
   React.useEffect(() => {
     if (!stateMap) return;
     if (!initialLatLng) return;
+    if (createdWithRestorePosition.current) return;
 
-    stateMap.flyTo({
-      center: initialLatLng,
-      // speed: 0.75,
-      duration: 1500,
-      essential: true,
-      zoom: initialZoom || 13,
-    });
-  }, [stateMap, initialLatLng, initialZoom]);
+    if (initialViewAnimate) {
+      stateMap.flyTo({
+        center: initialLatLng,
+        duration: 1500,
+        essential: true,
+        zoom: initialZoom || 13,
+      });
+    } else {
+      stateMap.jumpTo({
+        center: initialLatLng,
+        zoom: initialZoom || 13,
+      });
+      dispatch(setInitialViewAnimate(true));
+    }
+  }, [stateMap, initialLatLng, initialZoom, dispatch]);
 
   // If 'fietsenstallingen' variable changes: Update source data
   React.useEffect(() => {
