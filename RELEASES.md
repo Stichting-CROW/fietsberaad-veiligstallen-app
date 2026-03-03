@@ -1,5 +1,30 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-03-03
+
+**Features**
+
+- feat(seo): Add parking name to URL, for better recognizability by users
+- feat(seo): Improve meta tag titles across the app
+- feat(seo): Better meta tags, image preview, sitemap.xml, robots.txt
+- CBS Gemeentecodes functionaliteit en Gemeentecode veld voor organisaties (#205)
+- Add reports for exporting faq/page data, save current faq/page data export for future reference (#198)
+
+**Bug Fixes**
+
+- hotfix: verwijder ongebruikte api stub die buildfout veroorzaakt
+- Fix terugzetten openingstijden naar onbekend werkt niet
+- Toon errordialoog wanneer verzenden "nieuwe gebruiker" email mislukt
+
+**Improvements**
+
+- Verschillende updates nav testdocument
+
+**Technical**
+
+- zelde werking prisma singleton op PROD en ACC/DEV (#203)
+- Add archive/usedInColdfusion fields to database, improve prisma inclusions (#201)
+
 ## VeiligStallen 2026-01-08.
 
 **Features**
