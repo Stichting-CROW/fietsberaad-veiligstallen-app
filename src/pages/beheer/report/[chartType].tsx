@@ -48,7 +48,9 @@ const ReportPage: React.FC<ReportPageProps> = () => {
   const showAbonnementenRapporten = true;
 
   const firstDate = new Date("2018-03-01");
+  // Use yesterday as the last date since there's no data for today in the cache
   const lastDate = new Date();
+  lastDate.setDate(lastDate.getDate() - 1);
   lastDate.setHours(0, 0, 0, 0);
 
   // Get chart type from URL

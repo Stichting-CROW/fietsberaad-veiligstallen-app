@@ -213,6 +213,13 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
               )}
               {/* <LeftMenuItem component={VSMenuTopic.ExploreUsersColdfusion} title={'Gebruikers (Oude structuur)'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
               {/* <LeftMenuItem component={VSMenuTopic.TestDatabaseApi} title={'Test Database API'} compact={true} activecomponent={activecomponent} onSelect={onSelect} /> */}
+              {/* <LeftMenuItem
+                component={VSMenuTopic.Fietsenstallingen}
+                title={'Fietsenstallingen'}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiMapPin}
+              /> */}
             </>
           </LeftMenuItem>
         )}

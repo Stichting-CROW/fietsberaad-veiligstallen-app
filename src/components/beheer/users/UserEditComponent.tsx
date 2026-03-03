@@ -54,6 +54,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [showEmailDialog, setShowEmailDialog] = useState(false);
+    const [showErrorDialog, setShowErrorDialog] = useState(false);
     const nameInputRef = useRef<HTMLInputElement>(null);
 
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
@@ -330,7 +331,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
 
-    const sendEmail = async (isNew: boolean) => {
+    const sendEmail = async (isNew: boolean): Promise<boolean> => {
       const to = userName;
       const subject = isNew ? 'Welkom bij de beheeromgeving van VeiligStallen!' : 'VeiligStallen: Wachtwoord gewijzigd';
       const currentPassword = isChangingPassword ? newPassword : password;
@@ -376,25 +377,47 @@ ${session?.user?.email}`;
           }),
         });
 
-        const json = (await response.json()) as { ok: boolean; error?: string };
-        if (!response.ok || !json.ok) {
-          setError(json.error ?? 'E-mail versturen mislukt.');
+        // If response is not OK (any error status), show error dialog
+        if (!response.ok) {
+          setShowErrorDialog(true);
+          return true; // Return true to indicate error dialog was shown
         }
+
+        // Success (if response.ok is true, API always returns { ok: true })
+        notifySuccess("E-mail verstuurd");
+        return false;
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'E-mail versturen mislukt.');
+        // On network errors or other exceptions, show dialog as fallback
+        console.error('Error sending email:', e);
+        setShowErrorDialog(true);
+        return true;
       }
     };
 
-    const handleEmailDialog = (shouldEmail: boolean, isNew: boolean) => {
-      if (shouldEmail) {
-        sendEmail(isNew);
-      }
-      setShowEmailDialog(false);
+    const handleErrorDialog = () => {
+      setShowErrorDialog(false);
+      // Close the component after handling the SMTP error dialog
       if (props.onClose) {
         props.onClose(true, false);
       }
     };
 
+    const handleEmailDialog = async (shouldEmail: boolean, isNew: boolean) => {
+      setShowEmailDialog(false);
+      if (shouldEmail) {
+        const showErrorDialog = await sendEmail(isNew);
+        // If sendEmail triggered the SMTP error dialog, don't close the component yet
+        // It will be closed in handleErrorDialog
+        // Otherwise, close the component if email was sent successfully
+        if (!showErrorDialog && props.onClose) {
+          props.onClose(true, false);
+        }
+      } else {
+        if (props.onClose) {
+          props.onClose(true, false);
+        }
+      }
+    };
 
     const renderTopBar = () => {
       const title = isNew ? "Nieuwe gebruiker" : "Bewerk gebruiker";
@@ -618,6 +641,27 @@ ${session?.user?.email}`;
                   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                 >
                   Ja
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showErrorDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">
+                E-mail kan niet worden verstuurd
+              </h3>
+              <p className="mb-4">
+                De email kan niet worden verstuurd via de veiligstallen backend.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={handleErrorDialog}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                >
+                  OK
                 </button>
               </div>
             </div>

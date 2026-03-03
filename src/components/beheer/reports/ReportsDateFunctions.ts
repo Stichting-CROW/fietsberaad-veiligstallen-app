@@ -132,18 +132,50 @@ export const getSingleYearRange = (year: number | "lastPeriod") => {
     filteryear = year;
     filtermonth = 12;
   }
-  const startDT = normalizeStartOfDay(new Date(filteryear - (filtermonth === 12 ? 0 : 1), (filtermonth === 12 ? 1 : filtermonth + 1) - 1, 1));
-  const endDT = normalizeEndOfDay(new Date(filteryear, filtermonth, 0));
+  const yearStart = normalizeStartOfDay(new Date(filteryear - (filtermonth === 12 ? 0 : 1), (filtermonth === 12 ? 1 : filtermonth + 1) - 1, 1));
+  let endDT = normalizeEndOfDay(new Date(filteryear, filtermonth, 0));
+  
+  // If using lastPeriod, don't exceed yesterday since there's no data for today in the cache
+  if (year === "lastPeriod") {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxEndDate = normalizeEndOfDay(yesterday);
+    // If the start of the year period is after yesterday, use previous year instead
+    if (yearStart > maxEndDate) {
+      // Use previous year (full year)
+      const prevYear = filteryear - 1;
+      const startDT = normalizeStartOfDay(new Date(prevYear, 0, 1));
+      const prevYearEnd = normalizeEndOfDay(new Date(prevYear, 11, 31));
+      return { startDT, endDT: prevYearEnd };
+    }
+    if (endDT > maxEndDate) {
+      endDT = maxEndDate;
+    }
+  }
 
-  return { startDT, endDT };
+  return { startDT: yearStart, endDT };
 };
 
 export const getSingleMonthRange = (year: number | "lastPeriod", month: number | "lastPeriod") => {
   let startDT: Date, endDT: Date;
   if (month === "lastPeriod" || year === "lastPeriod") {
     const now = new Date();
-    startDT = normalizeStartOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
-    endDT = normalizeEndOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    const monthStart = normalizeStartOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+    // Don't exceed yesterday since there's no data for today in the cache
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxEndDate = normalizeEndOfDay(yesterday);
+    // If the start of current month is after yesterday, use previous month instead
+    if (monthStart > maxEndDate) {
+      // Use previous month
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      startDT = normalizeStartOfDay(prevMonth);
+      endDT = normalizeEndOfDay(new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0));
+    } else {
+      startDT = monthStart;
+      let monthEnd = normalizeEndOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      endDT = monthEnd > maxEndDate ? maxEndDate : monthEnd;
+    }
   } else {
     startDT = normalizeStartOfDay(new Date(year, month, 1));
     endDT = normalizeEndOfDay(new Date(year, month + 1, 0));
@@ -164,8 +196,32 @@ export const getSingleQuarterRange = (year: number | "lastPeriod", quarter: numb
     currentYear = year;
   }
 
-  startDT = normalizeStartOfDay(new Date(currentYear, (currentQuarter - 1) * 3, 1));
-  endDT = normalizeEndOfDay(new Date(currentYear, currentQuarter * 3, 0));
+  const quarterStart = normalizeStartOfDay(new Date(currentYear, (currentQuarter - 1) * 3, 1));
+  let quarterEnd = normalizeEndOfDay(new Date(currentYear, currentQuarter * 3, 0));
+  
+  // If using lastPeriod, don't exceed yesterday since there's no data for today in the cache
+  if (year === "lastPeriod" || quarter === "lastPeriod") {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxEndDate = normalizeEndOfDay(yesterday);
+    // If the start of current quarter is after yesterday, use previous quarter instead
+    if (quarterStart > maxEndDate) {
+      // Use previous quarter
+      const prevQuarter = currentQuarter === 1 ? 4 : currentQuarter - 1;
+      const prevQuarterYear = currentQuarter === 1 ? currentYear - 1 : currentYear;
+      startDT = normalizeStartOfDay(new Date(prevQuarterYear, (prevQuarter - 1) * 3, 1));
+      endDT = normalizeEndOfDay(new Date(prevQuarterYear, prevQuarter * 3, 0));
+    } else {
+      startDT = quarterStart;
+      if (quarterEnd > maxEndDate) {
+        quarterEnd = maxEndDate;
+      }
+      endDT = quarterEnd;
+    }
+  } else {
+    startDT = quarterStart;
+    endDT = quarterEnd;
+  }
 
   return { startDT, endDT };
 };
@@ -176,16 +232,35 @@ export const getSingleWeekRange = (year: number | "lastPeriod", week: number | "
 
   if (year === "lastPeriod" || week === "lastPeriod") {
     const now = new Date();
-    startDT = getDateOfIsoWeek(now.getFullYear(), theWeek);
-    endDT = lastDayOfWeek(now.getFullYear(), theWeek);
+    const weekStart = getDateOfIsoWeek(now.getFullYear(), theWeek);
+    const normalizedWeekStart = normalizeStartOfDay(weekStart);
+    // Don't exceed yesterday since there's no data for today in the cache
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const maxEndDate = normalizeEndOfDay(yesterday);
+    // If the start of current week is after yesterday, use previous week instead
+    if (normalizedWeekStart > maxEndDate) {
+      // Use previous week (go back 7 days from start of current week)
+      const prevWeekStart = new Date(weekStart);
+      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+      startDT = normalizeStartOfDay(prevWeekStart);
+      const prevWeekEnd = new Date(prevWeekStart);
+      prevWeekEnd.setDate(prevWeekEnd.getDate() + 6);
+      endDT = normalizeEndOfDay(prevWeekEnd);
+    } else {
+      startDT = normalizedWeekStart;
+      let weekEnd = lastDayOfWeek(now.getFullYear(), theWeek);
+      const normalizedWeekEnd = normalizeEndOfDay(weekEnd);
+      endDT = normalizedWeekEnd > maxEndDate ? maxEndDate : normalizedWeekEnd;
+    }
   } else {
-    startDT = getDateOfIsoWeek(year, theWeek);
-    endDT = lastDayOfWeek(year, theWeek);
+    startDT = normalizeStartOfDay(getDateOfIsoWeek(year, theWeek));
+    endDT = normalizeEndOfDay(lastDayOfWeek(year, theWeek));
   }
 
   return {
-    startDT: normalizeStartOfDay(startDT),
-    endDT: normalizeEndOfDay(endDT),
+    startDT: startDT,
+    endDT: endDT,
   };
 };
 
@@ -245,6 +320,10 @@ export const getRangeForPreset = (
   };
 
   const normalizedNow = normalizeStartOfDay(now);
+  // Calculate yesterday as the maximum end date since there's no data for today in the cache
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const maxEndDate = normalizeEndOfDay(yesterday);
 
   let startDT: Date;
   let endDT: Date;
@@ -255,30 +334,82 @@ export const getRangeForPreset = (
       const day = startOfWeek.getDay();
       const diff = day === 0 ? -6 : 1 - day;
       startOfWeek.setDate(startOfWeek.getDate() + diff);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(endOfWeek.getDate() + 6);
-      startDT = normalizeStartOfDay(startOfWeek);
-      endDT = normalizeEndOfDay(endOfWeek);
+      const normalizedStartOfWeek = normalizeStartOfDay(startOfWeek);
+      // If the start of current week is after yesterday, use previous week instead
+      if (normalizedStartOfWeek > maxEndDate) {
+        // Use previous week (go back 7 days from start of current week)
+        const prevWeekStart = new Date(startOfWeek);
+        prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+        startDT = normalizeStartOfDay(prevWeekStart);
+        const prevWeekEnd = new Date(prevWeekStart);
+        prevWeekEnd.setDate(prevWeekEnd.getDate() + 6);
+        endDT = normalizeEndOfDay(prevWeekEnd);
+      } else {
+        startDT = normalizedStartOfWeek;
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+        endDT = normalizeEndOfDay(endOfWeek);
+        // Don't exceed yesterday
+        if (endDT > maxEndDate) {
+          endDT = maxEndDate;
+        }
+      }
       break;
     }
     case "deze_maand": {
-      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth(), 1));
-      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth() + 1, 0));
+      const monthStart = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth(), 1));
+      // If the start of current month is after yesterday, use previous month instead
+      if (monthStart > maxEndDate) {
+        // Use previous month
+        const prevMonth = new Date(normalizedNow.getFullYear(), normalizedNow.getMonth() - 1, 1);
+        startDT = normalizeStartOfDay(prevMonth);
+        endDT = normalizeEndOfDay(new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0));
+      } else {
+        startDT = monthStart;
+        const monthEnd = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), normalizedNow.getMonth() + 1, 0));
+        // Don't exceed yesterday
+        endDT = monthEnd > maxEndDate ? maxEndDate : monthEnd;
+      }
       break;
     }
     case "dit_kwartaal": {
       const quarter = getQuarter(normalizedNow);
-      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), (quarter - 1) * 3, 1));
-      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), quarter * 3, 0));
+      const quarterStart = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), (quarter - 1) * 3, 1));
+      // If the start of current quarter is after yesterday, use previous quarter instead
+      if (quarterStart > maxEndDate) {
+        // Use previous quarter
+        const prevQuarter = quarter === 1 ? 4 : quarter - 1;
+        const prevQuarterYear = quarter === 1 ? normalizedNow.getFullYear() - 1 : normalizedNow.getFullYear();
+        startDT = normalizeStartOfDay(new Date(prevQuarterYear, (prevQuarter - 1) * 3, 1));
+        endDT = normalizeEndOfDay(new Date(prevQuarterYear, prevQuarter * 3, 0));
+      } else {
+        startDT = quarterStart;
+        const quarterEnd = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), quarter * 3, 0));
+        // Don't exceed yesterday
+        endDT = quarterEnd > maxEndDate ? maxEndDate : quarterEnd;
+      }
       break;
     }
     case "dit_jaar": {
-      startDT = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), 0, 1));
-      endDT = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), 11, 31));
+      const yearStart = normalizeStartOfDay(new Date(normalizedNow.getFullYear(), 0, 1));
+      // If the start of current year is after yesterday, use previous year instead
+      if (yearStart > maxEndDate) {
+        // Use previous year
+        const prevYear = normalizedNow.getFullYear() - 1;
+        startDT = normalizeStartOfDay(new Date(prevYear, 0, 1));
+        endDT = normalizeEndOfDay(new Date(prevYear, 11, 31));
+      } else {
+        startDT = yearStart;
+        const yearEnd = normalizeEndOfDay(new Date(normalizedNow.getFullYear(), 11, 31));
+        // Don't exceed yesterday
+        endDT = yearEnd > maxEndDate ? maxEndDate : yearEnd;
+      }
       break;
     }
     case "afgelopen_7_dagen": {
-      const end = normalizeEndOfDay(new Date(now));
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const end = normalizeEndOfDay(yesterday);
       const start = normalizeStartOfDay(new Date(end));
       start.setDate(start.getDate() - 6);
       startDT = start;
@@ -286,7 +417,9 @@ export const getRangeForPreset = (
       break;
     }
     case "afgelopen_30_dagen": {
-      const end = normalizeEndOfDay(new Date(now));
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const end = normalizeEndOfDay(yesterday);
       const start = normalizeStartOfDay(new Date(end));
       start.setDate(start.getDate() - 29);
       startDT = start;
@@ -294,10 +427,15 @@ export const getRangeForPreset = (
       break;
     }
     case "afgelopen_12_maanden": {
-      const end = normalizeEndOfDay(new Date(now));
-      const start = normalizeStartOfDay(new Date(end));
-      start.setDate(start.getDate() - 364);
-      startDT = start;
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const end = normalizeEndOfDay(yesterday);
+      // Use 12 calendar months instead of fixed 365 days
+      // Start from the day after (end date - 12 months) to make it exactly 12 months
+      const start = new Date(end);
+      start.setMonth(start.getMonth() - 12);
+      start.setDate(start.getDate() + 1); // Add one day to exclude the start day itself
+      startDT = normalizeStartOfDay(start);
       endDT = end;
       break;
     }

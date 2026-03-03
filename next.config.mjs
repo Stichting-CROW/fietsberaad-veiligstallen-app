@@ -43,6 +43,12 @@ const config = {
   },
   distDir: "build",
   output: "standalone",
+  async rewrites() {
+    return [
+      { source: "/sitemap.xml", destination: "/api/sitemap.xml" },
+      { source: "/robots.txt", destination: "/api/robots" },
+    ];
+  },
 };
 
 const nextConfig = withPWA({

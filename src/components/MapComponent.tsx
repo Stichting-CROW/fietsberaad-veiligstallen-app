@@ -34,6 +34,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import nine3030 from "../mapStyles/nine3030";
 import type { ParkingDetailsType } from "~/types/parking";
 import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
+import { titleToSlug } from "~/utils/slug";
 
 // Add custom markers
 // const addMarkerImages = (map: any) => {
@@ -527,7 +528,11 @@ function MapboxMap({ fietsenstallingen = [] }: { fietsenstallingen: ParkingDetai
       
       // If mobile: Show parking details
       if (isMobile) {
-        router.push({ query: { ...query, stallingid: e.features[0].properties.id } });
+        const props = e.features[0].properties;
+        const nameSlug = props.title ? titleToSlug(props.title) : undefined;
+        const newQuery = { ...query, stallingid: props.id };
+        if (nameSlug) newQuery.name = nameSlug;
+        router.push({ query: newQuery });
       }
       // If desktop: Make clicked parking active
       else {

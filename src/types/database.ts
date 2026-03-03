@@ -71,6 +71,10 @@ export const gemeenteSchema = z.object({
     )
     .nullable()
     .optional(),
+  Gemeentecode: z.number()
+    .int({ message: "Gemeentecode moet een geheel getal zijn" })
+    .nullable()
+    .optional(),
   Helpdesk: z.string()
     .nullable()
     .optional(),

@@ -4,10 +4,12 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { titleToSlug } from "~/utils/slug";
 
 type ExportRow = {
   id: string | null;
   data_eigenaar: string | null;
+  data_eigenaar_gemeentecode: number | null;
   titel: string | null;
   stallings_id: string | null;
   soort_stalling: string | null;
@@ -83,7 +85,7 @@ export default async function handle(
     return;
   }
 
-  const { table } = req.query;
+  const { table, statistics } = req.query;
 
   if (table !== 'fietsenstallingen') {
     res.status(400).json({ error: "Only 'fietsenstallingen' table is supported" });
@@ -97,6 +99,8 @@ export default async function handle(
       SELECT 
         f.ID as id,
         c.CompanyName as data_eigenaar,
+        c.Gemeentecode as data_eigenaar_gemeentecode,
+        c.UrlName as data_eigenaar_urlname,
         f.Title as titel,
         f.StallingsID as stallings_id,
         ft.name as soort_stalling,
@@ -114,11 +118,113 @@ export default async function handle(
       LEFT JOIN fietsenstalling_sectie fs ON fs.fietsenstallingsId = f.ID
       LEFT JOIN sectie_fietstype sft ON fs.sectieId = sft.sectieID
       WHERE f.Title NOT LIKE '%Systeemstalling%'
-      GROUP BY f.ID, c.CompanyName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
+      GROUP BY f.ID, c.CompanyName, c.Gemeentecode, c.UrlName, f.Title, f.StallingsID, ft.name, f.Status, f.Coordinaten, f.Url, f.DateModified
       ORDER BY c.CompanyName ASC, ft.name ASC, f.Title ASC
     `;
 
     const results = await prisma.$queryRawUnsafe<ExportRow[]>(sql);
+
+    // Type definitions for stats results
+    type StatsRow = {
+      stallings_id: string;
+      eerste_datum: Date | null;
+      laatste_datum: Date | null;
+      totaal_aantal_transacties?: number | bigint;
+      totaal_aantal_cacherecords?: number | bigint;
+      som_totaal_transacties?: number | bigint | string;
+      aantal_checkins?: number | bigint;
+      aantal_checkouts?: number | bigint;
+    };
+
+    let bezettingsdataMap: Map<string, StatsRow> = new Map();
+    let transactiesArchiefCacheMap: Map<string, StatsRow> = new Map();
+    let stallingsduurCacheMap: Map<string, StatsRow> = new Map();
+
+    if(statistics === 'true') {
+
+      // Bezettingsdata cache: first cache record date, last cache record date, total cache records, separate checkins and checkouts, per stallingid
+      // Optimized: Uses composite index (bikeparkID, timestamp), ORDER BY removed
+      const sqlDataInfoBezettingsdata_day_hour_cache = `
+        SELECT 
+          bikeparkID as stallings_id,
+          MIN(timestamp) as eerste_datum,
+          MAX(timestamp) as laatste_datum,
+          COUNT(*) as totaal_aantal_cacherecords,
+          COALESCE(SUM(totalCheckins), 0) as aantal_checkins,
+          COALESCE(SUM(totalCheckouts), 0) as aantal_checkouts
+        FROM bezettingsdata_day_hour_cache
+        WHERE bikeparkID IS NOT NULL
+        GROUP BY bikeparkID
+      `;
+
+      // Transacties archief day cache: first cache record date, last cache record date, total cache records, separate checkins and checkouts, per stallingid
+      // Note: This table only has count_transacties (total), not split by checkins/checkouts
+      // Optimized: Uses composite index (locationID, checkoutdate), ORDER BY removed
+      const sqlDataInfoTransacties_archief_day_cache = `
+        SELECT 
+          locationID as stallings_id,
+          MIN(checkoutdate) as eerste_datum,
+          MAX(checkoutdate) as laatste_datum,
+          COUNT(*) as totaal_aantal_cacherecords,
+          COALESCE(SUM(count_transacties), 0) as aantal_checkins,
+          COALESCE(SUM(count_transacties), 0) as aantal_checkouts
+        FROM transacties_archief_day_cache
+        WHERE locationID IS NOT NULL
+        GROUP BY locationID
+      `;
+
+      // Stallingsduur cache: first cache record date, last cache record date, total cache records, separate checkins and checkouts, per stallingid
+      // Note: This table only has count_transacties (total), not split by checkins/checkouts
+      // Optimized: Uses index on locationID, ORDER BY removed
+      const sqlDataInfoStallingsduur_cache = `
+        SELECT 
+          locationID as stallings_id,
+          MIN(checkoutdate) as eerste_datum,
+          MAX(checkoutdate) as laatste_datum,
+          COUNT(*) as totaal_aantal_cacherecords,
+          COALESCE(SUM(count_transacties), 0) as aantal_checkins,
+          COALESCE(SUM(count_transacties), 0) as aantal_checkouts
+        FROM stallingsduur_cache
+        WHERE locationID IS NOT NULL
+        GROUP BY locationID
+      `;
+
+      // Fetch all stats sequentially with progress logging
+      // console.log('[Export] Starting stats queries...');
+      
+      // console.log('[Export] Querying bezettingsdata_day_hour_cache stats...');
+      // const startBezettingsdata = Date.now();
+      const bezettingsdataStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoBezettingsdata_day_hour_cache);
+      // console.log(`[Export] Bezettingsdata cache stats completed in ${Date.now() - startBezettingsdata}ms (${bezettingsdataStats.length} records)`);
+      
+      // console.log('[Export] Querying transacties_archief_day_cache stats...');
+      // const startTransactiesArchiefCache = Date.now();
+      const transactiesArchiefCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoTransacties_archief_day_cache);
+      // console.log(`[Export] Transacties archief cache stats completed in ${Date.now() - startTransactiesArchiefCache}ms (${transactiesArchiefCacheStats.length} records)`);
+      
+      // console.log('[Export] Querying stallingsduur_cache stats...');
+      // const startStallingsduur = Date.now();
+      const stallingsduurCacheStats = await prisma.$queryRawUnsafe<StatsRow[]>(sqlDataInfoStallingsduur_cache);
+      // console.log(`[Export] Stallingsduur cache stats completed in ${Date.now() - startStallingsduur}ms (${stallingsduurCacheStats.length} records)`);
+      
+      // console.log('[Export] All stats queries completed');
+
+      // Create lookup maps by stalling_id
+      bezettingsdataMap = new Map<string, StatsRow>();
+      bezettingsdataStats.forEach(row => {
+        bezettingsdataMap.set(row.stallings_id, row);
+      });
+
+      transactiesArchiefCacheMap = new Map<string, StatsRow>();
+      transactiesArchiefCacheStats.forEach(row => {
+        transactiesArchiefCacheMap.set(row.stallings_id, row);
+      });
+
+      stallingsduurCacheMap = new Map<string, StatsRow>();
+      stallingsduurCacheStats.forEach(row => {
+        stallingsduurCacheMap.set(row.stallings_id, row);
+      });
+    }
 
     // Build CSV
     const rows: string[] = [];
@@ -126,6 +232,7 @@ export default async function handle(
     // Header row
     const headers = [
       'Data-eigenaar',
+      'CBS Code Dataeigenaar',
       'Titel',
       'StallingsID',
       'Soort stalling',
@@ -133,24 +240,86 @@ export default async function handle(
       'Totale capaciteit',
       'Locatie',
       'Url',
-      'Laatst bewerkt (UTC)'
-    ];
+      'Laatst bewerkt (UTC)'];
+
+    if(statistics === 'true') {
+      headers.push(...[
+      'Bezettingsdata Cache - Eerste datum',
+      'Bezettingsdata Cache - Laatste datum',
+      'Bezettingsdata Cache - Aantal records',
+      'Bezettingsdata Cache - Aantal checkins',
+      'Bezettingsdata Cache - Aantal checkouts',
+      'Transacties Archief Cache - Eerste datum',
+      'Transacties Archief Cache - Laatste datum',
+      'Transacties Archief Cache - Aantal records',
+      'Transacties Archief Cache - Aantal checkins',
+      'Transacties Archief Cache - Aantal checkouts',
+      'Stallingsduur Cache - Eerste datum',
+      'Stallingsduur Cache - Laatste datum',
+      'Stallingsduur Cache - Aantal records',
+      'Stallingsduur Cache - Aantal checkins',
+      'Stallingsduur Cache - Aantal checkouts'
+    ]);
+    }
     rows.push(headers.map(escapeCsvField).join(','));
 
     // Data rows
     for (const row of results) {
-      // Build CSV row with proper quoting: strings quoted, numbers unquoted
+      const stallingId = row.stallings_id || '';
+      // Format gemeentecode as 4 characters with leading zeros
+      const gemeentecodeFormatted = row.data_eigenaar_gemeentecode 
+        ? String(row.data_eigenaar_gemeentecode).padStart(4, '0')
+        : '';
+      
       const csvRow = [
         escapeCsvField(row.data_eigenaar || ''),           // String - quoted
+        escapeCsvField(gemeentecodeFormatted),              // String - quoted (4 chars with leading zeros)
         escapeCsvField(row.titel || ''),                   // String - quoted
         escapeCsvField(row.stallings_id || ''),            // String - quoted
         escapeCsvField(row.soort_stalling || ''),         // String - quoted
         escapeCsvField(row.status || ''),                  // String - quoted
         formatNumericField(Number(row.totale_capaciteit)), // Number - unquoted
         escapeCsvField(row.coordinaten||''),               // String - quoted
-        escapeCsvField(`https://beta.veiligstallen.nl/utrecht?stallingid=${row.id || ''}`),                     // String - quoted
-        escapeCsvField(row.date_modified ? formatDate(row.date_modified) : '') // Date string - quoted
+        escapeCsvField((() => {
+          const base = "https://beta.veiligstallen.nl";
+          const path = (row as any).data_eigenaar_urlname ? `/${(row as any).data_eigenaar_urlname}` : "";
+          const qs = new URLSearchParams();
+          const nameSlug = row.titel ? titleToSlug(row.titel) : undefined;
+          if (nameSlug) qs.set("name", nameSlug);
+          if (row.id) qs.set("stallingid", row.id);
+          return `${base}${path}/?${qs.toString()}`;
+        })()), // String - quoted
+        escapeCsvField(row.date_modified ? formatDate(row.date_modified) : ''), // Date string - quoted
       ];
+
+      if(statistics === 'true') {
+        // Get stats for this stalling
+        const bezettingsdataStat = bezettingsdataMap.get(stallingId);
+        const transactiesArchiefCacheStat = transactiesArchiefCacheMap.get(stallingId);
+        const stallingsduurCacheStat = stallingsduurCacheMap.get(stallingId);
+
+        // Build CSV row with proper quoting: strings quoted, numbers unquoted
+        csvRow.push(...[
+          // Bezettingsdata Cache stats
+          escapeCsvField(bezettingsdataStat?.eerste_datum ? formatDate(bezettingsdataStat.eerste_datum) : ''),
+          escapeCsvField(bezettingsdataStat?.laatste_datum ? formatDate(bezettingsdataStat.laatste_datum) : ''),
+          formatNumericField(bezettingsdataStat?.totaal_aantal_cacherecords ? Number(bezettingsdataStat.totaal_aantal_cacherecords) : null),
+          formatNumericField(bezettingsdataStat?.aantal_checkins ? Number(bezettingsdataStat.aantal_checkins) : null),
+          formatNumericField(bezettingsdataStat?.aantal_checkouts ? Number(bezettingsdataStat.aantal_checkouts) : null),
+          // Transacties Archief Cache stats
+          escapeCsvField(transactiesArchiefCacheStat?.eerste_datum ? formatDate(transactiesArchiefCacheStat.eerste_datum) : ''),
+          escapeCsvField(transactiesArchiefCacheStat?.laatste_datum ? formatDate(transactiesArchiefCacheStat.laatste_datum) : ''),
+          formatNumericField(transactiesArchiefCacheStat?.totaal_aantal_cacherecords ? Number(transactiesArchiefCacheStat.totaal_aantal_cacherecords) : null),
+          formatNumericField(transactiesArchiefCacheStat?.aantal_checkins ? Number(transactiesArchiefCacheStat.aantal_checkins) : null),
+          formatNumericField(transactiesArchiefCacheStat?.aantal_checkouts ? Number(transactiesArchiefCacheStat.aantal_checkouts) : null),
+          // Stallingsduur Cache stats
+          escapeCsvField(stallingsduurCacheStat?.eerste_datum ? formatDate(stallingsduurCacheStat.eerste_datum) : ''),
+          escapeCsvField(stallingsduurCacheStat?.laatste_datum ? formatDate(stallingsduurCacheStat.laatste_datum) : ''),
+          formatNumericField(stallingsduurCacheStat?.totaal_aantal_cacherecords ? Number(stallingsduurCacheStat.totaal_aantal_cacherecords) : null),
+          formatNumericField(stallingsduurCacheStat?.aantal_checkins ? Number(stallingsduurCacheStat.aantal_checkins) : null),
+          formatNumericField(stallingsduurCacheStat?.aantal_checkouts ? Number(stallingsduurCacheStat.aantal_checkouts) : null)
+        ]);
+      }
 
       rows.push(csvRow.join(','));
     }

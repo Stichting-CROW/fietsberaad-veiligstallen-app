@@ -95,12 +95,12 @@ const FooterNav = ({ onStallingAanmelden, children }: {
       text-xs
       z-10
     ">
-      {!session && mapZoom >= 12 ?
+      {/* {!session && mapZoom >= 12 ?
         <FooterNavItemClick
           onClick={() => { onStallingAanmelden && onStallingAanmelden() }}
           className="cursor-pointer font-bold">
           Stalling aanmelden
-        </FooterNavItemClick> : null}
+        </FooterNavItemClick> : null} */}
 
       {navItemsPrimary.map(x => <FooterNavItem
         key={x.title}
@@ -120,7 +120,7 @@ const FooterNav = ({ onStallingAanmelden, children }: {
       <FooterNavItem
         url="https://github.com/Stichting-CROW/fietsberaad-veiligstallen-app/blob/main/RELEASES.md#app-updates-veiligstallen"
       >
-        <small className="text-xs text-gray-400">v2026-01-07</small>
+        <small className="text-xs text-gray-400">v2026-03-03</small>
       </FooterNavItem>
 
     </div>

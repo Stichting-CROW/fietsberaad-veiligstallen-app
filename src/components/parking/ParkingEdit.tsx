@@ -214,6 +214,11 @@ const ParkingEdit = ({
   const [currentMunicipality, setCurrentMunicipality] = React.useState<
     MunicipalityType | undefined
   >(undefined);
+  
+  // Track detected municipality ID from coordinates (separate from SiteID)
+  const [detectedMunicipalityID, setDetectedMunicipalityID] = React.useState<
+    string | undefined
+  >(undefined);
 
   const { data: session } = useSession() as { data: Session | null };
 
@@ -307,41 +312,47 @@ const ParkingEdit = ({
   const updateSiteID = () => {
     const currentll =
       undefined !== newCoordinaten ? newCoordinaten : parkingdata.Coordinaten;
-    if (!currentll) return;
+    if (!currentll) {
+      setCurrentMunicipality(undefined);
+      setDetectedMunicipalityID(undefined);
+      return;
+    }
     getMunicipalityBasedOnLatLng(currentll.split(","))
       .then(async result => {
         if (result !== false) {
-          // Set municipality in state
+          // Set municipality in state (for display)
           setCurrentMunicipality(result);
 
           // Find CBS code of this municipality
           const cbsCode = cbsCodeFromMunicipality(result);
-          // Reset newSiteID if no cbsCode was found
+          // Reset detected municipality if no cbsCode was found
           if (!cbsCode) {
-            setNewSiteID(undefined);
+            setDetectedMunicipalityID(undefined);
             return;
           }
 
           // Find municipality row in database based on cbsCode
           const municipality = await getMunicipalityBasedOnCbsCode(cbsCode);
-          // Reset newSiteID if no municipality row was found
+          // Reset detected municipality if no municipality row was found
           if (!municipality) {
-            setNewSiteID(undefined);
+            setDetectedMunicipalityID(undefined);
             return;
           }
 
-          if (municipality.ID !== parkingdata.SiteID) {
-            setNewSiteID(municipality.ID);
-          } else {
-            setNewSiteID(undefined);
-          }
+          // Store detected municipality ID (for comparison/warning)
+          setDetectedMunicipalityID(municipality.ID);
+          
+          // DO NOT automatically change SiteID - user must do this manually
+          // SiteID remains unchanged unless user explicitly changes it
         } else {
           setCurrentMunicipality(undefined);
-          setNewSiteID(undefined);
+          setDetectedMunicipalityID(undefined);
         }
       })
       .catch(err => {
         console.error("municipality based on latlng error", err);
+        setCurrentMunicipality(undefined);
+        setDetectedMunicipalityID(undefined);
       });
   };
 
@@ -1301,6 +1312,16 @@ const ParkingEdit = ({
               disabled={true}
             />
           }
+          
+          {/* Warning when detected municipality differs from current SiteID */}
+          {detectedMunicipalityID && 
+           detectedMunicipalityID !== (newSiteID !== undefined ? newSiteID : parkingdata.SiteID) && (
+            <div className="mt-2 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
+              <p className="text-yellow-800 text-sm font-medium">
+                Deze locatie ligt buiten de huidige gemeentegrenzen.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );

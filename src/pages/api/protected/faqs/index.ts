@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "~/generated/prisma-client";
 import { type VSContactsFAQ, type VSFAQ } from "~/types/faq";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'

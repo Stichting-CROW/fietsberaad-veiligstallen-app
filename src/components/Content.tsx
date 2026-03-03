@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import Head from "next/head";
 import { type AppState } from "~/store/store";
 
 // Import components
+import SeoHead from "~/components/SeoHead";
 import PageTitle from "~/components/PageTitle";
 import AppHeader from "~/components/AppHeader";
 import Modal from "src/components/Modal";
@@ -29,7 +29,18 @@ import { useFietsenstallingen } from "~/hooks/useFietsenstallingen";
 import ParkingFacilityBrowserStyles from '~/components/ParkingFacilityBrowser.module.css';
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 
-const Content: React.FC<{ url_municipality: string, url_municipalitypage: string }> = (props: { url_municipality: string, url_municipalitypage: string }) => {
+interface ContentProps {
+  url_municipality: string;
+  url_municipalitypage: string;
+  seoMeta?: {
+    title: string;
+    description: string;
+    url: string;
+  } | null;
+}
+
+const Content: React.FC<ContentProps> = (props: ContentProps) => {
+  const { url_municipality, url_municipalitypage, seoMeta } = props;
   
   const dispatch = useDispatch();
 
@@ -53,9 +64,9 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
     
     // Get municipality based on urlName
     (async () => {
-      if(!props.url_municipality) return;
+      if(!url_municipality) return;
       // Get municipality
-      const municipality = await getMunicipalityBasedOnUrlName(props.url_municipality);
+      const municipality = await getMunicipalityBasedOnUrlName(url_municipality);
       // Set municipality info in redux
       dispatch(setActiveMunicipalityInfo(municipality));
       // Track if municipality lookup failed
@@ -66,12 +77,12 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
       }
     })();
   }, [
-    props.url_municipality
+    url_municipality
   ]);
 
   // Get article content based on slug
   useEffect(() => {
-    if (!props.url_municipalitypage) {
+    if (!url_municipalitypage) {
       console.warn("===> Content - no municipality given");
       return;
     }
@@ -88,7 +99,7 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
 
     (async () => {
       try {
-        const url = `/api/protected/articles/?compact=false&Title=${props.url_municipalitypage}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`;
+        const url = `/api/protected/articles/?compact=false&Title=${url_municipalitypage}&SiteID=${activeMunicipalityInfo.ID}&findFirst=true`;
         const response = await fetch(url);
         const json = await response.json();
         if (!json.data) {
@@ -134,8 +145,8 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
   }, [
     activeMunicipalityInfo,
     allparkingdata,
-    props.url_municipalitypage,
-    props.url_municipality,
+    url_municipalitypage,
+    url_municipality,
     municipalityLookupFailed
   ]);
 
@@ -198,15 +209,17 @@ const Content: React.FC<{ url_municipality: string, url_municipalitypage: string
   const isFaq = pageContent.Title === 'FAQ';
 
 
+  const title = seoMeta?.title ?? (activeMunicipalityInfo ? `${activeMunicipalityInfo.CompanyName} - VeiligStallen` : "VeiligStallen");
+  const description = seoMeta?.description ?? "Nederlandse fietsenstallingen op de kaart. Waar is een goede, veilige of overdekte plek voor je fiets?";
+  const url = seoMeta?.url ?? (url_municipality ? `/${url_municipality}/${url_municipalitypage ?? ""}` : "/");
+
   return (
     <>
-      <Head>
-        <title>
-          {activeMunicipalityInfo
-            ? `${activeMunicipalityInfo.CompanyName} - VeiligStallen`
-            : 'VeiligStallen'}
-        </title>
-      </Head>
+      <SeoHead
+        title={title}
+        description={description}
+        url={url}
+      />
 
       <AppHeader showGemeenteMenu={activeMunicipalityInfo!==undefined} />
 

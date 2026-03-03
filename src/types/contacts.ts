@@ -96,6 +96,7 @@ export interface VSContactExploitant {
       "AlternativeCompanyName" | 
       "UrlName" | 
       "ZipID" | 
+      "Gemeentecode" |
       "Helpdesk" | 
       "DayBeginsAt" | 
       "Coordinaten" | 
@@ -177,6 +178,7 @@ export interface VSContactExploitant {
       AlternativeCompanyName: true,
       UrlName: true,
       ZipID: true,
+      Gemeentecode: true,
       Helpdesk: true,
       CompanyLogo: true,
       CompanyLogo2: true,

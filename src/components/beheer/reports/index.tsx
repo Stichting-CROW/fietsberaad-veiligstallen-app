@@ -292,7 +292,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   useEffect(() => {
     // Only check what bikeparks have data if a start and end time are set
-    if (!filterState) return;
+    if (!filterState || !bikeparks) return;
 
     // Skip API call for report types that don't support availableDataPerBikepark
     // getSQLPerBikepark only supports: "inkomsten", "stallingsduur", "transacties_voltooid", "bezetting", "absolute_bezetting"
@@ -361,7 +361,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [filterState?.reportType, bikeparks.length]);
+  }, [filterState?.reportType, bikeparks?.length ?? 0]);
 
   // const profile = session?.user?.securityProfile as VSUserSecurityProfile | undefined;
   const selectedGemeenteID = session?.user?.activeContactId || "";
