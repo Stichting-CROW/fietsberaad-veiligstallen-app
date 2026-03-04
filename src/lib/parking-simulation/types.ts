@@ -3,6 +3,9 @@
  * All simulation code lives in parking-simulation folders (see plan).
  */
 
+/** Bike type ID for "unknown" category when stalling has no explicit capacity per type */
+export const UNKNOWN_BIKETYPE_ID = 0;
+
 /** Default simulation start date when not set (2025-01-01 00:00:00 UTC) */
 export const DEFAULT_SIMULATION_START_DATE = new Date("2025-01-01T00:00:00.000Z");
 

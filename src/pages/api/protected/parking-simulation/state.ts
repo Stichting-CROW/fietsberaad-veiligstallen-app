@@ -4,12 +4,65 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { reportOccupationData } from "~/server/services/fms/report-occupation-service";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
+import { getStallingLayoutFromVeiligstallen } from "~/lib/parking-simulation/stalling-layout";
+
+const SOURCE_FMS = "FMS";
+
+/**
+ * Report Lumiguide occupation for a section when simulation changes assignment state.
+ * Only for stallings with BronBezettingsdata != 'FMS'.
+ * Writes to bezettingsdata_tmp; trigger mirrors to new_bezettingsdata_tmp for testgemeente.
+ */
+async function reportLumiguideOccupationIfNeeded(
+  simulationConfigId: string,
+  locationid: string,
+  sectionid: string
+): Promise<void> {
+  const stalling = await prisma.fietsenstallingen.findFirst({
+    where: {
+      OR: [{ StallingsID: locationid }, { ID: locationid }],
+      Status: "1",
+    },
+    select: { StallingsID: true, BronBezettingsdata: true },
+  });
+  if (!stalling || stalling.BronBezettingsdata === SOURCE_FMS) return;
+
+  const count = await prisma.parkingsimulation_section_assignments.count({
+    where: {
+      simulationConfigId,
+      locationid,
+      sectionid,
+    },
+  });
+
+  try {
+    await reportOccupationData(
+      stalling.StallingsID ?? locationid,
+      sectionid,
+      { occupation: count, source: "Lumiguide" }
+    );
+  } catch (e) {
+    console.warn("reportOccupationData failed:", e);
+  }
+}
+
+/**
+ * Get section capacity (sum of sectie_fietstype.Capaciteit) for a location.
+ */
+async function getSectionCapacity(locationid: string, sectionid: string): Promise<number> {
+  const layout = await getStallingLayoutFromVeiligstallen(locationid);
+  if (!layout) return 0;
+  const sec = layout.sections.find((s) => s.sectionid === sectionid);
+  if (!sec) return 0;
+  return sec.biketypes.reduce((sum, bt) => sum + bt.capacity, 0);
+}
 
 /**
  * GET: full simulation state (session, bicycles, occupation).
- * POST: update occupation (park, remove, move). Body: { action: 'park'|'remove'|'move', bicycleId, locationid?, sectionid?, placeId?, targetLocationid?, targetSectionid?, targetPlaceId?, checkedIn? }
+ * POST: update occupation (park, remove, move). Body: { action: 'park'|'remove'|'move', bicycleId, locationid?, sectionid?, targetLocationid?, targetSectionid?, checkedIn? }
  * Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -28,13 +81,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   if (req.method === "POST") {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-    const { action, bicycleId, locationid, sectionid, placeId, targetLocationid, targetSectionid, targetPlaceId, checkedIn } = body;
+    const { action, bicycleId, locationid, sectionid, targetLocationid, targetSectionid, checkedIn, passID } = body;
 
     if (!bicycleId) {
       return res.status(400).json({ message: "bicycleId required" });
     }
 
-    const bicycle = await prisma.parkingmgmt_bicycles.findFirst({
+    const bicycle = await prisma.parkingsimulation_bicycles.findFirst({
       where: { id: bicycleId },
       include: { simulationConfig: true },
     });
@@ -43,29 +96,61 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
     if (action === "remove") {
-      await prisma.parkingmgmt_occupation.deleteMany({
+      const assignmentsBefore = await prisma.parkingsimulation_section_assignments.findMany({
+        where: { bicycleId },
+        select: { locationid: true, sectionid: true, simulationConfigId: true },
+      });
+      await prisma.parkingsimulation_section_assignments.deleteMany({
         where: { bicycleId },
       });
+      for (const a of assignmentsBefore) {
+        await reportLumiguideOccupationIfNeeded(a.simulationConfigId, a.locationid, a.sectionid);
+      }
       return res.status(200).json({ ok: true });
     }
 
     if (action === "park" || action === "move") {
       const loc = action === "move" ? targetLocationid : locationid;
       const sec = action === "move" ? targetSectionid : sectionid;
-      const plc = action === "move" ? targetPlaceId : placeId;
       if (!loc || !sec) {
         return res.status(400).json({ message: "locationid and sectionid required" });
       }
-      await prisma.parkingmgmt_occupation.deleteMany({ where: { bicycleId } });
-      await prisma.parkingmgmt_occupation.create({
-        data: {
-          bicycleId,
-          locationid: loc,
-          sectionid: sec,
-          placeId: plc ?? null,
-          checkedIn: checkedIn ?? false,
-        },
+
+      let assignmentsBefore: Array<{ locationid: string; sectionid: string; simulationConfigId: string }> = [];
+      await prisma.$transaction(async (tx) => {
+        assignmentsBefore = await tx.parkingsimulation_section_assignments.findMany({
+          where: { bicycleId },
+          select: { locationid: true, sectionid: true, simulationConfigId: true },
+        });
+        await tx.parkingsimulation_section_assignments.deleteMany({
+          where: { bicycleId },
+        });
+
+        const capacity = await getSectionCapacity(loc, sec);
+        const occupied = await tx.parkingsimulation_section_assignments.count({
+          where: { simulationConfigId: bicycle.simulationConfigId, locationid: loc, sectionid: sec },
+        });
+        if (occupied >= capacity) {
+          throw new Error("Section at capacity");
+        }
+
+        await tx.parkingsimulation_section_assignments.create({
+          data: {
+            simulationConfigId: bicycle.simulationConfigId,
+            bicycleId,
+            locationid: loc,
+            sectionid: sec,
+            checkedIn: checkedIn ?? false,
+            passID: passID ?? null,
+          },
+        });
       });
+      await reportLumiguideOccupationIfNeeded(bicycle.simulationConfigId, loc, sec);
+      for (const a of assignmentsBefore) {
+        if (a.locationid !== loc || a.sectionid !== sec) {
+          await reportLumiguideOccupationIfNeeded(a.simulationConfigId, a.locationid, a.sectionid);
+        }
+      }
       return res.status(200).json({ ok: true });
     }
 
@@ -81,7 +166,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(200).json({ session: null, bicycles: [], occupation: [] });
   }
 
-  let pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
+  let pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
     where: { siteID },
     include: {
       bicycles: true,
@@ -91,7 +176,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   if (!pmConfig) {
     const startDate = DEFAULT_SIMULATION_START_DATE;
     const simulationTimeOffsetSeconds = Math.floor((Date.now() - startDate.getTime()) / 1000);
-    pmConfig = await prisma.parkingmgmt_simulation_config.create({
+    pmConfig = await prisma.parkingsimulation_simulation_config.create({
       data: {
         siteID,
         defaultBiketypeID: 1,
@@ -102,10 +187,26 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     });
   }
 
-  const occupation = await prisma.parkingmgmt_occupation.findMany({
-    where: { bicycle: { simulationConfigId: pmConfig.id } },
+  const assignments = await prisma.parkingsimulation_section_assignments.findMany({
+    where: {
+      simulationConfigId: pmConfig.id,
+    },
     include: { bicycle: true },
   });
+
+  const checkedInBarcodes = assignments
+    .filter((a) => a.checkedIn && a.bicycle?.barcode && !a.passID)
+    .map((a) => a.bicycle!.barcode);
+  const pasidsByBarcode = new Map<string, string>();
+  if (checkedInBarcodes.length > 0) {
+    const pasids = await prisma.new_accounts_pasids.findMany({
+      where: { SiteID: siteID, barcodeFiets: { in: checkedInBarcodes } },
+      select: { PasID: true, barcodeFiets: true },
+    });
+    for (const p of pasids) {
+      if (p.barcodeFiets) pasidsByBarcode.set(p.barcodeFiets, p.PasID);
+    }
+  }
 
   return res.status(200).json({
     session: {
@@ -116,14 +217,14 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       simulationTimeOffsetSeconds: pmConfig.simulationTimeOffsetSeconds,
     },
     bicycles: pmConfig.bicycles,
-    occupation: occupation.map((o) => ({
-      id: o.id,
-      bicycleId: o.bicycleId,
-      locationid: o.locationid,
-      sectionid: o.sectionid,
-      placeId: o.placeId,
-      checkedIn: o.checkedIn,
-      bicycle: o.bicycle,
+    occupation: assignments.map((a) => ({
+      id: a.id,
+      bicycleId: a.bicycleId,
+      locationid: a.locationid,
+      sectionid: a.sectionid,
+      checkedIn: a.checkedIn,
+      passID: a.checkedIn ? (a.passID ?? (a.bicycle?.barcode ? pasidsByBarcode.get(a.bicycle.barcode) ?? null : null)) : null,
+      bicycle: a.bicycle,
     })),
   });
 }

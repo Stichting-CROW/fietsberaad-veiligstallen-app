@@ -18,8 +18,11 @@ export default async function handler(
     return;
   }
 
-  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default)
-  const hasAccess = userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij);
+  // Check wachtrij access (fietsberaad admin/superadmin have wachtrij by default).
+  // Also allow fietsberaad_superadmin for parking simulation context (user may have switched to testgemeente contact).
+  const hasAccess =
+    userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij) ||
+    userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
   if (!hasAccess) {
     console.error("Access denied - insufficient permissions for wachtrij_transacties");

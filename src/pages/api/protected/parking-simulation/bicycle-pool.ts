@@ -37,13 +37,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(400).json({ message: "Testgemeente not found" });
   }
 
-  let pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
+  let pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
     where: { siteID: contact.ID },
   });
   if (!pmConfig) {
     const startDate = DEFAULT_SIMULATION_START_DATE;
     const simulationTimeOffsetSeconds = Math.floor((Date.now() - startDate.getTime()) / 1000);
-    pmConfig = await prisma.parkingmgmt_simulation_config.create({
+    pmConfig = await prisma.parkingsimulation_simulation_config.create({
       data: {
         siteID: contact.ID,
         defaultBiketypeID: 1,
@@ -55,16 +55,16 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   if (req.method === "DELETE") {
     const biketypeID = body.biketypeID != null ? Number(body.biketypeID) : undefined;
-    const occupiedIds = await prisma.parkingmgmt_occupation.findMany({
+    const occupiedAssignments = await prisma.parkingsimulation_section_assignments.findMany({
       select: { bicycleId: true },
     });
-    const occupiedSet = new Set(occupiedIds.map((o) => o.bicycleId));
+    const occupiedSet = new Set(occupiedAssignments.map((o) => o.bicycleId));
     const where: { simulationConfigId: string; id?: { notIn: string[] }; biketypeID?: number } = {
       simulationConfigId: pmConfig.id,
       id: { notIn: Array.from(occupiedSet) },
     };
     if (biketypeID != null) where.biketypeID = biketypeID;
-    const result = await prisma.parkingmgmt_bicycles.deleteMany({ where });
+    const result = await prisma.parkingsimulation_bicycles.deleteMany({ where });
     return res.status(200).json({ deleted: result.count });
   }
 
@@ -73,7 +73,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(400).json({ message: "bicyclePool array required with at least one { biketypeID, count }" });
   }
 
-  const existing = await prisma.parkingmgmt_bicycles.count({
+  const existing = await prisma.parkingsimulation_bicycles.count({
     where: { simulationConfigId: pmConfig.id },
   });
   let seq = existing + 1;
@@ -84,7 +84,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const count = Math.max(0, Math.min(100, Number(entry.count) || 0));
     for (let i = 0; i < count; i++) {
       const barcode = `SIM-BIKE-${String(seq).padStart(3, "0")}`;
-      const bike = await prisma.parkingmgmt_bicycles.create({
+      const bike = await prisma.parkingsimulation_bicycles.create({
         data: {
           simulationConfigId: pmConfig.id,
           barcode,

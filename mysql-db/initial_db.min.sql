@@ -10014,8 +10014,8 @@ CREATE TABLE IF NOT EXISTS `new_financialtransactions` (
     PRIMARY KEY (`ID`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Parking Management simulation tables
-CREATE TABLE IF NOT EXISTS `parkingmgmt_simulation_config` (
+-- Parking simulation tables
+CREATE TABLE IF NOT EXISTS `parkingsimulation_simulation_config` (
     `id` VARCHAR(36) NOT NULL,
     `siteID` VARCHAR(35) NOT NULL,
     `apiUsername` VARCHAR(255) NULL,
@@ -10029,12 +10029,12 @@ CREATE TABLE IF NOT EXISTS `parkingmgmt_simulation_config` (
     `useLocalProcessor` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `updatedAt` DATETIME(0) NOT NULL,
-    UNIQUE INDEX `parkingmgmt_simulation_config_siteID_key`(`siteID`),
-    INDEX `parkingmgmt_simulation_config_siteID_idx`(`siteID`),
+    UNIQUE INDEX `parkingsimulation_simulation_config_siteID_key`(`siteID`),
+    INDEX `parkingsimulation_simulation_config_siteID_idx`(`siteID`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `parkingmgmt_bicycles` (
+CREATE TABLE IF NOT EXISTS `parkingsimulation_bicycles` (
     `id` VARCHAR(36) NOT NULL,
     `simulationConfigId` VARCHAR(36) NOT NULL,
     `barcode` VARCHAR(50) NOT NULL,
@@ -10045,40 +10045,35 @@ CREATE TABLE IF NOT EXISTS `parkingmgmt_bicycles` (
     `status` VARCHAR(20) NOT NULL DEFAULT 'available',
     `createdAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `updatedAt` DATETIME(0) NOT NULL,
-    INDEX `parkingmgmt_bicycles_simulationConfigId_idx`(`simulationConfigId`),
-    INDEX `parkingmgmt_bicycles_barcode_idx`(`barcode`),
+    INDEX `parkingsimulation_bicycles_simulationConfigId_idx`(`simulationConfigId`),
+    INDEX `parkingsimulation_bicycles_barcode_idx`(`barcode`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `parkingmgmt_occupation` (
-    `id` VARCHAR(36) NOT NULL,
-    `bicycleId` VARCHAR(36) NOT NULL,
-    `locationid` VARCHAR(35) NOT NULL,
-    `sectionid` VARCHAR(35) NOT NULL,
-    `placeId` INTEGER NULL,
-    `checkedIn` BOOLEAN NOT NULL DEFAULT false,
-    `createdAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    INDEX `parkingmgmt_occupation_bicycleId_idx`(`bicycleId`),
-    INDEX `parkingmgmt_occupation_location_idx`(`locationid`, `sectionid`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `parkingmgmt_spot_detection` (
+CREATE TABLE IF NOT EXISTS `parkingsimulation_slots` (
     `id` VARCHAR(36) NOT NULL,
     `simulationConfigId` VARCHAR(36) NOT NULL,
     `locationid` VARCHAR(35) NOT NULL,
+    `internalLocation` VARCHAR(50) NOT NULL,
     `sectionid` VARCHAR(35) NOT NULL,
-    `placeId` INTEGER NOT NULL,
-    `detected` BOOLEAN NOT NULL DEFAULT true,
+    `bikeTypeID` INTEGER NOT NULL,
+    `placeId` INTEGER NULL,
+    `slotIndex` INTEGER NOT NULL,
+    `bicycleId` VARCHAR(36) NULL,
+    `checkedIn` BOOLEAN NOT NULL DEFAULT false,
+    `passID` VARCHAR(36) NULL,
+    `detected` BIT(1) NULL,
     `createdAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    UNIQUE INDEX `parkingmgmt_spot_detection_uk`(`simulationConfigId`, `locationid`, `sectionid`, `placeId`),
-    INDEX `parkingmgmt_spot_detection_simulationConfigId_idx`(`simulationConfigId`),
+    `updatedAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0) ON UPDATE CURRENT_TIMESTAMP(0),
+    UNIQUE INDEX `parkingsimulation_slots_uk`(`simulationConfigId`, `locationid`, `internalLocation`),
+    INDEX `parkingsimulation_slots_location_idx`(`simulationConfigId`, `locationid`),
+    INDEX `parkingsimulation_slots_bicycleId_idx`(`bicycleId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-ALTER TABLE `parkingmgmt_bicycles` ADD CONSTRAINT `parkingmgmt_bicycles_simulationConfigId_fkey` FOREIGN KEY (`simulationConfigId`) REFERENCES `parkingmgmt_simulation_config`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE `parkingmgmt_occupation` ADD CONSTRAINT `parkingmgmt_occupation_bicycleId_fkey` FOREIGN KEY (`bicycleId`) REFERENCES `parkingmgmt_bicycles`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE `parkingmgmt_spot_detection` ADD CONSTRAINT `parkingmgmt_spot_detection_simulationConfigId_fkey` FOREIGN KEY (`simulationConfigId`) REFERENCES `parkingmgmt_simulation_config`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `parkingsimulation_bicycles` ADD CONSTRAINT `parkingsimulation_bicycles_simulationConfigId_fkey` FOREIGN KEY (`simulationConfigId`) REFERENCES `parkingsimulation_simulation_config`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `parkingsimulation_slots` ADD CONSTRAINT `parkingsimulation_slots_simulationConfigId_fkey` FOREIGN KEY (`simulationConfigId`) REFERENCES `parkingsimulation_simulation_config`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `parkingsimulation_slots` ADD CONSTRAINT `parkingsimulation_slots_bicycleId_fkey` FOREIGN KEY (`bicycleId`) REFERENCES `parkingsimulation_bicycles`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Structuur van  trigger veiligstallen_test.archiveer_transactie_insert wordt geschreven
 SET @OLDTMP_SQL_MODE=@@SQL_MODE, SQL_MODE='';
