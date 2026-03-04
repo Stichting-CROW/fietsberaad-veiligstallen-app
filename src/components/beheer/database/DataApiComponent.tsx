@@ -48,6 +48,9 @@ const DataApiComponent: React.FC = () => {
         }
         throw new Error(data.error || res.statusText);
       }
+      if (data.manualSql && (action === "create-tables" || action === "create")) {
+        setManualSql(data.manualSql);
+      }
       await fetchFmsStatus();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Actie mislukt");

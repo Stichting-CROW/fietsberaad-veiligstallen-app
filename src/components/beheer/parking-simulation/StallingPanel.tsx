@@ -3,7 +3,8 @@ import { FiRotateCcw } from "react-icons/fi";
 import { Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { Button } from "~/components/Button";
 import { ActiesPanel } from "./ActiesPanel";
-import { syncSector } from "~/lib/parking-simulation/fms-api-client";
+import { StallingSlotOverview } from "./StallingSlotOverview";
+import { syncSector } from "~/lib/parking-simulation/fms-api-write-client";
 
 function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
   if (typeof window === "undefined") return null;
@@ -118,6 +119,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const [motorblokLoading, setMotorblokLoading] = useState(false);
   const [processQueueLoading, setProcessQueueLoading] = useState(false);
   const [processQueueResult, setProcessQueueResult] = useState<string | null>(null);
+  const [updateBezettingsdataLoading, setUpdateBezettingsdataLoading] = useState(false);
+  const [updateBezettingsdataResult, setUpdateBezettingsdataResult] = useState<string | null>(null);
   const [useLocalProcessor, setUseLocalProcessor] = useState(false);
   const [resettingId, setResettingId] = useState<number | null>(null);
   const [syncListModalOpen, setSyncListModalOpen] = useState(false);
@@ -201,6 +204,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const handleProcessQueue = async () => {
     setProcessQueueLoading(true);
     setProcessQueueResult(null);
+    setUpdateBezettingsdataResult(null);
     setSyncLog([]);
     try {
       const res = await fetch("/api/protected/parking-simulation/process-queue", { method: "POST" });
@@ -230,6 +234,26 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
     }
   };
 
+  const handleUpdateBezettingsdata = async () => {
+    setUpdateBezettingsdataLoading(true);
+    setUpdateBezettingsdataResult(null);
+    setProcessQueueResult(null);
+    try {
+      const res = await fetch("/api/protected/parking-simulation/update-bezettingsdata", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        const msg = data.message ?? (data.rowsProcessed != null ? `${data.rowsProcessed} rows` : "OK");
+        setUpdateBezettingsdataResult(msg);
+      } else {
+        setUpdateBezettingsdataResult("Fout: " + (data.message ?? res.statusText));
+      }
+    } catch (e) {
+      setUpdateBezettingsdataResult("Fout: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setUpdateBezettingsdataLoading(false);
+    }
+  };
+
   const handleRefreshAll = () => {
     loadState();
     loadLayout();
@@ -254,23 +278,22 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
 
   const buildSyncList = useCallback((): SyncListSection[] => {
     const occ = state?.occupation ?? [];
-    return normalizedSections
-      .map((s) => ({
-        sectionid: s.sectionid,
-        sectionName: s.name,
-        bikes: occ
-          .filter((o) => o.locationid === locationid && o.sectionid === s.sectionid)
-          .map((o) => ({ barcode: o.bicycle?.barcode ?? o.bicycleId, id: o.bicycleId, checkedIn: o.checkedIn })),
-      }))
-      .filter((sec) => sec.bikes.length > 0);
+    return normalizedSections.map((s) => ({
+      sectionid: s.sectionid,
+      sectionName: s.name,
+      bikes: occ
+        .filter((o) => o.locationid === locationid && o.sectionid === s.sectionid)
+        .map((o) => ({ barcode: o.bicycle?.barcode ?? o.bicycleId, id: o.bicycleId, checkedIn: o.checkedIn })),
+    }));
   }, [state?.occupation, locationid, layout]);
 
-  const handleSyncClick = () => {
+  const handleSyncClick = async () => {
     const list = buildSyncList();
     if (list.length === 0) {
-      setApiMessage("Geen fietsen in stalling om te synchroniseren.");
+      setApiMessage("Geen secties in layout. Voeg secties toe om te synchroniseren.");
       return;
     }
+    await loadMotorblok();
     setSyncList(list);
     setSyncListModalOpen(true);
   };
@@ -395,6 +418,9 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         <Button onClick={handleProcessQueue} disabled={processQueueLoading} style={{ backgroundColor: "#16a34a" }}>
           {processQueueLoading ? "Bezig…" : useLocalProcessor ? "Process (new)" : "Process"}
         </Button>
+        <Button onClick={handleUpdateBezettingsdata} disabled={updateBezettingsdataLoading} style={{ backgroundColor: "#16a34a" }}>
+          {updateBezettingsdataLoading ? "Bezig…" : "Update bezettingsdata"}
+        </Button>
         <Button onClick={handleSyncClick} disabled={!getStoredCredentials()} style={{ backgroundColor: "#16a34a" }}>
           Sync
         </Button>
@@ -472,9 +498,14 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
             onSuccess={() => {
               loadState();
               loadLayout();
+              window.dispatchEvent(new CustomEvent("parking-slot-updated"));
             }}
           />
         </div>
+
+      <div className="mb-4">
+        <StallingSlotOverview locationid={locationid} title="Plaatsen overzicht" />
+      </div>
 
       {apiMessage && (
         <p className={`mt-2 text-sm ${apiMessage.startsWith("Fout") ? "text-red-600" : "text-green-600"}`}>
@@ -486,9 +517,13 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
 
       {tableTabValues.includes(panelTab as (typeof tableTabValues)[number]) && (
         <div className="space-y-4">
-          {(processQueueResult != null || syncLog.length > 0) && (
+          {(processQueueResult != null || updateBezettingsdataResult != null || syncLog.length > 0) && (
             <pre className="text-sm p-3 bg-gray-50 border rounded whitespace-pre-wrap">
-              {syncLog.length > 0 ? syncLog.join("\n") : String(processQueueResult).replace(/<br\s*\/?>/gi, "\n")}
+              {syncLog.length > 0
+                ? syncLog.join("\n")
+                : updateBezettingsdataResult != null
+                  ? String(updateBezettingsdataResult).replace(/<br\s*\/?>/gi, "\n")
+                  : String(processQueueResult).replace(/<br\s*\/?>/gi, "\n")}
             </pre>
           )}
           {panelTab === "wachtrij_transacties" && (
@@ -732,21 +767,55 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       <Dialog open={syncListModalOpen} onClose={() => setSyncListModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Sync-lijst</DialogTitle>
         <DialogContent>
-          <p className="text-sm text-gray-600 mb-2">Fietsen die worden gesynchroniseerd:</p>
-          <ul className="space-y-2 text-sm">
+          <p className="text-sm text-gray-600 mb-2">Fietsen die worden gemeld als aanwezig:</p>
+          <ul className="space-y-2 text-sm mb-4">
             {syncList.map((sec) => (
               <li key={sec.sectionid}>
                 <span className="font-medium">{sec.sectionName ?? sec.sectionid}</span>:
                 <ul className="ml-4 mt-1 list-disc">
-                  {sec.bikes.map((b) => (
-                    <li key={b.id}>
-                      {b.barcode} <span className="text-gray-500">({b.checkedIn === true ? "niet uitgecheckt" : "niet ingecheckt"})</span>
-                    </li>
-                  ))}
+                  {sec.bikes.length === 0 ? (
+                    <li className="text-gray-500">(geen)</li>
+                  ) : (
+                    sec.bikes.map((b) => (
+                      <li key={b.id}>
+                        {b.barcode} <span className="text-gray-500">({b.checkedIn === true ? "niet uitgecheckt" : "niet ingecheckt"})</span>
+                      </li>
+                    ))
+                  )}
                 </ul>
               </li>
             ))}
           </ul>
+          {(() => {
+            const openTx = transacties.filter((t) => !t.Date_checkout);
+            if (openTx.length === 0) return null;
+            const bySection = new Map<string, Transactie[]>();
+            for (const t of openTx) {
+              const sid = t.SectieID ?? "";
+              if (!bySection.has(sid)) bySection.set(sid, []);
+              bySection.get(sid)!.push(t);
+            }
+            return (
+              <>
+                <p className="text-sm text-gray-600 mb-2">Open transacties die worden uitgecheckt (niet in bovenstaande lijst):</p>
+                <ul className="space-y-2 text-sm">
+                  {Array.from(bySection.entries()).map(([sid, txList]) => {
+                    const sec = syncList.find((s) => s.sectionid === sid);
+                    return (
+                      <li key={sid}>
+                        <span className="font-medium">{(sec?.sectionName ?? sid) || "(geen sectie)"}</span>:
+                        <ul className="ml-4 mt-1 list-disc">
+                          {txList.map((t) => (
+                            <li key={t.ID}>{t.BarcodeFiets_in ?? t.PasID}</li>
+                          ))}
+                        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSyncListModalOpen(false)}>Annuleren</Button>

@@ -36,7 +36,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     select: { ID: true },
   });
   if (contact) {
-    const pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
+    const pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
       where: { siteID: contact.ID },
       select: { useLocalProcessor: true },
     });

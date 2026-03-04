@@ -11,7 +11,7 @@ const DEFAULT_PROCESS_QUEUE_BASE = "https://remote.veiligstallenontwikkel.nl";
 
 /**
  * POST: Trigger the ColdFusion processTransactions2.cfm queue processor.
- * Uses processQueueBaseUrl from parkingmgmt_simulation_config (default: remote.veiligstallenontwikkel.nl).
+ * Uses processQueueBaseUrl from parkingsimulation_simulation_config (default: remote.veiligstallenontwikkel.nl).
  * Proxies the request to avoid CORS. Returns the plain-text response.
  * Fietsberaad superadmin only.
  */
@@ -37,7 +37,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(400).json({ message: "Testgemeente niet gevonden" });
   }
 
-  const pmConfig = await prisma.parkingmgmt_simulation_config.findUnique({
+  const pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
     where: { siteID: contact.ID },
     select: { processQueueBaseUrl: true, useLocalProcessor: true },
   });

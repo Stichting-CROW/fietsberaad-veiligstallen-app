@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction } from "~/lib/parking-simulation/fms-api-client";
+import { uploadTransaction } from "~/lib/parking-simulation/fms-api-write-client";
 
 type Bicycle = { id: string; barcode: string; biketypeID?: number };
 type OccupationEntry = {
@@ -9,8 +9,16 @@ type OccupationEntry = {
   bicycleId: string;
   locationid: string;
   sectionid: string;
-  placeId?: number | null;
+  passID?: string | null;
   bicycle?: Bicycle;
+};
+type PasidEntry = {
+  id: string;
+  pasID: string;
+  pastype: string;
+  bikeTypeID: number;
+  barcodeFiets: string | null;
+  hasParkedBike: boolean;
 };
 type LayoutSection = {
   sectionid: string | null;
@@ -50,27 +58,34 @@ type Props = {
   onSuccess?: () => void;
 };
 
-function loadStored(storageKey: string): { biketypeId: number | ""; locationId: string; actieType: "in" | "uit" } {
+const PASSID_AUTO = "__auto__";
+
+function loadStored(storageKey: string): { biketypeId: number | ""; locationId: string; actieType: "in" | "uit"; passID: string } {
   try {
     const raw = localStorage.getItem(storageKey);
-    if (!raw) return { biketypeId: "", locationId: "", actieType: "in" };
-    const parsed = JSON.parse(raw) as { biketypeId?: number; locationId?: string; actieType?: "in" | "uit" };
+    if (!raw) return { biketypeId: "", locationId: "", actieType: "in", passID: PASSID_AUTO };
+    const parsed = JSON.parse(raw) as { biketypeId?: number; locationId?: string; actieType?: "in" | "uit"; passID?: string };
     return {
       biketypeId: typeof parsed.biketypeId === "number" ? parsed.biketypeId : "",
       locationId: typeof parsed.locationId === "string" ? parsed.locationId : "",
       actieType: parsed.actieType === "uit" ? "uit" : "in",
+      passID: typeof parsed.passID === "string" ? parsed.passID : PASSID_AUTO,
     };
   } catch {
-    return { biketypeId: "", locationId: "", actieType: "in" };
+    return { biketypeId: "", locationId: "", actieType: "in", passID: PASSID_AUTO };
   }
 }
 
-function saveStored(storageKey: string, biketypeId: number | "", locationId: string, actieType: "in" | "uit") {
+function saveStored(storageKey: string, biketypeId: number | "", locationId: string, actieType: "in" | "uit", passID: string) {
   try {
-    localStorage.setItem(storageKey, JSON.stringify({ biketypeId, locationId, actieType }));
+    localStorage.setItem(storageKey, JSON.stringify({ biketypeId, locationId, actieType, passID }));
   } catch {
     /* ignore */
   }
+}
+
+function generateNewPassID(): string {
+  return `SIM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stallings, storageKey, onMessage, onSuccess }) => {
@@ -86,6 +101,10 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     storageKey ? loadStored(storageKey).biketypeId : ""
   );
   const [selectedBicycleId, setSelectedBicycleId] = useState<string>("");
+  const [selectedPassID, setSelectedPassID] = useState<string>(() =>
+    storageKey ? loadStored(storageKey).passID : PASSID_AUTO
+  );
+  const [pasids, setPasids] = useState<PasidEntry[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(() => {
     if (singleStallingMode) return effectiveLocationId;
     return storageKey ? loadStored(storageKey).locationId : "";
@@ -127,7 +146,20 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   }, []);
 
   useEffect(() => {
-    const handler = () => loadState();
+    fetch("/api/protected/parking-simulation/pasids")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: { data?: PasidEntry[] }) => setPasids(data.data ?? []))
+      .catch(() => setPasids([]));
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      loadState();
+      fetch("/api/protected/parking-simulation/pasids")
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((data: { data?: PasidEntry[] }) => setPasids(data.data ?? []))
+        .catch(() => {});
+    };
     window.addEventListener("simulation-clock-updated", handler);
     return () => window.removeEventListener("simulation-clock-updated", handler);
   }, []);
@@ -135,10 +167,10 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   const currentLocationId = singleStallingMode ? effectiveLocationId : selectedLocationId;
 
   useEffect(() => {
-    if (storageKey && !singleStallingMode) {
-      saveStored(storageKey, selectedBiketypeId, selectedLocationId, actieType);
+    if (storageKey) {
+      saveStored(storageKey, selectedBiketypeId, selectedLocationId, actieType, selectedPassID);
     }
-  }, [storageKey, singleStallingMode, selectedBiketypeId, selectedLocationId, actieType]);
+  }, [storageKey, selectedBiketypeId, selectedLocationId, actieType, selectedPassID]);
 
   useEffect(() => {
     if (currentLocationId) {
@@ -212,9 +244,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     biketypeId: number,
     sections: LayoutSection[],
     occupation: OccupationEntry[]
-  ): { sectionid: string; placeId?: number } | null => {
+  ): { sectionid: string } | null => {
     const occupiedInLocation = occupation.filter((o) => o.locationid === locationid);
-    const occupiedSet = new Set(occupiedInLocation.map((o) => `${o.sectionid}:${o.placeId ?? "n"}`));
 
     for (const sec of sections) {
       const sectionid = sec.sectionid;
@@ -222,16 +253,9 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       const bt = sec.biketypes?.find((b) => b.biketypeid === biketypeId);
       if (!bt?.allowed) continue;
 
-      if (sec.places && sec.places.length > 0) {
-        for (const place of sec.places) {
-          const key = `${sectionid}:${place.id}`;
-          if (!occupiedSet.has(key)) return { sectionid, placeId: place.id };
-        }
-      } else {
-        const capacity = bt.capacity ?? 999;
-        const count = occupiedInLocation.filter((o) => o.sectionid === sectionid && o.placeId == null).length;
-        if (count < capacity) return { sectionid };
-      }
+      const capacity = bt.capacity ?? 999;
+      const count = occupiedInLocation.filter((o) => o.sectionid === sectionid).length;
+      if (count < capacity) return { sectionid };
     }
     return null;
   };
@@ -274,7 +298,6 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
           bicycleId: selectedBicycleId,
           locationid: currentLocationId,
           sectionid: spot.sectionid,
-          placeId: spot.placeId ?? undefined,
         }),
       });
       const data = await res.json();
@@ -341,6 +364,11 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       setMessage("Geen geschikte vrije plek gevonden.");
       return;
     }
+    const passID =
+      selectedPassID === PASSID_AUTO
+        ? (freePasids[0]?.pasID ?? generateNewPassID())
+        : selectedPassID;
+
     setCheckInLoading(true);
     setMessage(null);
     try {
@@ -348,7 +376,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       const tx = {
         type: "in" as const,
         transactionDate: simulationTime,
-        passID: "SIM-PASS-001",
+        passID,
         idtype: 0,
         barcodeBike: bike.barcode,
         bikeid: bike.barcode,
@@ -363,14 +391,21 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
             bicycleId: selectedBicycleId,
             locationid: currentLocationId,
             sectionid: spot.sectionid,
-            placeId: spot.placeId ?? undefined,
             checkedIn: true,
+            passID,
           }),
         });
         const parkData = await parkRes.json();
         if (parkData.ok) {
           setMessage("Check-in succesvol.");
           loadState();
+          fetch("/api/protected/parking-simulation/pasids")
+            .then((r) => (r.ok ? r.json() : {}))
+            .then((data: { data?: PasidEntry[] }) => {
+              setPasids(data.data ?? []);
+              setSelectedPassID(PASSID_AUTO);
+            })
+            .catch(() => setSelectedPassID(PASSID_AUTO));
           onSuccess?.();
         } else {
           setMessage(parkData.message ?? "Park mislukt");
@@ -402,6 +437,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     }
     const bike = state?.bicycles?.find((b) => b.id === bicycleId);
     if (!bike) return;
+    const passID = occ.passID ?? bike.barcode;
     setCheckOutLoading(bicycleId);
     setMessage(null);
     try {
@@ -409,7 +445,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       const tx = {
         type: "out" as const,
         transactionDate: simulationTime,
-        passID: "SIM-PASS-001",
+        passID,
         idtype: 0,
         barcodeBike: bike.barcode,
         bikeid: bike.barcode,
@@ -443,6 +479,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     }
   };
 
+  const freePasids = pasids.filter((p) => !p.hasParkedBike);
+
   return (
     <div>
       <h4 className="font-medium mb-2">Acties</h4>
@@ -458,6 +496,28 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
             <option value="uit">Uit</option>
           </select>
         </div>
+        {actieType === "in" && (
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Pass</label>
+            <select
+              value={selectedPassID}
+              onChange={(e) => setSelectedPassID(e.target.value)}
+              className="border rounded px-3 py-2 min-w-[140px]"
+            >
+              <option value={PASSID_AUTO}>Selecteer automatisch</option>
+              {freePasids.map((p) => (
+                <option key={p.id} value={p.pasID}>
+                  {p.pasID} {p.barcodeFiets ? `(${p.barcodeFiets})` : ""}
+                </option>
+              ))}
+              {pasids.filter((p) => p.hasParkedBike).map((p) => (
+                <option key={p.id} value={p.pasID}>
+                  {p.pasID} {p.barcodeFiets ? `(${p.barcodeFiets})` : ""} – gestald
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-sm text-gray-600 mb-1">Fiets type</label>
           <select

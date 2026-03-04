@@ -312,6 +312,65 @@ model bezettingsdata_tmp {
   @@index([timestamp], map: "timestamp")
 }
 
+model new_bezettingsdata_tmp {
+  ID                     Int       @id @default(autoincrement())
+  timestampStartInterval  DateTime? @db.DateTime(0)
+  timestamp              DateTime? @db.DateTime(0)
+  interval               Int       @default(1)
+  source                 String?   @db.VarChar(25)
+  bikeparkID             String?   @db.VarChar(8)
+  sectionID              String?   @db.VarChar(13)
+  brutoCapacity          Int?
+  capacity               Int?
+  bulkreserveration      Int       @default(0)
+  occupation             Int?
+  checkins               Int?
+  checkouts              Int?
+  open                   Boolean?  @db.Bit(1)
+  rawData                String?   @db.Text
+  dateModified           DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([timestamp, interval, source, bikeparkID, sectionID], map: "new_bdt_timestamp_2")
+  @@index([bikeparkID], map: "new_bdt_bikeparkID")
+  @@index([dateModified], map: "new_bdt_dateModified")
+  @@index([interval], map: "new_bdt_interval")
+  @@index([sectionID], map: "new_bdt_sectionID")
+  @@index([source], map: "new_bdt_source")
+  @@index([timestamp], map: "new_bdt_timestamp")
+}
+
+model new_bezettingsdata {
+  ID                     Int       @id @default(autoincrement())
+  timestampStartInterval DateTime? @db.DateTime(0)
+  timestamp              DateTime? @db.DateTime(0)
+  interval               Int       @default(1)
+  source                 String?   @db.VarChar(25)
+  bikeparkID             String?   @db.VarChar(8)
+  sectionID              String?   @db.VarChar(13)
+  brutoCapacity          Int?
+  capacity               Int?
+  bulkreserveration      Int       @default(0)
+  occupation             Int?
+  checkins               Int?
+  checkouts              Int?
+  open                   Boolean?
+  fillup                 Boolean   @default(false)
+  rawData                String?   @db.VarChar(255)
+  dateModified           DateTime  @default(now()) @db.Timestamp(0)
+  dateCreated            DateTime? @db.DateTime(0)
+
+  @@unique([timestampStartInterval, timestamp, source, bikeparkID, sectionID], map: "new_bd_timestampStartInterval")
+  @@index([bikeparkID], map: "new_bd_bikeparkID")
+  @@index([source, bikeparkID], map: "new_bd_bikeparkID_source")
+  @@index([capacity], map: "new_bd_capacity")
+  @@index([dateCreated], map: "new_bd_dateCreated")
+  @@index([dateModified], map: "new_bd_dateModified")
+  @@index([interval], map: "new_bd_interval")
+  @@index([sectionID], map: "new_bd_sectionID")
+  @@index([source], map: "new_bd_source")
+  @@index([timestamp], map: "new_bd_timestamp")
+}
+
 model bikeparklog {
   ID                   Int       @id @default(autoincrement())
   DateCreated          DateTime? @db.DateTime(0)
@@ -2166,15 +2225,15 @@ model new_financialtransactions {
   @@index([transactionID], map: "new_ft_transactionID")
 }
 
-// Parking Management simulation (separate from Veiligstallen core)
-model parkingmgmt_simulation_config {
+// Parking simulation (separate from Veiligstallen core)
+model parkingsimulation_simulation_config {
   id                    String    @id @default(cuid()) @db.VarChar(36)
   siteID                String    @db.VarChar(35)
   apiUsername           String?   @db.VarChar(255)
   apiPasswordEncrypted  String?   @db.VarChar(255)
   baseUrl               String?   @db.VarChar(500)
   processQueueBaseUrl   String?   @db.VarChar(500)
-  useLocalProcessor     Boolean   @default(false)
+  useLocalProcessor     Boolean   @default(true)
   defaultBiketypeID              Int       @default(1)
   defaultIdtype                  Int       @default(0)
   simulationTimeOffsetSeconds    Int       @default(0)
@@ -2182,14 +2241,14 @@ model parkingmgmt_simulation_config {
   createdAt             DateTime  @default(now()) @db.DateTime(0)
   updatedAt             DateTime  @updatedAt @db.DateTime(0)
 
-  bicycles       parkingmgmt_bicycles[]
-  spotDetection  parkingmgmt_spot_detection[]
+  bicycles            parkingsimulation_bicycles[]
+  sectionAssignments  parkingsimulation_section_assignments[]
 
-  @@unique([siteID], map: "parkingmgmt_simulation_config_siteID_key")
-  @@index([siteID], map: "parkingmgmt_simulation_config_siteID_idx")
+  @@unique([siteID], map: "parkingsimulation_simulation_config_siteID_key")
+  @@index([siteID], map: "parkingsimulation_simulation_config_siteID_idx")
 }
 
-model parkingmgmt_bicycles {
+model parkingsimulation_bicycles {
   id                  String   @id @default(cuid()) @db.VarChar(36)
   simulationConfigId  String   @db.VarChar(36)
   barcode    String   @db.VarChar(50)
@@ -2201,39 +2260,28 @@ model parkingmgmt_bicycles {
   createdAt  DateTime @default(now()) @db.DateTime(0)
   updatedAt  DateTime @updatedAt @db.DateTime(0)
 
-  simulationConfig parkingmgmt_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
-  occupation parkingmgmt_occupation[]
+  simulationConfig   parkingsimulation_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
+  sectionAssignments parkingsimulation_section_assignments[]
 
-  @@index([simulationConfigId], map: "parkingmgmt_bicycles_simulationConfigId_idx")
-  @@index([barcode], map: "parkingmgmt_bicycles_barcode_idx")
+  @@index([simulationConfigId], map: "parkingsimulation_bicycles_simulationConfigId_idx")
+  @@index([barcode], map: "parkingsimulation_bicycles_barcode_idx")
 }
 
-model parkingmgmt_occupation {
-  id         String    @id @default(cuid()) @db.VarChar(36)
-  bicycleId  String    @db.VarChar(36)
-  locationid String    @db.VarChar(35)
-  sectionid  String    @db.VarChar(35)
-  placeId    Int?      @db.Int
-  checkedIn  Boolean   @default(false)
-  createdAt  DateTime  @default(now()) @db.DateTime(0)
+model parkingsimulation_section_assignments {
+  id                 String   @id @default(cuid()) @db.VarChar(36)
+  simulationConfigId String   @db.VarChar(36)
+  bicycleId          String   @db.VarChar(36)
+  locationid         String   @db.VarChar(35)
+  sectionid          String   @db.VarChar(35)
+  checkedIn          Boolean  @default(false)
+  passID             String?  @db.VarChar(36)
+  createdAt          DateTime @default(now()) @db.DateTime(0)
+  updatedAt          DateTime @updatedAt @db.DateTime(0)
 
-  bicycle parkingmgmt_bicycles @relation(fields: [bicycleId], references: [id], onDelete: Cascade)
+  simulationConfig parkingsimulation_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
+  bicycle          parkingsimulation_bicycles          @relation(fields: [bicycleId], references: [id], onDelete: Cascade)
 
-  @@index([bicycleId], map: "parkingmgmt_occupation_bicycleId_idx")
-  @@index([locationid, sectionid], map: "parkingmgmt_occupation_location_idx")
-}
-
-model parkingmgmt_spot_detection {
-  id                  String   @id @default(cuid()) @db.VarChar(36)
-  simulationConfigId  String   @db.VarChar(36)
-  locationid String   @db.VarChar(35)
-  sectionid  String   @db.VarChar(35)
-  placeId    Int      @db.Int
-  detected   Boolean  @default(true)
-  createdAt  DateTime @default(now()) @db.DateTime(0)
-
-  simulationConfig parkingmgmt_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
-
-  @@unique([simulationConfigId, locationid, sectionid, placeId], map: "parkingmgmt_spot_detection_uk")
-  @@index([simulationConfigId], map: "parkingmgmt_spot_detection_simulationConfigId_idx")
+  @@unique([bicycleId], map: "parkingsimulation_section_assignments_bicycleId_key")
+  @@index([simulationConfigId, locationid, sectionid], map: "parkingsimulation_section_assignments_location_idx")
+  @@index([bicycleId], map: "parkingsimulation_section_assignments_bicycleId_idx")
 }

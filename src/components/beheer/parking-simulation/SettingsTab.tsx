@@ -298,7 +298,7 @@ const SettingsTab: React.FC = () => {
     setTablesLoading(true);
     setBootstrapMessage(null);
     try {
-      if (action === "remove" && !window.confirm("Weet je zeker dat je de parkingmgmt-tabellen wilt verwijderen? Alle simulatiegegevens gaan verloren.")) {
+      if (action === "remove" && !window.confirm("Weet je zeker dat je de parkingsimulation-tabellen wilt verwijderen? Alle simulatiegegevens gaan verloren.")) {
         setTablesLoading(false);
         return;
       }
@@ -327,8 +327,8 @@ const SettingsTab: React.FC = () => {
     setBootstrapMessage(null);
     try {
       const res = await fetch(`/api/protected/fietsenstallingen/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? res.statusText);
+      const data = (await res.json()) as { message?: string; error?: string };
+      if (!res.ok) throw new Error(data.message ?? data.error ?? res.statusText);
       setBootstrapMessage("Stalling verwijderd.");
       window.dispatchEvent(new CustomEvent("stallings-updated"));
     } catch (e) {
@@ -571,12 +571,17 @@ const SettingsTab: React.FC = () => {
                 className="rounded"
               />
               <span className="text-sm font-medium text-gray-700">
-                Lokale processor + new_* tabellen (i.p.v. remote + standaard)
+                NextJS processor + new_* tabellen (i.p.v. ColdFusion processor + standaard tabellen)
               </span>
             </label>
             <p className="text-xs text-gray-500 mt-1">
-              Bij aan: Process (new)-knop, wachtrij en transacties uit new_* tabellen.
+              Bij aan: Gebruik nieuwe implementatie (NextJS) in plaats van ColdFusion.
             </p>
+            {!useLocalProcessor && (
+              <p className="text-xs text-amber-600 mt-1">
+                Let op: Remote ColdFusion gebruikt een andere database. Transacties blijven dan vaak op "wachtend" staan. Zet aan voor lokale ontwikkeling.
+              </p>
+            )}
           </div>
           {!useLocalProcessor && (
             <div>

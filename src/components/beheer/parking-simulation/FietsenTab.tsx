@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction } from "~/lib/parking-simulation/fms-api-client";
+import { uploadTransaction } from "~/lib/parking-simulation/fms-api-write-client";
 import { ActiesPanel, type Stalling } from "./ActiesPanel";
 
 const FIETSEN_TAB_STORAGE_KEY = "parking-mgmt-fietsen-tab";
@@ -12,7 +12,7 @@ type OccupationEntry = {
   bicycleId: string;
   locationid: string;
   sectionid: string;
-  placeId?: number | null;
+  passID?: string | null;
   bicycle?: Bicycle;
 };
 
@@ -80,6 +80,12 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
     }
   };
 
+  const fetchSimulationTime = async (): Promise<string> => {
+    const res = await fetch("/api/protected/parking-simulation/time");
+    const data = await res.json();
+    return data.simulationTime ?? new Date().toISOString();
+  };
+
   const handleCheckOut = async (bicycleId: string) => {
     const creds = getStoredCredentials();
     if (!creds) {
@@ -93,6 +99,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
     }
     const bike = state?.bicycles?.find((b) => b.id === bicycleId);
     if (!bike) return;
+    const passID = occ.passID ?? bike.barcode;
     setCheckOutLoading(bicycleId);
     setMessage(null);
     try {
@@ -100,7 +107,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
       const tx = {
         type: "out" as const,
         transactionDate: simulationTime,
-        passID: "SIM-PASS-001",
+        passID,
         idtype: 0,
         barcodeBike: bike.barcode,
         bikeid: bike.barcode,
@@ -163,6 +170,10 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
         stallings={stallings}
         storageKey={FIETSEN_TAB_STORAGE_KEY}
         onMessage={setMessage}
+        onSuccess={() => {
+          loadState();
+          window.dispatchEvent(new CustomEvent("parking-slot-updated"));
+        }}
       />
 
       <div>
@@ -233,7 +244,6 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
                     {isOccupied && occ ? (
                       <>
                         {getStallingTitle(occ.locationid)} – {occ.sectionid}
-                        {occ.placeId != null ? ` plek ${occ.placeId}` : ""}
                       </>
                     ) : (
                       <span className="text-gray-500">Vrij</span>

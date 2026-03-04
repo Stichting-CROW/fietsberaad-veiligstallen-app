@@ -93,3 +93,65 @@ BEGIN
   END IF;
 END$$
 DELIMITER ;
+
+-- Trigger 5: bezettingsdata_tmp -> new_bezettingsdata_tmp (testgemeente only)
+-- Mirrors occupation data for Lumiguide/external sources so update-bezettingsdata (useLocalProcessor) can read from new_*.
+DROP TRIGGER IF EXISTS `trg_bezettingsdata_tmp_mirror_insert`;
+DELIMITER $$
+CREATE TRIGGER `trg_bezettingsdata_tmp_mirror_insert`
+AFTER INSERT ON `bezettingsdata_tmp`
+FOR EACH ROW
+BEGIN
+  IF NEW.bikeparkID IS NOT NULL AND EXISTS (
+    SELECT 1 FROM fietsenstallingen f
+    INNER JOIN contacts c ON f.SiteID = c.ID
+    WHERE f.StallingsID = NEW.bikeparkID AND c.CompanyName = 'testgemeente API'
+  ) THEN
+    INSERT INTO new_bezettingsdata_tmp (
+      timestampStartInterval, timestamp, `interval`, source, bikeparkID, sectionID,
+      brutoCapacity, capacity, bulkreserveration, occupation, checkins, checkouts, open, rawData, dateModified
+    ) VALUES (
+      NEW.timestampStartInterval, NEW.timestamp, NEW.`interval`, NEW.source, NEW.bikeparkID, NEW.sectionID,
+      NEW.brutoCapacity, NEW.capacity, NEW.bulkreserveration, NEW.occupation, NEW.checkins, NEW.checkouts, NEW.open, NEW.rawData, NEW.dateModified
+    )
+    ON DUPLICATE KEY UPDATE
+      occupation = NEW.occupation,
+      capacity = NEW.capacity,
+      checkins = NEW.checkins,
+      checkouts = NEW.checkouts,
+      open = NEW.open,
+      rawData = NEW.rawData,
+      dateModified = NEW.dateModified;
+  END IF;
+END$$
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS `trg_bezettingsdata_tmp_mirror_update`;
+DELIMITER $$
+CREATE TRIGGER `trg_bezettingsdata_tmp_mirror_update`
+AFTER UPDATE ON `bezettingsdata_tmp`
+FOR EACH ROW
+BEGIN
+  IF NEW.bikeparkID IS NOT NULL AND EXISTS (
+    SELECT 1 FROM fietsenstallingen f
+    INNER JOIN contacts c ON f.SiteID = c.ID
+    WHERE f.StallingsID = NEW.bikeparkID AND c.CompanyName = 'testgemeente API'
+  ) THEN
+    INSERT INTO new_bezettingsdata_tmp (
+      timestampStartInterval, timestamp, `interval`, source, bikeparkID, sectionID,
+      brutoCapacity, capacity, bulkreserveration, occupation, checkins, checkouts, open, rawData, dateModified
+    ) VALUES (
+      NEW.timestampStartInterval, NEW.timestamp, NEW.`interval`, NEW.source, NEW.bikeparkID, NEW.sectionID,
+      NEW.brutoCapacity, NEW.capacity, NEW.bulkreserveration, NEW.occupation, NEW.checkins, NEW.checkouts, NEW.open, NEW.rawData, NEW.dateModified
+    )
+    ON DUPLICATE KEY UPDATE
+      occupation = NEW.occupation,
+      capacity = NEW.capacity,
+      checkins = NEW.checkins,
+      checkouts = NEW.checkouts,
+      open = NEW.open,
+      rawData = NEW.rawData,
+      dateModified = NEW.dateModified;
+  END IF;
+END$$
+DELIMITER ;
