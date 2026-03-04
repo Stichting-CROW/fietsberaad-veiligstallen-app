@@ -19,6 +19,8 @@ const FMS_TABLES = [
   "new_accounts",
   "new_accounts_pasids",
   "new_financialtransactions",
+  "new_bezettingsdata_tmp",
+  "new_bezettingsdata",
 ];
 
 const TRIGGER_NAMES = [
@@ -26,6 +28,8 @@ const TRIGGER_NAMES = [
   "trg_wachtrij_pasids_mirror_to_new",
   "trg_wachtrij_betalingen_mirror_to_new",
   "trg_wachtrij_sync_mirror_to_new",
+  "trg_bezettingsdata_tmp_mirror_insert",
+  "trg_bezettingsdata_tmp_mirror_update",
 ];
 
 function getDropSql(): string {
@@ -144,15 +148,18 @@ export default async function handle(
       if (action === "create-tables") {
         const tablesExist = await checkTablesExist();
         if (tablesExist) {
+          const triggersExist = await checkTriggersExist();
           return res.status(200).json({
             success: true,
             message: "Test tabellen bestaan al",
+            manualSql: triggersExist ? undefined : getCreateTriggersSql(),
           });
         }
         await createTables();
         return res.status(200).json({
           success: true,
-          message: "Test tabellen aangemaakt",
+          message: "Test tabellen aangemaakt. Voer de SQL hieronder uit om de triggers aan te maken (wachtrij_* → new_wachtrij_*):",
+          manualSql: getCreateTriggersSql(),
         });
       }
 

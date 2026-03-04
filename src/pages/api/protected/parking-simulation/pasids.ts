@@ -4,12 +4,12 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
-import { getLocation } from "~/server/services/fms/fms-v3-service";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
 /**
- * Get sections and places for a location. Fietsberaad superadmin only.
- * When useLocalProcessor: occupancy from new_transacties (open records).
+ * GET: List pasids for the test site (new_accounts_pasids).
+ * Ordered by Pastype, PasID, BikeTypeID, barcodeFiets.
+ * Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -25,28 +25,35 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(403).json({ message: "Geen rechten" });
   }
 
-  const locationid = req.query.locationid as string;
-  if (!locationid) {
-    return res.status(400).json({ message: "locationid required" });
-  }
-
-  let useNewTables = false;
   const contact = await prisma.contacts.findFirst({
     where: { CompanyName: TESTGEMEENTE_NAME, ItemType: "organizations", Status: "1" },
     select: { ID: true },
   });
-  if (contact) {
-    const pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
-      where: { siteID: contact.ID },
-      select: { useLocalProcessor: true },
-    });
-    useNewTables = pmConfig?.useLocalProcessor ?? false;
+  if (!contact) {
+    return res.status(200).json({ data: [] });
   }
 
-  const location = await getLocation(locationid, 3, useNewTables);
-  if (!location) {
-    return res.status(404).json({ message: "Location not found" });
-  }
+  const pasids = await prisma.new_accounts_pasids.findMany({
+    where: { SiteID: contact.ID },
+    orderBy: [{ Pastype: "asc" }, { PasID: "asc" }, { BikeTypeID: "asc" }, { barcodeFiets: "asc" }],
+    select: {
+      ID: true,
+      PasID: true,
+      Pastype: true,
+      BikeTypeID: true,
+      barcodeFiets: true,
+      huidigeFietsenstallingId: true,
+    },
+  });
 
-  return res.status(200).json(location);
+  const data = pasids.map((p) => ({
+    id: p.ID,
+    pasID: p.PasID,
+    pastype: p.Pastype,
+    bikeTypeID: p.BikeTypeID ?? 1,
+    barcodeFiets: p.barcodeFiets,
+    hasParkedBike: !!p.huidigeFietsenstallingId,
+  }));
+
+  return res.status(200).json({ data });
 }

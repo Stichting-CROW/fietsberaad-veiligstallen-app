@@ -4,6 +4,7 @@ import DashboardOverview from "./DashboardOverview";
 import FietsenTab from "./FietsenTab";
 import StallingPanel from "./StallingPanel";
 import SettingsTab from "./SettingsTab";
+import StatisticsTab from "./StatisticsTab";
 type Stalling = { id: string; locationid: string; title: string; type: string; berekentStallingskosten?: boolean };
 
 const ParkingManagementDashboard: React.FC = () => {
@@ -88,7 +89,7 @@ const ParkingManagementDashboard: React.FC = () => {
   const hasBikes = bicycleCount > 0;
 
   useEffect(() => {
-    if (!showFullTabs && activeTab !== "settings") {
+    if (!showFullTabs && activeTab !== "settings" && activeTab !== "statistics") {
       setActiveTab("settings");
     }
   }, [showFullTabs, activeTab]);
@@ -114,12 +115,14 @@ const ParkingManagementDashboard: React.FC = () => {
           <Tab key={s.id} label={s.title} value={s.locationid} />
         ))}
         <Tab label="Instellingen" value="settings" />
+        <Tab label="Statistieken" value="statistics" />
       </Tabs>
 
       {showFullTabs && activeTab === "dashboard" && <DashboardOverview hasStallings={stallings.length > 0} />}
       {showFullTabs && hasBikes && activeTab === "fietsen" && <FietsenTab stallings={stallings} />}
       {showFullTabs && selectedStalling && <StallingPanel locationid={selectedStalling.locationid} title={selectedStalling.title} berekentStallingskosten={selectedStalling.berekentStallingskosten} />}
       {activeTab === "settings" && <SettingsTab />}
+      {activeTab === "statistics" && <StatisticsTab stallings={stallings} />}
     </Box>
   );
 };

@@ -10,10 +10,11 @@
 - **Next.js processor:** Implemented. The app:
   - Writes to `wachtrij_*` via [wachtrij-service.ts](src/server/services/fms/wachtrij-service.ts)
   - Triggers ColdFusion or local processor via [process-queue/index.ts](src/pages/api/protected/parking-simulation/process-queue/index.ts) (based on `useLocalProcessor`)
-  - Local processor: [processor.ts](src/server/services/queue/processor.ts) reads `new_wachtrij_*` → writes `new_*`
+  - Local processor: [processor.ts](src/server/services/queue/processor.ts) reads `new_wachtrij_*` → writes `new_*`; `latestProcessedTransactionDate` passed from processTransacties to processSync (matches ColdFusion)
   - Cron: [api/cron/process-queues](src/pages/api/cron/process-queues/index.ts) (Bearer CRON_SECRET)
-  - Monitors queues via [WachtrijMonitorComponent](src/components/wachtrij/WachtrijMonitorComponent.tsx) (reads `wachtrij_*`)
-- **Mirror flow:** Triggers copy testgemeente rows from `wachtrij_*` to `new_wachtrij_*`. The Next.js processor reads from `new_wachtrij_*` and writes to `new_*` downstream tables.
+  - Monitors queues via [WachtrijMonitorComponent](src/components/wachtrij/WachtrijMonitorComponent.tsx) (reads `wachtrij_*`); StallingPanel motorblok tabs show `new_*` when `useLocalProcessor` is on
+- **Mirror flow:** DB triggers copy testgemeente rows from `wachtrij_*` to `new_wachtrij_*`, and from `bezettingsdata_tmp` to `new_bezettingsdata_tmp` (Trigger 5). Triggers must be installed manually: Beheer | Database → Maak test tabellen → run the SQL shown in the amber box. Script: [fms-mirror-triggers.sql](src/server/sql/fms-mirror-triggers.sql)
+- **Config:** `parkingsimulation_simulation_config.useLocalProcessor` (default true for new configs). SettingsTab toggle.
 
 ---
 
@@ -69,12 +70,15 @@ The queue processor and related services (capacity, occupation, tariffs, lookups
 | 2. bikepark-service.ts    | ✅ Done     | `getBikeparkByExternalID`, `getBikeparkSectionByExternalID`, `getPlace`; ZipID via contacts            |
 | 3. account-service.ts     | ✅ Done     | `getBikepassByPassId`, `addSaldoObject`                                                                |
 | 4. transaction-service.ts | ✅ Done     | `putTransaction` – check-in/out, overlap, checkout-without-checkin                                     |
-| 5. processor.ts           | ✅ Done     | `processQueues()` – pasids (50) → transacties (50) → betalingen (200) → sync (1)                       |
+| 5. processor.ts           | ✅ Done     | `processQueues()` – pasids (50) → transacties (50) → betalingen (200) → sync (1); latestProcessedTransactionDate from processTransacties → processSync (matches ColdFusion) |
 | 6. Cron endpoint          | ✅ Done     | `/api/cron/process-queues` – Bearer CRON_SECRET                                                        |
-| 7. Integration            | ✅ Done     | process-queue uses `processQueues()` when `useLocalProcessor`; process-queue-local; SettingsTab toggle |
-| 8. Schema 1-1 equality     | ✅ Done     | new_* tables use TINYINT(1) for processed; Prisma schema aligned with production                       |
+| 7. Integration            | ✅ Done     | process-queue uses `processQueues()` when `useLocalProcessor`; SettingsTab toggle |
+| 8. Schema 1-1 equality    | ✅ Done     | new_* tables use TINYINT(1) for processed; Prisma schema aligned with production                       |
 | 9. Archive process        | ⏳ Phase 2  | Not implemented                                                                                        |
 | 10. new_webservice_log    | ⏳ Optional | Not implemented                                                                                        |
+| 11. reportOccupationData  | ✅ Done     | FMS v2 REST, report-occupation-service, fms-api-write-client; simulation state POST auto-reports Lumiguide   |
+| 12. Mirror triggers       | ✅ Done     | manual SQL from Beheer \| Database → Maak test tabellen (amber box); fms-mirror-triggers.sql (wachtrij_* + bezettingsdata_tmp → new_*) |
+| 13. StallingPanel sync    | ✅ Done     | Sync dialog shows open transactions; sync works with empty stalling; motorblok tabs show new_* when useLocalProcessor |
 
 
 ---
@@ -214,7 +218,35 @@ flowchart TB
     accountService --> NFT
 ```
 
+### Sync processing (processSync)
 
+Sync reconciles the central DB with the FMS-reported state. Runs **after** processTransacties; uses `latestProcessedTransactionDate` from that batch so syncs are only processed when all prior transactions are done.
+
+```mermaid
+flowchart TB
+    PT[processTransacties]
+    PS[processSync]
+    PT --> |latestProcessedTransactionDate| PS
+
+    NWS[(new_wachtrij_sync)]
+    NAP[(new_accounts_pasids)]
+    NT[(new_transacties)]
+
+    NWS --> |"processed=0, transactionDate ≤ latest"| PS
+    NAP --> |read open bikes in section| PS
+    NT --> |read open transacties| PS
+
+    PS --> |check-out missing| NT
+    PS --> |check-out missing| NAP
+    PS --> |check-in new| NT
+    PS --> |check-in new| NAP
+```
+
+**Selection:** 1 row from `new_wachtrij_sync` where `processed=0` and `transactionDate ≤ latestProcessedTransactionDate` (ensures all prior transacties are processed).
+
+**Check-out missing:** Bikes in `accounts_pasids` (section) but not in sync `bikes` array → close `transacties` (Date_checkout, Type_checkout='sync'), clear `huidigeFietsenstallingId`/`huidigeSectieId` in pasids. Guard: `dateLastCheck < transactionDate`.
+
+**Check-in new:** Bikes in `bikes` array but not in `accounts_pasids` (section) → create `transacties`, update `accounts_pasids` (huidigeFietsenstallingId, huidigeSectieId, barcodeFiets).
 
 ---
 
@@ -246,6 +278,7 @@ Create [src/server/services/queue/processor.ts](src/server/services/queue/proces
 - **3-step locking:** `processed=0` → `9` (isolate) → `8` (lock) → process → `1` (success) or `2` (error)
 - **Per-queue handlers:** `processPasids()`, `processTransacties()`, `processBetalingen()`, `processSync()`
 - **Transaction flow:** Deserialize JSON → Enrich from record → Fix (typeCheck "section" → "user") → uploadTransactionObject → putTransaction
+- **latestProcessedTransactionDate:** `processTransacties()` returns the max transaction date from the batch (or `now()` when empty); `processSync()` receives it and selects sync rows with `transactionDate <= latestProcessedTransactionDate` (matches ColdFusion; see Appendix D)
 
 Note: All wachtrij_* and new_wachtrij_* tables use `processed` as Int (TINYINT(1) in DB). Schema is 1-1 identical.
 
@@ -259,7 +292,7 @@ Create [src/pages/api/cron/process-queues/index.ts](src/pages/api/cron/process-q
 
 ### 5. Integration with Parking Simulation
 
-Update [StallingPanel.tsx](src/components/beheer/parking-simulation/StallingPanel.tsx) or SettingsTab to optionally call `/api/cron/process-queues` instead of the ColdFusion URL when a "Use Next.js processor" flag is set in config. Initially keep ColdFusion as default.
+Update [StallingPanel.tsx](src/components/beheer/parking-simulation/StallingPanel.tsx) or SettingsTab to optionally call the process-queue API (which uses `processQueues()` when `useLocalProcessor` is true) instead of the ColdFusion URL. Config: `parkingsimulation_simulation_config.useLocalProcessor` (default true for new configs).
 
 ### 6. Archive Process (Phase 2)
 
@@ -269,6 +302,10 @@ Update [StallingPanel.tsx](src/components/beheer/parking-simulation/StallingPane
 ### 7. new_webservice_log (Optional)
 
 Log FMS API calls to `new_webservice_log` when using the Next.js processor, for parity with ColdFusion.
+
+**Note:** We may need to create a `new_webservice_log` table (mirrored from `webservice_log` via trigger, similar to `new_wachtrij_*`). The parking-simulation statistics stallings list (`stallings.ts`) includes `webservice_log` in its union so bikeparkIDs that only appear in API call logs (e.g. updateLocker) show up. When `new_webservice_log` exists, add it to the stallings union as well.
+
+**updateLocker detection:** Next.js FMS API logs updateLocker calls to `webservice_log` via `logFmsCall()` in the v2 handler. Statistics query uses `LOWER(TRIM(method)) = 'updatelocker'`. ColdFusion never logs updateLocker. **Statistics UI:** The updateLocker column is hidden in `StatisticsTab.tsx` (commented out in COLUMNS); backend still returns `countUpdateLocker`. Uncomment to show when needed.
 
 ---
 
@@ -283,8 +320,9 @@ Log FMS API calls to `new_webservice_log` when using the Next.js processor, for 
 | `src/server/services/queue/account-service.ts`     | Create – bikepass, addSaldo                    |
 | `src/server/services/queue/processor.ts`           | Create – main processor                        |
 | `src/pages/api/cron/process-queues/index.ts`       | Create – cron endpoint                         |
-| `parkingmgmt_simulation_config`                    | Add optional `useNextJsProcessor` boolean      |
-| `StallingPanel.tsx` / `SettingsTab.tsx`            | Add toggle for Next.js vs ColdFusion processor |
+| `parkingsimulation_simulation_config`                    | Add `useLocalProcessor` boolean (default true) |
+| `StallingPanel.tsx` / `SettingsTab.tsx`            | Toggle for local vs ColdFusion processor      |
+| `src/pages/api/protected/data-api/fms-tables.ts`   | Returns `manualSql` for triggers after create-tables |
 
 
 ---
@@ -563,6 +601,7 @@ See **Appendix A: wachtrij-transactie-processing-stappen** (Stap 6), Appendix F.
 
 - **When:** Only when `transactionDate <= lastProcessedTransactionDate` (all regular transactions up to that time are done).
 - **Max 1 per run.**
+- **latestProcessedTransactionDate (ColdFusion source):** See [Appendix D: latestProcessedTransactionDate](#latestprocessedtransactiondate-coldfusion-source) below.
 - **Check-out missing bikes:** Bikes in central DB but NOT in `bikes` array → UPDATE transacties SET Date_checkout, Type_checkout='sync', SectieID_uit; UPDATE accounts_pasids SET huidigeFietsenstallingId=NULL, huidigeSectieId=NULL.
 - **Check-in new bikes:** Bikes in array but NOT in central DB → INSERT with Type_checkin='sync'.
 - **Guard:** All updates apply only if `dateLastCheck < transactionDate` (prevents old syncs overwriting newer data).
@@ -603,7 +642,7 @@ Two paradigms for reporting occupancy: **transaction-based (Wilmar)** and **occu
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **Data provider**      | `dataprovider.type` = lumiguide                                                                                           |
 | **BronBezettingsdata** | Not `'FMS'` (e.g. `'Lumiguide'` or external source)                                                                       |
-| **API flow**           | `reportOccupationData` → `bezettingsdata`, `fietsenstalling_sectie.Bezetting`                                             |
+| **API flow**           | `reportOccupationData` → `bezettingsdata_tmp`, `fietsenstalling_sectie.Bezetting`; update-bezettingsdata copies tmp → bezettingsdata |
 | **Sync**               | N/A (no per-bike sync)                                                                                                    |
 | **Processing**         | No `wachtrij_transacties` for check-in/out; `updateTableBezettingsdata.cfm` reads `bezettingsdata_tmp` → `bezettingsdata` |
 | **Bezetting source**   | Direct write by `reportOccupationData`; `resetOccupations` does **not** update these sections                             |
@@ -625,7 +664,73 @@ Two paradigms for reporting occupancy: **transaction-based (Wilmar)** and **occu
 
 **API:** V3 returns `occupationsource` = `fietsenstallingen.BronBezettingsdata ?? "FMS"` at location level.
 
-**Simulation:** Wilmar via `uploadJsonTransaction` and `syncSector`. Lumiguide via `parkingmgmt_spot_detection`; `reportOccupationData` not yet ported.
+**Simulation:** Wilmar via `uploadJsonTransaction` and `syncSector`. Lumiguide via `parkingsimulation_spot_detection`; `reportOccupationData` **ported** – FMS v2 REST, fms-api-write-client, and state POST (park/remove/move) auto-report for Lumiguide sections.
+
+---
+
+## Update Bezettingsdata (updateTableBezettingsdata)
+
+The ColdFusion cron `updateTableBezettingsdata.cfm` populates `bezettingsdata` for reporting. It is **not ported** to Next.js.
+
+### Current state
+
+- **URL:** `http://fms.veiligstallen.nl/remote/cronjobs/updateTableBezettingsdata.cfm`
+- **Schedule:** Daily
+- **Parameter:** `?timeintervals=15` (15-minute intervals)
+
+### Purpose
+
+Populate `bezettingsdata` for Rapportage bezetting, Rapportage ruwe data, and `bezettingsdata_day_hour_cache` (reporting cache).
+
+### Data paths
+
+| Path | Source | Target |
+|------|--------|--------|
+| **Lumiguide** | `reportOccupationData` → `bezettingsdata_tmp` | This process → `bezettingsdata` |
+| **FMS/Wilmar** | `transacties` | This process → `bezettingsdata` |
+
+### Flow
+
+```mermaid
+flowchart TB
+    subgraph inputs [Inputs]
+        tmp[(bezettingsdata_tmp)]
+        tx[(transacties)]
+        ri[(rapportageinfo)]
+    end
+
+    update[updateTableBezettingsdata.cfm]
+
+    subgraph outputs [Outputs]
+        bd[(bezettingsdata)]
+    end
+
+    tmp -->|Lumiguide path| update
+    tx -->|FMS path| update
+    ri -->|dateLastRun, dateLastrecord| update
+    update --> bd
+```
+
+### Dependencies
+
+- **fill_bezettingsdata_alle_kwartieren:** Generates 15-min timestamps between dateStart and dateEnd (see [mysql-db/initial_db.min.sql](mysql-db/initial_db.min.sql))
+- **getOccupation_from_bezettingsdata:** Returns latest known occupation for section/timestamp/source (Lumiguide backfill)
+- **updateBezettingsdata_occupation_no_biketype:** FMS occupation running sum (`checkins - checkouts + prev`)
+- **updateBezettingsdata_occupation_externalsource:** Lumiguide occupation backfill from prior rows
+
+### Status
+
+**Ported to Next.js.** Service: `src/server/services/bezettingsdata/update-bezettingsdata-service.ts`. API: `POST /api/protected/parking-simulation/update-bezettingsdata`. Uses testgemeente config (useLocalProcessor → new_transacties; siteID for scope). Default date range: 7 days.
+
+### Conversion plan
+
+1. **API endpoint:** Create `POST /api/protected/parking-simulation/update-bezettingsdata` (auth: fietsberaad_superadmin). Optional params: `timeintervals=15`, `dateStart`, `dateEnd`.
+2. **Service:** Create `src/server/services/bezettingsdata/update-bezettingsdata-service.ts`:
+   - **Lumiguide path:** Read `bezettingsdata_tmp` → upsert into `bezettingsdata` → TRUNCATE `bezettingsdata_tmp`
+   - **FMS path:** For sections with `BronBezettingsdata = 'FMS'`: generate 15-min intervals, aggregate checkins/checkouts from `transacties`, insert/upsert rows, run occupation backfill
+   - Update `rapportageinfo.dateLastRun`, `dateLastrecord`
+3. **Cron:** Add `/api/cron/update-bezettingsdata` (Bearer CRON_SECRET) or integrate into existing cron.
+4. **Test:** Parking Simulation testgemeente; after Process, run Update bezettingsdata; verify `bezettingsdata` rows.
 
 ---
 
@@ -821,6 +926,7 @@ Occupied/Capacity/Free: Complete Flow from ColdFusion Source.
    ```
    - Only processes syncs after ALL regular transactions up to that time are processed
    - Ensures data consistency
+   - **ColdFusion (processTransactions2.cfm):** `latestProcessedTransactionDate = now()` initially (line 80). When wachtrij_transacties batch is processed, after each row: `latestProcessedTransactionDate = q.transactionDate` (line 146) – so it ends up as the last processed row's transactionDate. When no wachtrij_transacties to process, stays `now()`.
 
 2. **Processing Phase:** Deserialize bikes JSON; call syncSector which:
    - **Check-Out Missing Bikes:** Bikes in central DB but NOT in array → check out; update accounts_pasids (huidige* = NULL); close transacties (Date_checkout, Type_checkout='sync')
@@ -828,6 +934,23 @@ Occupied/Capacity/Free: Complete Flow from ColdFusion Source.
    - Guard: `dateLastCheck < transactionDate`
 
 3. **Batch Size:** 1 sync per run
+
+### latestProcessedTransactionDate (ColdFusion source)
+
+**File:** `broncode/remote/remote/processTransactions2.cfm`
+
+The sync selection uses `transactionDate <= latestProcessedTransactionDate`. ColdFusion computes this as follows:
+
+| Step | Lines | Logic |
+|------|-------|-------|
+| 1 | 80 | `latestProcessedTransactionDate = now()` (initial value) |
+| 2 | 61–79 | Process wachtrij_transacties: UPDATE 0→9, SELECT, UPDATE 9→8 |
+| 3 | 82–147 | Loop over batch: process each row; after each: `latestProcessedTransactionDate = q.transactionDate` (line 146) |
+| 4 | 226 | Sync query: `WHERE processed = 0 AND transactionDate <= latestProcessedTransactionDate` |
+
+**Result:** When no wachtrij_transacties are processed in this run, `latestProcessedTransactionDate` stays `now()`. When the batch is processed (ordered by `transactionDate ASC`), the last row’s `transactionDate` becomes the cutoff. Syncs with `transactionDate <=` that value are eligible.
+
+**Next.js implementation:** `processTransacties` returns `latestProcessedTransactionDate` from the batch it just processed (or `now()` when empty). `processSync` receives this and uses it for the selection condition. See `src/server/services/queue/processor.ts`.
 
 ### Locker Timeout Cleanup
 
@@ -853,6 +976,19 @@ API-methodes die data in wachtrij_*-tabellen schrijven.
 | wachtrij_pasids | saveBike, saveBikes (REST) |
 | wachtrij_sync | syncSector (REST) |
 | wachtrij_betalingen | addSaldo, addSaldos (REST); indirect via uploadTransaction met betalingsvelden |
+| **bezettingsdata_tmp** | **reportOccupationData**, **reportJsonOccupationData** (FMS v2 REST) |
+
+### reportOccupationData (Lumiguide occupation)
+
+**Ported to Next.js.** Service: `src/server/services/fms/report-occupation-service.ts`. FMS v2 API: `POST /api/fms/v2/reportOccupationData/{bikeparkID}/{sectionID}` (or `reportJsonOccupationData`). Client: `src/lib/parking-simulation/fms-api-write-client.ts` – `reportOccupationData()`.
+
+**Flow:** Writes to `bezettingsdata_tmp` (upsert by timestamp/interval/source/bikeparkID/sectionID) and `fietsenstalling_sectie.Bezetting`. `update-bezettingsdata-service` copies tmp → bezettingsdata and truncates tmp.
+
+**new_ flow:** When `useLocalProcessor` is true, simulation uses `new_bezettingsdata_tmp` and `new_bezettingsdata`. Flow:
+- `reportOccupationData` always writes to `bezettingsdata_tmp`. A DB trigger mirrors testgemeente rows to `new_bezettingsdata_tmp` (see [fms-mirror-triggers.sql](src/server/sql/fms-mirror-triggers.sql) Trigger 5).
+- For Lumiguide sections: state POST (park/remove/move) calls `reportOccupationData` internally → writes to `bezettingsdata_tmp` + `fietsenstalling_sectie.Bezetting`. Trigger copies to `new_bezettingsdata_tmp` for testgemeente. `update-bezettingsdata` (protected or cron) reads from `new_bezettingsdata_tmp` when `useLocalProcessor` and processes tmp → `new_bezettingsdata`.
+
+**Payload:** `{ occupation, timestamp?, capacity?, checkins?, checkouts?, open?, interval?, source?, rawData? }`. Supports `occupation` / `Bezetting`, `capacity` / `Capacity`, etc.
 
 ### Verwerkingspijplijn per tabel
 
@@ -1048,3 +1184,46 @@ Existing record with `Type_checkin IN ('sync','system')` and `Date_checkout >= t
 **Location:** `src/server/services/queue/transaction-service.ts`, overlap loop (lines 136–154).
 
 **Todo (done):** Add `BarcodeFiets_uit: ot.BarcodeFiets_in ?? undefined` to the `transactiesModel.update` data in the overlap loop so each force-closed record records which bike left.
+
+---
+
+## Appendix L: bezettingsdata Columns
+
+Columns in `bezettingsdata` and their sources. Used by `updateTableBezettingsdata.cfm` and the Next.js port.
+
+### Column definitions
+
+| Column | Type | Source | Calculation / Notes |
+|--------|------|--------|---------------------|
+| `ID` | int | Auto | Primary key |
+| `timestampStartInterval` | datetime | Generated | Start of 15-min interval. Same as `timestamp` for single-interval rows. From `fill_bezettingsdata_alle_kwartieren` (CF) or `generateIntervalTimestamps` (Next.js). |
+| `timestamp` | datetime | Generated / Lumiguide | Interval end timestamp. Unique with (timestampStartInterval, source, bikeparkID, sectionID). |
+| `interval` | int | Param | 15 (minutes). Default 1 in schema. |
+| `source` | varchar(25) | Lumiguide / FMS | `'Lumiguide'` (or external) or `'FMS'`. Distinguishes data origin. |
+| `bikeparkID` | varchar(8) | transacties / tmp | StallingsID (e.g. `3500_001`). From fietsenstallingen.StallingsID or tmp. |
+| `sectionID` | varchar(13) | transacties / tmp | Section externalId (e.g. `3500_001_1`). From transacties.SectieID or tmp. |
+| `brutoCapacity` | int | sectie_fietstype | Sum of Capaciteit per section. Optional. |
+| `capacity` | int | sectie_fietstype, bulkreservering | Net capacity = sum(Capaciteit) - bulkreserveration for date. Optional. |
+| `bulkreserveration` | int | bulkreservering | Count of bulk reservations for the date. Default 0. |
+| `occupation` | int | **Calculated** | **FMS:** Running sum: `occupation = prev + checkins - checkouts`. Start value from open transacties at dateStart (excl. Type sync). **Lumiguide:** From `getOccupation_from_bezettingsdata` – latest known occupation for section/timestamp/source. |
+| `checkins` | int | transacties | Count where `Date_checkin` in interval and `Type_checkin != 'sync'`. |
+| `checkouts` | int | transacties | Count where `Date_checkout` in interval and `Type_checkout != 'sync'`. |
+| `open` | boolean | fietsenstalling_sectie | Section open flag. Optional. |
+| `fillup` | boolean | Process | Backfill indicator. Default false. |
+| `rawData` | varchar(255) | Optional | Raw payload. Truncated from tmp (TEXT) to 255. |
+| `dateModified` | timestamp | Auto | ON UPDATE CURRENT_TIMESTAMP |
+| `dateCreated` | datetime | Auto | Insert time |
+
+### Unique constraint
+
+`(timestampStartInterval, timestamp, source, bikeparkID, sectionID)` – one row per interval per section per source.
+
+### Checkin/checkout rules (FMS)
+
+- **Checkin in interval:** `Date_checkin >= intervalStart AND Date_checkin < intervalEnd AND (Type_checkin IS NULL OR Type_checkin != 'sync')`
+- **Checkout in interval:** `Date_checkout IS NOT NULL AND Date_checkout >= intervalStart AND Date_checkout < intervalEnd AND (Type_checkout IS NULL OR Type_checkout != 'sync')`
+- **Open occupation at T:** `Date_checkin <= T AND (Date_checkout IS NULL OR Date_checkout > T) AND Type_checkin != 'sync' AND Type_checkout != 'sync'`
+
+### Stored procedures (ColdFusion)
+
+See [mysql-db/initial_db.min.sql](mysql-db/initial_db.min.sql): `updateBezettingsdata_occupation_no_biketype`, `updateBezettingsdata_occupation_externalsource`, `getOccupation_from_bezettingsdata`, `fill_bezettingsdata_alle_kwartieren`.

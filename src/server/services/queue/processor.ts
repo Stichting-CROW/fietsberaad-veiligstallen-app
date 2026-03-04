@@ -25,6 +25,8 @@ export type ProcessQueuesResult = {
   sync: { processed: number; errors: number };
 };
 
+type ProcessTransactiesResult = { processed: number; errors: number; latestProcessedTransactionDate: Date };
+
 function parsePastypeFromBike(bike: unknown): string {
   if (!bike || typeof bike !== "object") return "sleutelhanger";
   const b = bike as Record<string, unknown>;
@@ -47,9 +49,10 @@ export async function processQueues(): Promise<ProcessQueuesResult> {
 
   await prisma.$transaction(async (tx) => {
     result.pasids = await processPasids(tx);
-    result.transacties = await processTransacties(tx);
+    const transactiesResult = await processTransacties(tx);
+    result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
     result.betalingen = await processBetalingen(tx);
-    result.sync = await processSync(tx);
+    result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate);
   });
 
   return result;
@@ -139,7 +142,7 @@ async function processPasids(
 
 async function processTransacties(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
-): Promise<{ processed: number; errors: number }> {
+): Promise<ProcessTransactiesResult> {
   const model = tx.new_wachtrij_transacties;
 
   // Step 1: Isolate – atomically mark batch 0→9
@@ -155,7 +158,9 @@ async function processTransacties(
     where: { processed: PROCESSED.ISOLATED },
     orderBy: [{ transactionDate: "asc" }, { type: "asc" }],
   });
-  if (rows.length === 0) return { processed: 0, errors: 0 };
+  if (rows.length === 0) {
+    return { processed: 0, errors: 0, latestProcessedTransactionDate: new Date() };
+  }
 
   await model.updateMany({
     where: { ID: { in: rows.map((r) => r.ID) } },
@@ -164,6 +169,7 @@ async function processTransacties(
 
   let processed = 0;
   let errors = 0;
+  let latestProcessedTransactionDate = new Date();
 
   for (const row of rows) {
     try {
@@ -247,6 +253,7 @@ async function processTransacties(
         data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
       });
       processed++;
+      latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       await model.update({
@@ -257,7 +264,7 @@ async function processTransacties(
     }
   }
 
-  return { processed, errors };
+  return { processed, errors, latestProcessedTransactionDate };
 }
 
 async function processBetalingen(
@@ -324,16 +331,15 @@ async function processBetalingen(
   return { processed, errors };
 }
 
+/**
+ * Process wachtrij_sync. Uses latestProcessedTransactionDate from processTransacties (ColdFusion: processTransactions2.cfm lines 80, 146, 226).
+ * ColdFusion: latestProcessedTransactionDate = now() when no wachtrij_transacties to process; else = last processed row's transactionDate.
+ */
 async function processSync(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  latestProcessedTransactionDate: Date
 ): Promise<{ processed: number; errors: number }> {
   const transactiesModel = tx.new_transacties;
-  const lastTx = await transactiesModel.findFirst({
-    orderBy: { Date_checkin: "desc" },
-    select: { Date_checkin: true },
-  });
-  const latestProcessedTransactionDate = lastTx?.Date_checkin ?? new Date(0);
-
   const model = tx.new_wachtrij_sync;
 
   // Step 1: Isolate – atomically mark one record 0→9 (only when transactionDate <= latest processed)
