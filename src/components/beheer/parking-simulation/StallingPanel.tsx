@@ -103,12 +103,14 @@ type Props = {
 type WachtrijPasid = { ID: number; bikeparkID: string; passID: string; barcode: string | null; processed: number; processDate: string | null; error: string | null; DateCreated: string };
 type WachtrijBetaling = { ID: number; bikeparkID: string; passID: string; transactionDate: string | null; amount: number; processed: number; processDate: string | null; error: string | null; dateCreated: string };
 type WachtrijSyncRow = { ID: number; bikeparkID: string; sectionID: string | null; transactionDate: string | null; processed: number; processDate: string | null; error: string | null; dateCreated: string };
+type BezettingsdataTmpRow = { ID: number; timestampStartInterval: string | null; timestamp: string | null; interval: number; source: string | null; bikeparkID: string | null; sectionID: string | null; brutoCapacity: number | null; capacity: number | null; bulkreserveration: number; occupation: number | null; checkins: number | null; checkouts: number | null; open: boolean | null; rawData: string | null; dateModified: string };
+type BezettingsdataRow = { ID: number; timestampStartInterval: string | null; timestamp: string | null; interval: number; source: string | null; bikeparkID: string | null; sectionID: string | null; brutoCapacity: number | null; capacity: number | null; bulkreserveration: number; occupation: number | null; checkins: number | null; checkouts: number | null; open: boolean | null; fillup: boolean; rawData: string | null; dateModified: string; dateCreated: string | null };
 
 const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingskosten = false }) => {
   const [layout, setLayout] = useState<Layout | null>(null);
   const [state, setState] = useState<{ bicycles: Bicycle[]; occupation?: OccupationEntry[]; session?: { simulationTimeOffsetSeconds?: number } } | null>(null);
   const [apiMessage, setApiMessage] = useState<string | null>(null);
-  const tableTabValues = ["wachtrij_transacties", "transacties", "wachtrij_pasids", "wachtrij_betalingen", "wachtrij_sync"] as const;
+  const tableTabValues = ["wachtrij_transacties", "transacties", "wachtrij_pasids", "wachtrij_betalingen", "wachtrij_sync", "bezettingsdata_tmp", "bezettingsdata"] as const;
   type PanelTabValue = "stalling" | (typeof tableTabValues)[number];
   const [panelTab, setPanelTab] = useState<PanelTabValue>("stalling");
   const [wachtrijTransacties, setWachtrijTransacties] = useState<WachtrijTransactie[]>([]);
@@ -116,6 +118,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const [wachtrijPasids, setWachtrijPasids] = useState<WachtrijPasid[]>([]);
   const [wachtrijBetalingen, setWachtrijBetalingen] = useState<WachtrijBetaling[]>([]);
   const [wachtrijSync, setWachtrijSync] = useState<WachtrijSyncRow[]>([]);
+  const [bezettingsdataTmp, setBezettingsdataTmp] = useState<BezettingsdataTmpRow[]>([]);
+  const [bezettingsdata, setBezettingsdata] = useState<BezettingsdataRow[]>([]);
   const [motorblokLoading, setMotorblokLoading] = useState(false);
   const [processQueueLoading, setProcessQueueLoading] = useState(false);
   const [processQueueResult, setProcessQueueResult] = useState<string | null>(null);
@@ -168,20 +172,24 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       const dateCheckinFrom = cutoffMinusDay ? `&dateCheckinFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
       const newTablesParam = useLocal ? "&useNewTables=true" : "";
 
-      const [wachtrijRes, transactiesRes, pasidsRes, betalingenRes, syncRes] = await Promise.all([
+      const [wachtrijRes, transactiesRes, pasidsRes, betalingenRes, syncRes, bezettingsdataTmpRes, bezettingsdataRes] = await Promise.all([
         fetch(`/api/protected/wachtrij/wachtrij_transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
         fetch(`/api/protected/transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${dateCheckinFrom}${newTablesParam}`, fetchOpts),
         fetch(`/api/protected/wachtrij/wachtrij_pasids?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
         fetch(`/api/protected/wachtrij/wachtrij_betalingen?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
         fetch(`/api/protected/wachtrij/wachtrij_sync?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
+        fetch(`/api/protected/parking-simulation/bezettingsdata-tmp?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${newTablesParam}`, fetchOpts),
+        fetch(`/api/protected/parking-simulation/bezettingsdata?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${newTablesParam}`, fetchOpts),
       ]);
 
-      const [wachtrijData, transactiesData, pasidsData, betalingenData, syncData] = await Promise.all([
+      const [wachtrijData, transactiesData, pasidsData, betalingenData, syncData, bezettingsdataTmpData, bezettingsdataData] = await Promise.all([
         wachtrijRes.json(),
         transactiesRes.json(),
         pasidsRes.json(),
         betalingenRes.json(),
         syncRes.json(),
+        bezettingsdataTmpRes.json(),
+        bezettingsdataRes.json(),
       ]);
 
       setWachtrijTransacties(wachtrijData?.data ?? []);
@@ -189,6 +197,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       setWachtrijPasids(pasidsData?.data ?? []);
       setWachtrijBetalingen(betalingenData?.data ?? []);
       setWachtrijSync(syncData?.data ?? []);
+      setBezettingsdataTmp(bezettingsdataTmpData?.data ?? []);
+      setBezettingsdata(bezettingsdataData?.data ?? []);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
       setWachtrijTransacties([]);
@@ -196,6 +206,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       setWachtrijPasids([]);
       setWachtrijBetalingen([]);
       setWachtrijSync([]);
+      setBezettingsdataTmp([]);
+      setBezettingsdata([]);
     } finally {
       setMotorblokLoading(false);
     }
@@ -244,6 +256,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       if (data.ok) {
         const msg = data.message ?? (data.rowsProcessed != null ? `${data.rowsProcessed} rows` : "OK");
         setUpdateBezettingsdataResult(msg);
+        loadMotorblok();
       } else {
         setUpdateBezettingsdataResult("Fout: " + (data.message ?? res.statusText));
       }
@@ -437,6 +450,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           <Tab label={useLocalProcessor ? "Wachtrij betalingen (new)" : "Wachtrij betalingen"} value="wachtrij_betalingen" />
           <Tab label={useLocalProcessor ? "Wachtrij sync (new)" : "Wachtrij sync"} value="wachtrij_sync" />
           <Tab label={useLocalProcessor ? "Transacties (new)" : "Transacties"} value="transacties" />
+          <Tab label={useLocalProcessor ? "Bezettingsdata tmp (new)" : "Bezettingsdata tmp"} value="bezettingsdata_tmp" />
+          <Tab label={useLocalProcessor ? "Bezettingsdata (new)" : "Bezettingsdata"} value="bezettingsdata" />
         </Tabs>
       </div>
 
@@ -753,6 +768,104 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
                         <td className="p-2">{PROCESSED_LABELS[r.processed] ?? `(${r.processed})`}</td>
                         <td className="p-2">{r.processDate ? new Date(r.processDate).toLocaleString() : "—"}</td>
                         <td className="p-2">{new Date(r.dateCreated).toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          )}
+          {panelTab === "bezettingsdata_tmp" && (
+          <div>
+            <h4 className="font-medium mb-2">{useLocalProcessor ? "Bezettingsdata tmp (new)" : "Bezettingsdata tmp"}</h4>
+            <div className="overflow-x-auto border rounded">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="text-left p-2">ID</th>
+                    <th className="text-left p-2">bikeparkID</th>
+                    <th className="text-left p-2">sectionID</th>
+                    <th className="text-left p-2">timestamp</th>
+                    <th className="text-left p-2">interval</th>
+                    <th className="text-left p-2">source</th>
+                    <th className="text-left p-2">capacity</th>
+                    <th className="text-left p-2">occupation</th>
+                    <th className="text-left p-2">checkins</th>
+                    <th className="text-left p-2">checkouts</th>
+                    <th className="text-left p-2">dateModified</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {motorblokLoading ? (
+                    <tr><td colSpan={11} className="p-4 text-gray-500">Laden...</td></tr>
+                  ) : bezettingsdataTmp.length === 0 ? (
+                    <tr><td colSpan={11} className="p-4 text-gray-500">Geen bezettingsdata tmp</td></tr>
+                  ) : (
+                    bezettingsdataTmp.map((r) => (
+                      <tr key={r.ID} className="border-t">
+                        <td className="p-2">{r.ID}</td>
+                        <td className="p-2">{r.bikeparkID ?? "—"}</td>
+                        <td className="p-2">{r.sectionID ?? "—"}</td>
+                        <td className="p-2">{r.timestamp ? new Date(r.timestamp).toLocaleString() : "—"}</td>
+                        <td className="p-2">{r.interval}</td>
+                        <td className="p-2">{r.source ?? "—"}</td>
+                        <td className="p-2">{r.capacity ?? "—"}</td>
+                        <td className="p-2">{r.occupation ?? "—"}</td>
+                        <td className="p-2">{r.checkins ?? "—"}</td>
+                        <td className="p-2">{r.checkouts ?? "—"}</td>
+                        <td className="p-2">{r.dateModified ? new Date(r.dateModified).toLocaleString() : "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          )}
+          {panelTab === "bezettingsdata" && (
+          <div>
+            <h4 className="font-medium mb-2">{useLocalProcessor ? "Bezettingsdata (new)" : "Bezettingsdata"}</h4>
+            <div className="overflow-x-auto border rounded">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="text-left p-2">ID</th>
+                    <th className="text-left p-2">bikeparkID</th>
+                    <th className="text-left p-2">sectionID</th>
+                    <th className="text-left p-2">timestamp</th>
+                    <th className="text-left p-2">interval</th>
+                    <th className="text-left p-2">source</th>
+                    <th className="text-left p-2">capacity</th>
+                    <th className="text-left p-2">occupation</th>
+                    <th className="text-left p-2">checkins</th>
+                    <th className="text-left p-2">checkouts</th>
+                    <th className="text-left p-2">fillup</th>
+                    <th className="text-left p-2">dateModified</th>
+                    <th className="text-left p-2">dateCreated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {motorblokLoading ? (
+                    <tr><td colSpan={13} className="p-4 text-gray-500">Laden...</td></tr>
+                  ) : bezettingsdata.length === 0 ? (
+                    <tr><td colSpan={13} className="p-4 text-gray-500">Geen bezettingsdata</td></tr>
+                  ) : (
+                    bezettingsdata.map((r) => (
+                      <tr key={r.ID} className="border-t">
+                        <td className="p-2">{r.ID}</td>
+                        <td className="p-2">{r.bikeparkID ?? "—"}</td>
+                        <td className="p-2">{r.sectionID ?? "—"}</td>
+                        <td className="p-2">{r.timestamp ? new Date(r.timestamp).toLocaleString() : "—"}</td>
+                        <td className="p-2">{r.interval}</td>
+                        <td className="p-2">{r.source ?? "—"}</td>
+                        <td className="p-2">{r.capacity ?? "—"}</td>
+                        <td className="p-2">{r.occupation ?? "—"}</td>
+                        <td className="p-2">{r.checkins ?? "—"}</td>
+                        <td className="p-2">{r.checkouts ?? "—"}</td>
+                        <td className="p-2">{r.fillup ? "1" : "0"}</td>
+                        <td className="p-2">{r.dateModified ? new Date(r.dateModified).toLocaleString() : "—"}</td>
+                        <td className="p-2">{r.dateCreated ? new Date(r.dateCreated).toLocaleString() : "—"}</td>
                       </tr>
                     ))
                   )}
