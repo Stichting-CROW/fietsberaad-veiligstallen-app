@@ -134,6 +134,34 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
         {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
           <LeftMenuItem
             component={false}
+            title={'Uitgifte barcodes'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.BarcodereeksenSleutelhangers}
+                title={'Sleutelhangers'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiTag}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.BarcodereeksenFietsstickers}
+                title={'Fietsstickers'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiTag}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
+        {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
+          <LeftMenuItem
+            component={false}
             title={'Database'}
             activecomponent={activecomponent}
             onSelect={onSelect}
