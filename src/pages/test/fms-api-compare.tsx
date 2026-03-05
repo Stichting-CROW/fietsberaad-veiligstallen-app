@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
@@ -1503,7 +1504,12 @@ const FmsApiComparePage: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nieuwe API url (basis)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Nieuwe API url (basis) –{" "}
+            <Link href="/test/fms-api-docs" className="text-blue-600 hover:underline">
+              Swagger docs
+            </Link>
+          </label>
           <input
             type="text"
             value={newApiUrl}

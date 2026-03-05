@@ -89,24 +89,22 @@ The processor handles **type In** and **type Uit** only. The following flows fro
 
 | Flow / type              | Source / condition                         | ColdFusion behaviour                                 | Simulation status |
 | ------------------------ | ------------------------------------------- | --------------------------------------------------- | ----------------- |
-| **Afboeking**            | `transactionID` ≠ 0 in wachtrij_transacties | Lookup existing transacties record by ID; close it  | ❌ Not implemented |
-| **Skip afboekingen**     | `price = 0` when afboeking                  | Skip processing (no putTransaction)                 | ❌ Not implemented |
-| **Payment at check-in**  | `paymenttypeid` + `amountpaid` in JSON      | Create financialtransactions record on check-in      | ❌ Not implemented |
-| **Reserveringsduur**     | Reservation flow (typeCheck=reservation)     | Set Reserveringsduur on transacties                 | ❌ Not implemented |
+| **Afboeking**            | `transactionID` ≠ 0 in wachtrij_transacties | Lookup existing transacties record by ID; close it  | ✅ Implemented (Phase 1) |
+| **Skip afboekingen**     | `price = 0` when afboeking                  | Skip processing (no putTransaction)                 | ✅ Implemented |
+| **Payment at check-in**  | `paymenttypeid` + `amountpaid` in JSON      | Add to wachtrij_betalingen → processor creates financialtransactions | ✅ Implemented (wachtrij-service) |
+| **Reserveringsduur**     | Fietskluizen reservation flow               | Set Reserveringsduur on transacties                 | ⏳ Phase 2 (fietskluizen) – see Appendix M |
 | **Locker timeout**       | Post-queue cleanup                          | Release lockers held after subscription purchase     | ❌ Phase 2         |
 
-**Implemented:** `type` In/Uit; typeCheck (user, controle, section→user, sync, system, reservation, beheer) passed through; checkout stallingskosten → financialtransactions; overlap; checkout without check-in; double check-in; sync check-out/in.
+**Implemented:** `type` In/Uit; typeCheck (user, controle, section→user, sync, system, reservation, beheer) passed through; checkout stallingskosten → financialtransactions; overlap; checkout without check-in; double check-in; sync check-out/in; **Afboeking (Phase 1):** when `transactionID` ≠ 0, lookup transacties by ID and close via `putTransactionByID`; skip when type=afboeking and price=0. **Afboeking (Phase 2):** when tariefstaffels has multiple periods, charge one period at a time and schedule next afboeking. See Appendix O.
 
 
 ---
 
 ## What to Do Next
 
-1. **Afboeking (transactionID ≠ 0):** Add handling in `processTransacties` when `row.transactionID !== 0` – lookup transacties by ID, close record, update accounts/financialtransactions.
-2. **Skip afboekingen with price=0:** When afboeking and price=0, skip putTransaction (mark processed=1).
-3. **Payment at check-in:** In `putTransaction` or processor, when transaction JSON has `paymenttypeid` and `amountpaid`, create financialtransactions record and update account saldo.
-4. **Reserveringsduur:** Add `Reserveringsduur` to `PutTransactionInput`; set when typeCheck=reservation and duration available.
-5. **Phase 2:** Archive process; locker timeout cleanup; new_webservice_log (optional).
+1. ~~**Afboeking (transactionID ≠ 0):**~~ ✅ Done – `putTransactionByID` in transaction-service; processor calls it when `row.transactionID !== 0`. Skip when type=afboeking and price=0. Appendix O.
+2. **Phase 2:** Archive process; locker timeout cleanup; new_webservice_log (optional). **Reserveringsduur:** Fietskluizen only – see Appendix M. ~~**Afboeking Phase 2 (multiple tariff periods):**~~ ✅ Done – charge one period at a time, schedule next via `scheduleAfboekingToWachtrij`. Appendix O.
+3. **Next gaps (see Appendix P):** syncSector BikeTypeID/ClientTypeID (use bikes[].bikeTypeID/clientTypeID when present); financialtransactions.code/paymentMethod (minor – stallingskosten hardcode likely correct); Compare-results flow (high priority).
 
 
 ---
@@ -371,6 +369,7 @@ This section documents where data from each wachtrij table ends up after process
 | transactionDate             | transacties       | Date_checkin / Date_checkout                                |                                                         |
 | transactionID               | transacties       | —                                                           | For afboeking: lookup existing record                   |
 | transaction (JSON)          | transacties       | BarcodeFiets_in, BarcodeFiets_uit, BikeTypeID, ClientTypeID   | From JSON: barcodeBike, bikeTypeID, clientTypeID        |
+| transaction (JSON)          | wachtrij_betalingen → financialtransactions | paymenttypeid, amountpaid | Payment at check-in: when both present and amountpaid > 0, addTransactionToWachtrij also inserts wachtrij_betalingen. Appendix N. |
 | price                       | transacties       | Stallingskosten                                             | Calculated on checkout or from JSON                     |
 
 
@@ -380,7 +379,7 @@ This section documents where data from each wachtrij table ends up after process
 
 **accounts:** Balance updated on checkout (saldo -= Stallingskosten); dateLastSaldoUpdate.
 
-**financialtransactions:** Created on checkout (stallingskosten) or when transaction JSON has paymenttypeid + amountpaid: amount, transactionDate, accountID, bikeparkID, sectionID, transactionID, code, status, paymentMethod, etc.
+**financialtransactions:** Created on checkout (stallingskosten) or when transaction JSON has paymenttypeid + amountpaid (payment at check-in): wachtrij-service adds wachtrij_betalingen row → processor creates financialtransactions. Appendix N.
 
 ---
 
@@ -452,7 +451,7 @@ Per-field documentation for tables written by the queue processor. See Appendix 
 | Type_checkout     | wachtrij_transacties, wachtrij_sync     | typeCheck / "sync"       | Direct            | F.6                                                     |
 | Stallingskosten   | wachtrij_transacties, tariefregels      | price / calculated       | Conditional       | F.3                                                     |
 | Tariefstaffels    | tariefregels                            | —                        | Calculated        | Serialized tariff steps. F.4                            |
-| Reserveringsduur  | —                                       | —                        | Calculated        | Reservation flow only. F.10                             |
+| Reserveringsduur  | —                                       | —                        | Calculated        | Fietskluizen reservation flow only. F.10, Appendix M   |
 | BikeTypeID        | wachtrij_transacties                    | transaction.bikeTypeID   | Direct            | Default 1                                               |
 | ClientTypeID      | wachtrij_transacties                    | transaction.clientTypeID | Direct            | Default 1                                               |
 | ExploitantID      | fietsenstallingen                       | ExploitantID             | Direct            |                                                         |
@@ -500,7 +499,7 @@ Per-field documentation for tables written by the queue processor. See Appendix 
 | Field           | Source table                              | Source field                        | Direct/Calculated | Notes                              |
 | --------------- | ----------------------------------------- | ----------------------------------- | ----------------- | ---------------------------------- |
 | ID              | —                                         | —                                   | Calculated        | UUID. I.5                          |
-| amount          | wachtrij_betalingen, wachtrij_transacties | amount, Stallingskosten, amountpaid | Direct/Calculated | I.2                                |
+| amount          | wachtrij_betalingen, wachtrij_transacties | amount, Stallingskosten, amountpaid (payment at check-in) | Direct/Calculated | I.2, Appendix N                   |
 | transactionDate | wachtrij_betalingen, wachtrij_transacties | transactionDate                     | Direct            |                                    |
 | accountID       | accounts_pasids                           | AccountID                           | Direct            | Via passID lookup. I.4             |
 | siteID          | fietsenstallingen                         | SiteID                              | Direct            | Via bikeparkID lookup              |
@@ -780,7 +779,7 @@ Per record worden de kolommen uit het wachtrij-record aangevuld met velden uit d
 
 **Input:** Kolom `transaction` uit het wachtrij-record (JSON-string).
 
-**Typische velden in de JSON:** type, typeCheck, transactionDate, barcodeBike, price, placeID, bikeTypeID, clientTypeID, paymenttypeid, amountpaid.
+**Typische velden in de JSON:** type, typeCheck, transactionDate, barcodeBike, price, placeID, bikeTypeID, clientTypeID, paymenttypeid, amountpaid. Payment at check-in: when both paymenttypeid and amountpaid (or camelCase variants) present and amountpaid > 0, wachtrij-service also adds wachtrij_betalingen. Appendix N.
 
 **Output:** `_transaction` struct met de velden uit de JSON.
 
@@ -1018,7 +1017,19 @@ Depends on BerekentStallingskosten: true → calculated from tariefregels; false
 
 ### F.4 Tariefstaffels (conditional)
 
-Set only when Stallingskosten is calculated. Serialized tariff steps.
+**When set:** Only when `BerekentStallingskosten` is true and Stallingskosten is calculated from tariefregels. When price comes from wachtrij (BerekentStallingskosten false), Tariefstaffels remains NULL.
+
+**Format:** JSON array of tariff steps, stored in `transacties.Tariefstaffels` (VARCHAR(255)). ColdFusion-compatible format:
+
+```json
+[{"TIMESPAN":1,"COST":0.01},{"TIMESPAN":24,"COST":0.02}]
+```
+
+- **TIMESPAN:** `tijdsspanne` from tariefregels (hours)
+- **COST:** `kosten` from tariefregels (decimal)
+- **Truncation:** If serialized string exceeds 255 chars, it is truncated. Reference: `mysql-db/initial_db.min.sql` sample value.
+
+**Implementation:** `src/server/services/queue/transaction-service.ts` – `calculateStallingskosten()` returns `{ stallingskosten, tariefstaffels }`; `serializeTariefstaffels()` builds the JSON. Set on checkout in: overlap loop (force-closed transactions), normal checkout, and sync check-out when Stallingskosten is calculated. Synthetic checkout (checkout without check-in) leaves Tariefstaffels NULL (Stallingsduur=0, no tariff application).
 
 ### F.5 SectieID vs SectieID_uit
 
@@ -1040,9 +1051,9 @@ Via fietsenstallingen.SiteID → contacts.
 
 Never written by queue processor. ColdFusion TransactionGateway omits it in all INSERT/UPDATE.
 
-### F.10 Reserveringsduur (conditional)
+### F.10 Reserveringsduur (conditional, fietskluizen only)
 
-Reservation flow only.
+Set only for **fietskluizen** reservation flow (typeCheck=reservation, placeID required). V1 stallings (bewaakt, buurtstalling, geautomatiseerd, onbewaakt, fietstrommel, toezicht) do not use reservations. See **Appendix M: Reserveringsduur and Reservations (fietskluizen only)**.
 
 ### F.11 dateCreated (DB default only)
 
@@ -1098,7 +1109,7 @@ Set whenever saldo is modified.
 
 ### I.2 amount
 
-From wachtrij_betalingen.amount; wachtrij_transacties checkout (Stallingskosten); transaction JSON amountpaid.
+From wachtrij_betalingen.amount; wachtrij_transacties checkout (Stallingskosten); transaction JSON amountpaid (payment at check-in). Payment at check-in: transaction JSON → wachtrij_betalingen (via addTransactionToWachtrij) → processor → financialtransactions. See Appendix N.
 
 ### I.3 code, status, paymentMethod
 
@@ -1227,3 +1238,170 @@ Columns in `bezettingsdata` and their sources. Used by `updateTableBezettingsdat
 ### Stored procedures (ColdFusion)
 
 See [mysql-db/initial_db.min.sql](mysql-db/initial_db.min.sql): `updateBezettingsdata_occupation_no_biketype`, `updateBezettingsdata_occupation_externalsource`, `getOccupation_from_bezettingsdata`, `fill_bezettingsdata_alle_kwartieren`.
+
+---
+
+## Appendix M: Reserveringsduur and Reservations (fietskluizen only)
+
+**Scope:** Reservations and `transacties.Reserveringsduur` are used **only for fietskluizen** (lockers). V1 stallings (bewaakt, buurtstalling, geautomatiseerd, onbewaakt, fietstrommel, toezicht) have no reservation flow.
+
+### ColdFusion flow
+
+1. **Reservation check-in:** User reserves a locker via VeiligStallen.nl → `uploadTransaction` with `typeCheck="reservation"`, `type="In"`, `placeID`, `sectionID`. Creates `transacties` with `Type_checkin='reservation'`.
+2. **Auto-checkout:** TransactionGateway schedules checkout after 23h 59m 59s.
+3. **Manual checkout:** User ends rental → `uploadTransaction` with `typeCheck="reservation"`, `type="Uit"`.
+4. **Park on reserved place:** User parks on a locker they reserved → UPDATE record: `Type_checkin` = given type, `Reserveringsduur` = minutes from reservation start to now.
+
+### Reserveringsduur calculation
+
+**Always calculated** from timestamps (never from JSON): `DateDiff('n', Date_checkin, Date_checkout)` = minutes.
+
+- **Check-out (Type_checkin = "Reservation"):** `Stallingsduur = 0`, `Reserveringsduur = DateDiff('n', date_checkin, date_checkout)`.
+- **Check-out (Type_checkout = "reservation"):** `Reserveringsduur = DateDiff('n', date_checkin, date_checkout)`.
+- **Check-in on reserved place:** `Reserveringsduur = DateDiff('n', reservation.Date_checkin, arguments.date_transaction)`.
+
+### V1 implementation
+
+- **Queue processor:** Reserveringsduur not implemented for v1. Deferred to Phase 2 (fietskluizen).
+- **Simulation:** No reservation workflow in v1; fietskluizen deferred to v2.
+
+---
+
+## Appendix N: Payment at check-in
+
+**Flow:** When transaction JSON has `paymenttypeid` and `amountpaid` with `amountpaid > 0`, `addTransactionToWachtrij` (wachtrij-service) inserts both into `wachtrij_transacties` and into `wachtrij_betalingen`. The processor then processes betalingen and creates `financialtransactions` via `addSaldoObject`.
+
+**Source:** ColdFusion `TransactionGateway.addTransactionToWachtrij` (lines 1101–1111) calls `addSaldoUpdateToWachtrij` before inserting the transaction.
+
+### Field name variants
+
+The FMS API and JSON may use either lowercase or camelCase. **wachtrij-service** accepts both:
+
+| JSON field   | Variant        | Notes                          |
+| ------------ | -------------- | ------------------------------ |
+| paymenttypeid | `paymenttypeid` | ColdFusion / API lowercase     |
+| paymenttypeid | `paymentTypeID` | API camelCase alias            |
+| amountpaid   | `amountpaid`   | ColdFusion / API lowercase     |
+| amountpaid   | `amountPaid`   | API camelCase alias            |
+
+Default: `paymentTypeID = 1` when omitted. `amountpaid = 0` or omitted → no payment-at-check-in.
+
+### Duplicate handling
+
+`wachtrij_betalingen` has a unique constraint on `(bikeparkID, passID, transactionDate, paymentTypeID, amount)`. If the same payment-at-check-in is submitted twice (e.g. retry), `addSaldoToWachtrij` may throw on duplicate. **Behaviour:** Catch the error, log a warning, and do not fail the transaction insert. The `wachtrij_transacties` row is still created; only the duplicate betalingen insert is skipped. Matches ColdFusion: `addSaldoUpdateToWachtrij` returns `false` on duplicate without failing the overall flow.
+
+---
+
+## Appendix O: Afboeking (Phase 1)
+
+**Purpose:** When `wachtrij_transacties.transactionID` ≠ 0, the record is a scheduled checkout (afboeking). Instead of looking up the open transaction by PasID, the processor looks up the existing `transacties` record by ID and closes it.
+
+### ColdFusion behaviour
+
+- **uploadTransactionObject:** "systeemafboeking indien transactionID" – when transactionID is set, lookup transacties by ID and close.
+- **putTransaction:** "Afboeking → bestaand record opzoeken" – find by ID, perform checkout.
+- **Skip:** When type=afboeking and price=0, skip putTransaction (mark processed=1).
+
+### Implementation
+
+**processor.ts (`processTransacties`):**
+
+1. When `row.transactionID !== 0`, take the afboeking path (before type/section/bikepass lookup).
+2. If `type === "afboeking"` (case-insensitive) and `(price == null || price === 0)`: mark processed=1, continue (skip).
+3. Else: call `putTransactionByID(tx, { transactionID, transactionDate, bikeparkID, stallingID, siteID, sectionID, typeCheck, berekentStallingskosten, useNewTables })`.
+
+**transaction-service.ts (`putTransactionByID`):**
+
+1. Find `transacties` by ID. Throw if not found or already closed (`Date_checkout` not null).
+2. Get bikepass from `transacties.PasID` + siteID + pastype (from transacties.Pastype).
+3. Calculate Stallingsduur, Stallingskosten (from tariefregels when `berekentStallingskosten`).
+4. Update transacties: Date_checkout, Type_checkout, SectieID_uit, BarcodeFiets_uit, Stallingsduur, Stallingskosten, Tariefstaffels.
+5. Update accounts (saldo -= stallingskosten) and create financialtransactions when stallingskosten > 0.
+6. Update accounts_pasids: huidigeFietsenstallingId=null, huidigeSectieId=null, transactionID, dateLastCheck.
+
+### Phase 2: Multiple tariff periods (implemented)
+
+When `tariefstaffels` has multiple tariff periods (e.g. `[{"TIMESPAN":1,"COST":0.01},{"TIMESPAN":24,"COST":0.02}]`), the processor charges **one period at a time** and schedules the next afboeking instead of closing the transactie.
+
+**Logic:**
+
+1. Parse `tariefstaffels` from transactie or from `calculateStallingskosten` result.
+2. If `steps.length > 1`: compute cost for the current period via `getAfboekingPeriodInfo(dateCheckin, stallingsduur, steps)`.
+3. Charge for this period only: add financialtransaction, update accounts (saldo -= cost), accumulate `Stallingskosten` on transactie.
+4. Do **not** close the transactie: leave `Date_checkout` null.
+5. Schedule next afboeking via `scheduleAfboekingToWachtrij(tx, {...})` – inserts into `wachtrij_transacties` with `transactionID`, `type="afboeking"`, `transactionDate` = next period boundary. Trigger mirrors to `new_wachtrij_transacties`; next processor run will process it.
+6. Update `accounts_pasids`: keep `huidigeFietsenstallingId`, `huidigeSectieId` (bike still parked); update `transactionID`, `dateLastCheck`, `huidigeStallingskosten`.
+
+**When to close:** When `tariefstaffels` has a single period (`steps.length <= 1`), use Phase 1 behaviour: charge full `stallingskosten` and close the transactie.
+
+**Functions:**
+
+- `parseTariefstaffels(tariefstaffels)` – parse JSON to `{ TIMESPAN, COST }[]`
+- `getAfboekingPeriodInfo(dateCheckin, stallingsduurMinutes, steps)` – returns `{ costForThisPeriod, nextDate, isLastPeriod }`
+- `scheduleAfboekingToWachtrij(tx, params)` – insert into `wachtrij_transacties` with `transactionID`
+
+**wachtrij-service:** `addTransactionToWachtrij` accepts optional `transactionID` parameter for external callers (e.g. scheduling afboeking).
+
+---
+
+## Appendix P: Next Gaps – Analysis and Documentation
+
+### P.1 syncSector BikeTypeID / ClientTypeID (next gap)
+
+**Gap:** In `processSync`, when creating synthetic check-ins for bikes in the sync array, Next.js hardcodes `BikeTypeID: 1` and `ClientTypeID: 1`. ColdFusion may use `bikes[].idtype` or other fields from the bikes array.
+
+**Location:** `src/server/services/queue/processor.ts`, `processSync`, around line 451–462 (transactiesModel.create for sync check-in).
+
+**Current code:**
+```ts
+await transactiesModel.create({
+  data: {
+    ...
+    BikeTypeID: 1,
+    ClientTypeID: 1,
+    ...
+  },
+});
+```
+
+**Bikes array structure (wachtrij_sync.bikes JSON):** `{ idcode?, bikeid?, idtype?, transactiondate? }[]`
+
+**Field semantics:**
+- `idtype` (API_PORTING_PLAN): 0=barcode, 1=ov-chipkaart, 2=cijfercode, 3=tijdelijk ov, 4=tijdelijk barcode → maps to **Pastype** (pass type), not BikeTypeID.
+- `BikeTypeID`: 1=fiets, 2=bromfiets, etc. (from `sectie_fietstype`, `barcoderegister`).
+- `ClientTypeID`: from `klanttypen`; default 1.
+
+**Proposed fix:**
+1. Extend bikes array type to include `bikeTypeID?` and `clientTypeID?` if the sync API sends them.
+2. When creating sync check-in: `BikeTypeID: bike.bikeTypeID ?? 1`, `ClientTypeID: bike.clientTypeID ?? 1`.
+3. If bikes array has no bikeTypeID: optionally lookup from `barcoderegister` by barcode (idcode/bikeid) to get BikeTypeID; else default 1.
+4. Document in sync API / FMS docs which fields the sync payload may contain.
+
+**Impact:** Low. Default 1 is correct for standard bikes. Only affects stallings with multiple bike types or client types.
+
+---
+
+### P.2 financialtransactions.code / paymentMethod (minor gap)
+
+**Gap:** For checkout (stallingskosten), Next.js hardcodes `code: "stallingskosten"` and `paymentMethod: "stallingskosten"`. ColdFusion may use a payment-type lookup.
+
+**Location:** `src/server/services/queue/transaction-service.ts` – all `ftModel.create` calls for stallingskosten (overlap loop, normal checkout, putTransactionByID).
+
+**Context:**
+- **Checkout flow:** No `paymentTypeID` in wachtrij_transacties for stallingskosten – cost comes from tariff. "stallingskosten" is the correct semantic value.
+- **wachtrij_betalingen flow:** `addSaldoObject` already maps `paymentTypeID` → `paymentMethod` (1=betaald, 2=kwijtschelding) and `code: saldo_${paymentTypeID}`. See `account-service.ts` lines 149–150.
+
+**Assessment:** For stallingskosten, hardcoding "stallingskosten" is likely correct. ColdFusion may use a lookup table (e.g. betalingstype) for human-readable names; if so, we could add `getPaymentTypeName(paymentTypeID)` or similar for consistency. **Low priority** – only relevant if ColdFusion uses different values or a lookup we haven’t ported.
+
+---
+
+### P.3 Compare-results flow (high priority, not yet implemented)
+
+**Gap:** No automated comparison of `transacties` vs `new_transacties` (and related tables) after process-queue. The FMS API compare page compares **API responses** (GET), not **processed records**.
+
+**Proposed:** New endpoint `POST /api/protected/parking-simulation/compare-results` that:
+1. Fetches transacties and new_transacties for testgemeente stallings.
+2. Aligns by transaction ID or (bikeparkID, sectionID, passID, Date_checkin).
+3. Returns diff (matches/mismatches per field, per write method).
+
+**See:** simulation_completion_plan §3 Flow, §6 Implementation Todos.

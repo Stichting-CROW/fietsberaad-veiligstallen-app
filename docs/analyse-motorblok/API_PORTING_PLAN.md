@@ -511,7 +511,7 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | idtype | 0–4 | 0=barcode, 1=ov-chipkaart, 2=cijfercode, 3=tijdelijk ov, 4=tijdelijk barcode |
 | typecheck | user, controle, reservation | |
 | type | in, out | |
-| paymenttypeid | 1–2 | 1=betaald, 2=kwijtschelding |
+| paymenttypeid | 1–2 | 1=betaald, 2=kwijtschelding. With amountpaid > 0: payment at check-in (wachtrij_betalingen). Appendix N in QUEUE_PROCESSOR_PORTING_PLAN. |
 | locationtypeid | 1–7 | Maps to fietsenstallingtypen |
 | statuscode | 0–4 | 0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking |
 

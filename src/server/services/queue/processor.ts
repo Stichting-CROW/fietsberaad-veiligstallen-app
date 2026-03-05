@@ -7,7 +7,7 @@
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
 import { getBikepassByPassId, addSaldoObject } from "./account-service";
-import { putTransaction } from "./transaction-service";
+import { putTransaction, putTransactionByID } from "./transaction-service";
 
 const USE_NEW_TABLES = true;
 const LIMIT_PASIDS = 50;
@@ -190,8 +190,42 @@ async function processTransacties(
       const typeCheck = (row.typeCheck || transactionJson.typeCheck || "user") as string;
       const typeFixed = typeCheck === "section" ? "user" : typeCheck;
       const transactionDate = row.transactionDate ?? new Date(transactionJson.transactionDate as string);
-      const type = (row.type === "Out" ? "Uit" : row.type) as "In" | "Uit";
+      const transactionID = row.transactionID ?? 0;
+      const typeNorm = (row.type || "").toLowerCase();
+      const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
 
+      // Afboeking (transactionID ≠ 0): close by ID or skip when price=0. Skip type/section/bikepass for this path.
+      if (transactionID !== 0) {
+        if (typeNorm === "afboeking" && (price == null || price === 0)) {
+          await model.update({
+            where: { ID: row.ID },
+            data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+          });
+          processed++;
+          latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
+          continue;
+        }
+        await putTransactionByID(tx, {
+          transactionID,
+          transactionDate: transactionDate instanceof Date ? transactionDate : new Date(transactionDate),
+          bikeparkID: row.bikeparkID,
+          stallingID: bikepark.ID,
+          siteID: bikepark.SiteID,
+          sectionID: row.sectionID,
+          typeCheck: typeFixed,
+          berekentStallingskosten: bikepark.BerekentStallingskosten ?? false,
+          useNewTables: USE_NEW_TABLES,
+        });
+        await model.update({
+          where: { ID: row.ID },
+          data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+        });
+        processed++;
+        latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
+        continue;
+      }
+
+      const type = (row.type === "Out" ? "Uit" : row.type) as "In" | "Uit";
       if (type !== "In" && type !== "Uit") {
         await model.update({
           where: { ID: row.ID },
@@ -217,7 +251,6 @@ async function processTransacties(
       const barcodeBike = (transactionJson.barcodeBike ?? transactionJson.bikeid ?? null) as string | null;
       const bikeTypeID = (transactionJson.bikeTypeID ?? transactionJson.bikeTypeId ?? 1) as number;
       const clientTypeID = (transactionJson.clientTypeID ?? transactionJson.clientTypeId ?? 1) as number;
-      const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
 
       if (row.placeID != null || row.externalPlaceID) {
         const place = await getPlace(row.placeID ?? 0, row.sectionID);
