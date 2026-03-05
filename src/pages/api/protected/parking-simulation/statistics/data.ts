@@ -13,6 +13,8 @@ export type StatisticsDataRow = {
   countSync: number;         // syncSector
   countReportOccupation: number;  // reportOccupationData, reportJsonOccupationData
   countUpdateLocker: number; // updateLocker (from webservice_log)
+  countAddSubscription: number; // addSubscription (from webservice_log)
+  countSubscribe: number;    // subscribe (from webservice_log)
 };
 
 /**
@@ -24,7 +26,7 @@ export type StatisticsDataRow = {
  * - countSync: syncSector
  * - countReportOccupation: reportOccupationData, reportJsonOccupationData
  * - countUpdateLocker: updateLocker (from webservice_log, if populated)
- * Query: dateStart (optional, filter transactionDate/dateModified/tijdstip >= dateStart)
+ * Query: dateStart (optional). Filter: date >= dateStart.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -40,8 +42,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(403).json({ message: "Geen rechten" });
   }
 
-  const dateStartRaw = (req.query.dateStart as string) || "2015-01-01";
-  const dateStart = /^\d{4}-\d{2}-\d{2}$/.test(dateStartRaw) ? dateStartRaw : "2015-01-01";
+  const dateStartRaw = (req.query.dateStart as string) || "2025-01-01";
+  const dateStart = /^\d{4}-\d{2}-\d{2}$/.test(dateStartRaw) ? dateStartRaw : "2025-01-01";
   const dateFilter = `AND (transactionDate IS NULL OR transactionDate >= '${dateStart} 00:00:00')`;
   const dateFilterBezetting = `AND (dateModified >= '${dateStart} 00:00:00')`;
 
@@ -52,7 +54,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   const dateFilterWebserviceLog = `AND tijdstip >= '${dateStart} 00:00:00'`;
 
-  const [wt, wp, wb, ws, bdt, nbdt, nwt, nwp, nwb, nws, wsl] = await Promise.all([
+  const [wt, wp, wb, ws, bdt, nbdt, nwt, nwp, nwb, nws, wsl, wsa, wss] = await Promise.all([
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM wachtrij_transacties WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
     ),
@@ -86,6 +88,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM webservice_log WHERE LOWER(TRIM(method)) = 'updatelocker' AND bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterWebserviceLog} GROUP BY bikeparkID`
     ).catch(() => [] as CountRow[]),
+    prisma.$queryRawUnsafe<CountRow[]>(
+      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM webservice_log WHERE LOWER(TRIM(method)) = 'addsubscription' AND bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterWebserviceLog} GROUP BY bikeparkID`
+    ).catch(() => [] as CountRow[]),
+    prisma.$queryRawUnsafe<CountRow[]>(
+      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM webservice_log WHERE LOWER(TRIM(method)) = 'subscribe' AND bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterWebserviceLog} GROUP BY bikeparkID`
+    ).catch(() => [] as CountRow[]),
   ]);
 
   const toMap = (rows: CountRow[]) => new Map(rows.map((r) => [r.bikeparkID, toNum(r)]));
@@ -100,6 +108,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const mNwb = toMap(nwb);
   const mNws = toMap(nws);
   const mWsl = toMap(wsl);
+  const mWsa = toMap(wsa);
+  const mWss = toMap(wss);
 
   const allIds = new Set([
     ...mWt.keys(),
@@ -113,6 +123,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     ...mNwb.keys(),
     ...mNws.keys(),
     ...mWsl.keys(),
+    ...mWsa.keys(),
+    ...mWss.keys(),
   ]);
 
   const data: StatisticsDataRow[] = Array.from(allIds).map((bikeparkID) => ({
@@ -123,6 +135,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     countSync: (mWs.get(bikeparkID) ?? 0) + (mNws.get(bikeparkID) ?? 0),
     countReportOccupation: (mBdt.get(bikeparkID) ?? 0) + (mNbdt.get(bikeparkID) ?? 0),
     countUpdateLocker: mWsl.get(bikeparkID) ?? 0,
+    countAddSubscription: mWsa.get(bikeparkID) ?? 0,
+    countSubscribe: mWss.get(bikeparkID) ?? 0,
   }));
 
   return res.status(200).json({ data, dateStart });

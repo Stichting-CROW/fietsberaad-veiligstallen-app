@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
-const DEFAULT_DATE_START = "2015-01-01";
+const DEFAULT_DATE_START = "2025-01-01";
 const CACHE_KEY_STALLINGS = "parking-simulation-statistics-stallings";
 const CACHE_KEY_DATA = "parking-simulation-statistics-data";
 
@@ -20,32 +20,31 @@ type StatisticsDataRow = {
   countSync: number;
   countReportOccupation: number;
   countUpdateLocker: number;
+  countAddSubscription: number;
+  countSubscribe: number;
 };
 
 type StatisticsRow = StallingListItem & StatisticsDataRow;
 
-type SortColumn = "contactName" | "parkingName" | "stallingType" | "countStallings" | "countTransacties" | "countPasids" | "countBetalingen" | "countSync" | "countReportOccupation";
+type SortColumn = "contactName" | "parkingName" | "stallingType" | "countStallings" | "countTransacties" | "countPasids" | "countBetalingen" | "countSync" | "countReportOccupation" | "countAddSubscription" | "countSubscribe";
 type SortOrder = "asc" | "desc";
 
 type StatisticsTabProps = {
   stallings?: Array<{ id: string; locationid: string; title: string }>;
 };
 
+// One column per metric; single/multi (e.g. uploadJsonTransaction vs uploadJsonTransactions) not distinguishable in wachtrij data
 const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: "contactName", label: "Contact" },
   { key: "parkingName", label: "Stalling" },
   { key: "stallingType", label: "Stalling type" },
-  { key: "countTransacties", label: "uploadJsonTransaction" },
-  { key: "countTransacties", label: "uploadJsonTransactions" },
-  { key: "countPasids", label: "saveJsonBike" },
-  { key: "countPasids", label: "saveJsonBikes" },
-  { key: "countBetalingen", label: "addJsonSaldo" },
-  { key: "countBetalingen", label: "addJsonSaldos" },
+  { key: "countTransacties", label: "uploadJsonTransaction(s)" },
+  { key: "countPasids", label: "saveJsonBike(s)" },
+  { key: "countBetalingen", label: "addJsonSaldo(s)" },
   { key: "countSync", label: "syncSector" },
-  { key: "countReportOccupation", label: "reportOccupationData" },
-  { key: "countReportOccupation", label: "reportJsonOccupationData" },
-  // updateLocker: hidden for now – ColdFusion never logs it; Next.js logs it but column hidden until needed
-  // { key: "countUpdateLocker", label: "updateLocker" },
+  { key: "countReportOccupation", label: "report(Json)OccupationData" },
+  { key: "countAddSubscription", label: "addSubscription" },
+  { key: "countSubscribe", label: "subscribe" },
 ];
 
 type OverviewRow = {
@@ -58,6 +57,8 @@ type OverviewRow = {
   countSync: number;
   countReportOccupation: number;
   countUpdateLocker: number;
+  countAddSubscription: number;
+  countSubscribe: number;
 };
 
 const StatisticsTab: React.FC<StatisticsTabProps> = () => {
@@ -139,6 +140,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         countSync: d?.countSync ?? 0,
         countReportOccupation: d?.countReportOccupation ?? 0,
         countUpdateLocker: d?.countUpdateLocker ?? 0,
+        countAddSubscription: d?.countAddSubscription ?? 0,
+        countSubscribe: d?.countSubscribe ?? 0,
       };
     });
   }, [stallingsList, statsData]);
@@ -157,6 +160,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         existing.countSync += row.countSync;
         existing.countReportOccupation += row.countReportOccupation;
         existing.countUpdateLocker += row.countUpdateLocker;
+        existing.countAddSubscription += row.countAddSubscription;
+        existing.countSubscribe += row.countSubscribe;
       } else {
         map.set(key, {
           contactName: row.contactName,
@@ -168,6 +173,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
           countSync: row.countSync,
           countReportOccupation: row.countReportOccupation,
           countUpdateLocker: row.countUpdateLocker,
+          countAddSubscription: row.countAddSubscription,
+          countSubscribe: row.countSubscribe,
         });
       }
     }
@@ -242,7 +249,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
   return (
     <div className="bg-white border rounded-lg p-6">
       <h2 className="text-lg font-semibold mb-4">Statistieken</h2>
-      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-2">
           <label htmlFor="stat-date-start" className="text-sm font-medium text-gray-700 leading-10">
             Startdatum

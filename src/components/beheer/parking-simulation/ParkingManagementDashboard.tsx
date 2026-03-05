@@ -5,6 +5,7 @@ import FietsenTab from "./FietsenTab";
 import StallingPanel from "./StallingPanel";
 import SettingsTab from "./SettingsTab";
 import StatisticsTab from "./StatisticsTab";
+import AbonnementenTab from "./AbonnementenTab";
 type Stalling = { id: string; locationid: string; title: string; type: string; berekentStallingskosten?: boolean };
 
 const ParkingManagementDashboard: React.FC = () => {
@@ -111,6 +112,7 @@ const ParkingManagementDashboard: React.FC = () => {
       >
         {showFullTabs && <Tab label="Dashboard" value="dashboard" />}
         {showFullTabs && hasBikes && <Tab label="Fietsen" value="fietsen" />}
+        {showFullTabs && <Tab label="Abonnementen" value="abonnementen" />}
         {showFullTabs && stallings.map((s) => (
           <Tab key={s.id} label={s.title} value={s.locationid} />
         ))}
@@ -120,6 +122,11 @@ const ParkingManagementDashboard: React.FC = () => {
 
       {showFullTabs && activeTab === "dashboard" && <DashboardOverview hasStallings={stallings.length > 0} />}
       {showFullTabs && hasBikes && activeTab === "fietsen" && <FietsenTab stallings={stallings} />}
+      {showFullTabs && activeTab === "abonnementen" && (
+        <AbonnementenTab
+          stallings={stallings.map((s) => ({ id: s.id, locationid: s.locationid, title: s.title }))}
+        />
+      )}
       {showFullTabs && selectedStalling && <StallingPanel locationid={selectedStalling.locationid} title={selectedStalling.title} berekentStallingskosten={selectedStalling.berekentStallingskosten} />}
       {activeTab === "settings" && <SettingsTab />}
       {activeTab === "statistics" && <StatisticsTab stallings={stallings} />}

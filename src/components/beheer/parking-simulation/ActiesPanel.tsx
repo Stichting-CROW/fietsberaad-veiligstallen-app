@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction } from "~/lib/parking-simulation/fms-api-write-client";
+import { uploadTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
 
 type Bicycle = { id: string; barcode: string; biketypeID?: number };
 type OccupationEntry = {
@@ -129,6 +129,15 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   const [removeLoading, setRemoveLoading] = useState<string | null>(null);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [checkOutLoading, setCheckOutLoading] = useState<string | null>(null);
+  const [saldoPassID, setSaldoPassID] = useState("");
+  const [saldoAmount, setSaldoAmount] = useState("");
+  const [saldoPaymentTypeID, setSaldoPaymentTypeID] = useState(1);
+  const [saldoLoading, setSaldoLoading] = useState(false);
+  const [linkBikeId, setLinkBikeId] = useState("");
+  const [linkPassID, setLinkPassID] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [showSaldoBlock, setShowSaldoBlock] = useState(false);
+  const [showLinkBlock, setShowLinkBlock] = useState(false);
 
   const setMessage = (msg: string | null) => onMessage?.(msg);
 
@@ -479,6 +488,100 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     }
   };
 
+  const handleAddSaldo = async () => {
+    const creds = getStoredCredentials();
+    if (!creds) {
+      setMessage("Geen credentials. Configureer in Instellingen.");
+      return;
+    }
+    const passID = saldoPassID.trim() || (freePasids[0]?.pasID ?? "");
+    if (!passID) {
+      setMessage("Vul passID in of selecteer een pas.");
+      return;
+    }
+    const amount = parseFloat(saldoAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setMessage("Vul een geldig bedrag in (positief getal).");
+      return;
+    }
+    if (!currentLocationId) {
+      setMessage("Selecteer een stalling.");
+      return;
+    }
+    setSaldoLoading(true);
+    setMessage(null);
+    try {
+      const simulationTime = await fetchSimulationTime();
+      const res = await addSaldo(creds, currentLocationId, {
+        passID,
+        amount,
+        paymentTypeID: saldoPaymentTypeID,
+        transactionDate: simulationTime,
+      });
+      if (res.status === 1) {
+        setMessage("Saldo toegevoegd.");
+        setSaldoAmount("");
+        fetch("/api/protected/parking-simulation/pasids")
+          .then((r) => (r.ok ? r.json() : {}))
+          .then((data: { data?: PasidEntry[] }) => setPasids(data.data ?? []))
+          .catch(() => {});
+        onSuccess?.();
+      } else {
+        setMessage("Fout: " + (res.message ?? "onbekend"));
+      }
+    } catch (e) {
+      setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSaldoLoading(false);
+    }
+  };
+
+  const handleLinkBike = async () => {
+    const creds = getStoredCredentials();
+    if (!creds) {
+      setMessage("Geen credentials. Configureer in Instellingen.");
+      return;
+    }
+    const bike = state?.bicycles?.find((b) => b.id === linkBikeId);
+    if (!bike) {
+      setMessage("Selecteer een fiets.");
+      return;
+    }
+    const passID = linkPassID.trim() || (freePasids[0]?.pasID ?? "");
+    if (!passID) {
+      setMessage("Vul passID in of selecteer een pas.");
+      return;
+    }
+    if (!currentLocationId) {
+      setMessage("Selecteer een stalling.");
+      return;
+    }
+    setLinkLoading(true);
+    setMessage(null);
+    try {
+      const res = await saveBike(creds, currentLocationId, {
+        barcode: bike.barcode,
+        passID,
+      });
+      if (res.status === 1) {
+        setMessage("Fiets gekoppeld aan pas.");
+        setLinkBikeId("");
+        setLinkPassID("");
+        fetch("/api/protected/parking-simulation/pasids")
+          .then((r) => (r.ok ? r.json() : {}))
+          .then((data: { data?: PasidEntry[] }) => setPasids(data.data ?? []))
+          .catch(() => {});
+        onSuccess?.();
+      } else {
+        setMessage("Fout: " + (res.message ?? "onbekend"));
+      }
+    } catch (e) {
+      setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
   const freePasids = pasids.filter((p) => !p.hasParkedBike);
 
   return (
@@ -620,6 +723,150 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
             </Button>
           </>
         )}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div className="border rounded p-3 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => setShowSaldoBlock(!showSaldoBlock)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+          >
+            {showSaldoBlock ? "▼" : "▶"} Saldo toevoegen
+          </button>
+          {showSaldoBlock && (
+            <div className="mt-3 flex flex-wrap gap-4 items-end">
+              {!singleStallingMode && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Stalling</label>
+                  <select
+                    value={selectedLocationId}
+                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                    className="border rounded px-3 py-2"
+                  >
+                    <option value="">—</option>
+                    {stallings.map((s) => (
+                      <option key={s.id} value={s.locationid}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Pass</label>
+                <select
+                  value={saldoPassID || "__auto__"}
+                  onChange={(e) => setSaldoPassID(e.target.value === "__auto__" ? "" : e.target.value)}
+                  className="border rounded px-3 py-2 min-w-[140px]"
+                >
+                  <option value="__auto__">Selecteer automatisch</option>
+                  {pasids.map((p) => (
+                    <option key={p.id} value={p.pasID}>
+                      {p.pasID} {p.barcodeFiets ? `(${p.barcodeFiets})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Bedrag (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={saldoAmount}
+                  onChange={(e) => setSaldoAmount(e.target.value)}
+                  placeholder="5.00"
+                  className="border rounded px-3 py-2 w-24"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Betaalmethode</label>
+                <select
+                  value={saldoPaymentTypeID}
+                  onChange={(e) => setSaldoPaymentTypeID(Number(e.target.value))}
+                  className="border rounded px-3 py-2"
+                >
+                  <option value={1}>Betaald</option>
+                  <option value={2}>Kwijtschelding</option>
+                </select>
+              </div>
+              <Button
+                onClick={() => void handleAddSaldo()}
+                disabled={saldoLoading || !currentLocationId || !saldoAmount || !getStoredCredentials()}
+              >
+                Saldo toevoegen
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="border rounded p-3 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => setShowLinkBlock(!showLinkBlock)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+          >
+            {showLinkBlock ? "▼" : "▶"} Koppel fiets aan pas
+          </button>
+          {showLinkBlock && (
+            <div className="mt-3 flex flex-wrap gap-4 items-end">
+              {!singleStallingMode && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Stalling</label>
+                  <select
+                    value={selectedLocationId}
+                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                    className="border rounded px-3 py-2"
+                  >
+                    <option value="">—</option>
+                    {stallings.map((s) => (
+                      <option key={s.id} value={s.locationid}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Fiets</label>
+                <select
+                  value={linkBikeId}
+                  onChange={(e) => setLinkBikeId(e.target.value)}
+                  className="border rounded px-3 py-2 min-w-[140px]"
+                >
+                  <option value="">—</option>
+                  {(state?.bicycles ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.barcode}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Pass</label>
+                <select
+                  value={linkPassID || "__auto__"}
+                  onChange={(e) => setLinkPassID(e.target.value === "__auto__" ? "" : e.target.value)}
+                  className="border rounded px-3 py-2 min-w-[140px]"
+                >
+                  <option value="__auto__">Selecteer automatisch</option>
+                  {pasids.map((p) => (
+                    <option key={p.id} value={p.pasID}>
+                      {p.pasID} {p.barcodeFiets ? `(${p.barcodeFiets})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                onClick={() => void handleLinkBike()}
+                disabled={linkLoading || !currentLocationId || !linkBikeId || !getStoredCredentials()}
+              >
+                Koppelen
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
