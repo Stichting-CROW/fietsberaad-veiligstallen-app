@@ -184,6 +184,11 @@ function saveFullDatasetToStorage(data: FullDatasetTestResponse) {
   }
 }
 
+/** True if all params required by the endpoint have non-empty values. When false, URL builders return "" or wrong paths. */
+function hasRequiredParams(endpoint: (typeof ENDPOINTS)[0], params: Record<string, string>): boolean {
+  return endpoint.params.every((p) => (params[p] ?? "").trim().length > 0);
+}
+
 function appendDepthParam(url: string, depth: string, endpointId: string): string {
   if (!url) return url; // Avoid returning "?depth=3" when url is empty (causes fetch to fail in Node)
   if (!endpointId.startsWith("v3-")) return url;
@@ -236,13 +241,14 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         if (endpoint.id === "v3-location") url = p;
         else if (endpoint.id === "v3-subscriptiontypes") url = `${p}/subscriptiontypes`;
         else if (endpoint.id === "v3-sections") url = `${p}/sections`;
-        else if (paramValues.sectionid) {
+        else if ((endpoint.id === "v3-places" || endpoint.id === "v3-section") && paramValues.sectionid) {
           p += `/sections/${paramValues.sectionid}`;
           if (endpoint.id === "v3-section") url = p;
-          else if (endpoint.id === "v3-places") url = `${p}/places`;
-          else url = p;
-        } else url = p;
-      } else url = p;
+          else url = `${p}/places`;
+        } else if (endpoint.id === "v3-places" || endpoint.id === "v3-section") url = "";
+        else url = p;
+      } else if (endpoint.id === "v3-location" || endpoint.id === "v3-sections" || endpoint.id === "v3-subscriptiontypes") url = "";
+      else url = p;
     }
   } else {
     return "";
@@ -677,6 +683,12 @@ const FmsApiComparePage: React.FC = () => {
         continue;
       }
       setRowStatus((s) => ({ ...s, [endpoint.id]: "loading" }));
+      if (!hasRequiredParams(endpoint, params)) {
+        setRowStatus((s) => ({ ...s, [endpoint.id]: "identical" }));
+        setRowResults((r) => ({ ...r, [endpoint.id]: { old: "[]", new: "[]" } }));
+        setRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
+        continue;
+      }
       const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
       const newUrl = getNewUrl(endpoint, params, baseNew);
 
@@ -917,6 +929,13 @@ const FmsApiComparePage: React.FC = () => {
         updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
         continue;
       }
+      if (!hasRequiredParams(endpoint, params)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "identical" }));
+        setAutoCompareRowResults((r) => ({ ...r, [endpoint.id]: { old: "[]", new: "[]" } }));
+        setAutoCompareRowExpanded((x) => ({ ...x, [endpoint.id]: false }));
+        updateFullDatasetRowStatus(endpoint.id, "identical", undefined, params);
+        continue;
+      }
       const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
       const newUrl = getNewUrl(endpoint, params, baseNew);
 
@@ -1028,7 +1047,10 @@ const FmsApiComparePage: React.FC = () => {
         sectionid: row.sectionid ?? "",
         depth: fullDatasetDepth ?? "3",
       };
-
+      if (!hasRequiredParams(endpoint, params)) {
+        updateRowStatusByTestId(row.testId, "identical");
+        continue;
+      }
       const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
       const newUrl = getNewUrl(endpoint, params, baseNew);
 
@@ -1103,6 +1125,13 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    if (!hasRequiredParams(endpoint, params)) {
+      setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "identical" }));
+      setAutoCompareRowResults((r) => ({ ...r, [endpointId]: { old: "[]", new: "[]" } }));
+      setAutoCompareRowExpanded((x) => ({ ...x, [endpointId]: false }));
+      updateFullDatasetRowStatus(endpointId, "identical");
+      return;
+    }
     const oldUrl = getOldUrl(endpoint, params, oldApiUrl);
     const newUrl = getNewUrl(endpoint, params, baseNew);
 
@@ -1311,6 +1340,12 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    if (!hasRequiredParams(endpoint, paramValues)) {
+      setRowStatus((s) => ({ ...s, [endpointId]: "identical" }));
+      setRowResults((r) => ({ ...r, [endpointId]: { old: "[]", new: "[]" } }));
+      setRowExpanded((x) => ({ ...x, [endpointId]: false }));
+      return;
+    }
     const oldUrl = getOldUrl(endpoint, paramValues, oldApiUrl);
     const newUrl = getNewUrl(endpoint, paramValues, baseNew);
 
@@ -1669,6 +1704,10 @@ const FmsApiComparePage: React.FC = () => {
               rowExpanded={rowExpanded}
               loading={loading}
               showOnlyDifferences={showOnlyDifferences}
+              getUrlsForEndpoint={(e) => ({
+                oldUrl: getOldUrl(e, paramValues, oldApiUrl),
+                newUrl: getNewUrl(e, paramValues, apiBase),
+              })}
               onCompareOne={handleCompareOne}
               onCompareAll={() => void handleCompareAll(undefined, GLOBAL_ENDPOINTS)}
               onReset={handleResetResults}
@@ -1815,6 +1854,10 @@ const FmsApiComparePage: React.FC = () => {
                 rowExpanded={rowExpanded}
                 loading={loading}
                 showOnlyDifferences={showOnlyDifferences}
+                getUrlsForEndpoint={(e) => ({
+                  oldUrl: getOldUrl(e, paramValues, oldApiUrl),
+                  newUrl: getNewUrl(e, paramValues, apiBase),
+                })}
                 onCompareOne={handleCompareOne}
                 onCompareAll={() => void handleCompareAll(undefined, LOCATION_ENDPOINTS)}
                 onReset={handleResetResults}
@@ -1873,6 +1916,10 @@ const FmsApiComparePage: React.FC = () => {
                   rowExpanded={autoCompareRowExpanded}
                   loading={autoCompareLoading}
                   showOnlyDifferences={showOnlyDifferences}
+                  getUrlsForEndpoint={(e) => ({
+                    oldUrl: getOldUrl(e, autoCompareParamValues, oldApiUrl),
+                    newUrl: getNewUrl(e, autoCompareParamValues, apiBase),
+                  })}
                   onCompareOne={handleAutoCompareOne}
                   onCompareAll={() => void handleAutoCompareAll(autoCompareParamValues)}
                   onReset={handleAutoCompareReset}

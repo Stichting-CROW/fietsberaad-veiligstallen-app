@@ -368,6 +368,7 @@ async function getLocationsFull(
       Title: true,
       Coordinaten: true,
       Type: true,
+      fietsenstalling_type: { select: { id: true } },
       Capacity: true,
       IsStationsstalling: true,
       BronBezettingsdata: true,
@@ -486,6 +487,7 @@ type LocationRow = {
   Title: string | null;
   Coordinaten: string | null;
   Type: string | null;
+  fietsenstalling_type?: { id: string } | null;
   Capacity: number | null;
   IsStationsstalling: boolean | null;
   BronBezettingsdata: string | null;
@@ -912,10 +914,12 @@ function buildColdFusionLocation(
   const allServices = [...servicesFromTable, ...servicesFromExtra];
   const services = allServices.length > 0 ? allServices : undefined;
 
+  // ColdFusion: bikepark.getType() returns getBikeparkType().getID() from fietsenstallingtypen
+  const locationtype = row.fietsenstalling_type?.id ?? row.Type ?? undefined;
   const loc: ColdFusionLocation = {
     locationid: row.StallingsID!,
     name: row.Title ?? undefined,
-    locationtype: row.Type ?? undefined,
+    locationtype,
     occupationsource: row.BronBezettingsdata ?? null,
     openinghours,
     ...(lat && { lat }),
@@ -1053,6 +1057,7 @@ export async function getLocation(
       Title: true,
       Coordinaten: true,
       Type: true,
+      fietsenstalling_type: { select: { id: true } },
       Capacity: true,
       IsStationsstalling: true,
       BronBezettingsdata: true,
@@ -1533,7 +1538,7 @@ export async function getPlaces(
           ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
           : String(p.dateLastStatusUpdate).slice(0, 19)
         : undefined;
-    // ColdFusion getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode
+    // ColdFusion BaseRestService.getPlace: id, name, datelaststatusupdate (only when IsDate), statuscode - key order must match
     const place: PlaceSummary = {
       id: Number(p.id),
       name: p.titel ?? undefined,
