@@ -75,7 +75,8 @@ The queue processor and related services (capacity, occupation, tariffs, lookups
 | 7. Integration            | ✅ Done     | process-queue uses `processQueues()` when `useLocalProcessor`; SettingsTab toggle |
 | 8. Schema 1-1 equality    | ✅ Done     | new_* tables use TINYINT(1) for processed; Prisma schema aligned with production                       |
 | 9. Archive process        | ⏳ Phase 2  | Not implemented                                                                                        |
-| 10. new_webservice_log    | ⏳ Optional | Not implemented                                                                                        |
+| 9b. Bezetting herijking   | ❌ Gap     | putTransaction en processSync doen geen fietsenstalling_sectie.Bezetting-update; resetOccupations ontbreekt. Zie Appendix B. |
+| 10. new_webservice_log   | ⏳ Optional | Not implemented                                                                                        |
 | 11. reportOccupationData  | ✅ Done     | FMS v2 REST, report-occupation-service, fms-api-write-client; simulation state POST auto-reports Lumiguide   |
 | 12. Mirror triggers       | ✅ Done     | manual SQL from Beheer \| Database → Maak test tabellen (amber box); fms-mirror-triggers.sql (wachtrij_* + bezettingsdata_tmp → new_*) |
 | 13. StallingPanel sync    | ✅ Done     | Sync dialog shows open transactions; sync works with empty stalling; motorblok tabs show new_* when useLocalProcessor |
@@ -864,6 +865,8 @@ De tabel `wachtrij_transacties` wordt verwerkt door:
 ### resetOccupations
 
 **Doel:** Herijkt de bezetting van secties met FMS als bron. Formule: `Bezetting = occupation + wachtrij_in - wachtrij_uit`. Leest wachtrij_transacties (processed IN (0,8,9)), transacties (open), schrijft fietsenstalling_sectie.Bezetting.
+
+**Next.js gap:** `putTransaction` en `processSync` doen geen Bezetting-update (ColdFusion TransactionGateway doet +1/−1 bij In/Out, maar sluit sync uit; Next.js doet dit niet). Een herijking zoals `resetOccupations.cfm` ontbreekt nog in Next.js. Zie ook [fms-api-tabellen-velden-overzicht.md](../../fms-api-tabellen-velden-overzicht.md) (Transactie-core, Bezetting bij synchronisatieslag).
 
 ### admin.cfc, viewTransactions.cfm, archiveWachtrijTransacties.cfm
 
