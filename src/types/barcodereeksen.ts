@@ -3,24 +3,6 @@ import { z } from "zod";
 /** DB enum: sleutelhanger | sticker */
 export type BarcodereeksType = "sleutelhanger" | "sticker";
 
-/** List/detail row with computed totaal and uitgegeven */
-export interface VSBarcodereeks {
-  ID: number;
-  parentID: number | null;
-  type: BarcodereeksType;
-  rangeStart: bigint;
-  rangeEnd: bigint;
-  label: string | null;
-  material: string | null;
-  printSample: string | null;
-  published: Date | null;
-  created: Date | null;
-  /** Computed: rangeEnd - rangeStart + 1 */
-  totaal?: number;
-  /** Computed: sum of (rangeEnd - rangeStart + 1) over children where parentID = this.ID */
-  uitgegeven?: number;
-}
-
 /** API list item: BigInt fields as string for JSON */
 export interface VSBarcodereeksApi {
   ID: number;
@@ -77,9 +59,3 @@ export const barcodereeksUpdateSchema = z.object({
 export type BarcodereeksCreateInput = z.infer<typeof barcodereeksCreateSchema>;
 export type BarcodereeksUitgifteInput = z.infer<typeof barcodereeksUitgifteSchema>;
 export type BarcodereeksUpdateInput = z.infer<typeof barcodereeksUpdateSchema>;
-
-/** Parse BigInt from API (string or number) */
-export function parseBigInt(v: string | number): bigint {
-  if (typeof v === "string") return BigInt(v);
-  return BigInt(v);
-}
