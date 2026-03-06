@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import type { VSBarcodereeksApi } from "~/types/barcodereeksen";
 import type { BarcodereeksType } from "~/types/barcodereeksen";
-import { Button } from "~/components/Button";
 import { Table } from "~/components/common/Table";
-import Modal from "~/components/Modal";
-import FormInput from "~/components/Form/FormInput";
+import { BarcodereeksModal, type BarcodereeksModalMode } from "./BarcodereeksModal";
 import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 
 function formatDatum(iso: string | null): string {
@@ -15,11 +13,6 @@ function formatDatum(iso: string | null): string {
   const year = d.getFullYear();
   return `${day}-${month}-${year}`;
 }
-
-const TITLES: Record<BarcodereeksType, string> = {
-  sleutelhanger: "Uitgegeven sleutelhangers",
-  sticker: "Uitgegeven fietsstickers",
-};
 
 /** Row with client-computed tree fields (single child level only: 0=root, 1=child) */
 type EnrichedRow = VSBarcodereeksApi & {
@@ -49,20 +42,19 @@ interface BarcodereeksenComponentProps {
 }
 
 export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = ({ type }) => {
+  const typeLabel = type === "sleutelhanger" ? "Sleutelhangers" : "Fietsstickers";
   const [list, setList] = useState<VSBarcodereeksApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [modalNew, setModalNew] = useState(false);
-  const [modalEdit, setModalEdit] = useState<VSBarcodereeksApi | null>(null);
-  const [modalUitgifte, setModalUitgifte] = useState<VSBarcodereeksApi | null>(null);
-  const [suggestedRangeStart, setSuggestedRangeStart] = useState<string>("");
+  const [modalContent, setModalContent] = useState<BarcodereeksModalMode | null>(null);
   const [sortColumn, setSortColumn] = useState<string>("Label");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [groupByLabel, setGroupByLabel] = useState(true);
+  const [filterLabel, setFilterLabel] = useState("");
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
+  const loadList = useCallback(async (silent = false, selectId?: number) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/protected/barcodereeksen?type=${type}`);
@@ -82,12 +74,18 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
           return false;
         }
       });
+      const isSelectable = (r: VSBarcodereeksApi) =>
+        r.parentID == null && (() => {
+          try { return BigInt(r.rangeStart) <= BigInt(r.rangeEnd); } catch { return false; }
+        })();
       setSelectedId((prev) => {
         if (data.length === 0) return null;
+        if (selectId != null) {
+          const target = data.find((r) => r.ID === selectId);
+          if (target && isSelectable(target)) return selectId;
+        }
         const current = data.find((r) => r.ID === prev);
-        const currentSelectable = current != null && current.parentID == null && (() => {
-          try { return BigInt(current.rangeStart) <= BigInt(current.rangeEnd); } catch { return false; }
-        })();
+        const currentSelectable = current != null && isSelectable(current);
         if (currentSelectable) return prev;
         return firstSelectable?.ID ?? null;
       });
@@ -95,7 +93,7 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
       setError("Fout bij laden");
       setList([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [type]);
 
@@ -208,24 +206,47 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
     });
   }, [enrichedList, sortColumn, sortDirection, groupByLabel]);
 
+  const filteredList = useMemo(() => {
+    const q = filterLabel.trim().toLowerCase();
+    if (!q) return sortedList;
+    if (!groupByLabel) {
+      return sortedList.filter((r) => (r.label ?? "").toLowerCase().includes(q));
+    }
+    const matchingIds = new Set<number>();
+    for (const r of sortedList) {
+      if ((r.label ?? "").toLowerCase().includes(q)) {
+        matchingIds.add(r.ID);
+        if (r.parentID != null) {
+          matchingIds.add(r.parentID);
+          for (const c of sortedList) {
+            if (c.parentID === r.parentID) matchingIds.add(c.ID);
+          }
+        }
+        for (const c of sortedList) {
+          if (c.parentID === r.ID) matchingIds.add(c.ID);
+        }
+      }
+    }
+    return sortedList.filter((r) => matchingIds.has(r.ID));
+  }, [sortedList, filterLabel, groupByLabel]);
+
   const openNewModal = async () => {
     setError(null);
+    let suggested = "";
     try {
       const res = await fetch(`/api/protected/barcodereeksen/new?type=${type}`);
       const json = await res.json();
       if (res.ok && json.data?.suggestedRangeStart != null) {
-        setSuggestedRangeStart(String(json.data.suggestedRangeStart));
-      } else {
-        setSuggestedRangeStart("");
+        suggested = String(json.data.suggestedRangeStart);
       }
     } catch {
-      setSuggestedRangeStart("");
+      // ignore
     }
-    setModalNew(true);
+    setModalContent({ mode: "create", suggestedRangeStart: suggested });
   };
 
   const openEditModal = (row: VSBarcodereeksApi) => {
-    setModalEdit(row);
+    setModalContent({ mode: "edit", row });
     setError(null);
   };
 
@@ -233,17 +254,17 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
     if (!selectedId) return;
     const row = list.find((r) => r.ID === selectedId);
     if (!row || !canSelect(row)) return;
-    setModalUitgifte(row);
+    setModalContent({ mode: "uitgifte", parent: row });
     setError(null);
   };
 
   if (loading) {
-    return <LoadingSpinner message="Reeksen laden..." />;
+    return <LoadingSpinner message={`${typeLabel} laden...`} />;
   }
 
   return (
-    <div className="bg-gray-200 border-2 border-gray-400 p-2 pl-4 rounded mb-2">
-      <h1 className="text-2xl font-bold text-blue-700 mb-4">{TITLES[type]}</h1>
+    <div>
+      <h1 className="text-2xl font-bold text-black mb-4">Uitgifte {typeLabel}</h1>
 
       {error && (
         <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -252,17 +273,42 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
       )}
 
       {/* Nieuwe reeks block */}
-      <div className="mb-6 p-4 bg-white rounded border border-gray-300">
-        <h2 className="text-lg font-semibold mb-2">Nieuwe reeks</h2>
-        <p className="text-sm text-gray-600 mb-3">
-          Bij uitgifte uit bestaande reeks: selecteer hieronder de reeks van waaruit je barcodes wilt uitgeven.
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={openUitgifteModal} disabled={!canUitgifte}>
+      <div className="mb-6 flex flex-nowrap items-center gap-2">
+          <button
+            onClick={openNewModal}
+            className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Nieuwe reeks
+          </button>
+          <button
+            onClick={openUitgifteModal}
+            disabled={!canUitgifte}
+            className="bg-gray-500 hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded"
+          >
             Uitgifte vanuit bestaande voorraad{selectedRow ? ` ${selectedRow.label ?? "—"}` : ""}
-          </Button>
-          <Button onClick={openNewModal}>Nieuwe reeks</Button>
-        </div>
+          </button>
+      </div>
+
+      <div className="mb-4 flex items-center gap-2">
+        <label htmlFor="filter-label" className="text-sm font-medium">Filter</label>
+        <input
+          id="filter-label"
+          type="text"
+          value={filterLabel}
+          onChange={(e) => setFilterLabel(e.target.value)}
+          placeholder="Filter op label..."
+          className="border border-gray-300 rounded px-2 py-1 text-sm w-48"
+        />
+        {filterLabel && (
+          <button
+            type="button"
+            onClick={() => setFilterLabel("")}
+            aria-label="Filter wissen"
+            className="text-gray-500 hover:text-gray-700 text-lg leading-none"
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -363,7 +409,7 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
                       if (confirm("Weet u zeker dat u deze reeks wilt verwijderen?")) {
                         fetch(`/api/protected/barcodereeksen/${row.ID}`, { method: "DELETE" })
                           .then(async (r) => {
-                            if (r.ok) loadList();
+                            if (r.ok) loadList(true);
                             else {
                               try {
                                 const json = await r.json();
@@ -384,7 +430,7 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
               ),
             },
           ]}
-          data={sortedList}
+          data={filteredList}
           getRowClassName={(row) => (isFullSeries(row) ? "bg-gray-100 text-gray-500" : "")}
           className="min-w-full bg-white"
           sortableColumns={["Label", "Materiaal", "Drukproef", "Range start", "Range eind", "Datum", "Uitgegeven", "Totaal"]}
@@ -394,433 +440,31 @@ export const BarcodereeksenComponent: React.FC<BarcodereeksenComponentProps> = (
         />
       </div>
 
-      {/* Modal: Nieuwe reeks */}
-      {modalNew && (
-        <BarcodereeksNewModal
+      {/* Modal: Nieuwe reeks / Uitgifte / Reeks bewerken */}
+      {modalContent && (
+        <BarcodereeksModal
+          key={
+            modalContent.mode === "edit"
+              ? `edit-${modalContent.row.ID}`
+              : modalContent.mode === "uitgifte"
+                ? `uitgifte-${modalContent.parent.ID}`
+                : "new"
+          }
           type={type}
-          suggestedRangeStart={suggestedRangeStart}
-          onClose={() => setModalNew(false)}
-          onSaved={() => {
-            setModalNew(false);
-            loadList();
+          typeLabel={typeLabel}
+          content={modalContent}
+          onClose={() => setModalContent(null)}
+          onSaved={(newId) => {
+            setModalContent(null);
+            loadList(true, newId);
           }}
           onError={setError}
         />
       )}
 
-      {/* Modal: Reeks bewerken */}
-      {modalEdit && (
-        <BarcodereeksEditModal
-          row={modalEdit}
-          onClose={() => setModalEdit(null)}
-          onSaved={() => {
-            setModalEdit(null);
-            loadList();
-          }}
-          onError={setError}
-        />
-      )}
-
-      {/* Modal: Uitgifte vanuit bestaande voorraad */}
-      {modalUitgifte && (
-        <BarcodereeksUitgifteModal
-          key={`uitgifte-${modalUitgifte.ID}`}
-          type={type}
-          parent={modalUitgifte}
-          onClose={() => setModalUitgifte(null)}
-          onSaved={() => {
-            setModalUitgifte(null);
-            loadList();
-          }}
-          onError={setError}
-        />
-      )}
     </div>
   );
 };
 
 export default BarcodereeksenComponent;
 
-// --- New series form ---
-function BarcodereeksNewModal({
-  type,
-  suggestedRangeStart,
-  onClose,
-  onSaved,
-  onError,
-}: {
-  type: BarcodereeksType;
-  suggestedRangeStart: string;
-  onClose: () => void;
-  onSaved: () => void;
-  onError: (s: string | null) => void;
-}) {
-  const [label, setLabel] = useState("");
-  const [material, setMaterial] = useState("");
-  const [printSample, setPrintSample] = useState("");
-  const [rangeStart, setRangeStart] = useState(suggestedRangeStart);
-  const [rangeEnd, setRangeEnd] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setRangeStart(suggestedRangeStart);
-  }, [suggestedRangeStart]);
-
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    onError(null);
-    try {
-      const res = await fetch("/api/protected/barcodereeksen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          label: label || null,
-          material: material || null,
-          printSample: printSample || null,
-          rangeStart: rangeStart || "0",
-          rangeEnd: rangeEnd || "0",
-        }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        onSaved();
-      } else {
-        const msg = json.error || "Fout bij opslaan";
-        setError(msg);
-        onError(msg);
-      }
-    } catch {
-      const msg = "Fout bij opslaan";
-      setError(msg);
-      onError(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal onClose={onClose} clickOutsideClosesDialog={false}>
-      <div>
-        <h2 className="font-bold mb-4">Nieuwe reeks</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-              {error}
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium mb-1">Label</label>
-            <FormInput value={label} onChange={(e) => setLabel(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Materiaal</label>
-            <FormInput value={material} onChange={(e) => setMaterial(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Drukproef</label>
-            <FormInput value={printSample} onChange={(e) => setPrintSample(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Start range</label>
-            <FormInput type="text" value={rangeStart} onChange={(e) => setRangeStart(e.target.value.replace(/[^0-9]/g, ""))} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">End range</label>
-            <FormInput type="text" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value.replace(/[^0-9]/g, ""))} className="border-gray-700 rounded-full" required />
-          </div>
-          <div className="flex gap-2">
-            <Button disabled={saving}>{saving ? "Bezig..." : "Opslaan"}</Button>
-            <Button onClick={onClose}>Afbreken</Button>
-          </div>
-        </form>
-      </div>
-    </Modal>
-  );
-}
-
-// --- Edit series form ---
-function BarcodereeksEditModal({
-  row,
-  onClose,
-  onSaved,
-  onError,
-}: {
-  row: VSBarcodereeksApi;
-  onClose: () => void;
-  onSaved: () => void;
-  onError: (s: string | null) => void;
-}) {
-  const [label, setLabel] = useState(row.label ?? "");
-  const [material, setMaterial] = useState(row.material ?? "");
-  const [printSample, setPrintSample] = useState(row.printSample ?? "");
-  const [rangeStart, setRangeStart] = useState(row.rangeStart);
-  const [rangeEnd, setRangeEnd] = useState(row.rangeEnd);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    onError(null);
-    try {
-      const res = await fetch(`/api/protected/barcodereeksen/${row.ID}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: label || null,
-          material: material || null,
-          printSample: printSample || null,
-          rangeStart,
-          rangeEnd,
-        }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        onSaved();
-      } else {
-        const msg = json.error || "Fout bij opslaan";
-        setError(msg);
-        onError(msg);
-      }
-    } catch {
-      const msg = "Fout bij opslaan";
-      setError(msg);
-      onError(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal onClose={onClose} clickOutsideClosesDialog={false}>
-      <div>
-        <h2 className="font-bold mb-4">Reeks bewerken</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-              {error}
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium mb-1">Label</label>
-            <FormInput value={label} onChange={(e) => setLabel(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Materiaal</label>
-            <FormInput value={material} onChange={(e) => setMaterial(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Drukproef</label>
-            <FormInput value={printSample} onChange={(e) => setPrintSample(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Start range</label>
-            <FormInput type="text" value={rangeStart} onChange={(e) => setRangeStart(e.target.value.replace(/[^0-9]/g, ""))} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">End range</label>
-            <FormInput type="text" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value.replace(/[^0-9]/g, ""))} className="border-gray-700 rounded-full" required />
-          </div>
-          <div className="flex gap-2">
-            <Button disabled={saving}>{saving ? "Bezig..." : "Opslaan"}</Button>
-            <Button onClick={onClose}>Afbreken</Button>
-          </div>
-        </form>
-      </div>
-    </Modal>
-  );
-}
-
-// --- Uitgifte vanuit bestaande voorraad ---
-function BarcodereeksUitgifteModal({
-  type,
-  parent,
-  onClose,
-  onSaved,
-  onError,
-}: {
-  type: BarcodereeksType;
-  parent: VSBarcodereeksApi;
-  onClose: () => void;
-  onSaved: () => void;
-  onError: (s: string | null) => void;
-}) {
-  const parentStart = BigInt(parent.rangeStart);
-  const parentEnd = BigInt(parent.rangeEnd);
-
-  const [label, setLabel] = useState("");
-  const [material, setMaterial] = useState(parent.material ?? "");
-  const [printSample, setPrintSample] = useState(parent.printSample ?? "");
-  const [amount, setAmount] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMaterial(parent.material ?? "");
-    setPrintSample(parent.printSample ?? "");
-  }, [parent.ID, parent.material, parent.printSample]);
-
-  const handleAmountChange = (value: string) => {
-    const digitsOnly = value.replace(/[^0-9]/g, "");
-    setAmount(digitsOnly);
-    const n = parseInt(digitsOnly, 10);
-    if (!isNaN(n) && n >= 1 && n <= parent.totaal) {
-      try {
-        setRangeEnd(String(parentStart + BigInt(n) - BigInt(1)));
-      } catch {
-        // ignore
-      }
-    }
-  };
-
-  const handleRangeEndChange = (value: string) => {
-    const digitsOnly = value.replace(/[^0-9]/g, "");
-    setRangeEnd(digitsOnly);
-    const trimmed = digitsOnly.trim();
-    if (trimmed === "") return;
-    try {
-      const end = BigInt(trimmed);
-      if (end >= parentStart && end <= parentEnd) {
-        const n = Number(end - parentStart + BigInt(1));
-        if (n >= 1 && n <= parent.totaal) setAmount(String(n));
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  let amountFromRange: number | null = null;
-  let validRange = false;
-  try {
-    if (rangeEnd.trim() !== "") {
-      const end = BigInt(rangeEnd.trim());
-      if (end >= parentStart && end <= parentEnd) {
-        amountFromRange = Number(end - parentStart + BigInt(1));
-        validRange = amountFromRange >= 1 && amountFromRange <= parent.totaal;
-      }
-    }
-  } catch {
-    // invalid number
-  }
-
-  const remainingStart = validRange ? String(BigInt(rangeEnd.trim()) + BigInt(1)) : parent.rangeStart;
-  const voorraadreeksLabel = parent.label ?? "—";
-  const voorraadreeksRange = validRange
-    ? `Range: ${remainingStart} t/m ${parent.rangeEnd}`
-    : `Range: ${parent.rangeStart} t/m ${parent.rangeEnd}`;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validRange || amountFromRange == null) {
-      const msg =
-        rangeEnd.trim() === "" && (amount === "" || isNaN(parseInt(amount, 10)))
-          ? "Vul aantal passen of eind range in."
-          : `Eind range moet tussen ${parent.rangeStart} en ${parent.rangeEnd} liggen (1–${parent.totaal} passen).`;
-      setError(msg);
-      onError(msg);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    onError(null);
-    try {
-      const res = await fetch("/api/protected/barcodereeksen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          parentID: parent.ID,
-          amount: amountFromRange,
-          label: label || null,
-          material: material || null,
-          printSample: printSample || null,
-        }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        onSaved();
-      } else {
-        const msg = json.error || "Fout bij opslaan";
-        setError(msg);
-        onError(msg);
-      }
-    } catch {
-      const msg = "Fout bij opslaan";
-      setError(msg);
-      onError(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal onClose={onClose} clickOutsideClosesDialog={false}>
-      <div>
-        <h2 className="font-bold mb-4">Nieuwe subreeks (uitgifte vanuit voorraad)</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-              {error}
-            </div>
-          )}
-          <div className="text-sm text-gray-700">
-            <span className="font-medium">Voorraadreeks:</span> {voorraadreeksLabel} | {voorraadreeksRange}
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Label (optioneel)</label>
-            <FormInput value={label} onChange={(e) => setLabel(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Materiaal</label>
-            <FormInput value={material} onChange={(e) => setMaterial(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Drukproef</label>
-            <FormInput value={printSample} onChange={(e) => setPrintSample(e.target.value)} className="border-gray-700 rounded-full" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Start range</label>
-            <FormInput
-              type="text"
-              value={parent.rangeStart}
-              readOnly
-              className="border-gray-700 rounded-full bg-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Aantal passen (max {parent.totaal})</label>
-            <FormInput
-              type="text"
-              inputMode="numeric"
-              value={amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
-              className="border-gray-700 rounded-full"
-              placeholder={`1–${parent.totaal}`}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">End range (max {parent.rangeEnd})</label>
-            <FormInput
-              type="text"
-              value={rangeEnd}
-              onChange={(e) => handleRangeEndChange(e.target.value)}
-              className="border-gray-700 rounded-full"
-              placeholder={parent.rangeEnd}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button disabled={saving || !validRange || amountFromRange == null}>{saving ? "Bezig..." : "Opslaan"}</Button>
-            <Button onClick={onClose}>Afbreken</Button>
-          </div>
-        </form>
-      </div>
-    </Modal>
-  );
-}

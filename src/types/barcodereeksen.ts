@@ -37,11 +37,13 @@ export const barcodereeksCreateSchema = z.object({
   rangeEnd: bigIntLikeSchema,
 });
 
-/** Issue from existing stock: parentID + amount */
+/** Issue from existing stock: parentID + amount, or parentID + rangeStart + rangeEnd */
 export const barcodereeksUitgifteSchema = z.object({
   type: barcodereeksTypeSchema,
   parentID: z.number().int().positive(),
-  amount: z.number().int().positive("Aantal passen moet groter zijn dan 0"),
+  amount: z.number().int().positive("Aantal passen moet groter zijn dan 0").optional(),
+  rangeStart: bigIntLikeSchema.optional(),
+  rangeEnd: bigIntLikeSchema.optional(),
   label: z.string().max(100).nullable().optional(),
   material: z.string().max(100).nullable().optional(),
   printSample: z.string().max(255).nullable().optional(),

@@ -125,10 +125,11 @@ export default async function handle(
 
     case "POST": {
       const body = req.body as Record<string, unknown>;
-      const hasParentAndAmount =
-        typeof body.parentID === "number" && typeof body.amount === "number";
+      const hasParent =
+        typeof body.parentID === "number" &&
+        (typeof body.amount === "number" || (body.rangeStart != null && body.rangeEnd != null));
 
-      if (hasParentAndAmount) {
+      if (hasParent) {
         // Uitgifte vanuit bestaande voorraad
         const parsed = barcodereeksUitgifteSchema.safeParse(body);
         if (!parsed.success) {
@@ -137,7 +138,7 @@ export default async function handle(
           });
           return;
         }
-        const { parentID, type, amount, label, material, printSample } = parsed.data;
+        const { parentID, type, label, material, printSample } = parsed.data;
 
         const parent = await prisma.sleutelhangerreeksen.findUnique({
           where: { ID: parentID },
@@ -151,39 +152,69 @@ export default async function handle(
           return;
         }
 
-        const parentSize = rangeSize(parent.rangeStart, parent.rangeEnd);
-        if (amount > parentSize) {
-          res.status(400).json({
-            error: `Aantal (${amount}) is groter dan de beschikbare voorraad (${parentSize})`,
-          });
-          return;
+        let childRangeStart: bigint;
+        let childRangeEnd: bigint;
+        if (parsed.data.rangeStart != null && parsed.data.rangeEnd != null) {
+          childRangeStart = BigInt(parsed.data.rangeStart);
+          childRangeEnd = BigInt(parsed.data.rangeEnd);
+          if (childRangeStart > childRangeEnd) {
+            res.status(400).json({ error: "Start van reeks mag niet groter zijn dan eind" });
+            return;
+          }
+          if (childRangeStart < parent.rangeStart || childRangeEnd > parent.rangeEnd) {
+            res.status(400).json({
+              error: `Reeks moet binnen parent (${parent.rangeStart}-${parent.rangeEnd}) vallen`,
+            });
+            return;
+          }
+        } else {
+          const amount = parsed.data.amount!;
+          const parentSize = rangeSize(parent.rangeStart, parent.rangeEnd);
+          if (amount > parentSize) {
+            res.status(400).json({
+              error: `Aantal (${amount}) is groter dan de beschikbare voorraad (${parentSize})`,
+            });
+            return;
+          }
+          childRangeStart = parent.rangeStart;
+          childRangeEnd = parent.rangeStart + BigInt(amount) - 1n;
         }
 
-        const childRangeStart = parent.rangeStart;
-        const childRangeEnd = parent.rangeStart + BigInt(amount) - 1n;
-        const newParentRangeStart = childRangeEnd + 1n;
+        const beforeSize = childRangeStart > parent.rangeStart ? Number(childRangeStart - parent.rangeStart) : 0;
+        const afterSize = childRangeEnd < parent.rangeEnd ? Number(parent.rangeEnd - childRangeEnd) : 0;
+        const shrinkFromStart = beforeSize <= afterSize;
 
-        // 1) Update parent first (shrink range)
-        await prisma.sleutelhangerreeksen.update({
-          where: { ID: parentID },
-          data: { rangeStart: newParentRangeStart },
+        await prisma.$transaction(async (tx) => {
+          await tx.sleutelhangerreeksen.update({
+            where: { ID: parentID },
+            data: shrinkFromStart
+              ? { rangeStart: childRangeEnd + 1n }
+              : { rangeEnd: childRangeStart - 1n },
+          });
+
+          await tx.sleutelhangerreeksen.create({
+            data: {
+              parentID,
+              type: toApiType(type),
+              rangeStart: childRangeStart,
+              rangeEnd: childRangeEnd,
+              label: label ?? null,
+              material: material ?? parent.material,
+              printSample: printSample ?? parent.printSample,
+              published: parent.published,
+              created: new Date(),
+            },
+          });
         });
 
-        // 2) Create child (same published as parent; list order is published desc then rangeStart desc, so parent stays above child)
-        const child = await prisma.sleutelhangerreeksen.create({
-          data: {
-            parentID,
-            type: toApiType(type),
-            rangeStart: childRangeStart,
-            rangeEnd: childRangeEnd,
-            label: label ?? null,
-            material: material ?? parent.material,
-            printSample: printSample ?? parent.printSample,
-            published: parent.published,
-            created: new Date(),
-          },
+        const child = await prisma.sleutelhangerreeksen.findFirst({
+          where: { parentID, rangeStart: childRangeStart, rangeEnd: childRangeEnd },
+          orderBy: { ID: "desc" },
         });
-
+        if (!child) {
+          res.status(500).json({ error: "Subreeks aangemaakt maar niet gevonden" });
+          return;
+        }
         const childTotaal = rangeSize(child.rangeStart, child.rangeEnd);
         res.status(201).json({
           data: rowToApi(child, childTotaal, 0),

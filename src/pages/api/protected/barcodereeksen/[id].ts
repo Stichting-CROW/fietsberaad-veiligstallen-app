@@ -161,8 +161,9 @@ export default async function handle(
         return;
       }
 
+      const excludeIds = [numericId, ...(existing.parentID != null ? [existing.parentID] : [])];
       const others = await prisma.sleutelhangerreeksen.findMany({
-        where: { type: existing.type, ID: { not: numericId } },
+        where: { type: existing.type, ID: { notIn: excludeIds } },
       });
       for (const row of others) {
         if (row.rangeStart > row.rangeEnd) continue;
@@ -174,15 +175,32 @@ export default async function handle(
         }
       }
 
-      const updated = await prisma.sleutelhangerreeksen.update({
-        where: { ID: numericId },
-        data: {
-          label: parsed.data.label !== undefined ? parsed.data.label : undefined,
-          material: parsed.data.material !== undefined ? parsed.data.material : undefined,
-          printSample: parsed.data.printSample !== undefined ? parsed.data.printSample : undefined,
-          rangeStart,
-          rangeEnd,
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        // When expanding a child into the parent's range, shrink the parent first (take tickets from parent)
+        if (existing.parentID != null) {
+          const parent = await tx.sleutelhangerreeksen.findUnique({
+            where: { ID: existing.parentID },
+          });
+          if (parent && parent.rangeStart <= parent.rangeEnd && rangesOverlap(rangeStart, rangeEnd, parent.rangeStart, parent.rangeEnd)) {
+            const overlapEnd = rangeEnd < parent.rangeEnd ? rangeEnd : parent.rangeEnd;
+            const newParentStart = overlapEnd + 1n;
+            await tx.sleutelhangerreeksen.update({
+              where: { ID: existing.parentID },
+              data: { rangeStart: newParentStart },
+            });
+          }
+        }
+
+        return tx.sleutelhangerreeksen.update({
+          where: { ID: numericId },
+          data: {
+            label: parsed.data.label !== undefined ? parsed.data.label : undefined,
+            material: parsed.data.material !== undefined ? parsed.data.material : undefined,
+            printSample: parsed.data.printSample !== undefined ? parsed.data.printSample : undefined,
+            rangeStart,
+            rangeEnd,
+          },
+        });
       });
 
       const childrenAfter = await prisma.sleutelhangerreeksen.findMany({
