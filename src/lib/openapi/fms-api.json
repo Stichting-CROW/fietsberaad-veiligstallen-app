@@ -616,11 +616,12 @@
       },
       "PlaceSummary": {
         "type": "object",
+        "description": "ColdFusion-compatible: id, name, datelaststatusupdate (optional), statuscode",
         "properties": {
-          "placeid": { "type": "integer" },
-          "sectionid": { "type": "string" },
-          "name": { "type": "string" },
-          "status": { "type": "integer", "description": "0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking" }
+          "id": { "type": "integer", "description": "Place ID" },
+          "name": { "type": "string", "description": "Place name/number visible to user" },
+          "datelaststatusupdate": { "type": "string", "format": "date-time", "description": "Last status update (only when set)" },
+          "statuscode": { "type": "integer", "description": "0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking" }
         }
       },
       "SubscriptionTypeSummary": {
