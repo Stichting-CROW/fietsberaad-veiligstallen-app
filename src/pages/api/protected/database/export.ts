@@ -10,6 +10,7 @@ type ExportRow = {
   id: string | null;
   data_eigenaar: string | null;
   data_eigenaar_gemeentecode: number | null;
+  data_eigenaar_urlname?: string | null;
   titel: string | null;
   stallings_id: string | null;
   soort_stalling: string | null;

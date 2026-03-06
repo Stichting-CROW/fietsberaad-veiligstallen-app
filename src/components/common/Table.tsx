@@ -4,6 +4,8 @@ export interface Column<T> {
   header: string;
   accessor: keyof T | ((item: T) => React.ReactNode);
   className?: string;
+  /** Custom header content; when set, used instead of header. header still used for sortColumn matching. */
+  headerContent?: React.ReactNode;
 }
 
 interface TableProps<T> {
@@ -36,11 +38,15 @@ export function Table<T>({ columns, data, className = '', onRowClick, getRowClas
                   className={`py-2 px-4 text-left ${column.className || ''} ${isSortable ? 'cursor-pointer select-none' : ''}`}
                   onClick={isSortable && onSort ? () => onSort(column.header) : undefined}
                 >
-                  {column.header}
-                  {isSorted && (
-                    <span className="ml-1">
-                      {sortDirection === 'desc' ? '▼' : '▲'}
-                    </span>
+                  {column.headerContent ?? (
+                    <>
+                      {column.header}
+                      {isSorted && (
+                        <span className="ml-1">
+                          {sortDirection === 'desc' ? '▼' : '▲'}
+                        </span>
+                      )}
+                    </>
                   )}
                 </th>
               );

@@ -1,0 +1,653 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FMS REST API",
+    "description": "Fietsenstallingen Management Service REST API (V2 en V3)",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "/api/fms", "description": "Next.js API" }],
+  "security": [{ "basicAuth": [] }],
+  "paths": {
+    "/v2/getServerTime": {
+      "get": {
+        "summary": "Server tijd",
+        "tags": ["V2"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ISO 8601 timestamp",
+            "content": {
+              "application/json": {
+                "schema": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/getJsonBikeTypes": {
+      "get": {
+        "summary": "Alle fietstypen",
+        "tags": ["V2"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van fietstypen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/BikeType" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/getJsonPaymentTypes": {
+      "get": {
+        "summary": "Betalingstypen",
+        "tags": ["V2"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van betalingstypen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PaymentType" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/getJsonClientTypes": {
+      "get": {
+        "summary": "Klanttypen",
+        "tags": ["V2"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van klanttypen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ClientType" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/saveJsonBike/{bikeparkID}": {
+      "post": {
+        "summary": "Fiets koppelen aan pas",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Bike" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Result" }
+              }
+            }
+          },
+          "400": { "description": "barcode en passID verplicht" }
+        }
+      }
+    },
+    "/v2/saveJsonBikes/{bikeparkID}": {
+      "post": {
+        "summary": "Bulk fietsen koppelen",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Bike" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "status": { "type": "integer" },
+                    "ids": { "type": "array", "items": { "type": "integer" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/uploadJsonTransaction/{bikeparkID}/{sectionID}": {
+      "post": {
+        "summary": "Transactie uploaden",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "sectionID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Transaction" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Result" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/uploadJsonTransactions/{bikeparkID}/{sectionID}": {
+      "post": {
+        "summary": "Bulk transacties uploaden",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "sectionID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Transaction" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "status": { "type": "integer" },
+                    "ids": { "type": "array", "items": { "type": "integer" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/addJsonSaldo/{bikeparkID}": {
+      "post": {
+        "summary": "Saldo toevoegen",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Saldo" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Result" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/addJsonSaldos/{bikeparkID}": {
+      "post": {
+        "summary": "Bulk saldo toevoegen",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Saldo" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "status": { "type": "integer" },
+                    "ids": { "type": "array", "items": { "type": "integer" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/syncSector/{bikeparkID}/{sectionID}": {
+      "put": {
+        "summary": "Sectie synchroniseren",
+        "tags": ["V2 Write"],
+        "parameters": [
+          { "name": "bikeparkID", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "sectionID", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SyncSector" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Result" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/citycodes": {
+      "get": {
+        "summary": "Lijst van citycodes (gemeenten)",
+        "tags": ["V3"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van citycodes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/CityCode" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}": {
+      "get": {
+        "summary": "Gemeente met locaties",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string", "example": "9933" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gemeente inclusief locaties",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CityWithLocations" }
+              }
+            }
+          },
+          "404": { "description": "Niet gevonden" }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations": {
+      "get": {
+        "summary": "Locaties in gemeente",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van locaties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/LocationSummary" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}": {
+      "get": {
+        "summary": "Locatie details",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "locationid", "in": "path", "required": true, "schema": { "type": "string", "example": "9933_001" } }
+        ],
+        "responses": {
+          "200": { "description": "Locatie details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LocationDetail" } } } },
+          "404": { "description": "Niet gevonden" }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/sections": {
+      "get": {
+        "summary": "Secties van locatie",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "locationid", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Array van secties", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SectionSummary" } } } } }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}": {
+      "get": {
+        "summary": "Sectie details",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "locationid", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "sectionid", "in": "path", "required": true, "schema": { "type": "string", "example": "9933_001_1" } }
+        ],
+        "responses": {
+          "200": { "description": "Sectie details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SectionSummary" } } } },
+          "404": { "description": "Niet gevonden" }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places": {
+      "get": {
+        "summary": "Plekken (kluizen) in sectie",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "locationid", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "sectionid", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Array van plekken", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PlaceSummary" } } } } }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/subscriptiontypes": {
+      "get": {
+        "summary": "Abonnementsvormen voor locatie",
+        "tags": ["V3"],
+        "security": [],
+        "parameters": [
+          { "name": "citycode", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "locationid", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Array van abonnementsvormen", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SubscriptionTypeSummary" } } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "HTTP Basic Auth (UrlName + Password uit contacts)"
+      }
+    },
+    "schemas": {
+      "BikeType": {
+        "type": "object",
+        "properties": {
+          "bikeTypeID": { "type": "integer", "description": "1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden" },
+          "name": { "type": "string" },
+          "naamenkelvoud": { "type": "string" }
+        }
+      },
+      "PaymentType": {
+        "type": "object",
+        "properties": {
+          "paymentTypeID": { "type": "integer", "description": "1=betaald, 2=kwijtschelding" },
+          "name": { "type": "string" }
+        }
+      },
+      "ClientType": {
+        "type": "object",
+        "properties": {
+          "clientTypeID": { "type": "integer" },
+          "name": { "type": "string" }
+        }
+      },
+      "Bike": {
+        "type": "object",
+        "required": ["barcode", "passID"],
+        "properties": {
+          "barcode": { "type": "string", "description": "Barcode van de fiets" },
+          "passID": { "type": "string", "description": "Barcode van de sleutelhanger/pas" },
+          "RFID": { "type": "string", "description": "RFID van de pas" },
+          "RFIDBike": { "type": "string", "description": "RFID van de fiets" },
+          "biketypeID": { "type": "integer", "description": "1=fiets, 2=bromfiets, etc." }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "required": ["type", "transactionDate"],
+        "properties": {
+          "type": { "type": "string", "enum": ["in", "out", "In", "Out"], "description": "in=check-in, out=check-out" },
+          "typeCheck": { "type": "string", "description": "user|controle|reservation" },
+          "transactionDate": { "type": "string", "format": "date-time" },
+          "idcode": { "type": "string", "description": "Pas-ID (barcode)" },
+          "passID": { "type": "string", "description": "Alias voor idcode" },
+          "idtype": { "type": "integer", "description": "0=barcode, 1=ov-chipkaart, 2=cijfercode" },
+          "bikeid": { "type": "string", "description": "Barcode fiets" },
+          "barcodeBike": { "type": "string", "description": "Alias voor bikeid" },
+          "price": { "type": "number" },
+          "placeID": { "type": "integer", "description": "Bij kluizen" },
+          "externalPlaceID": { "type": "string" },
+          "paymenttypeid": { "type": "integer", "description": "1=betaald, 2=kwijtschelding" },
+          "amountpaid": { "type": "number" },
+          "clienttypeid": { "type": "integer" }
+        }
+      },
+      "Saldo": {
+        "type": "object",
+        "required": ["amount"],
+        "properties": {
+          "passID": { "type": "string", "description": "Pas-ID" },
+          "idcode": { "type": "string", "description": "Alias voor passID" },
+          "idtype": { "type": "integer" },
+          "transactionDate": { "type": "string", "format": "date-time" },
+          "paymentTypeID": { "type": "integer", "description": "1=betaald, 2=kwijtschelding" },
+          "paymenttypeid": { "type": "integer", "description": "Alias" },
+          "amount": { "type": "number", "description": "Bedrag" }
+        }
+      },
+      "SyncSector": {
+        "type": "object",
+        "properties": {
+          "bikes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "idcode": { "type": "string" },
+                "bikeid": { "type": "string" },
+                "idtype": { "type": "integer" },
+                "transactiondate": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "transactionDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Result": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "Ok" },
+          "status": { "type": "integer", "example": 1 },
+          "id": { "type": "integer" }
+        }
+      },
+      "CityCode": {
+        "type": "object",
+        "properties": {
+          "citycode": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      },
+      "LocationSummary": {
+        "type": "object",
+        "properties": {
+          "locationid": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      },
+      "LocationDetail": {
+        "type": "object",
+        "properties": {
+          "locationid": { "type": "string" },
+          "name": { "type": "string" },
+          "capacity": { "type": "integer" },
+          "occupation": { "type": "integer" },
+          "locationtypeid": { "type": "integer", "description": "1=bewaakt, 2=toezicht, 3=geautomatiseerd, 4=onbewaakt, 5=fietskluizen, 6=buurtstalling, 7=fietstrommel" }
+        }
+      },
+      "SectionSummary": {
+        "type": "object",
+        "description": "ColdFusion-compatible section (BaseRestService.getSection)",
+        "properties": {
+          "sectionid": { "type": "string" },
+          "name": { "type": "string" },
+          "capacity": { "type": "integer" },
+          "occupation": { "type": "integer" },
+          "free": { "type": "integer" },
+          "occupationsource": { "type": "string" },
+          "biketypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "allowed": { "type": "boolean" },
+                "biketypeid": { "type": "integer" },
+                "rates": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "object", "properties": { "timespan": { "type": "number" }, "cost": { "type": "number" } } },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "capacity": { "type": "integer" }
+              }
+            }
+          },
+          "places": { "type": "array", "items": { "$ref": "#/components/schemas/PlaceSummary" } },
+          "rates": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                { "type": "object", "properties": { "timespan": { "type": "number" }, "cost": { "type": "number" } } },
+                { "type": "null" }
+              ]
+            }
+          },
+          "maxsubscriptions": { "type": "integer" }
+        }
+      },
+      "PlaceSummary": {
+        "type": "object",
+        "description": "ColdFusion-compatible: id, name, datelaststatusupdate (optional), statuscode",
+        "properties": {
+          "id": { "type": "integer", "description": "Place ID" },
+          "name": { "type": "string", "description": "Place name/number visible to user" },
+          "datelaststatusupdate": { "type": "string", "format": "date-time", "description": "Last status update (only when set)" },
+          "statuscode": { "type": "integer", "description": "0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking" }
+        }
+      },
+      "SubscriptionTypeSummary": {
+        "type": "object",
+        "description": "ColdFusion-compatible subscription type",
+        "properties": {
+          "id": { "type": "integer", "description": "Subscription type ID" },
+          "name": { "type": "string" },
+          "price": { "type": "number" },
+          "duration": { "type": "integer", "description": "Duration in months" },
+          "locationtype": { "type": "string", "description": "bewaakt, toezicht, geautomatiseerd, etc." },
+          "biketypes": { "type": "array", "items": { "type": "integer" }, "description": "Allowed bike type IDs (1=fiets, 2=bromfiets, etc.)" },
+          "idtypes": { "type": "array", "items": { "type": "integer" }, "description": "0=barcode, 1=ov-chipkaart, 2=cijfercode" }
+        }
+      },
+      "CityWithLocations": {
+        "type": "object",
+        "properties": {
+          "citycode": { "type": "string" },
+          "name": { "type": "string" },
+          "locations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LocationSummary" }
+          }
+        }
+      }
+    }
+  }
+}

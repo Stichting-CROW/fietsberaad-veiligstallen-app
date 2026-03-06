@@ -69,6 +69,7 @@ export type ParkingEditUpdateStructure = {
   Tariefcode?: number | null;
   OmschrijvingTarieven?: string | null;
   ExtraServices?: string | null;
+  BerekentStallingskosten?: boolean;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -205,6 +206,10 @@ const ParkingEdit = ({
 
   const [newOmschrijvingTarieven, setNewOmschrijvingTarieven] = React.useState<
     string | undefined
+  >(undefined);
+
+  const [newBerekentStallingskosten, setNewBerekentStallingskosten] = React.useState<
+    boolean | undefined
   >(undefined);
 
   const [newExtraServices, setNewExtraServices] = React.useState<
@@ -529,6 +534,10 @@ const ParkingEdit = ({
       if (newOmschrijvingTarieven !== parkingdata.OmschrijvingTarieven) {
         update.OmschrijvingTarieven = newOmschrijvingTarieven;
       }
+    }
+
+    if (newBerekentStallingskosten !== undefined) {
+      update.BerekentStallingskosten = newBerekentStallingskosten;
     }
 
     if (newExtraServices !== undefined) {
@@ -1383,6 +1392,8 @@ const ParkingEdit = ({
           setNewTariefcode={setNewTariefcode}
           newOmschrijvingTarieven={newOmschrijvingTarieven}
           setNewOmschrijvingTarieven={setNewOmschrijvingTarieven}
+          newBerekentStallingskosten={newBerekentStallingskosten}
+          setNewBerekentStallingskosten={setNewBerekentStallingskosten}
           canEdit={canEditAllFields||canEditLimitedFields}
         />
       </div>
