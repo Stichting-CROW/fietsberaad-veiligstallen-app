@@ -168,15 +168,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   if (action === "remove") {
     try {
       await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");
-      const tablesToDrop = [
-        ...PARKINGSIMULATION_TABLES,
-        "parkingsimulation_slots",
-        "parkingmgmt_occupation",
-        "parkingmgmt_spot_detection",
-        "parkingmgmt_slots",
-        "parkingmgmt_bicycles",
-        "parkingmgmt_simulation_config",
-      ];
+      // Drop in reverse FK order: section_assignments → bicycles → simulation_config
+      const tablesToDrop = [...PARKINGSIMULATION_TABLES];
       for (const table of tablesToDrop) {
         await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS \`${table}\``);
       }
