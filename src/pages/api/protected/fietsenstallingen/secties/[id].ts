@@ -223,13 +223,14 @@ export default async function handle(
       });
 
       // Create default sectie_fietstype entries for all bike types
+      // StallingsID must reference fietsenstallingen.ID (UUID), not StallingsID (short id)
       const allBikeTypes = await prisma.fietstypen.findMany();
       const sectionBikeTypes = allBikeTypes.map(bikeType => ({
         sectieID: newSection.sectieId,
         BikeTypeID: bikeType.ID,
         Capaciteit: 0,
         Toegestaan: true,
-        StallingsID: fietsenstalling.StallingsID
+        StallingsID: data.fietsenstallingsId,
       }));
 
       await prisma.sectie_fietstype.createMany({
