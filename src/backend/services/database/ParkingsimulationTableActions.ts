@@ -1,11 +1,6 @@
 import { prisma } from "~/server/db";
 
-/**
- * Create parkingsimulation tables. Same pattern as cache tables (TransactionsCacheActions etc).
- * Uses CREATE TABLE IF NOT EXISTS and raw SQL - no migration files.
- */
-export async function createParkingsimulationTables(): Promise<boolean> {
-  const statements = [
+const PARKINGSIMULATION_CREATE_STATEMENTS = [
     `CREATE TABLE IF NOT EXISTS \`parkingsimulation_simulation_config\` (
       \`id\` VARCHAR(36) NOT NULL,
       \`siteID\` VARCHAR(35) NOT NULL,
@@ -56,9 +51,17 @@ export async function createParkingsimulationTables(): Promise<boolean> {
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
     `ALTER TABLE \`parkingsimulation_bicycles\` ADD CONSTRAINT \`parkingsimulation_bicycles_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
     `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-  ];
+    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE;`,
+];
 
+/**
+ * Create parkingsimulation tables. Same pattern as cache tables (TransactionsCacheActions etc).
+ * Uses CREATE TABLE IF NOT EXISTS and raw SQL - no migration files.
+ */
+export async function createParkingsimulationTables(): Promise<boolean> {
+  const statements = PARKINGSIMULATION_CREATE_STATEMENTS.map((s) =>
+    s.endsWith(";") ? s.slice(0, -1) : s
+  );
   try {
     for (const stmt of statements) {
       try {
