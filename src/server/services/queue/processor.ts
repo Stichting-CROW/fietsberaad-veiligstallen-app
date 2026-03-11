@@ -14,6 +14,7 @@ const LIMIT_PASIDS = 50;
 const LIMIT_TRANSACTIES = 50;
 const LIMIT_BETALINGEN = 200;
 const LIMIT_SYNC = 1;
+const QUEUE_PROCESSOR_TIMEOUT = 3 * 60 * 1000; // 3 minutes
 
 /** 3-step locking: 0=waiting, 9=isolated, 8=locked, 1=success, 2=error */
 const PROCESSED = { WAITING: 0, ISOLATED: 9, LOCKED: 8, SUCCESS: 1, ERROR: 2 } as const;
@@ -47,13 +48,16 @@ export async function processQueues(): Promise<ProcessQueuesResult> {
     sync: { processed: 0, errors: 0 },
   };
 
-  await prisma.$transaction(async (tx) => {
-    result.pasids = await processPasids(tx);
-    const transactiesResult = await processTransacties(tx);
-    result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
-    result.betalingen = await processBetalingen(tx);
-    result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate);
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      result.pasids = await processPasids(tx);
+      const transactiesResult = await processTransacties(tx);
+      result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
+      result.betalingen = await processBetalingen(tx);
+      result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate);
+    },
+    { timeout: QUEUE_PROCESSOR_TIMEOUT }
+  );
 
   return result;
 }
