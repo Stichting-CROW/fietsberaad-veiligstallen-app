@@ -10,6 +10,8 @@ import { useSession } from 'next-auth/react';
 import { Table } from '~/components/common/Table';
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { AdminButton } from '~/components/beheer/AdminButton';
+import { StallingsdataControleModal } from './StallingsdataControleModal';
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
@@ -26,6 +28,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const canCreateNew = hasFietsenstallingenAdmin;
   const canDelete = hasFietsenstallingenAdmin;
 
+  const [controleModalOpen, setControleModalOpen] = useState(false);
   const [currentParkingId, setCurrentParkingId] = useState<string | undefined>(undefined);
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
@@ -368,26 +371,50 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            {canCreateNew && (
+              <AdminButton
+                onClick={() => setControleModalOpen(true)}
+                style={{ backgroundColor: '#22c55e' }}
+              >
+                Controle voltooid
+              </AdminButton>
+            )}
+            {canCreateNew && (
+              <AdminButton
+                onClick={() => handleEdit('new')}
+                style={{ backgroundColor: '#22c55e' }}
+              >
+                Nieuwe stalling
+              </AdminButton>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="mb-2">
             {nAanmeldingen.length > 0 && (
               <button
                 onClick={() => setSelectedStatusFilter('aanm')}
                 className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
                 title="Klik om aanmeldingen te filteren"
               >
-                <span className="text-yellow-600 text-2xl">⚠️</span>
-                { nAanmeldingen.length > 1 && (<span>Er zijn nieuwe stallingen aangemeld in uw gemeente, Klik hier om ze te bekijken.</span>)}
-                { nAanmeldingen.length === 1 && (<span>Er is een nieuwe stalling aangemeld, Klik hier om deze te bekijken.</span>)}
+                <span className="text-yellow-600 text-lg">⚠️</span>
+                { nAanmeldingen.length > 1 && (<span>Er zijn nieuwe stallingen aangemeld in uw gemeente, Klik hier om ze te bekijken</span>)}
+                { nAanmeldingen.length === 1 && (<span>Er is een nieuwe stalling aangemeld, Klik hier om deze te bekijken</span>)}
               </button>
             )}
           </div>
-          {canCreateNew && (
-            <button 
-              onClick={() => handleEdit('new')}
-              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+          <div className="mb-2">
+            <button
+              onClick={() => setSelectedStatusFilter('aanm')}
+              className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
             >
-              Nieuwe stalling
+              <span className="text-yellow-600 text-lg">⚠️</span>
+              De stallingsdata is langer dan 6 maanden niet-gecontroleerd. Klik hier voor de controleprocedure
             </button>
-          )}
+          </div>
         </div>
 
         <div className="mb-4">
@@ -531,6 +558,12 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   return (
     <div>
       {currentParkingId === undefined ? renderOverview() : renderEdit()}
+      {controleModalOpen && (
+        <StallingsdataControleModal
+          onClose={() => setControleModalOpen(false)}
+          session={session}
+        />
+      )}
     </div>
   );
 };
