@@ -1,5 +1,30 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-03-18
+
+**Features**
+
+- Add canonical URL for better SEO
+- New Open Data API + partial FMS V2/V3 REST API + sleutelhangers/stickers implementation (in progress) (#208)
+- Get back to previous map position/zoom when navigating from content page
+- Add verification for Google Search Console
+
+**Bug Fixes**
+
+- Fix: Wrong key field used when creating sections (#209, #210)
+- Fix: Municipality param in URL incorrect in MapComponent
+
+**UX / Styling**
+
+- Better footer navigation on mobile
+- Better scrollbar position in modal dialogs
+
+**Performance & Accessibility**
+
+- Speed up loading of municipality-specific menu items
+- Better accessibility: lang attribute, viewport zoom, image alt texts, contrast
+- Render blocking, dynamic imports, bundling, caching, image widths optimizations
+
 ## VeiligStallen 2026-03-03
 
 **Features**
