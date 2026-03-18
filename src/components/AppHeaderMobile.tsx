@@ -50,7 +50,7 @@ function AppHeaderMobile({
 
     // If logo URL starts with http, return the image
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white" />
+      return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white" width={64} height={48} alt="Logo" />
     }
 
     let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -75,7 +75,7 @@ function AppHeaderMobile({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" />
+    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
   }
 
   return (
@@ -107,7 +107,7 @@ function AppHeaderMobile({
           justify-between
         ">
           <div className="flex flex-col justify-center">
-            <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`}>
+            <Link href={`/${activeMunicipalityInfo && activeMunicipalityInfo.UrlName ? (activeMunicipalityInfo.UrlName !== 'fietsberaad' ? activeMunicipalityInfo.UrlName : '') : ''}`} aria-label="Ga naar startpagina">
               {renderLogo()}
             </Link>
           </div>
@@ -132,7 +132,7 @@ function AppHeaderMobile({
             if (handleCloseClick) handleCloseClick();
             // Or default action
             else dispatch(setIsMobileNavigationVisible(true));
-          }} className="
+          }} aria-label={(handleCloseClick) ? "Sluiten" : "Open menu"} className="
             overlay-close-button
             mt-4
             mr-2

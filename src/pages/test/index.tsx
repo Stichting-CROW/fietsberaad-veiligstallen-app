@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { Button } from '~/components/Button';
+import { userHasRight } from '~/types/utils';
+import { VSSecurityTopic } from '~/types/securityprofile';
 
 const TestIndexPage: React.FC = () => {
   const router = useRouter();
   const { data: session } = useSession();
+  const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const [nsConnectorAvailable, setNsConnectorAvailable] = useState<boolean | null>(null);
 
   const handleNavigate = (path: string) => {
@@ -87,6 +90,16 @@ const TestIndexPage: React.FC = () => {
           </Button>
           
           <Button
+            onClick={() => handleNavigate('/test/wachtrij')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Wachtrij
+          </Button>
+          
+          <Button
             onClick={() => window.open('/test/helpdesk', '_blank')}
             className="py-6 px-8 text-center w-full"
             style={{
@@ -117,6 +130,32 @@ const TestIndexPage: React.FC = () => {
           >
             CBS Gemeentecodes
           </Button>
+
+          {hasFietsberaadSuperadmin && (
+            <>
+              <Button
+                onClick={() => handleNavigate('/beheer/parking-simulation')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                Parkeer Simulatie
+              </Button>
+              <Button
+                onClick={() => handleNavigate('/test/fms-api-compare')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                FMS API vergelijking
+              </Button>
+              <Button
+                onClick={() => handleNavigate('/test/fms-api-docs')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                FMS API documentatie (Swagger)
+              </Button>
+            </>
+          )}
           
         </div>
       </div>

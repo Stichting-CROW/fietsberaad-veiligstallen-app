@@ -17,6 +17,8 @@ const server = z.object({
   SMTP_PASS: z.string().min(1).optional(),
   SMTP_FROM: z.string().min(1).optional(),
   NSCONNECTOR_SUBSCRIPTION_KEY: z.string().optional(),
+  FMS_TEST_USER: z.string().min(1).optional(),
+  FMS_TEST_PASS: z.string().min(1).optional(),
 });
 
 /**
@@ -52,6 +54,8 @@ const processEnv = {
   SMTP_FROM: process.env.SMTP_FROM,
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
+  FMS_TEST_USER: process.env.FMS_TEST_USER,
+  FMS_TEST_PASS: process.env.FMS_TEST_PASS,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 

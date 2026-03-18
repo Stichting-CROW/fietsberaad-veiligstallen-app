@@ -39,6 +39,7 @@ const Card: React.FC<CardData> = ({
         flex
         flex-col
         rounded-lg
+        min-w-[300px]
       `}
     >
       <ParkingFacilityBlock

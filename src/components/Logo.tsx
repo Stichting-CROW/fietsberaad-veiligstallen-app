@@ -11,8 +11,10 @@ const Logo: React.FC<LogoProps> = ({ imageUrl, className }) => {
     <>
   		<img
         src={imageUrl ? imageUrl : `/images/logo-transparant.png`}
-        className={`block mr-2 h-12  ${className}`}
+        className={`block mr-2 h-12 w-auto ${className}`}
         alt="logo Gemeente"
+        width={48}
+        height={48}
       />
     </>
   );

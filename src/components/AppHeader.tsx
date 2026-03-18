@@ -7,6 +7,7 @@ import AppHeaderMobile from "~/components/AppHeaderMobile";
 
 import {
   getArticlesForMunicipality,
+  prefetchNavArticles,
   // getNavigationItemsForMunicipality,
   filterNavItems,
   getPrimary,
@@ -32,6 +33,11 @@ function AppHeader({
   );
 
   const mapZoom = useSelector((state: AppState) => (state.map).zoom);
+
+  // Preload menu articles for fast hamburger menu open (cache is shared with AppNavigationMobile)
+  useEffect(() => {
+    prefetchNavArticles(activeMunicipalityInfo?.ID, "1");
+  }, [activeMunicipalityInfo?.ID]);
 
   // Get menu items based on active municipality
   useEffect(() => {
@@ -90,7 +96,7 @@ function AppHeader({
         `}
       >
         <AppHeaderMobile hideLogo={false} handleCloseClick={() => {
-          router.push('/');
+          router.push(activeMunicipalityInfo?.UrlName ? `/${activeMunicipalityInfo.UrlName}` : '/');
         }} />
       </div>}
     </>

@@ -124,14 +124,14 @@ function ParkingFacilityBlock({
               {parking.Title}
             </b>
           </div>
-          <div className="text-sm text-gray-500 h-5 overflow-hidden" title={locationDescription}>
+          <div className="text-sm text-gray-600 h-5 overflow-hidden" title={locationDescription}>
             {locationDescription}
           </div>
         </div>
         <div
           className="
           mt-2 flex justify-between
-          text-sm text-gray-500
+          text-sm text-gray-600
         "
         >
           <div className="">
@@ -145,7 +145,7 @@ function ParkingFacilityBlock({
                   if (openParkingHandler) openParkingHandler(parking.ID);
                 }}
                 href="#"
-                className="text-sm text-gray-500 underline p-1 inline-block"
+                className="text-sm text-gray-600 underline p-1 inline-block"
               >
                 meer informatie
               </a>
@@ -159,16 +159,21 @@ function ParkingFacilityBlock({
           </div>
 
           {(showButtons && parking.Coordinaten) && (<>
-            <a href="" className="
+            <a
+              href="#"
+              aria-label={`Route naar ${parking.Title}`}
+              className="
               absolute right-5 bottom-5
               inline-block
               rounded-full shadow
               p-2
-            " onClick={(e) => {
+            "
+              onClick={(e) => {
                 e.preventDefault();
                 openRoute(parking.Coordinaten)
-              }}>
-              <img src="/images/icon-route.png" alt="Open route" className="w-5" />
+              }}
+            >
+              <img src="/images/icon-route.png" alt="" className="w-5" width={20} height={20} />
             </a>
           </>)}
 
@@ -176,7 +181,7 @@ function ParkingFacilityBlock({
         {!compact && (
           <>
             <div className="mt-4 flex justify-between">
-              <div className="flex text-sm text-gray-500">
+              <div className="flex text-sm text-gray-600">
                 {/*
                 <span className="mr-2">buggy-uitleen</span>
                 <span className="mr-2">fietspomp</span>
@@ -201,7 +206,7 @@ function ParkingFacilityBlock({
                     }
                   }}
                   href="#"
-                  className="whitespace-nowrap text-sm text-gray-500 underline px-1 py-2 inline-block -px-1 -my-2"
+                  className="whitespace-nowrap text-sm text-gray-600 underline px-1 py-2 inline-block -px-1 -my-2"
                 >
                   meer informatie
                 </a>

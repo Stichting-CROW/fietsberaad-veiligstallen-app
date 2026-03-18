@@ -18,6 +18,8 @@ import {
   setInitialLatLng,
   setInitialZoom,
   setSelectedParkingId,
+  setInitialViewAnimate,
+  clearSavedMapStateBeforeArticle,
 } from "~/store/mapSlice";
 
 import { setQuery } from "~/store/filterSlice";
@@ -27,6 +29,7 @@ import {
   getMunicipalityBasedOnUrlName,
   cbsCodeFromMunicipality,
 } from "~/utils/municipality";
+import { prefetchNavArticles } from "~/utils/navigation";
 
 import { convertCoordinatenToCoords } from "~/utils/map/index";
 
@@ -44,8 +47,14 @@ import FilterBox from "~/components/FilterBox";
 import { IconButton } from "~/components/Button";
 import { ToggleMenuIcon } from "~/components/ToggleMenuIcon";
 import AppNavigationMobile from "~/components/AppNavigationMobile";
-import MapboxMap from "~/components/MapComponent";
+import dynamic from "next/dynamic";
 import FooterNav from "~/components/FooterNav";
+
+// MapboxMap loads maplibre-gl (~500KB+) - defer to improve LCP and TTI
+const MapboxMap = dynamic(() => import("~/components/MapComponent"), {
+  ssr: false,
+  loading: () => <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-gray-100 animate-pulse" aria-label="Kaart laden" />,
+});
 
 import { useSession } from "next-auth/react";
 import { type AppState } from "~/store/store";
@@ -124,6 +133,36 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
     const mapZoom = useSelector((state: AppState) => state.map.zoom);
 
+    const savedMapStateBeforeArticle = useSelector(
+      (state: AppState) => state.map.savedMapStateBeforeArticle,
+    );
+
+    // Restore map position/zoom only when MOUNTING after return from article page.
+    // Must NOT run when user clicks menu item (saves state) - that would trigger
+    // restore + flyTo before navigation, moving the map. Use mount-only effect.
+    // Note: currentLatLng from registerMapView is stored as [lat, lng] (turf.points
+    // receives swapped coords), but MapLibre flyTo expects [lng, lat]. Swap on restore.
+    useEffect(() => {
+      if (
+        savedMapStateBeforeArticle &&
+        savedMapStateBeforeArticle.municipality === url_municipality &&
+        url_municipalitypage === undefined &&
+        url_municipality
+      ) {
+        const [a, b] = savedMapStateBeforeArticle.center;
+        dispatch(setInitialViewAnimate(false));
+        dispatch(setInitialLatLng([b, a]));
+        dispatch(setInitialZoom(savedMapStateBeforeArticle.zoom));
+        dispatch(clearSavedMapStateBeforeArticle());
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount when returning from article
+    }, []);
+
+    // Preload menu articles when municipality is known - makes hamburger menu open instantly
+    useEffect(() => {
+      prefetchNavArticles(activeMunicipalityInfo?.ID, "1");
+    }, [activeMunicipalityInfo?.ID]);
+
     useEffect(() => {
       // handle aanmelden sequence
       if (
@@ -180,6 +219,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
             info.Coordinaten,
           );
           if (initialLatLng) {
+              dispatch(setInitialViewAnimate(true));
               dispatch(setInitialLatLng(initialLatLng));
           }
           // Set zoom from contact's Zoom field, or default to 13
@@ -201,38 +241,35 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     }, [activeArticleMunicipality, activeArticleTitle]);
 
     useEffect(() => {
-      // console.debug("#### HomeComponent - currentLatLng changed", currentLatLng);
+      // Don't update URL when parking modal is open - map may have flown to the
+      // parking's location (possibly in another municipality). Preserve the URL.
+      // Use activeParkingId and stallingid only - NOT selectedParkingId, which
+      // persists after closing the modal and would block URL updates indefinitely.
+      const hasStallingInUrl = router.query.stallingid !== undefined && !Array.isArray(router.query.stallingid);
+      if (activeParkingId || hasStallingInUrl) {
+        return;
+      }
+
       (async () => {
         const ddmunicipality = await getMunicipalityBasedOnLatLng(currentLatLng);
         if (!ddmunicipality) {
-          // console.debug("#### HomeComponent - no municipality found", currentLatLng);
-          // updateUrl("root");
           return;
         }
 
         const cbsCode = cbsCodeFromMunicipality(ddmunicipality);
         if(cbsCode === false) {
-          // console.warn("#### HomeComponent - no valid cbsCode for the current location");
-          // updateUrl("root");
           return;
         }
   
-        // Get the municipality info from the database
         const municipalityInfo = await getMunicipalityBasedOnCbsCode(cbsCode);
-        // Set municipality slug in URL
         if (mapZoom >= 12 && municipalityInfo && municipalityInfo.UrlName) {
           updateUrl("municipality", municipalityInfo.UrlName);
-        }
-        // If zoomed out, have just `/` as URL
-        else {
+        } else {
           updateUrl("root");
         }
-
-        // Set the municipality info in redux
-        // console.debug("#### HomeComponent - set municipalityInfo", municipalityInfo, activeMunicipalityInfo);
         dispatch(setActiveMunicipalityInfo(municipalityInfo));
       })();
-    }, [currentLatLng]);
+    }, [currentLatLng, activeParkingId, router.query.stallingid]);
 
     useEffect(() => {
       console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
@@ -244,7 +281,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
       // If logo URL starts with http, return the image
       if(activecontact?.CompanyLogo && activecontact?.CompanyLogo.indexOf('http') === 0) {
-        return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" />
+        return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
       }
   
       let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
@@ -266,10 +303,11 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           width={64}
           height={64}
           className="max-h-12 w-auto bg-white mr-2"
+          priority
         />
       }
   
-      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" />
+      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
     }
 
     const renderDesktopParkingList = () => {
@@ -522,8 +560,10 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const updateUrl = (to: string, path?: string) => {
       // console.debug("#### HomeComponent - updateUrl", to, path);
 
-      // If activeParkingId is set: Don't update URL
+      // Don't update URL when viewing a parking: preserve the current municipality.
+      // (Map may have flown to the parking's location, which could be in another municipality)
       if (activeParkingId) return;
+      if (router.query.stallingid !== undefined && !Array.isArray(router.query.stallingid)) return;
 
       // Determine the desired URL
       let desiredUrl = "/";
@@ -558,21 +598,33 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       );
     }
   
+    // Get current municipality from browser URL (updates when user pans map and pushState changes URL).
+    // url_municipality from props is stale after client-side navigation via pushState.
+    const getCurrentMunicipalityFromUrl = (): string | undefined => {
+      if (typeof window === "undefined") return url_municipality;
+      const segment = window.location.pathname.split("/").filter(Boolean)[0];
+      return segment || undefined;
+    };
+
     const updateStallingId = (id: string | undefined): void => {
+      const municipality = getCurrentMunicipalityFromUrl();
+      const pathname = municipality ? `/${municipality}` : "/";
       if (undefined === id) {
         delete query.stallingid;
         delete query.name;
-        router.push({ query: { ...query } });
+        router.push({ pathname, query: { ...query } });
       } else {
         const parking = allparkingdata?.find((p) => p.ID === id);
         const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
-        const newQuery = { ...query, stallingid: id };
+        const newQuery: Record<string, string | string[] | undefined> = { ...query, stallingid: id };
         if (nameSlug) {
           newQuery.name = nameSlug;
         } else {
           delete newQuery.name;
         }
-        router.push({ query: newQuery });
+        if (municipality) newQuery.municipality = municipality;
+        else delete newQuery.municipality;
+        router.push({ pathname, query: newQuery });
       }
   
       if (activeParkingId !== id) {
@@ -582,9 +634,11 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
     const handleCloseParking = () => {
       if (router.query.stallingid !== undefined) {
+        const municipality = getCurrentMunicipalityFromUrl();
+        const pathname = municipality ? `/${municipality}` : "/";
         delete query.stallingid;
         delete query.name;
-        router.push({ query: { ...query } });
+        router.push({ pathname, query: { ...query } });
       }
       dispatch(setActiveParkingId(undefined));
     };
@@ -677,7 +731,26 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
           {/* <ParkingFacilities fietsenstallingen={fietsenstallingen} onStallingAamelden={handleStallingAanmelden}/> */}
           <div data-name="parking-facilities">
             <div className="flex flex-col items-center justify-center">
-                <MapboxMap fietsenstallingen={allparkingdata} />
+                <MapboxMap
+                  fietsenstallingen={allparkingdata}
+                  initialCenter={
+                    savedMapStateBeforeArticle &&
+                    savedMapStateBeforeArticle.municipality === url_municipality &&
+                    url_municipalitypage === undefined
+                      ? [
+                          parseFloat(savedMapStateBeforeArticle.center[1]),
+                          parseFloat(savedMapStateBeforeArticle.center[0]),
+                        ]
+                      : undefined
+                  }
+                  initialZoom={
+                    savedMapStateBeforeArticle &&
+                    savedMapStateBeforeArticle.municipality === url_municipality &&
+                    url_municipalitypage === undefined
+                      ? savedMapStateBeforeArticle.zoom
+                      : undefined
+                  }
+                />
             </div>
 
             <div data-comment="Show only on desktop" className="hidden sm:flex">

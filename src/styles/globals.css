@@ -46,6 +46,7 @@ body, #__next, #__next > main {
     url("/font/poppins/poppins-bold-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -54,6 +55,7 @@ body, #__next, #__next > main {
     url("/font/poppins/poppins-bolditalic-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -62,6 +64,7 @@ body, #__next, #__next > main {
     url("/font/poppins/poppins-medium-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -70,6 +73,7 @@ body, #__next, #__next > main {
     url("/font/poppins/poppins-regular-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
@@ -78,6 +82,7 @@ body, #__next, #__next > main {
     url("/font/poppins/poppins-semibold-webfont.woff") format("woff");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 .modal-wrapper {

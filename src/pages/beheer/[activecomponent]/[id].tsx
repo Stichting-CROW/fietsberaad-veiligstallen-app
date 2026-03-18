@@ -15,7 +15,7 @@ import AbonnementsvormenComponent from '~/components/beheer/abonnementsvormen';
 import AccountsComponent from '~/components/beheer/accounts';
 import ApisComponent from '~/components/beheer/apis';
 import ArticlesComponent from '~/components/beheer/articles';
-// import BarcodereeksenComponent from '~/components/beheer/barcodereeksen';
+import BarcodereeksenComponent from '~/components/beheer/barcodereeksen';
 import GemeenteComponent from '~/components/beheer/contacts/gemeente';
 import ExploitantComponent from '~/components/beheer/contacts/exploitant';
 import DataproviderComponent from '~/components/beheer/contacts/dataprovider';
@@ -263,10 +263,12 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
       try {
         const response = await fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`);
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(`Failed to fetch modules for ${selectedContactID}`);
+          const msg = (data as { error?: string })?.error ?? response.statusText;
+          throw new Error(`Failed to fetch modules for ${selectedContactID}: ${response.status} ${msg}`);
         }
-        const modules: VSmodules_contacts[] = await response.json();
+        const modules = data as VSmodules_contacts[];
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
         }
@@ -453,15 +455,26 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
             selectedComponent = <FietsenstallingenComponent type="buurtstallingen" />;
           }
           break;
-        // case VSMenuTopic.BarcodereeksenUitgifteBarcodes:
-        //   selectedComponent = <BarcodereeksenComponent type="uitgifte-barcodes" />;
-        //   break;
-        // case VSMenuTopic.BarcodereeksenSleutelhangers:
-        //   selectedComponent = <BarcodereeksenComponent type="sleutelhangers" />;
-        //   break;
-        // case VSMenuTopic.BarcodereeksenFietsstickers:
-        //   selectedComponent = <BarcodereeksenComponent type="fietsstickers" />;
-        //   break;
+        case VSMenuTopic.BarcodereeksenSleutelhangers: {
+          const hasBarcodeAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasBarcodeSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasBarcodeAdmin && !hasBarcodeSuperadmin) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <BarcodereeksenComponent type="sleutelhanger" />;
+          }
+          break;
+        }
+        case VSMenuTopic.BarcodereeksenFietsstickers: {
+          const hasBarcodeAdmin2 = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasBarcodeSuperadmin2 = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasBarcodeAdmin2 && !hasBarcodeSuperadmin2) {
+            selectedComponent = <AccessDenied />;
+          } else {
+            selectedComponent = <BarcodereeksenComponent type="sticker" />;
+          }
+          break;
+        }
         // case VSMenuTopic.Presentations:
         //   selectedComponent = <PresentationsComponent />;
         //   break;

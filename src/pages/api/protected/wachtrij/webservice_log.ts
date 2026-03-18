@@ -18,8 +18,10 @@ export default async function handler(
     return;
   }
 
-  // Check wachtrij access rights
-  const hasAccess = userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij);
+  // Check wachtrij access rights. Also allow fietsberaad_superadmin for parking simulation context.
+  const hasAccess =
+    userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij) ||
+    userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
   if (!hasAccess) {
     console.error("Access denied - insufficient permissions for webservice_log");

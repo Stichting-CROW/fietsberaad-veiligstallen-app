@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { type AppState } from "~/store/store";
 import Image from 'next/image';
 
 import { type VSArticle } from "~/types/articles";
@@ -10,6 +11,7 @@ import {
   setIsMobileNavigationVisible,
   setIsParkingListVisible,
 } from "~/store/appSlice";
+import { setSavedMapStateBeforeArticle } from "~/store/mapSlice";
 
 import {
   // getNavigationItemsForMunicipality,
@@ -78,6 +80,7 @@ const AppNavigationMobile = ({
 }) => {
   const router = useRouter();
   const dispatch = useDispatch();
+  const currentLatLng = useSelector((state: AppState) => state.map.currentLatLng);
 
   const [articlesMunicipality, setArticlesMunicipality] = useState<VSArticle[]>([]);
   const [articlesFietsberaad, setArticlesFietsberaad] = useState<VSArticle[]>([]);
@@ -108,7 +111,29 @@ const AppNavigationMobile = ({
   ]);
 
   const clickItem = (url: string) => {
-    // console.log("sure");
+    // Save map position/zoom only when navigating to an article within the SAME municipality
+    // (and when zoomed in - zoomed-out view can have center in unexpected places)
+    const pathParts = url.split("/").filter(Boolean);
+    const targetMunicipality = pathParts[0];
+    const isSameMunicipality =
+      targetMunicipality &&
+      activeMunicipalityInfo?.UrlName &&
+      targetMunicipality === activeMunicipalityInfo.UrlName;
+    if (
+      pathParts.length >= 2 &&
+      isSameMunicipality &&
+      mapZoom >= 12 &&
+      currentLatLng &&
+      currentLatLng.length >= 2
+    ) {
+      dispatch(
+        setSavedMapStateBeforeArticle({
+          center: [currentLatLng[0], currentLatLng[1]],
+          zoom: mapZoom,
+          municipality: targetMunicipality,
+        })
+      );
+    }
     dispatch(setIsMobileNavigationVisible(false));
     dispatch(setIsParkingListVisible(false));
     router.push(url);

@@ -4,6 +4,7 @@ import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import Modal from "~/components/Modal";
 import FormSelect from "~/components/Form/FormSelect";
+import FormCheckbox from "~/components/Form/FormCheckbox";
 import { FormHelperText } from "@mui/material";
 import HorizontalDivider from "~/components/HorizontalDivider";
 import RichTextEditor from "~/components/common/RichTextEditor";
@@ -20,7 +21,10 @@ type ParkingEditTarievenProps = {
   setNewOmschrijvingTarieven: React.Dispatch<
     React.SetStateAction<string | undefined>
   >;
-
+  newBerekentStallingskosten: boolean | undefined;
+  setNewBerekentStallingskosten: React.Dispatch<
+    React.SetStateAction<boolean | undefined>
+  >;
   canEdit: boolean;
 };
 
@@ -30,6 +34,8 @@ const ParkingEditTarieven = ({
   setNewTariefcode,
   newOmschrijvingTarieven,
   setNewOmschrijvingTarieven,
+  newBerekentStallingskosten,
+  setNewBerekentStallingskosten,
   canEdit,
 }: ParkingEditTarievenProps) => {
   const { tariefcodes, isLoading: isLoadingTariefcodes } = useTariefcodes();
@@ -55,9 +61,25 @@ const ParkingEditTarieven = ({
       ? "null"
       : currentTariefcode.toString();
 
+  const currentBerekentStallingskosten =
+    newBerekentStallingskosten !== undefined
+      ? newBerekentStallingskosten
+      : parkingdata.BerekentStallingskosten ?? false;
+
   return (
     <div className="flex w-full flex-col">
       <SectionBlockEdit>
+        <div className="mt-4">
+          <div><b>Berekening Stallingskosten</b></div>
+          <FormCheckbox
+            checked={currentBerekentStallingskosten}
+            onChange={(e) => setNewBerekentStallingskosten(e.target.checked)}
+            disabled={!canEdit}
+          >
+            Stallingskosten worden door het FMS berekend
+          </FormCheckbox>
+        </div>
+        <HorizontalDivider className="my-4" />
         <div className="mt-4">
           <FormSelect
             key="i-tariefcode"

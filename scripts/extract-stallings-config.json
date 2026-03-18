@@ -1,0 +1,12 @@
+{
+  "stallingsCount": 7,
+  "stallings": [
+    { "stallingID": "E2C3170A-EE9B-B3B4-D17D7CBE42AF7515", "newstallingname": "9933_001", "name": "API Betaalde Stalling" },
+    { "stallingID": "A32A713E-1960-4405-892A074407693784", "newstallingname": "9933_002", "name": "API Buurtstalling" },
+    { "stallingID": "81628706-9F3D-4EB2-91F0D33CCBF483A3", "newstallingname": "9933_003", "name": "API Fietskluizen" },
+    { "stallingID": "E2C31F68-B67A-467F-6D12DF5DC9F926B6", "newstallingname": "9933_004", "name": "API Geautomatiseerde Stalling" },
+    { "stallingID": "B77B5162-5ECA-4728-B5BC27D2E45816F0", "newstallingname": "9933_005", "name": "API Onbewaakte Stalling" },
+    { "stallingID": "61D5F5A3-B0B4-4085-9A1A648B7D5EB8A9", "newstallingname": "9933_006", "name": "API Fietstrommel" },
+    { "stallingID": "27006D80-B4BF-E371-8C622431B303ECCE", "newstallingname": "9933_007", "name": "API Toezicht" }
+  ]
+}

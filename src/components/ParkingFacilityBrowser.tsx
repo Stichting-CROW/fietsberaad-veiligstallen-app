@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setSelectedParkingId, setInitialLatLng } from "~/store/mapSlice";
+import { setSelectedParkingId, setInitialLatLng, setInitialZoom, setInitialViewAnimate, setActiveMunicipalityInfo } from "~/store/mapSlice";
 import { setQuery } from "~/store/filterSlice";
 import { setMunicipalities } from "~/store/geoSlice";
 
@@ -374,13 +374,22 @@ function ParkingFacilityBrowser({
               key={x.ID}
               title={x.CompanyName}
               onClick={() => {
-                // Fly to municipality
+                // Fly to municipality (with animation)
+                if (!x.Coordinaten) return;
                 const initialLatLng = convertCoordinatenToCoords(x.Coordinaten);
-                dispatch(setInitialLatLng(initialLatLng))
+                if (!initialLatLng) return;
+                dispatch(setActiveMunicipalityInfo(x));
+                dispatch(setInitialViewAnimate(true));
+                dispatch(setInitialZoom(x.Zoom || 13));
+                dispatch(setInitialLatLng(initialLatLng));
                 // Reset filterQuery
                 dispatch(setQuery(''));
                 // Hide parking list
                 dispatch(setIsParkingListVisible(false));
+                // Update URL to reflect selected municipality (for sharing)
+                if (x.UrlName && x.UrlName !== "fietsberaad" && typeof window !== "undefined") {
+                  window.history.pushState({}, "", `/${x.UrlName}`);
+                }
               }}
             />
           )

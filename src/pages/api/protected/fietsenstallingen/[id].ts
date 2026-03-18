@@ -307,8 +307,13 @@ export default async function handle(
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   
-  // For POST and DELETE, require admin rights
-  if ((req.method === "POST" || req.method === "DELETE") && !hasFietsenstallingenAdmin) {
+  // For POST and DELETE, require admin rights (or fietsberaad_superadmin for DELETE, e.g. parking simulation)
+  const hasSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  if (req.method === "POST" && !hasFietsenstallingenAdmin) {
+    res.status(403).json({ error: "Access denied - admin rights required for this operation" });
+    return;
+  }
+  if (req.method === "DELETE" && !hasFietsenstallingenAdmin && !hasSuperadmin) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
   }
@@ -585,32 +590,113 @@ export default async function handle(
     }
     case "DELETE": {
       try {
-        // First, get all sections for this fietsenstalling
-        const sections = await prisma.fietsenstalling_sectie.findMany({
-          where: { fietsenstallingsId: id },
-          select: { sectieId: true }
+        const stalling = await prisma.fietsenstallingen.findFirst({
+          where: { ID: id },
+          select: { ID: true, StallingsID: true, fietsenstalling_secties: { select: { sectieId: true } } },
         });
-
-        // Delete all sectie_fietstype records for each section
-        for (const section of sections) {
-          await prisma.sectie_fietstype.deleteMany({
-            where: { sectieID: section.sectieId }
-          });
+        if (!stalling) {
+          res.status(404).json({ error: "Stalling not found" });
+          return;
         }
+        const sectieIds = stalling.fietsenstalling_secties.map((s) => s.sectieId);
 
-        // Delete all sections
-        await prisma.fietsenstalling_sectie.deleteMany({
-          where: { fietsenstallingsId: id }
-        });
+        // Check if new_* tables exist (they may not in environments without FMS simulation setup)
+        const newTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_transacties'`
+        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
 
-        // Finally, delete the fietsenstalling
-        await prisma.fietsenstallingen.delete({
-          where: { ID: id }
-        });
+        const parkingsimulationTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() AND table_name = 'parkingsimulation_section_assignments'`
+        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
+
+        await prisma.$transaction(
+          async (tx) => {
+            const plekIds = await tx.fietsenstalling_plek.findMany({
+              where: { sectie_id: { in: sectieIds.map((sid) => BigInt(sid)) } },
+              select: { id: true },
+            });
+            if (plekIds.length > 0) {
+              await tx.fietsenstalling_plek_bezetting.deleteMany({
+                where: { plek_id: { in: plekIds.map((p) => p.id) } },
+              });
+            }
+            await tx.fietsenstalling_plek.deleteMany({
+              where: { sectie_id: { in: sectieIds.map((sid) => BigInt(sid)) } },
+            });
+            await tx.sectie_fietstype.deleteMany({
+              where: { sectieID: { in: sectieIds } },
+            });
+            await tx.fietsenstalling_sectie_kostenperioden.deleteMany({
+              where: { sectieId: { in: sectieIds } },
+            });
+            await tx.tariefregels.deleteMany({
+              where: { stallingsID: stalling.ID },
+            });
+            await tx.fietsenstalling_sectie.deleteMany({
+              where: { fietsenstallingsId: stalling.ID },
+            });
+            await tx.fietsenstallingen_services.deleteMany({
+              where: { FietsenstallingID: stalling.ID },
+            });
+            await tx.abonnementsvorm_fietsenstalling.deleteMany({
+              where: { BikeparkID: stalling.ID },
+            });
+            await tx.uitzonderingenopeningstijden.deleteMany({
+              where: { fietsenstallingsID: stalling.ID },
+            });
+            await tx.fietsenstallingen_winkansen.deleteMany({
+              where: { FietsenstallingID: stalling.ID },
+            });
+            await tx.contact_fietsenstalling.deleteMany({
+              where: { BikeparkID: stalling.ID },
+            });
+            // Queue and transaction data (no FK cascade)
+            if (stalling.StallingsID) {
+              await tx.wachtrij_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.wachtrij_pasids.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              await tx.wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+              if (newTablesExist) {
+                await tx.new_wachtrij_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                await tx.new_wachtrij_pasids.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                await tx.new_wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                await tx.new_wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                await tx.new_transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
+                await tx.new_financialtransactions.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                // Clear parked state so pasids don't retain stale time-related info (avoids negative Stallingsduur)
+                await tx.new_accounts_pasids.updateMany({
+                  where: { huidigeFietsenstallingId: stalling.StallingsID },
+                  data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
+                });
+              }
+              await tx.accounts_pasids.updateMany({
+                where: { huidigeFietsenstallingId: stalling.StallingsID },
+                data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
+              });
+              await tx.transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
+              if (parkingsimulationTablesExist) {
+                await tx.parkingsimulation_section_assignments.deleteMany({
+                  where: { locationid: stalling.StallingsID },
+                });
+              }
+            }
+            await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
+            if (newTablesExist) {
+              await tx.new_transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
+            }
+            await tx.fietsenstallingen.delete({
+              where: { ID: stalling.ID },
+            });
+          },
+          { timeout: 60000 }
+        );
         res.status(200).json({});
       } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
         console.error("Error deleting fietsenstalling:", e);
-        res.status(500).json({error: "Error deleting fietsenstalling"});
+        res.status(500).json({ error: "Error deleting fietsenstalling", message: msg });
       }
       break;
     }
