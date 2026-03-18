@@ -38,6 +38,7 @@ export default function SeoHead({
       <meta name="title" content={title} key="meta-title" />
       <meta name="description" content={description} key="meta-description" />
       <meta name="robots" content={robotsContent} key="meta-robots" />
+      <link rel="canonical" href={fullUrl} key="canonical" />
 
       {/* Open Graph / Facebook */}
       <meta property="og:type" content="website" key="og-type" />
