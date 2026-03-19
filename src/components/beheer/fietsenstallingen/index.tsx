@@ -30,6 +30,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const canDelete = hasFietsenstallingenAdmin;
 
   const [controleModalOpen, setControleModalOpen] = useState(false);
+  const [lastDatakwaliteitControleAt, setLastDatakwaliteitControleAt] = useState<Date | null | undefined>(undefined);
   const [currentParkingId, setCurrentParkingId] = useState<string | undefined>(undefined);
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
@@ -105,6 +106,28 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       setControleModalOpen(true);
     }
   }, [openControleModal]);
+
+  // Fetch last datakwaliteit controle for this contact
+  useEffect(() => {
+    if (!selectedGemeenteID) {
+      setLastDatakwaliteitControleAt(undefined);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/protected/contactpersonen/datakwaliteit-controle')
+      .then((res) => res.json())
+      .then((data: { lastControleAt?: string | null }) => {
+        if (!cancelled && data.lastControleAt) {
+          setLastDatakwaliteitControleAt(new Date(data.lastControleAt));
+        } else if (!cancelled) {
+          setLastDatakwaliteitControleAt(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLastDatakwaliteitControleAt(null);
+      });
+    return () => { cancelled = true; };
+  }, [selectedGemeenteID, controleModalOpen]);
 
   // Get parking object if parkingId changes
   useEffect(() => {
@@ -412,15 +435,24 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
               </button>
             )}
           </div>
-          <div className="mb-2">
-            <button
-              onClick={() => setSelectedStatusFilter('aanm')}
-              className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
-            >
-              <span className="text-yellow-600 text-lg">⚠️</span>
-              De stallingsdata is langer dan 6 maanden niet-gecontroleerd. Klik hier voor de controleprocedure
-            </button>
-          </div>
+          {(() => {
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            const showControleReminder =
+              lastDatakwaliteitControleAt !== undefined &&
+              (lastDatakwaliteitControleAt === null || lastDatakwaliteitControleAt <= sixMonthsAgo);
+            return showControleReminder ? (
+              <div className="mb-2">
+                <button
+                  onClick={() => setControleModalOpen(true)}
+                  className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
+                >
+                  <span className="text-yellow-600 text-lg">⚠️</span>
+                  De stallingsdata is langer dan 6 maanden niet-gecontroleerd. Klik hier voor de controleprocedure
+                </button>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         <div className="mb-4">
