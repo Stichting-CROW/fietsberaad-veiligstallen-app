@@ -15,9 +15,10 @@ import { StallingsdataControleModal } from './StallingsdataControleModal';
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
+  openControleModal?: boolean;
 }
 
-const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({ type }) => {
+const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({ type, openControleModal }) => {
   const router = useRouter();
   const { data: session, status } = useSession();
   const selectedGemeenteID = session?.user?.activeContactId || "";
@@ -98,6 +99,12 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       router.push('/login?redirect=/beheer/fietsenstallingen');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (openControleModal) {
+      setControleModalOpen(true);
+    }
+  }, [openControleModal]);
 
   // Get parking object if parkingId changes
   useEffect(() => {

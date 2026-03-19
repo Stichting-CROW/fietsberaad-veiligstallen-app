@@ -438,21 +438,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" />;
+            selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.Fietskluizen:
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="fietskluizen" />;
+            selectedComponent = <FietsenstallingenComponent type="fietskluizen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.Buurtstallingen:
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" />;
+            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.BarcodereeksenSleutelhangers: {

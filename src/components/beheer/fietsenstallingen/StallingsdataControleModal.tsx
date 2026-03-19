@@ -20,16 +20,32 @@ export function StallingsdataControleModal({
 }: StallingsdataControleModalProps) {
   const [checked, setChecked] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleCloseClick = (e?: React.MouseEvent) => {
     if(e) e.preventDefault();
     onClose();
   };
 
-  const handleBevestigen = (e: React.FormEvent) => {
+  const handleBevestigen = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (checked) {
-      setConfirmed(true);
+    if (!checked || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/protected/contactpersonen/datakwaliteit-controle", {
+        method: "POST",
+      });
+      if (res.ok) {
+        setConfirmed(true);
+      } else {
+        const data = (await res.json()) as { error?: string };
+        alert(data.error ?? "Het opslaan van de controle is mislukt.");
+      }
+    } catch (err) {
+      console.error("datakwaliteit-controle error:", err);
+      alert("Er is een fout opgetreden bij het opslaan.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -96,10 +112,10 @@ export function StallingsdataControleModal({
           </div>
           <button
             type="submit"
-            disabled={!checked}
+            disabled={!checked || submitting}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Bevestigen
+            {submitting ? "Bezig..." : "Bevestigen"}
           </button>
         </form>
       ) : (

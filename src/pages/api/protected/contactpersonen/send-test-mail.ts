@@ -31,7 +31,7 @@ function buildTabelHtml(
     status?: string | null;
   }[]
 ): string {
-  const buttons = `<p style="${P_STYLE}"><a href="" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
+  const buttons = `<p style="${P_STYLE}"><a href="${BASE_URL}/beheer/fietsenstallingen/controle" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
   if (fietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
   }

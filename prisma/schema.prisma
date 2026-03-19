@@ -534,6 +534,7 @@ model contacts {
   isManagedByContacts contact_contact[] @relation("isManagedByContacts")
 
   user_contact_roles user_contact_role[] @relation("ContactUserContactRole")
+  contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
 
   @@unique([ItemType, CompanyName], map: "ItemType")
   @@index([CompanyName], map: "CompanyName")
@@ -550,6 +551,20 @@ model contacts_faq {
   @@unique([SiteID, FaqID], map: "SiteID")
   @@index([FaqID], map: "FK4D3BB92A5CC39A7")
   @@index([SiteID], map: "FK4D3BB92A668AE523")
+}
+
+model contacts_datakwaliteitcontroles {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  createdAt  DateTime @default(now())
+  contact_id String   @db.VarChar(35)
+  user_id    String   @db.VarChar(35)
+
+  contact contacts       @relation(fields: [contact_id], references: [ID], onDelete: Restrict, onUpdate: Restrict)
+  user    security_users @relation(fields: [user_id], references: [UserID], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([contact_id])
+  @@index([user_id])
+  @@index([createdAt])
 }
 
 model contacts_fietsberaad {
@@ -1251,7 +1266,8 @@ model security_users {
   Status                String?                @db.VarChar(4)
   security_roles        security_roles?        @relation(fields: [RoleID], references: [RoleID], onDelete: Restrict, onUpdate: Restrict, map: "security_users_ibfk_1")
   security_users_sites  security_users_sites[]
-  user_contact_roles    user_contact_role[]    
+  user_contact_roles    user_contact_role[]
+  contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
 
   @@unique([UserID, SiteID], map: "unique_userID_siteID")
   @@index([RoleID], map: "RoleID")
