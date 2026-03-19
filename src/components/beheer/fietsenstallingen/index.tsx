@@ -598,7 +598,10 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       {currentParkingId === undefined ? renderOverview() : renderEdit()}
       {controleModalOpen && (
         <StallingsdataControleModal
-          onClose={() => setControleModalOpen(false)}
+          onClose={() => {
+            setControleModalOpen(false);
+            router.push(`/beheer/${type}`);
+          }}
           session={session}
         />
       )}

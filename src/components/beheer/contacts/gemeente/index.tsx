@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import GemeenteEdit from "~/components/contact/GemeenteEdit";
 import ContactpersonenEmail from "~/components/beheer/contacts/ContactpersonenEmail";
+import DatakwaliteitControles from "~/components/beheer/contacts/DatakwaliteitControles";
 import type { VSFietsenstallingType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import GemeenteFilter from '~/components/beheer/common/GemeenteFilter';
@@ -373,8 +374,11 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
   }
 
   const id = router.query.id as string | undefined;
-  if (id === "contactpersonen") {
+  if (id === "mail-contactpersonen") {
     return <ContactpersonenEmail />;
+  }
+  if (id === "datakwaliteitcontroles") {
+    return <DatakwaliteitControles />;
   }
 
   return (

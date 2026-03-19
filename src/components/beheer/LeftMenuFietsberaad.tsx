@@ -91,15 +91,30 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          router.push('/beheer/contactsgemeenten/contactpersonen')
+                          router.push('/beheer/contactsgemeenten/mail-contactpersonen')
                         }
                         className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                          router.asPath.includes('contactpersonen')
+                          router.asPath.includes('mail-contactpersonen')
                             ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
                             : 'text-gray-700 hover:bg-gray-100'
                         }`}
                       >
-                        <span className="truncate">Contactpersonen</span>
+                        <span className="truncate">Mail contactpersonen</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push('/beheer/contactsgemeenten/datakwaliteitcontroles')
+                        }
+                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          router.asPath.includes('datakwaliteitcontroles')
+                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="truncate">Datakwaliteit-controles</span>
                       </button>
                     </li>
                   </ul>
