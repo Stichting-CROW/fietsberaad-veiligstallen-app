@@ -74,6 +74,17 @@ const config = {
   },
   distDir: "build",
   output: "standalone",
+
+  /** Use polling instead of native file watchers to avoid EMFILE on Linux */
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+    return config;
+  },
   async rewrites() {
     return [
       { source: "/sitemap.xml", destination: "/api/sitemap.xml" },
