@@ -423,7 +423,17 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <LogboekComponent />;
           break;
         case VSMenuTopic.UsersGebruikersbeheerFietsberaad:
-          selectedComponent = <UsersComponent siteID={"1"} contacts={contacts} />;
+          selectedComponent = (
+            <UsersComponent
+              siteID={"1"}
+              contacts={contacts}
+              initialEditUserId={
+                queryRouter.query.id && typeof queryRouter.query.id === "string"
+                  ? queryRouter.query.id
+                  : undefined
+              }
+            />
+          );
           break;
         case VSMenuTopic.UsersGebruikersbeheerGemeente:
           selectedComponent = <UsersComponent siteID={selectedContactID} contacts={contacts} />;

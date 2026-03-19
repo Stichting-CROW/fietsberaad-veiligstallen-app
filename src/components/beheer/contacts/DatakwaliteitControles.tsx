@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { Table } from "~/components/common/Table";
 import { SearchFilter } from "~/components/common/SearchFilter";
 import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
@@ -159,7 +160,18 @@ export default function DatakwaliteitControles() {
               const email = row.user?.UserName?.includes("@")
                 ? row.user.UserName
                 : null;
-              return email ? `${name} (${email})` : name;
+              const displayText = email ? `${name} (${email})` : name;
+              const userId = row.user_id;
+              return (
+                <Link
+                  href={`/beheer/usersgebruikersbeheerfietsberaad/${userId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-600 hover:text-sky-800 hover:underline"
+                >
+                  {displayText}
+                </Link>
+              );
             },
           },
         ]}
