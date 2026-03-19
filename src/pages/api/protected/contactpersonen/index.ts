@@ -75,25 +75,23 @@ export default async function handle(
     });
     const gemeenteMap = new Map(gemeenten.map((g) => [g.ID, g]));
 
-    const contactFietsenstallingen = await prisma.contact_fietsenstalling.findMany({
-      where: { SiteID: { in: siteIds } },
-      select: { BikeparkID: true, SiteID: true },
-    });
-
-    const bikeparkIds = [...new Set(contactFietsenstallingen.map((cf) => cf.BikeparkID))];
     const fietsenstallingen = await prisma.fietsenstallingen.findMany({
-      where: { ID: { in: bikeparkIds }, Status: { not: "0" } },
-      select: { ID: true, Title: true },
+      where: {
+        SiteID: { in: siteIds },
+        Status: { not: "0" },
+        StallingsID: { not: null },
+        Title: { not: "Systeemstalling" },
+        contacts_fietsenstallingen_SiteIDTocontacts: { Status: { not: "0" } },
+      },
+      select: { ID: true, Title: true, SiteID: true },
     });
-    const stallingMap = new Map(fietsenstallingen.map((f) => [f.ID, f]));
 
     const stallingenBySite = new Map<string, { id: string; title: string | null }[]>();
-    for (const cf of contactFietsenstallingen) {
-      const f = stallingMap.get(cf.BikeparkID);
-      if (!f) continue;
-      const list = stallingenBySite.get(cf.SiteID) ?? [];
+    for (const f of fietsenstallingen) {
+      if (!f.SiteID) continue;
+      const list = stallingenBySite.get(f.SiteID) ?? [];
       list.push({ id: f.ID, title: f.Title });
-      stallingenBySite.set(cf.SiteID, list);
+      stallingenBySite.set(f.SiteID, list);
     }
 
     const result: ContactpersonWithStallingen[] = [];

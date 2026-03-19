@@ -47,7 +47,7 @@ function buildTabelHtml(
     const bewerkUrl = `${BASE_URL}/beheer/fietsenstallingen?id=${s.id}`;
     return `<tr><td>${name}</td><td><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
   });
-  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th>Naam fietsenstalling</th><th>Bekijk</th><th>Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th align="left">Naam fietsenstalling</th><th align="left">Bekijk</th><th align="left">Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
   return table + buttons;
 }
 
@@ -104,37 +104,33 @@ export default async function handle(
     },
   });
 
-  const contactFietsenstallingen = await prisma.contact_fietsenstalling.findMany({
-    where: {
-      SiteID: { in: [...new Set(recipients.map((r) => r.contactId))] },
-    },
-    select: { BikeparkID: true, SiteID: true },
-  });
+  const siteIds = [...new Set(recipients.map((r) => r.contactId))];
 
   const fietsenstallingen = await prisma.fietsenstallingen.findMany({
     where: {
-      ID: { in: [...new Set(contactFietsenstallingen.map((cf) => cf.BikeparkID))] },
+      SiteID: { in: siteIds },
       Status: { not: "0" },
+      StallingsID: { not: null },
+      Title: { not: "Systeemstalling" },
+      contacts_fietsenstallingen_SiteIDTocontacts: { Status: { not: "0" } },
     },
-    select: { ID: true, Title: true },
+    select: { ID: true, Title: true, SiteID: true },
   });
-  const stallingMap = new Map(fietsenstallingen.map((f) => [f.ID, f]));
 
   const gemeenten = await prisma.contacts.findMany({
-    where: { ID: { in: [...new Set(recipients.map((r) => r.contactId))] } },
+    where: { ID: { in: siteIds } },
     select: { ID: true, UrlName: true, CompanyName: true },
   });
   const urlNameMap = new Map(gemeenten.map((g) => [g.ID, g.UrlName]));
   const contactNameMap = new Map(gemeenten.map((g) => [g.ID, g.CompanyName ?? g.ID]));
 
   const stallingenBySite = new Map<string, { id: string; title: string | null; urlName: string | null }[]>();
-  for (const cf of contactFietsenstallingen) {
-    const f = stallingMap.get(cf.BikeparkID);
-    if (!f) continue;
-    const urlName = urlNameMap.get(cf.SiteID) ?? null;
-    const list = stallingenBySite.get(cf.SiteID) ?? [];
+  for (const f of fietsenstallingen) {
+    if (!f.SiteID) continue;
+    const urlName = urlNameMap.get(f.SiteID) ?? null;
+    const list = stallingenBySite.get(f.SiteID) ?? [];
     list.push({ id: f.ID, title: f.Title, urlName });
-    stallingenBySite.set(cf.SiteID, list);
+    stallingenBySite.set(f.SiteID, list);
   }
 
   const transporter = createMailer(cfg);

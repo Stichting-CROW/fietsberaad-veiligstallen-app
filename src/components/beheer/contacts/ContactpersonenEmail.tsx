@@ -11,7 +11,7 @@ const TEMPLATE_KEY = "mail-reminder-aan-contactpersonen";
 
 const DEFAULT_SUBJECT = "VeiligStallen: zijn de fietsenstallingen up to date?";
 
-const DEFAULT_TEMPLATE = `Hallo contactpersoon van [data-eigenaar] in VeiligStallen,
+const DEFAULT_TEMPLATE = `Beste contactpersoon van [data-eigenaar] in VeiligStallen,
 
 Is de informatie van onderstaande fietsenstallingen nog correct en up to date?
 
@@ -42,7 +42,7 @@ function buildTabelHtml(
     qs.set("stallingid", s.id);
     const bekijkUrl = `${BASE_URL}${path}/?${qs.toString()}`;
     const bewerkUrl = `${BASE_URL}/beheer/fietsenstallingen?id=${s.id}`;
-    return `<tr><td><b>${name}</b></td><td><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
+    return `<tr><td>${name}</td><td><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
   });
   const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th>Naam fietsenstalling</th><th>Bekijk</th><th>Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
   return table + buttons;
@@ -165,7 +165,14 @@ const ContactpersonenEmail: React.FC = () => {
   };
 
   const getPreviewHtml = () => {
-    const c = contactpersonen[0];
+    let c: ContactpersonWithStallingen | undefined;
+    if (selectedRecipients.size === 1) {
+      const key = Array.from(selectedRecipients)[0];
+      c = contactpersonen.find(
+        (x) => `${x.UserID}:${x.ContactID}` === key
+      );
+    }
+    c = c ?? contactpersonen[0];
     if (!c) return "";
     const tabelHtml = buildTabelHtml(c.fietsenstallingen);
     const dataEigenaar = c.ContactName ?? c.ContactID;
@@ -422,7 +429,7 @@ const ContactpersonenEmail: React.FC = () => {
         <div className="max-w-2xl">
           <p className="text-green-700 font-medium">
             E-mail succesvol verzonden. Je hebt een kopie gekregen van alle
-            e-mails op het emailadres waarmee je bent ingelogd
+            e-mails op het e-mailadres waarmee je bent ingelogd
           </p>
           <button
             type="button"
