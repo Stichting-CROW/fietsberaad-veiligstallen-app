@@ -1,5 +1,6 @@
 // LeftMenuFietsberaad.tsx
 import React from 'react';
+import { useRouter } from 'next/router';
 import {
   FiBriefcase,
   FiClock,
@@ -18,9 +19,8 @@ import {
 
 import { VSSecurityTopic, type VSUserSecurityProfile } from '~/types/securityprofile';
 import { VSMenuTopic } from '~/types/';
-import { VSUserRoleValuesNew } from '~/types/users';
 
-import { userHasRight, userHasRole } from '~/types/utils';
+import { userHasRight } from '~/types/utils';
 interface LeftMenuFietsberaadProps {
   securityProfile?: VSUserSecurityProfile;
   activecomponent: VSMenuTopic | undefined;
@@ -34,7 +34,9 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
   activecomponent,
   onSelect,
 }) => {
-  // Do only show reports? Temporary for testing, 2025-05
+  const router = useRouter();
+  const isOnContactsGemeentenPath =
+    router.asPath.startsWith('/beheer/contactsgemeenten');
 
   const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
@@ -82,7 +84,27 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiMapPin}
-              />
+              >
+                {isOnContactsGemeentenPath && (
+                  <ul className="ml-4 mt-1 space-y-1">
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push('/beheer/contactsgemeenten/contactpersonen')
+                        }
+                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          router.asPath.includes('contactpersonen')
+                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="truncate">Contactpersonen</span>
+                      </button>
+                    </li>
+                  </ul>
+                )}
+              </LeftMenuItem>
               <LeftMenuItem
                 component={VSMenuTopic.ContactsExploitanten}
                 title={'Exploitanten'}

@@ -41,8 +41,7 @@ export function StallingsdataControleModal({
     <Modal onClose={onClose} title="Stallingsdata controle" clickOutsideClosesDialog={false}>
       <h2 className="text-xl font-bold mb-4">Stallingsdata controle</h2>
       <p className="mb-4">
-        Op deze pagina kun je aangeven of de datakwaliteit van de stallingen juist is.
-        Periodiek vragen we je deze te controleren. De procedure is als volgt:
+        Op deze pagina kun je aangeven dat de informatie over de stallingen juist is. Periodiek vragen we je deze te controleren. De procedure is als volgt:
       </p>
       <ol className="list-decimal list-inside mb-6 space-y-2">
         <li>
