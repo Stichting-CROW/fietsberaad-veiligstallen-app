@@ -15,6 +15,8 @@ export type ContactpersonWithStallingen = {
     id: string;
     title: string | null;
     urlName: string | null;
+    type: string;
+    status: string | null;
   }[];
 };
 
@@ -78,19 +80,29 @@ export default async function handle(
     const fietsenstallingen = await prisma.fietsenstallingen.findMany({
       where: {
         SiteID: { in: siteIds },
-        Status: { not: "0" },
         StallingsID: { not: null },
         Title: { not: "Systeemstalling" },
         contacts_fietsenstallingen_SiteIDTocontacts: { Status: { not: "0" } },
       },
-      select: { ID: true, Title: true, SiteID: true },
+      select: {
+        ID: true,
+        Title: true,
+        SiteID: true,
+        Type: true,
+        Status: true,
+        fietsenstalling_type: { select: { name: true } },
+      },
     });
 
-    const stallingenBySite = new Map<string, { id: string; title: string | null }[]>();
+    const stallingenBySite = new Map<
+      string,
+      { id: string; title: string | null; type: string; status: string | null }[]
+    >();
     for (const f of fietsenstallingen) {
       if (!f.SiteID) continue;
+      const type = f.fietsenstalling_type?.name ?? f.Type ?? "Onbekend";
       const list = stallingenBySite.get(f.SiteID) ?? [];
-      list.push({ id: f.ID, title: f.Title });
+      list.push({ id: f.ID, title: f.Title, type, status: f.Status });
       stallingenBySite.set(f.SiteID, list);
     }
 
@@ -114,6 +126,8 @@ export default async function handle(
         id: s.id,
         title: s.title,
         urlName: gemeente.UrlName,
+        type: s.type,
+        status: s.status,
       }));
 
       result.push({

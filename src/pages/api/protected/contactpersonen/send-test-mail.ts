@@ -16,15 +16,34 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen
 
 const P_STYLE = "margin-top:10px;margin-bottom:10px";
 
+function formatStallingName(name: string, status: string | null): string {
+  if (status === "aanm") return `${name} (aanmelding)`;
+  if (status === "0") return `${name} (inactief)`;
+  return name;
+}
+
 function buildTabelHtml(
-  fietsenstallingen: { id: string; title: string | null; urlName: string | null }[]
+  fietsenstallingen: {
+    id: string;
+    title: string | null;
+    urlName: string | null;
+    type: string;
+    status?: string | null;
+  }[]
 ): string {
   const buttons = `<p style="${P_STYLE}"><a href="" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
   if (fietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
   }
-  const rows = fietsenstallingen.map((s) => {
-    const name = s.title ?? "Onbekend";
+  const sorted = [...fietsenstallingen].sort((a, b) => {
+    if (a.type !== b.type) return a.type.localeCompare(b.type);
+    const nameA = a.title ?? "";
+    const nameB = b.title ?? "";
+    return nameA.localeCompare(nameB);
+  });
+  const rows = sorted.map((s) => {
+    const baseName = s.title ?? "Onbekend";
+    const name = formatStallingName(baseName, s.status ?? null);
     const path = s.urlName ? `/${s.urlName}` : "";
     const nameSlug = s.title ? titleToSlug(s.title) : "";
     const qs = new URLSearchParams();
@@ -32,9 +51,9 @@ function buildTabelHtml(
     qs.set("stallingid", s.id);
     const bekijkUrl = `${BASE_URL}${path}/?${qs.toString()}`;
     const bewerkUrl = `${BASE_URL}/beheer/fietsenstallingen?id=${s.id}`;
-    return `<tr><td>${name}</td><td><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
+    return `<tr><td align="left">${name}</td><td align="left">${s.type}</td><td align="left"><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td align="left"><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
   });
-  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th>Naam fietsenstalling</th><th>Bekijk</th><th>Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th align="left">Naam fietsenstalling</th><th align="left">Type</th><th align="left">Bekijk</th><th align="left">Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
   return table + buttons;
 }
 
@@ -49,7 +68,13 @@ const schema = z.object({
   outroText: z.string(),
   sampleData: z.object({
     fietsenstallingen: z.array(
-      z.object({ id: z.string(), title: z.string().nullable(), urlName: z.string().nullable() })
+      z.object({
+        id: z.string(),
+        title: z.string().nullable(),
+        urlName: z.string().nullable(),
+        type: z.string(),
+        status: z.string().nullable().optional(),
+      })
     ),
     dataEigenaar: z.string(),
   }),
