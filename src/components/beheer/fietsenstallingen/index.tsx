@@ -145,18 +145,17 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   }, [currentRevision]);
 
   useEffect(() => {
-    if("id" in router.query) {
+    if ("id" in router.query) {
       const id = router.query.id;
-      if(id) {
+      // "controle" is a special path for the datakwaliteit modal, not a parking ID
+      if (id && id !== "controle") {
         setCurrentParkingId(id as string);
       } else {
-        // Clear the current parking ID when navigating to the overview page
         setCurrentParkingId(undefined);
       }
     } else {
-      // Clear the current parking ID when no ID is in the URL
       setCurrentParkingId(undefined);
-    }   
+    }
   }, [router.query.id]);
 
   useEffect(() => {

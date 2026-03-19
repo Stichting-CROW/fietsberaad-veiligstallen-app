@@ -10,6 +10,7 @@ import {
   requireSmtpConfig,
 } from "~/utils/server/mail-tools";
 import { titleToSlug } from "~/utils/slug";
+import { calculateMagicLinkToken } from "~/utils/token-tools";
 import { z } from "zod";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
@@ -29,9 +30,19 @@ function buildTabelHtml(
     urlName: string | null;
     type: string;
     status?: string | null;
-  }[]
+  }[],
+  userId: string,
+  contactId: string
 ): string {
-  const buttons = `<p style="${P_STYLE}"><a href="${BASE_URL}/beheer/fietsenstallingen/controle" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
+  const magicToken =
+    userId && contactId ? calculateMagicLinkToken(userId, contactId, 14) : false;
+  const jaUrl = magicToken
+    ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen/controle")}`
+    : `${BASE_URL}/beheer/fietsenstallingen/controle`;
+  const neeUrl = magicToken
+    ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen")}`
+    : `${BASE_URL}/beheer/fietsenstallingen`;
+  const buttons = `<p style="${P_STYLE}"><a href="${jaUrl}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${neeUrl}" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
   if (fietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
   }
@@ -117,7 +128,10 @@ export default async function handle(
   }
 
   const { subject, templateBody, introText, outroText, sampleData } = parsed.data;
-  const tabelHtml = buildTabelHtml(sampleData.fietsenstallingen);
+  const userId = session.user.id;
+  const contactId =
+    session.user.activeContactId ?? session.user.mainContactId ?? "";
+  const tabelHtml = buildTabelHtml(sampleData.fietsenstallingen, userId, contactId);
   const dataEigenaar = sampleData.dataEigenaar;
 
   const body = removeEmptyShortcodes(templateBody, introText, outroText);

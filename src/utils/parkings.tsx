@@ -20,7 +20,7 @@ export const findParkingIndex = (parkings: fietsenstallingen[], parkingId: strin
 
 export const getParkingDetails = async (stallingId: string): Promise<ParkingDetailsType | null> => {
   try {
-    if (!stallingId || stallingId === "new") {
+    if (!stallingId || stallingId === "new" || stallingId === "controle") {
       console.warn("getParkingDetails - invalid stallingId:", stallingId);
       return null;
     }

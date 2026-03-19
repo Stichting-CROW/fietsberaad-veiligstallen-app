@@ -47,11 +47,14 @@ function buildTabelHtml(
   userId: string,
   contactId: string
 ): string {
-  const magicToken = calculateMagicLinkToken(userId, contactId, 14);
+  const magicToken =
+    userId && contactId ? calculateMagicLinkToken(userId, contactId, 14) : false;
   const jaUrl = magicToken
     ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen/controle")}`
     : `${BASE_URL}/beheer/fietsenstallingen/controle`;
-  const neeUrl = `${BASE_URL}/beheer/fietsenstallingen`;
+  const neeUrl = magicToken
+    ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen")}`
+    : `${BASE_URL}/beheer/fietsenstallingen`;
   const buttons = `<p style="${P_STYLE}"><a href="${jaUrl}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${neeUrl}" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
   if (fietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
