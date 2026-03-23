@@ -106,6 +106,36 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                       <button
                         type="button"
                         onClick={() =>
+                          router.push('/beheer/contactsgemeenten/mailfrequentie-contactpersonen')
+                        }
+                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          router.asPath.includes('mailfrequentie-contactpersonen')
+                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="truncate">Mailfrequentie</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push('/beheer/contactsgemeenten/mailsjabloon')
+                        }
+                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          router.asPath.includes('mailsjabloon')
+                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="truncate">Bewerk mailsjabloon</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() =>
                           router.push('/beheer/contactsgemeenten/datakwaliteitcontroles')
                         }
                         className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Modal from "~/components/Modal";
 import FormInput from "~/components/Form/FormInput";
-import FormTextarea from "~/components/Form/FormTextarea";
 import TipTapEditor from "~/components/common/TipTapEditor";
 import type { ContactpersonWithStallingen } from "~/pages/api/protected/contactpersonen";
 import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
@@ -80,16 +79,14 @@ function formatTemplateBodyForHtml(templateBody: string): string {
 
 function renderPreview(
   templateBody: string,
-  introText: string,
-  outroText: string,
   tabelHtml: string,
   dataEigenaar: string
 ): string {
-  const body = removeEmptyShortcodes(templateBody, introText, outroText);
+  const body = removeEmptyShortcodes(templateBody, "", "");
   return formatTemplateBodyForHtml(body)
     .replace(/\[tabel\]/g, tabelHtml)
-    .replace(/\[intro\]/g, nl2br(introText))
-    .replace(/\[outro\]/g, nl2br(outroText))
+    .replace(/\[intro\]/g, "")
+    .replace(/\[outro\]/g, "")
     .replace(/\[data-eigenaar\]/g, dataEigenaar);
 }
 
@@ -98,8 +95,6 @@ const ContactpersonenEmail: React.FC = () => {
   const [step, setStep] = useState<1 | 3>(1);
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [templateBody, setTemplateBody] = useState("");
-  const [introText, setIntroText] = useState("");
-  const [outroText, setOutroText] = useState("");
   const [selectedRecipients, setSelectedRecipients] = useState<
     Set<string>
   >(new Set());
@@ -110,11 +105,9 @@ const ContactpersonenEmail: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showTestMailConfirmModal, setShowTestMailConfirmModal] = useState(false);
-  const [templateEditValue, setTemplateEditValue] = useState("");
   const [recipientSearch, setRecipientSearch] = useState("");
   const [selectedTestContactId, setSelectedTestContactId] = useState("");
 
@@ -142,7 +135,6 @@ const ContactpersonenEmail: React.FC = () => {
       if (!res.ok) throw new Error(json.error ?? "Failed to fetch template");
       const body = (json.body ?? "").trim() || DEFAULT_TEMPLATE;
       setTemplateBody(body);
-      setTemplateEditValue(body);
     } catch (e) {
       console.error("Fetch template error:", e);
     }
@@ -230,25 +222,6 @@ const ContactpersonenEmail: React.FC = () => {
     });
   };
 
-  const saveTemplate = async () => {
-    try {
-      const res = await fetch(
-        `/api/protected/mail-templates/${TEMPLATE_KEY}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: templateEditValue }),
-        }
-      );
-      const json = (await res.json()) as { body?: string; error?: string };
-      if (!res.ok) throw new Error(json.error ?? "Failed to save");
-      setTemplateBody(json.body ?? templateEditValue);
-      setShowTemplateModal(false);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Fout bij opslaan");
-    }
-  };
-
   const getPreviewHtml = () => {
     let c: ContactpersonWithStallingen | undefined;
     if (selectedRecipients.size === 1) {
@@ -263,8 +236,6 @@ const ContactpersonenEmail: React.FC = () => {
     const dataEigenaar = c.ContactName ?? c.ContactID;
     return renderPreview(
       templateBody,
-      introText,
-      outroText,
       tabelHtml,
       dataEigenaar
     );
@@ -319,8 +290,8 @@ const ContactpersonenEmail: React.FC = () => {
           body: JSON.stringify({
             subject,
             templateBody,
-            introText,
-            outroText,
+            introText: "",
+            outroText: "",
             sampleData,
           }),
         }
@@ -351,8 +322,8 @@ const ContactpersonenEmail: React.FC = () => {
           body: JSON.stringify({
             subject,
             templateBody,
-            introText,
-            outroText,
+            introText: "",
+            outroText: "",
             recipients,
           }),
         }
@@ -396,22 +367,6 @@ const ContactpersonenEmail: React.FC = () => {
       {step === 1 && (
         <div className="max-w-2xl space-y-6">
           <div>
-            <div className="mb-2">
-              <b>Mailsjabloon</b>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setTemplateEditValue(templateBody);
-                setShowTemplateModal(true);
-              }}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              Update mail sjabloon
-            </button>
-          </div>
-
-          <div>
             <FormInput
               label="Mail-onderwerp"
               type="text"
@@ -423,20 +378,18 @@ const ContactpersonenEmail: React.FC = () => {
           </div>
 
           <div>
-            <FormTextarea
-              label="Intro text"
-              value={introText}
-              onChange={(e) => setIntroText(e.target.value)}
-              rows={4}
-            />
-          </div>
-
-          <div>
-            <FormTextarea
-              label="Outro text"
-              value={outroText}
-              onChange={(e) => setOutroText(e.target.value)}
-              rows={4}
+            <div className="mb-2">
+              <label className="block font-bold">
+                Inhoud e-mail
+              </label>
+              <p className="text-sm text-gray-600">
+                Standaard geladen vanuit mailsjabloon. Placeholders: [data-eigenaar], [tabel]
+              </p>
+            </div>
+            <TipTapEditor
+              value={templateBody}
+              onChange={setTemplateBody}
+              placeholder="Schrijf de e-mailinhoud..."
             />
           </div>
 
@@ -542,40 +495,6 @@ const ContactpersonenEmail: React.FC = () => {
         </div>
       )}
 
-      {showTemplateModal && (
-        <Modal onClose={() => setShowTemplateModal(false)}>
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">
-              Mailsjabloon bewerken
-            </h2>
-            <p className="text-sm text-gray-600">
-              Placeholders: [data-eigenaar], [tabel], [intro], [outro]
-            </p>
-            <TipTapEditor
-              value={templateEditValue}
-              onChange={setTemplateEditValue}
-              placeholder="Schrijf het mailsjabloon..."
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowTemplateModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Annuleren
-              </button>
-              <button
-                type="button"
-                onClick={saveTemplate}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Opslaan
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
       {showTestMailConfirmModal && (
         <Modal
           onClose={() => setShowTestMailConfirmModal(false)}
@@ -593,7 +512,7 @@ const ContactpersonenEmail: React.FC = () => {
               >
                 {testMunicipalityOptions.map((option) => (
                   <option key={option.id} value={option.id}>
-                    {option.name} ({option.id})
+                    {option.name}
                   </option>
                 ))}
               </select>
