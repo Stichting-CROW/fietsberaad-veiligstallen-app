@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Modal from "~/components/Modal";
 import FormInput from "~/components/Form/FormInput";
 import FormTextarea from "~/components/Form/FormTextarea";
+import TipTapEditor from "~/components/common/TipTapEditor";
 import type { ContactpersonWithStallingen } from "~/pages/api/protected/contactpersonen";
 import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
 import { titleToSlug } from "~/utils/slug";
@@ -72,6 +73,11 @@ function nl2br(text: string): string {
   return text.replace(/\n/g, "<br />");
 }
 
+function formatTemplateBodyForHtml(templateBody: string): string {
+  // Keep rich-text HTML as-is, but support legacy plain text templates.
+  return /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
+}
+
 function renderPreview(
   templateBody: string,
   introText: string,
@@ -80,7 +86,7 @@ function renderPreview(
   dataEigenaar: string
 ): string {
   const body = removeEmptyShortcodes(templateBody, introText, outroText);
-  return nl2br(body)
+  return formatTemplateBodyForHtml(body)
     .replace(/\[tabel\]/g, tabelHtml)
     .replace(/\[intro\]/g, nl2br(introText))
     .replace(/\[outro\]/g, nl2br(outroText))
@@ -109,6 +115,8 @@ const ContactpersonenEmail: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showTestMailConfirmModal, setShowTestMailConfirmModal] = useState(false);
   const [templateEditValue, setTemplateEditValue] = useState("");
+  const [recipientSearch, setRecipientSearch] = useState("");
+  const [selectedTestContactId, setSelectedTestContactId] = useState("");
 
   const fetchContactpersonen = async () => {
     setLoading(true);
@@ -145,15 +153,72 @@ const ContactpersonenEmail: React.FC = () => {
     fetchTemplate();
   }, []);
 
+  useEffect(() => {
+    if (contactpersonen.length === 0 || selectedTestContactId) return;
+    const utrechtContact = contactpersonen.find((c) => {
+      const contactId = (c.ContactID ?? "").toLowerCase();
+      const contactName = (c.ContactName ?? "").toLowerCase();
+      return contactId === "utrecht" || contactName === "utrecht";
+    });
+    setSelectedTestContactId(
+      (utrechtContact?.ContactID ?? contactpersonen[0]?.ContactID ?? "").toString()
+    );
+  }, [contactpersonen, selectedTestContactId]);
+
+  const filteredContactpersonen = useMemo(() => {
+    const sorted = [...contactpersonen].sort((a, b) => {
+      const labelA = `${a.DisplayName || a.UserName} (${a.ContactName ?? a.ContactID})`;
+      const labelB = `${b.DisplayName || b.UserName} (${b.ContactName ?? b.ContactID})`;
+      return labelA.localeCompare(labelB, "nl", { sensitivity: "base" });
+    });
+
+    const term = recipientSearch.trim().toLowerCase();
+    if (!term) return sorted;
+
+    return sorted.filter((c) => {
+      const fields = [
+        c.DisplayName,
+        c.UserName,
+        c.ContactName,
+        c.ContactID,
+      ].map((value) => (value ?? "").toLowerCase());
+      return fields.some((field) => field.includes(term));
+    });
+  }, [contactpersonen, recipientSearch]);
+
+  const testMunicipalityOptions = useMemo(() => {
+    const municipalityMap = new Map<string, string>();
+    for (const c of contactpersonen) {
+      const key = c.ContactID;
+      if (!municipalityMap.has(key)) {
+        municipalityMap.set(key, c.ContactName ?? c.ContactID);
+      }
+    }
+    return Array.from(municipalityMap.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], "nl", { sensitivity: "base" }))
+      .map(([id, name]) => ({ id, name }));
+  }, [contactpersonen]);
+
   const selectAll = () => {
-    const ids = contactpersonen.map(
+    const ids = filteredContactpersonen.map(
       (c) => `${c.UserID}:${c.ContactID}`
     );
-    setSelectedRecipients(new Set(ids));
+    setSelectedRecipients((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
   };
 
   const selectNone = () => {
-    setSelectedRecipients(new Set());
+    const idsToRemove = new Set(
+      filteredContactpersonen.map((c) => `${c.UserID}:${c.ContactID}`)
+    );
+    setSelectedRecipients((prev) => {
+      const next = new Set(prev);
+      idsToRemove.forEach((id) => next.delete(id));
+      return next;
+    });
   };
 
   const toggleRecipient = (key: string) => {
@@ -229,7 +294,9 @@ const ContactpersonenEmail: React.FC = () => {
     setSendingTest(true);
     setError(null);
     try {
-      const c = contactpersonen[0];
+      const c =
+        contactpersonen.find((item) => item.ContactID === selectedTestContactId) ??
+        contactpersonen[0];
       const sampleData = c
         ? {
             fietsenstallingen: c.fietsenstallingen,
@@ -378,30 +445,39 @@ const ContactpersonenEmail: React.FC = () => {
               <label className="block font-bold">
                 Ontvangers
               </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={selectAll}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Selecteer alle
-                </button>
-                <button
-                  type="button"
-                  onClick={selectNone}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Selecteer geen
-                </button>
+              <div className="flex items-center gap-3">
+                <input
+                  type="search"
+                  value={recipientSearch}
+                  onChange={(e) => setRecipientSearch(e.target.value)}
+                  placeholder="Zoek ontvanger..."
+                  className="w-56 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Selecteer alle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectNone}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Selecteer geen
+                  </button>
+                </div>
               </div>
             </div>
             <div className="border rounded-md max-h-60 overflow-y-auto p-2 space-y-2">
-              {contactpersonen.length === 0 ? (
+              {filteredContactpersonen.length === 0 ? (
                 <p className="text-sm text-gray-500">
                   Geen contactpersonen gevonden
                 </p>
               ) : (
-                contactpersonen.map((c) => {
+                filteredContactpersonen.map((c) => {
                   const key = `${c.UserID}:${c.ContactID}`;
                   const checked = selectedRecipients.has(key);
                   const label = `${c.DisplayName || c.UserName} (${c.ContactName ?? c.ContactID})`;
@@ -475,10 +551,10 @@ const ContactpersonenEmail: React.FC = () => {
             <p className="text-sm text-gray-600">
               Placeholders: [data-eigenaar], [tabel], [intro], [outro]
             </p>
-            <FormTextarea
+            <TipTapEditor
               value={templateEditValue}
-              onChange={(e) => setTemplateEditValue(e.target.value)}
-              rows={16}
+              onChange={setTemplateEditValue}
+              placeholder="Schrijf het mailsjabloon..."
             />
             <div className="flex justify-end gap-2">
               <button
@@ -506,6 +582,22 @@ const ContactpersonenEmail: React.FC = () => {
           modalWrapperClassName="modal-wrapper--fit-content"
         >
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gemeente voor testmail
+              </label>
+              <select
+                value={selectedTestContactId}
+                onChange={(e) => setSelectedTestContactId(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                {testMunicipalityOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name} ({option.id})
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="text-gray-700">
               Een testmail wordt verstuurd aan{" "}
               <strong>{session?.user?.email ?? "..."}</strong>.

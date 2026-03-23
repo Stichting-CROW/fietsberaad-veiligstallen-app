@@ -72,6 +72,10 @@ function nl2br(text: string): string {
   return text.replace(/\n/g, "<br />");
 }
 
+function formatTemplateBodyForHtml(templateBody: string): string {
+  return /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
+}
+
 const schema = z.object({
   subject: z.string().min(1),
   templateBody: z.string(),
@@ -135,7 +139,7 @@ export default async function handle(
   const dataEigenaar = sampleData.dataEigenaar;
 
   const body = removeEmptyShortcodes(templateBody, introText, outroText);
-  const html = nl2br(body)
+  const html = formatTemplateBodyForHtml(body)
     .replace(/\[tabel\]/g, tabelHtml)
     .replace(/\[intro\]/g, nl2br(introText))
     .replace(/\[outro\]/g, nl2br(outroText))
