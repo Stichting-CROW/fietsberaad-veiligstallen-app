@@ -400,6 +400,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <DocumentsComponent />;
           break;
         case VSMenuTopic.ContactsGemeenten:
+        case VSMenuTopic.Contactpersonen:
           selectedComponent = (
             <GemeenteComponent fietsenstallingtypen={fietsenstallingtypen || []}/>
           );

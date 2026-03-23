@@ -3,12 +3,15 @@ import React from 'react';
 import { useRouter } from 'next/router';
 import {
   FiBriefcase,
+  FiCheckSquare,
   FiClock,
   FiDownload,
+  FiEdit2,
   FiFileText,
   FiGrid,
   FiHelpCircle,
   FiHome,
+  FiMail,
   FiMap,
   FiMapPin,
   FiServer,
@@ -35,8 +38,6 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
   onSelect,
 }) => {
   const router = useRouter();
-  const isOnContactsGemeentenPath =
-    router.asPath.startsWith('/beheer/contactsgemeenten');
 
   const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
@@ -84,72 +85,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiMapPin}
-              >
-                {isOnContactsGemeentenPath && (
-                  <ul className="ml-4 mt-1 space-y-1">
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push('/beheer/contactsgemeenten/mail-contactpersonen')
-                        }
-                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                          router.asPath.includes('mail-contactpersonen')
-                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="truncate">Mail contactpersonen</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push('/beheer/contactsgemeenten/mailfrequentie-contactpersonen')
-                        }
-                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                          router.asPath.includes('mailfrequentie-contactpersonen')
-                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="truncate">Mailfrequentie</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push('/beheer/contactsgemeenten/mailsjabloon')
-                        }
-                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                          router.asPath.includes('mailsjabloon')
-                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="truncate">Bewerk mailsjabloon</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push('/beheer/contactsgemeenten/datakwaliteitcontroles')
-                        }
-                        className={`font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                          router.asPath.includes('datakwaliteitcontroles')
-                            ? 'bg-sky-50 text-sky-700 shadow-inner border border-sky-100'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="truncate">Datakwaliteit-controles</span>
-                      </button>
-                    </li>
-                  </ul>
-                )}
-              </LeftMenuItem>
+              />
               <LeftMenuItem
                 component={VSMenuTopic.ContactsExploitanten}
                 title={'Exploitanten'}
@@ -165,6 +101,58 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiServer}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Contactpersonen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Mail contactpersonen'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mail-contactpersonen')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mail-contactpersonen')}
+                icon={FiMail}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Bewerk mailsjabloon'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mailsjabloon')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mailsjabloon')}
+                icon={FiEdit2}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Mailfrequentie'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mailfrequentie-contactpersonen')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mailfrequentie-contactpersonen')}
+                icon={FiMail}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Datakwaliteit-controles'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/datakwaliteitcontroles')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/datakwaliteitcontroles')}
+                icon={FiCheckSquare}
               />
             </>
           </LeftMenuItem>

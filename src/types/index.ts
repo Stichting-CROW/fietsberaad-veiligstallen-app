@@ -17,6 +17,7 @@ export enum VSMenuTopic {
     // "BarcodereeksenUitgifteBarcodes" = "barcodereeksenuitgiftebarcodes",
     "Buurtstallingen" = "buurtstallingen",
     "ContactsAdmin" = "contactsadmin",
+    "Contactpersonen" = "contactpersonen",
     "ContactsDataproviders" = "contactsdataproviders",
     "ContactsExploitanten" = "contactsexploitanten",
     "ContactsGemeenten" = "contactsgemeenten",
