@@ -32,7 +32,6 @@ const P_STYLE = "margin-top:10px;margin-bottom:10px";
 
 function formatStallingName(name: string, status: string | null): string {
   if (status === "aanm") return `${name} (aanmelding)`;
-  if (status === "0") return `${name} (inactief)`;
   return name;
 }
 
@@ -46,10 +45,11 @@ function buildTabelHtml(
   }[]
 ): string {
   const buttons = `<p style="${P_STYLE}"><a href="${BASE_URL}/beheer/fietsenstallingen/controle" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
-  if (fietsenstallingen.length === 0) {
+  const actieveStallingen = fietsenstallingen.filter((s) => s.status !== "0");
+  if (actieveStallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld</p>` + buttons;
   }
-  const sorted = [...fietsenstallingen].sort((a, b) => {
+  const sorted = [...actieveStallingen].sort((a, b) => {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
     const nameA = a.title ?? "";
     const nameB = b.title ?? "";
