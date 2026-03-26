@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import Modal from "~/components/Modal";
 import FormInput from "~/components/Form/FormInput";
@@ -22,8 +22,10 @@ Is de informatie van onderstaande fietsenstallingen nog correct en up to date?
 
 const BASE_URL =
   typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXTAUTH_URL ?? "")
-    : "https://beta.veiligstallen.nl";
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_SITE_URL ??
+      process.env.NEXTAUTH_URL ??
+      "https://beta.veiligstallen.nl");
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 
 const P_STYLE = "margin-top:10px;margin-bottom:10px";
@@ -76,10 +78,19 @@ function nl2br(text: string): string {
 function formatTemplateBodyForHtml(templateBody: string): string {
   // Keep rich-text HTML as-is, but support legacy plain text templates.
   const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
-  return html.replace(
-    /(src\s*=\s*["'])(\/(?!\/)[^"']*)(["'])/gi,
-    (_match, srcPrefix: string, relativePath: string, quote: string) =>
-      `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${relativePath}${quote}`
+  const normalizedLocalPaths = html.replace(/\[local\]\//gi, "/api/");
+  return normalizedLocalPaths.replace(
+    /(src\s*=\s*["'])([^"']+)(["'])/gi,
+    (_match, srcPrefix: string, srcValue: string, quote: string) => {
+      // Leave absolute URLs/data URIs untouched, only normalize relative/local paths.
+      if (/^(https?:)?\/\//i.test(srcValue) || /^data:/i.test(srcValue)) {
+        return `${srcPrefix}${srcValue}${quote}`;
+      }
+      const normalizedPath = srcValue.startsWith("/")
+        ? srcValue
+        : `/${srcValue.replace(/^\.?\//, "")}`;
+      return `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${normalizedPath}${quote}`;
+    }
   );
 }
 
@@ -116,6 +127,14 @@ const ContactpersonenEmail: React.FC = () => {
   const [showTestMailConfirmModal, setShowTestMailConfirmModal] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState("");
   const [selectedTestContactId, setSelectedTestContactId] = useState("");
+  const latestEmailBodyRef = useRef("");
+  const userHasEditedTemplateRef = useRef(false);
+
+  const handleTemplateBodyChange = (value: string) => {
+    userHasEditedTemplateRef.current = true;
+    latestEmailBodyRef.current = value;
+    setTemplateBody(value);
+  };
 
   const fetchContactpersonen = async () => {
     setLoading(true);
@@ -140,6 +159,9 @@ const ContactpersonenEmail: React.FC = () => {
       const json = (await res.json()) as { body?: string; error?: string };
       if (!res.ok) throw new Error(json.error ?? "Failed to fetch template");
       const body = (json.body ?? "").trim() || DEFAULT_TEMPLATE;
+      // Prevent late fetch responses from overwriting user edits in TipTap.
+      if (userHasEditedTemplateRef.current) return;
+      latestEmailBodyRef.current = body;
       setTemplateBody(body);
     } catch (e) {
       console.error("Fetch template error:", e);
@@ -240,8 +262,9 @@ const ContactpersonenEmail: React.FC = () => {
     if (!c) return "";
     const tabelHtml = buildTabelHtml(c.fietsenstallingen);
     const dataEigenaar = c.ContactName ?? c.ContactID;
+    const emailBody = latestEmailBodyRef.current;
     return renderPreview(
-      templateBody,
+      emailBody,
       tabelHtml,
       dataEigenaar
     );
@@ -295,7 +318,7 @@ const ContactpersonenEmail: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             subject,
-            templateBody,
+            templateBody: latestEmailBodyRef.current,
             introText: "",
             outroText: "",
             sampleData,
@@ -327,7 +350,7 @@ const ContactpersonenEmail: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             subject,
-            templateBody,
+            templateBody: latestEmailBodyRef.current,
             introText: "",
             outroText: "",
             recipients,
@@ -394,7 +417,7 @@ const ContactpersonenEmail: React.FC = () => {
             </div>
             <TipTapEditor
               value={templateBody}
-              onChange={setTemplateBody}
+              onChange={handleTemplateBodyChange}
               placeholder="Schrijf de e-mailinhoud..."
             />
           </div>
