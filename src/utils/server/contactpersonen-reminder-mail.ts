@@ -1,5 +1,5 @@
 import { prisma } from "~/server/db";
-import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
+import { ensureEmailImagesMaxWidth, removeEmptyShortcodes } from "~/utils/mail-template-utils";
 import { titleToSlug } from "~/utils/slug";
 import { resolveMailBaseUrl } from "~/utils/server/mail-base-url";
 import { createMailer, formatFrom, requireSmtpConfig } from "~/utils/server/mail-tools";
@@ -49,10 +49,12 @@ function nl2br(text: string): string {
 
 function formatTemplateBodyForHtml(templateBody: string): string {
   const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
-  return html.replace(
+  const withAbsoluteSrc = html.replace(
     /(src\s*=\s*["'])(\/(?!\/)[^"']*)(["'])/gi,
-    `$1${BASE_URL_WITHOUT_TRAILING_SLASH}$2$4`
+    (_match, srcPrefix: string, relativePath: string, quote: string) =>
+      `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${relativePath}${quote}`
   );
+  return ensureEmailImagesMaxWidth(withAbsoluteSrc);
 }
 
 function addMonths(date: Date, months: number): Date {

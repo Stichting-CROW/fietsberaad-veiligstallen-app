@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
-import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
+import { ensureEmailImagesMaxWidth, removeEmptyShortcodes } from "~/utils/mail-template-utils";
 import {
   createMailer,
   formatFrom,
@@ -68,11 +68,12 @@ function nl2br(text: string): string {
 
 function formatTemplateBodyForHtml(templateBody: string): string {
   const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
-  return html.replace(
+  const withAbsoluteSrc = html.replace(
     /(src\s*=\s*["'])(\/(?!\/)[^"']*)(["'])/gi,
     (_match, srcPrefix: string, relativePath: string, quote: string) =>
       `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${relativePath}${quote}`
   );
+  return ensureEmailImagesMaxWidth(withAbsoluteSrc);
 }
 
 const schema = z.object({

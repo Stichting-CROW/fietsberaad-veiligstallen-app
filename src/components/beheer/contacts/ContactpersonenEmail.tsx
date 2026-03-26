@@ -4,7 +4,7 @@ import Modal from "~/components/Modal";
 import FormInput from "~/components/Form/FormInput";
 import TipTapEditor from "~/components/common/TipTapEditor";
 import type { ContactpersonWithStallingen } from "~/pages/api/protected/contactpersonen";
-import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
+import { ensureEmailImagesMaxWidth, removeEmptyShortcodes } from "~/utils/mail-template-utils";
 import { titleToSlug } from "~/utils/slug";
 
 const TEMPLATE_KEY = "mail-reminder-aan-contactpersonen";
@@ -79,7 +79,7 @@ function formatTemplateBodyForHtml(templateBody: string): string {
   // Keep rich-text HTML as-is, but support legacy plain text templates.
   const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
   const normalizedLocalPaths = html.replace(/\[local\]\//gi, "/api/");
-  return normalizedLocalPaths.replace(
+  const withResolvedSrc = normalizedLocalPaths.replace(
     /(src\s*=\s*["'])([^"']+)(["'])/gi,
     (_match, srcPrefix: string, srcValue: string, quote: string) => {
       // Leave absolute URLs/data URIs untouched, only normalize relative/local paths.
@@ -92,6 +92,7 @@ function formatTemplateBodyForHtml(templateBody: string): string {
       return `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${normalizedPath}${quote}`;
     }
   );
+  return ensureEmailImagesMaxWidth(withResolvedSrc);
 }
 
 function renderPreview(
