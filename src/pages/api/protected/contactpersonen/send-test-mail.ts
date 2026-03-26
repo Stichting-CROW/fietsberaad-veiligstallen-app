@@ -12,7 +12,22 @@ import {
 import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
+function resolveBaseUrl(): string {
+  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim();
+  if (nextAuthUrl) return nextAuthUrl.replace(/\/$/, "");
+
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured;
+
+  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
+  if (nodeEnv === "development" || nodeEnv === "test") {
+    return "http://localhost:3000";
+  }
+
+  return "https://beta.veiligstallen.nl";
+}
+
+const BASE_URL = resolveBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 
 const P_STYLE = "margin-top:10px;margin-bottom:10px";

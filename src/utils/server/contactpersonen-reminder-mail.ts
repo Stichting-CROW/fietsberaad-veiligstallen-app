@@ -13,9 +13,8 @@ function resolveBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (configured) return configured;
 
-  const appEnv = process.env.NEXT_PUBLIC_APP_ENV?.trim().toLowerCase();
-  if (appEnv === "acceptance") return "https://vstfb-eu-acc-app01.azurewebsites.net";
-  if (appEnv === "production") return "https://beta.veiligstallen.nl";
+  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim();
+  if (nextAuthUrl) return nextAuthUrl.replace(/\/$/, "");
 
   const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
   if (nodeEnv === "development" || nodeEnv === "test") {
