@@ -13,6 +13,19 @@ type TipTapEditorProps = {
   rowsClassName?: string;
 };
 
+const normalizeLocalUploadUrl = (url: string): string => {
+  if (!url) return url;
+  if (url.startsWith("[local]/")) {
+    return url.replace("[local]", "/api");
+  }
+  return url;
+};
+
+const normalizeLocalUploadUrlsInHtml = (html: string): string => {
+  if (!html) return html;
+  return html.replace(/\[local\]\//g, "/api/");
+};
+
 const TipTapEditor: React.FC<TipTapEditorProps> = ({
   value,
   onChange,
@@ -34,9 +47,9 @@ const TipTapEditor: React.FC<TipTapEditorProps> = ({
         placeholder,
       }),
     ],
-    content: value || "",
+    content: normalizeLocalUploadUrlsInHtml(value || ""),
     onUpdate({ editor: currentEditor }) {
-      onChange(currentEditor.getHTML());
+      onChange(normalizeLocalUploadUrlsInHtml(currentEditor.getHTML()));
     },
     editorProps: {
       attributes: {
@@ -49,8 +62,9 @@ const TipTapEditor: React.FC<TipTapEditorProps> = ({
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
-    if (currentHtml !== value) {
-      editor.commands.setContent(value || "", { emitUpdate: false });
+    const normalizedValue = normalizeLocalUploadUrlsInHtml(value || "");
+    if (currentHtml !== normalizedValue) {
+      editor.commands.setContent(normalizedValue, { emitUpdate: false });
     }
   }, [editor, value]);
 
@@ -101,7 +115,11 @@ const TipTapEditor: React.FC<TipTapEditorProps> = ({
         throw new Error(json.error ?? "Afbeelding uploaden is mislukt.");
       }
 
-      editor.chain().focus().setImage({ src: firstUrl }).run();
+      editor
+        .chain()
+        .focus()
+        .setImage({ src: normalizeLocalUploadUrl(firstUrl) })
+        .run();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Afbeelding uploaden is mislukt.");
     } finally {
