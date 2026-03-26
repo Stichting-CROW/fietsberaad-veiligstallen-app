@@ -69,7 +69,8 @@ function formatTemplateBodyForHtml(templateBody: string): string {
   const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
   return html.replace(
     /(src\s*=\s*["'])(\/(?!\/)[^"']*)(["'])/gi,
-    `$1${BASE_URL_WITHOUT_TRAILING_SLASH}$2$4`
+    (_match, srcPrefix: string, relativePath: string, quote: string) =>
+      `${srcPrefix}${BASE_URL_WITHOUT_TRAILING_SLASH}${relativePath}${quote}`
   );
 }
 
