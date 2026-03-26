@@ -18,6 +18,19 @@ function createCodeHash(email: string, code: string): string | null {
   return crypto.createHash("sha256").update(`${email.toLowerCase()}:${code}:${secret}`).digest("hex");
 }
 
+function createStatelessCode(email: string, now = Date.now()): string | null {
+  const secret = process.env.NEXTAUTH_SECRET ?? process.env.LOGINTOKEN_SIGNER_PRIVATE_KEY;
+  if (!secret) return null;
+  // 5 minute buckets. Verify endpoint accepts current and 2 previous buckets (15 minutes total).
+  const bucket = Math.floor(now / (5 * 60 * 1000));
+  const digest = crypto
+    .createHmac("sha256", secret)
+    .update(`${email.toLowerCase()}:${bucket}`)
+    .digest();
+  const value = digest.readUInt32BE(0) % 1_000_000;
+  return `${value}`.padStart(6, "0");
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ ok?: boolean; error?: string }>
@@ -45,7 +58,7 @@ export default async function handler(
     return;
   }
 
-  const code = createSixDigitCode();
+  let code = createSixDigitCode();
   const hash = createCodeHash(email, code);
   if (!hash) {
     res.status(500).json({ error: "Missing auth secret configuration" });
@@ -54,17 +67,30 @@ export default async function handler(
 
   const expires = new Date(Date.now() + 15 * 60 * 1000);
 
-  await prisma.verificationToken.deleteMany({
-    where: { identifier: email },
-  });
+  let storedInDb = true;
+  try {
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: email },
+    });
 
-  await prisma.verificationToken.create({
-    data: {
-      identifier: email,
-      token: `login-with-code:${hash}`,
-      expires,
-    },
-  });
+    await prisma.verificationToken.create({
+      data: {
+        identifier: email,
+        token: `login-with-code:${hash}`,
+        expires,
+      },
+    });
+  } catch (error) {
+    storedInDb = false;
+    const statelessCode = createStatelessCode(email);
+    if (!statelessCode) {
+      console.error("login-with-code request db fallback failed:", error);
+      res.status(500).json({ error: "Kon login-code nu niet aanmaken" });
+      return;
+    }
+    code = statelessCode;
+    console.error("login-with-code request db store failed, using stateless fallback:", error);
+  }
 
   const cfg = requireSmtpConfig();
   if (!cfg.ok) {
@@ -85,6 +111,10 @@ export default async function handler(
     console.error("login-with-code request mail error:", error);
     res.status(500).json({ error: "Failed to send login code" });
     return;
+  }
+
+  if (!storedInDb) {
+    console.warn("login-with-code request handled via stateless fallback for:", email);
   }
 
   res.status(200).json({ ok: true });

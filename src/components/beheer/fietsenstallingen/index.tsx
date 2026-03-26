@@ -128,9 +128,17 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login?redirect=/beheer/fietsenstallingen');
+      const email =
+        typeof router.query.email === "string" ? router.query.email : "";
+      const redirectTarget = router.asPath?.startsWith("/beheer")
+        ? router.asPath
+        : "/beheer/fietsenstallingen";
+      const loginWithCodeUrl = `/login-with-code?redirect=${encodeURIComponent(redirectTarget)}${
+        email ? `&email=${encodeURIComponent(email)}` : ""
+      }`;
+      router.push(loginWithCodeUrl);
     }
-  }, [status, router]);
+  }, [status, router, router.asPath, router.query.email]);
 
   useEffect(() => {
     if (openControleModal) {

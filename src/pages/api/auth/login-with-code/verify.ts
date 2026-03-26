@@ -15,6 +15,25 @@ function createCodeHash(email: string, code: string): string | null {
   return crypto.createHash("sha256").update(`${email.toLowerCase()}:${code}:${secret}`).digest("hex");
 }
 
+function verifyStatelessCode(email: string, code: string, now = Date.now()): boolean {
+  const secret = process.env.NEXTAUTH_SECRET ?? process.env.LOGINTOKEN_SIGNER_PRIVATE_KEY;
+  if (!secret) return false;
+
+  // 15 minute validity window: current bucket + 2 previous 5 minute buckets.
+  const currentBucket = Math.floor(now / (5 * 60 * 1000));
+  for (let i = 0; i <= 2; i += 1) {
+    const bucket = currentBucket - i;
+    const digest = crypto
+      .createHmac("sha256", secret)
+      .update(`${email.toLowerCase()}:${bucket}`)
+      .digest();
+    const value = digest.readUInt32BE(0) % 1_000_000;
+    const candidate = `${value}`.padStart(6, "0");
+    if (candidate === code) return true;
+  }
+  return false;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ ok?: boolean; userid?: string; token?: string; error?: string }>
@@ -37,16 +56,23 @@ export default async function handler(
     return;
   }
 
-  const tokenRow = await prisma.verificationToken.findFirst({
-    where: {
-      identifier: email,
-      token: `login-with-code:${hash}`,
-      expires: { gt: new Date() },
-    },
-    select: { token: true },
-  });
+  let hasDbToken = false;
+  try {
+    const tokenRow = await prisma.verificationToken.findFirst({
+      where: {
+        identifier: email,
+        token: `login-with-code:${hash}`,
+        expires: { gt: new Date() },
+      },
+      select: { token: true },
+    });
+    hasDbToken = Boolean(tokenRow);
+  } catch (error) {
+    console.error("login-with-code verify db read failed, trying stateless fallback:", error);
+  }
 
-  if (!tokenRow) {
+  const hasStatelessMatch = verifyStatelessCode(email, parsed.data.code);
+  if (!hasDbToken && !hasStatelessMatch) {
     res.status(401).json({ error: "Ongeldige of verlopen code" });
     return;
   }
@@ -60,9 +86,15 @@ export default async function handler(
     return;
   }
 
-  await prisma.verificationToken.deleteMany({
-    where: { identifier: email },
-  });
+  if (hasDbToken) {
+    try {
+      await prisma.verificationToken.deleteMany({
+        where: { identifier: email },
+      });
+    } catch (error) {
+      console.error("login-with-code verify db cleanup failed:", error);
+    }
+  }
 
   const loginToken = calculateAuthToken(user.UserID);
   if (!loginToken) {
