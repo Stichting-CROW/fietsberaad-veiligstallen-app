@@ -1,6 +1,7 @@
 import { prisma } from "~/server/db";
 import { removeEmptyShortcodes } from "~/utils/mail-template-utils";
 import { titleToSlug } from "~/utils/slug";
+import { resolveMailBaseUrl } from "~/utils/server/mail-base-url";
 import { createMailer, formatFrom, requireSmtpConfig } from "~/utils/server/mail-tools";
 
 export const REMINDER_TEMPLATE_KEY = "mail-reminder-aan-contactpersonen";
@@ -9,33 +10,7 @@ export const REMINDER_SUBJECT = "VeiligStallen: zijn de fietsenstallingen up to 
 export const SITE_ID_FIETSBERAAD = "1";
 export const REMINDER_START_DATE_UTC = new Date("2026-07-01T00:00:00.000Z");
 
-function resolveBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "");
-  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim()?.replace(/\/$/, "");
-  const configuredOrAuthUrl = configured ?? nextAuthUrl ?? "";
-  const accHostToken = "vstfb-eu-acc";
-  const isAcceptance =
-    process.env.NEXT_PUBLIC_APP_ENV === "acceptance" ||
-    process.env.WEBSITE_HOSTNAME?.includes(accHostToken) === true ||
-    configured?.includes(accHostToken) === true ||
-    nextAuthUrl?.includes(accHostToken) === true;
-
-  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
-  if (nodeEnv === "development" || nodeEnv === "test") {
-    return "http://localhost:3000";
-  }
-
-  if (isAcceptance) {
-    if (configured?.includes(accHostToken)) return configured;
-    if (nextAuthUrl?.includes(accHostToken)) return nextAuthUrl;
-    return "https://vstfb-eu-acc-app01.azurewebsites.net";
-  }
-
-  if (configuredOrAuthUrl) return configuredOrAuthUrl;
-  return "https://beta.veiligstallen.nl";
-}
-
-const BASE_URL = resolveBaseUrl();
+const BASE_URL = resolveMailBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 const P_STYLE = "margin-top:10px;margin-bottom:10px";
 

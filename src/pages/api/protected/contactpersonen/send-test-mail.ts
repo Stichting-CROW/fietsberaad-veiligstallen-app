@@ -9,28 +9,11 @@ import {
   formatFrom,
   requireSmtpConfig,
 } from "~/utils/server/mail-tools";
+import { resolveMailBaseUrl } from "~/utils/server/mail-base-url";
 import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
-function resolveBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "");
-  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim()?.replace(/\/$/, "");
-  const configuredOrAuthUrl = configured ?? nextAuthUrl ?? "";
-  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
-
-  if (nodeEnv === "development" || nodeEnv === "test") {
-    return "http://localhost:3000";
-  }
-
-  if (nodeEnv === "acceptance") {
-    return "https://vstfb-eu-acc-app01.azurewebsites.net";
-  }
-
-  if (configuredOrAuthUrl) return configuredOrAuthUrl;
-  return "https://beta.veiligstallen.nl";
-}
-
-const BASE_URL = resolveBaseUrl();
+const BASE_URL = resolveMailBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 
 const P_STYLE = "margin-top:10px;margin-bottom:10px";

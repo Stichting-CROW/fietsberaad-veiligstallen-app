@@ -10,10 +10,11 @@ import {
   formatFrom,
   requireSmtpConfig,
 } from "~/utils/server/mail-tools";
+import { resolveMailBaseUrl } from "~/utils/server/mail-base-url";
 import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
+const BASE_URL = resolveMailBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 
 function nl2br(text: string): string {
@@ -58,10 +59,11 @@ function buildTabelHtml(
   const jaUrl = `${BASE_URL}/beheer/fietsenstallingen/controle?email=${encodeURIComponent(userEmail)}`;
   const neeUrl = `${BASE_URL}/beheer/fietsenstallingen?email=${encodeURIComponent(userEmail)}`;
   const buttons = `<p style="${P_STYLE}"><a href="${jaUrl}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${neeUrl}" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
-  if (fietsenstallingen.length === 0) {
+  const activeFietsenstallingen = fietsenstallingen.filter((stalling) => stalling.status !== "0");
+  if (activeFietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
   }
-  const sorted = [...fietsenstallingen].sort((a, b) => {
+  const sorted = [...activeFietsenstallingen].sort((a, b) => {
     const typeA = a.type;
     const typeB = b.type;
     if (typeA !== typeB) return typeA.localeCompare(typeB);
