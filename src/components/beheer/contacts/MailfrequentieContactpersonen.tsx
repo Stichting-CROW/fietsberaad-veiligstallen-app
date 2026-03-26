@@ -26,6 +26,10 @@ function getContactpersoonNaam(contactpersoon: ContactpersonWithStallingen): str
   return contactpersoon.DisplayName?.trim() || contactpersoon.UserName;
 }
 
+function isFrequentieOption(value: unknown): value is FrequentieOption {
+  return typeof value === "string" && FREQUENTIE_OPTIONS.includes(value as FrequentieOption);
+}
+
 const MailfrequentieContactpersonen: React.FC = () => {
   const [rows, setRows] = useState<MailfrequentieRow[]>([]);
   const [frequenties, setFrequenties] = useState<Record<string, FrequentieOption>>({});
@@ -37,14 +41,34 @@ const MailfrequentieContactpersonen: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/protected/contactpersonen");
-        const json = (await res.json()) as { data?: ContactpersonWithStallingen[]; error?: string };
-        if (!res.ok) {
-          throw new Error(json.error ?? "Fout bij ophalen van contactpersonen");
+        const [contactpersonenRes, frequentieRes] = await Promise.all([
+          fetch("/api/protected/contactpersonen"),
+          fetch("/api/protected/contactpersonen/mailfrequentie"),
+        ]);
+        const contactpersonenJson = (await contactpersonenRes.json()) as {
+          data?: ContactpersonWithStallingen[];
+          error?: string;
+        };
+        const frequentieJson = (await frequentieRes.json()) as {
+          data?: Record<string, string>;
+          error?: string;
+        };
+        if (!contactpersonenRes.ok) {
+          throw new Error(contactpersonenJson.error ?? "Fout bij ophalen van contactpersonen");
+        }
+        if (!frequentieRes.ok) {
+          throw new Error(frequentieJson.error ?? "Fout bij ophalen van mailfrequentie");
+        }
+
+        const savedFrequenties: Record<string, FrequentieOption> = {};
+        for (const [contactId, value] of Object.entries(frequentieJson.data ?? {})) {
+          if (isFrequentieOption(value)) {
+            savedFrequenties[contactId] = value;
+          }
         }
 
         const groupedByDataEigenaar = new Map<string, ContactpersonWithStallingen[]>();
-        for (const item of json.data ?? []) {
+        for (const item of contactpersonenJson.data ?? []) {
           const list = groupedByDataEigenaar.get(item.ContactID) ?? [];
           list.push(item);
           groupedByDataEigenaar.set(item.ContactID, list);
@@ -72,8 +96,8 @@ const MailfrequentieContactpersonen: React.FC = () => {
           a.dataEigenaar.localeCompare(b.dataEigenaar, "nl", { sensitivity: "base" })
         );
         setRows(nextRows);
-        setFrequenties((prev) => {
-          const next = { ...prev };
+        setFrequenties(() => {
+          const next = { ...savedFrequenties };
           for (const row of nextRows) {
             next[row.contactId] = next[row.contactId] ?? DEFAULT_FREQUENTIE;
           }
@@ -88,6 +112,18 @@ const MailfrequentieContactpersonen: React.FC = () => {
 
     void fetchContactpersonen();
   }, []);
+
+  const saveFrequenties = async (next: Record<string, FrequentieOption>) => {
+    const res = await fetch("/api/protected/contactpersonen/mailfrequentie", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      throw new Error(json.error ?? "Fout bij opslaan van mailfrequentie");
+    }
+  };
 
   const columns = useMemo(
     () => [
@@ -118,10 +154,20 @@ const MailfrequentieContactpersonen: React.FC = () => {
         accessor: (row: MailfrequentieRow) => (
           <select
             value={frequenties[row.contactId] ?? DEFAULT_FREQUENTIE}
-            onChange={(event) => {
+            onChange={async (event) => {
               const newValue = event.target.value as FrequentieOption;
-              setFrequenties((prev) => ({ ...prev, [row.contactId]: newValue }));
-              notifySuccess(`Frequentie van ${row.dataEigenaar} geupdate naar ${newValue.toLowerCase()}`);
+              const previousValue = frequenties[row.contactId] ?? DEFAULT_FREQUENTIE;
+              const next = { ...frequenties, [row.contactId]: newValue };
+              setFrequenties(next);
+              try {
+                await saveFrequenties(next);
+                notifySuccess(
+                  `Frequentie van ${row.dataEigenaar} geupdate naar ${newValue.toLowerCase()}`
+                );
+              } catch (e) {
+                setFrequenties((prev) => ({ ...prev, [row.contactId]: previousValue }));
+                setError(e instanceof Error ? e.message : "Onbekende fout");
+              }
             }}
             className="rounded-md border border-gray-300 px-2 py-1 text-sm"
           >

@@ -11,7 +11,6 @@ import {
   requireSmtpConfig,
 } from "~/utils/server/mail-tools";
 import { titleToSlug } from "~/utils/slug";
-import { calculateMagicLinkToken } from "~/utils/token-tools";
 import { z } from "zod";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
@@ -48,17 +47,10 @@ function buildTabelHtml(
     type: string;
     status?: string | null;
   }[],
-  userId: string,
-  contactId: string
+  userEmail: string
 ): string {
-  const magicToken =
-    userId && contactId ? calculateMagicLinkToken(userId, contactId, 14) : false;
-  const jaUrl = magicToken
-    ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen/controle")}`
-    : `${BASE_URL}/beheer/fietsenstallingen/controle`;
-  const neeUrl = magicToken
-    ? `${BASE_URL}/login?token=${encodeURIComponent(magicToken.token)}&userid=${encodeURIComponent(userId)}&redirect=${encodeURIComponent("/beheer/fietsenstallingen")}`
-    : `${BASE_URL}/beheer/fietsenstallingen`;
+  const jaUrl = `${BASE_URL}/beheer/fietsenstallingen/controle?email=${encodeURIComponent(userEmail)}`;
+  const neeUrl = `${BASE_URL}/beheer/fietsenstallingen?email=${encodeURIComponent(userEmail)}`;
   const buttons = `<p style="${P_STYLE}"><a href="${jaUrl}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${neeUrl}" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
   if (fietsenstallingen.length === 0) {
     return `<p style="${P_STYLE}">Geen fietsenstallingen gekoppeld.</p>` + buttons;
@@ -186,9 +178,8 @@ export default async function handle(
     if (!user?.UserName) continue;
 
     const contactId = row.SiteID;
-    const userId = row.UserID;
     const stallings = stallingenBySite.get(contactId) ?? [];
-    const tabelHtml = buildTabelHtml(stallings, userId, contactId);
+    const tabelHtml = buildTabelHtml(stallings, user.UserName);
     const dataEigenaar = contactNameMap.get(contactId) ?? contactId;
 
     const body = removeEmptyShortcodes(templateBody, introText, outroText);

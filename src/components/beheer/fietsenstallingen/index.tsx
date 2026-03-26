@@ -18,6 +18,36 @@ interface FietsenstallingenComponentProps {
   openControleModal?: boolean;
 }
 
+const MAILFREQUENTIE_STORAGE_KEY = "VS_mailfrequentie_contactpersonen";
+const DEFAULT_REMINDER_OPTION = "Elk jaar";
+const REMINDER_OPTION_TO_MONTHS: Record<string, number | null> = {
+  "Elk kwartaal": 3,
+  "Elk halfjaar": 6,
+  "Elk jaar": 12,
+  "Elke 2 jaar": 24,
+  Nooit: null,
+};
+
+function getReminderOptionForContact(contactId: string): string {
+  if (typeof window === "undefined") return DEFAULT_REMINDER_OPTION;
+  try {
+    const raw = window.localStorage.getItem(MAILFREQUENTIE_STORAGE_KEY);
+    if (!raw) return DEFAULT_REMINDER_OPTION;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed[contactId];
+    if (typeof value === "string" && value in REMINDER_OPTION_TO_MONTHS) {
+      return value;
+    }
+  } catch {
+    // Ignore malformed localStorage and fallback to default.
+  }
+  return DEFAULT_REMINDER_OPTION;
+}
+
+function getReminderLabel(months: number): string {
+  return `${months} ${months === 1 ? "maand" : "maanden"}`;
+}
+
 const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({ type, openControleModal }) => {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -31,6 +61,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
   const [controleModalOpen, setControleModalOpen] = useState(false);
   const [lastDatakwaliteitControleAt, setLastDatakwaliteitControleAt] = useState<Date | null | undefined>(undefined);
+  const [controleReminderMonths, setControleReminderMonths] = useState<number | null>(12);
   const [currentParkingId, setCurrentParkingId] = useState<string | undefined>(undefined);
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
@@ -106,6 +137,15 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
       setControleModalOpen(true);
     }
   }, [openControleModal]);
+
+  useEffect(() => {
+    if (!selectedGemeenteID) {
+      setControleReminderMonths(12);
+      return;
+    }
+    const option = getReminderOptionForContact(selectedGemeenteID);
+    setControleReminderMonths(REMINDER_OPTION_TO_MONTHS[option] ?? 12);
+  }, [selectedGemeenteID, controleModalOpen]);
 
   // Fetch last datakwaliteit controle for this contact
   useEffect(() => {
@@ -436,11 +476,14 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             )}
           </div>
           {(() => {
-            const sixMonthsAgo = new Date();
-            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            if (controleReminderMonths === null) {
+              return null;
+            }
+            const reminderThreshold = new Date();
+            reminderThreshold.setMonth(reminderThreshold.getMonth() - controleReminderMonths);
             const showControleReminder =
               lastDatakwaliteitControleAt !== undefined &&
-              (lastDatakwaliteitControleAt === null || lastDatakwaliteitControleAt <= sixMonthsAgo);
+              (lastDatakwaliteitControleAt === null || lastDatakwaliteitControleAt <= reminderThreshold);
             return showControleReminder ? (
               <div className="mb-2">
                 <button
@@ -448,7 +491,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                   className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
                 >
                   <span className="text-yellow-600 text-lg">⚠️</span>
-                  De stallingsdata is langer dan 6 maanden niet-gecontroleerd. Klik hier voor de controleprocedure
+                  De stallingsdata is langer dan {getReminderLabel(controleReminderMonths)} niet-gecontroleerd. Klik hier voor de controleprocedure
                 </button>
               </div>
             ) : null;
