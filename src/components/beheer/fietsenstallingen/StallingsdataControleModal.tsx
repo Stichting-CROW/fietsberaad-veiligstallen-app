@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 interface StallingsdataControleModalProps {
   onClose: () => void;
   session: Session | null;
+  lastControleAt?: Date | null;
 }
 
 function formatDateTime(date: Date): string {
@@ -17,6 +18,7 @@ function formatDateTime(date: Date): string {
 export function StallingsdataControleModal({
   onClose,
   session,
+  lastControleAt,
 }: StallingsdataControleModalProps) {
   const [checked, setChecked] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -51,11 +53,19 @@ export function StallingsdataControleModal({
 
   const userName = session?.user?.name ?? "";
   const userEmail = session?.user?.email ?? "";
-  const displayUser = [userName, userEmail].filter(Boolean).join(" - ") || "Onbekend";
+  const displayUser = `${userName} (${userEmail})`;
+  const lastControleInfo = lastControleAt
+    ? `${displayUser} heeft op ${formatDateTime(lastControleAt)} voor de laatste keer aangegeven dat de informatie over de stallingen gecontroleerd is.`
+    : null;
 
   return (
     <Modal onClose={onClose} title="Stallingsdata controle" clickOutsideClosesDialog={false}>
       <h2 className="text-xl font-bold mb-4">Stallingsdata controle</h2>
+      {lastControleInfo && (
+        <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+          {lastControleInfo}
+        </div>
+      )}
       <p className="mb-4">
         Op deze pagina kun je aangeven dat de informatie over de stallingen juist is. Periodiek vragen we je deze te controleren. De procedure is als volgt:
       </p>

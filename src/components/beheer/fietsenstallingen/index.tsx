@@ -455,7 +455,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                 onClick={() => setControleModalOpen(true)}
                 style={{ backgroundColor: '#22c55e' }}
               >
-                Controle voltooid
+                Controle
               </AdminButton>
             )}
             {canCreateNew && (
@@ -654,6 +654,7 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
             router.push(`/beheer/${type}`);
           }}
           session={session}
+          lastControleAt={lastDatakwaliteitControleAt}
         />
       )}
     </div>
