@@ -12,23 +12,27 @@ export const REMINDER_START_DATE_UTC = new Date("2026-07-01T00:00:00.000Z");
 function resolveBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "");
   const nextAuthUrl = process.env.NEXTAUTH_URL?.trim()?.replace(/\/$/, "");
-  const candidateBase = configured ?? nextAuthUrl ?? "";
+  const configuredOrAuthUrl = configured ?? nextAuthUrl ?? "";
+  const accHostToken = "vstfb-eu-acc";
+  const isAcceptance =
+    process.env.NEXT_PUBLIC_APP_ENV === "acceptance" ||
+    process.env.WEBSITE_HOSTNAME?.includes(accHostToken) === true ||
+    configured?.includes(accHostToken) === true ||
+    nextAuthUrl?.includes(accHostToken) === true;
 
   const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
   if (nodeEnv === "development" || nodeEnv === "test") {
     return "http://localhost:3000";
   }
 
-  if (candidateBase) return candidateBase;
+  if (isAcceptance) {
+    if (configured?.includes(accHostToken)) return configured;
+    if (nextAuthUrl?.includes(accHostToken)) return nextAuthUrl;
+    return "https://vstfb-eu-acc-app01.azurewebsites.net";
+  }
 
-  const isAcceptance =
-    process.env.NEXT_PUBLIC_APP_ENV === "acceptance" ||
-    candidateBase.includes("vstfb-eu-acc") ||
-    process.env.WEBSITE_HOSTNAME?.includes("vstfb-eu-acc") === true;
-
-  return isAcceptance
-    ? "https://vstfb-eu-acc-app01.azurewebsites.net"
-    : "https://beta.veiligstallen.nl";
+  if (configuredOrAuthUrl) return configuredOrAuthUrl;
+  return "https://beta.veiligstallen.nl";
 }
 
 const BASE_URL = resolveBaseUrl();
