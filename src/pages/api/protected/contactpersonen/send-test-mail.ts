@@ -13,18 +13,25 @@ import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
 function resolveBaseUrl(): string {
-  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim();
-  if (nextAuthUrl) return nextAuthUrl.replace(/\/$/, "");
-
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return configured;
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "");
+  const nextAuthUrl = process.env.NEXTAUTH_URL?.trim()?.replace(/\/$/, "");
+  const candidateBase = configured ?? nextAuthUrl ?? "";
 
   const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
   if (nodeEnv === "development" || nodeEnv === "test") {
     return "http://localhost:3000";
   }
 
-  return "https://beta.veiligstallen.nl";
+  if (candidateBase) return candidateBase;
+
+  const isAcceptance =
+    process.env.NEXT_PUBLIC_APP_ENV === "acceptance" ||
+    candidateBase.includes("vstfb-eu-acc") ||
+    process.env.WEBSITE_HOSTNAME?.includes("vstfb-eu-acc") === true;
+
+  return isAcceptance
+    ? "https://vstfb-eu-acc-app01.azurewebsites.net"
+    : "https://beta.veiligstallen.nl";
 }
 
 const BASE_URL = resolveBaseUrl();
