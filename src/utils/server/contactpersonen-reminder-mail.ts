@@ -9,7 +9,23 @@ export const REMINDER_SUBJECT = "VeiligStallen: zijn de fietsenstallingen up to 
 export const SITE_ID_FIETSBERAAD = "1";
 export const REMINDER_START_DATE_UTC = new Date("2026-07-01T00:00:00.000Z");
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
+function resolveBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured;
+
+  const appEnv = process.env.NEXT_PUBLIC_APP_ENV?.trim().toLowerCase();
+  if (appEnv === "acceptance") return "https://vstfb-eu-acc-app01.azurewebsites.net";
+  if (appEnv === "production") return "https://beta.veiligstallen.nl";
+
+  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
+  if (nodeEnv === "development" || nodeEnv === "test") {
+    return "http://localhost:3000";
+  }
+
+  return "https://beta.veiligstallen.nl";
+}
+
+const BASE_URL = resolveBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 const P_STYLE = "margin-top:10px;margin-bottom:10px";
 
