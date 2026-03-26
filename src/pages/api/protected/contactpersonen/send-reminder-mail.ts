@@ -14,13 +14,18 @@ import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beta.veiligstallen.nl";
+const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 
 function nl2br(text: string): string {
   return text.replace(/\n/g, "<br />");
 }
 
 function formatTemplateBodyForHtml(templateBody: string): string {
-  return /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
+  const html = /<[a-z][\s\S]*>/i.test(templateBody) ? templateBody : nl2br(templateBody);
+  return html.replace(
+    /(src\s*=\s*["'])(\/(?!\/)[^"']*)(["'])/gi,
+    `$1${BASE_URL_WITHOUT_TRAILING_SLASH}$2$4`
+  );
 }
 
 const schema = z.object({
