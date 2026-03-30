@@ -783,6 +783,8 @@ model fietsenstallingen {
   fmsservice_permit               fmsservice_permit[]
   fietsenstalling_type            fietsenstallingtypen?             @relation(fields: [Type], references: [id])
   fietsenstalling_secties         fietsenstalling_sectie[]
+  /// Stalling-level sectie_fietstype only. Used when hasUniSectionPrices=true (rates + biketypeNotInStalling). Otherwise use fietsenstalling_sectie.secties_fietstype.
+  sectie_fietstype_StallingsID    sectie_fietstype[]     @relation("sectie_fietstype_StallingsID")
   abonnementsvorm_fietsenstalling abonnementsvorm_fietsenstalling[]
   uitzonderingenopeningstijden    uitzonderingenopeningstijden[]
 
@@ -1190,6 +1192,10 @@ model schema_version {
   @@index([version_rank], map: "schema_version_vr_idx")
 }
 
+/// sectie_fietstype: bike types per section or per stalling.
+/// - Section-level: sectieID set, links via fietsenstalling_sectie. Used for allowed/capacity per section.
+/// - Stalling-level: sectieID null, StallingsID set. Only used when hasUniSectionPrices; same biketypes/rates for all sections.
+///   StallingsID references fietsenstallingen.ID (UUID), not StallingsID (short).
 model sectie_fietstype {
   SectionBiketypeID Int      @id @default(autoincrement())
   Capaciteit        Int?
@@ -1198,8 +1204,9 @@ model sectie_fietstype {
   StallingsID       String?  @db.VarChar(35)
   BikeTypeID        Int?
 
-  fietsenstalling_sectie fietsenstalling_sectie? @relation(fields: [sectieID], references: [sectieId], onDelete: NoAction, map: "FK_sectie_fietstype_sectie")
-  fietstype              fietstypen?             @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, map: "FK_sectie_fietstype_fietstype")
+  fietsenstalling_sectie     fietsenstalling_sectie? @relation(fields: [sectieID], references: [sectieId], onDelete: NoAction, map: "FK_sectie_fietstype_sectie")
+  fietsenstalling_StallingsID fietsenstallingen?     @relation("sectie_fietstype_StallingsID", fields: [StallingsID], references: [ID], onDelete: NoAction)
+  fietstype                  fietstypen?            @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, map: "FK_sectie_fietstype_fietstype")
 
   @@unique([sectieID, StallingsID, BikeTypeID], map: "sectieID_2")
   @@index([BikeTypeID], map: "BikeTypeID")

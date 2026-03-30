@@ -7,13 +7,17 @@ import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
-import { prepareForCompare, applyBiketypeSortForCitycode7300, V3_ENDPOINTS_WITH_BIKETYPES } from "~/server/utils/fms-compare";
+import {
+  prepareForCompare,
+  responsesMatch,
+  normalizeSectionBiketypesOrderDeep,
+} from "~/server/utils/fms-compare";
 
 /** Returns { oldOnly, newOnly } with only differing paths. Uses deep-object-diff: diff(a,b) = values from b that differ from a. */
 function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOnly: string } | null {
   try {
-    const oldObj = JSON.parse(oldJson) as object;
-    const newObj = JSON.parse(newJson) as object;
+    const oldObj = normalizeSectionBiketypesOrderDeep(JSON.parse(oldJson)) as object;
+    const newObj = normalizeSectionBiketypesOrderDeep(JSON.parse(newJson)) as object;
     const newDiff = diff(oldObj, newObj);
     const oldDiff = diff(newObj, oldObj);
     const newKeys = Object.keys(newDiff);
@@ -154,14 +158,14 @@ type FullDatasetTestResult = {
   locationtype?: string;
   endpointId: string;
   endpointLabel: string;
-  status: "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering";
+  status: "identical" | "diff" | "error" | "skipped";
   error?: string;
 };
 
 
 type FullDatasetTestResponse = {
   results: FullDatasetTestResult[];
-  summary: { total: number; identical: number; diff: number; error: number; skipped: number; uitzonderingBiketypeidSortering: number };
+  summary: { total: number; identical: number; diff: number; error: number; skipped: number };
 };
 
 function loadStoredFullDataset(): FullDatasetTestResponse | null {
@@ -256,53 +260,17 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
   return appendDepthParam(url, paramValues.depth ?? "3", endpoint.id);
 }
 
-function canonicalJson(obj: unknown): string {
-  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
-  if (Array.isArray(obj)) return "[" + obj.map(canonicalJson).join(",") + "]";
-  const keys = Object.keys(obj as object).sort();
-  return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonicalJson((obj as Record<string, unknown>)[k])).join(",") + "}";
-}
-
-function responsesIdentical(oldRes: string, newRes: string): boolean {
-  try {
-    const a = JSON.parse(oldRes);
-    const b = JSON.parse(newRes);
-    return canonicalJson(a) === canonicalJson(b);
-  } catch {
-    return oldRes.trim() === newRes.trim();
-  }
-}
-
-function normalizePriceForCompare(obj: unknown): unknown {
-  if (obj === null || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map(normalizePriceForCompare);
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    result[k] = k === "price" ? 0 : normalizePriceForCompare(v);
-  }
-  return result;
-}
-
-/** Prepares responses and returns status + strings for display. For V3 biketype endpoints, sorts biketypes first; if identical then status is uitzondering-biketypeid-sortering (all stallingen). */
+/** Prepares responses and returns status + strings for display. Section `biketypes` order ignored for identity (see fms-compare). */
 function getCompareStatus(
   endpointId: string,
   oldRes: string,
   newRes: string,
-  citycode: string,
+  _citycode: string,
   prepareOptions: { allowDynamicDiffs: boolean; maxverschil: number }
-): { status: "identical" | "diff" | "uitzondering-biketypeid-sortering"; oldForDisplay: string; newForDisplay: string } {
-  const { old: afterBiketypeSort, new: afterBiketypeSortNew } = applyBiketypeSortForCitycode7300(
-    oldRes,
-    newRes,
-    citycode,
-    endpointId
-  );
-  const isBiketypeEndpoint = (V3_ENDPOINTS_WITH_BIKETYPES as readonly string[]).includes(endpointId);
-  const { old: oldForCompare, new: newForCompare } = prepareForCompare(afterBiketypeSort, afterBiketypeSortNew, prepareOptions);
+): { status: "identical" | "diff"; oldForDisplay: string; newForDisplay: string } {
+  const { old: oldForCompare, new: newForCompare } = prepareForCompare(oldRes, newRes, prepareOptions);
   const identical = responsesMatch(endpointId, oldForCompare, newForCompare);
-  let status: "identical" | "diff" | "uitzondering-biketypeid-sortering";
-  if (identical && isBiketypeEndpoint) status = "uitzondering-biketypeid-sortering";
-  else status = identical ? "identical" : "diff";
+  const status: "identical" | "diff" = identical ? "identical" : "diff";
   const oldForDisplay = (() => {
     try {
       return JSON.stringify(JSON.parse(oldForCompare), null, 2);
@@ -320,39 +288,7 @@ function getCompareStatus(
   return { status, oldForDisplay, newForDisplay };
 }
 
-function responsesMatch(endpointId: string, oldRes: string, newRes: string): boolean {
-  if (endpointId === "v2-getServerTime") {
-    try {
-      const toMs = (s: string): number => {
-        let v: string | number = s.trim();
-        try {
-          v = JSON.parse(s);
-        } catch {
-          /* use raw string */
-        }
-        return new Date(v as string | number).getTime();
-      };
-      const oldMs = toMs(oldRes);
-      const newMs = toMs(newRes);
-      if (Number.isNaN(oldMs) || Number.isNaN(newMs)) return false;
-      return Math.abs(oldMs - newMs) < 1000;
-    } catch {
-      return false;
-    }
-  }
-  if (endpointId === "v3-subscriptiontypes") {
-    try {
-      const oldData = JSON.parse(oldRes);
-      const newData = JSON.parse(newRes);
-      return canonicalJson(normalizePriceForCompare(oldData)) === canonicalJson(normalizePriceForCompare(newData));
-    } catch {
-      return false;
-    }
-  }
-  return responsesIdentical(oldRes, newRes);
-}
-
-type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering";
+type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped";
 
 type OptionItem = { value: string; label: string };
 
@@ -809,7 +745,7 @@ const FmsApiComparePage: React.FC = () => {
     } catch (err) {
       setFullDatasetResults({
         results: [],
-        summary: { total: 0, identical: 0, diff: 0, error: 1, skipped: 0, uitzonderingBiketypeidSortering: 0 },
+        summary: { total: 0, identical: 0, diff: 0, error: 1, skipped: 0 },
       });
       console.error("Full dataset test failed:", err);
     } finally {
@@ -818,7 +754,7 @@ const FmsApiComparePage: React.FC = () => {
   };
 
   const updateFullDatasetRowStatus = useCallback(
-    (endpointId: string, status: "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering", error?: string, paramsOverride?: Record<string, string>) => {
+    (endpointId: string, status: "identical" | "diff" | "error" | "skipped", error?: string, paramsOverride?: Record<string, string>) => {
       const params = paramsOverride ?? autoCompareParamValues;
       const type = getTypeForEndpoint(endpointId);
       const citycode = params.citycode ?? "";
@@ -838,13 +774,12 @@ const FmsApiComparePage: React.FC = () => {
           matchesRow(row) ? { ...row, status, ...(error && { error }) } : row
         );
         const identical = next.filter((r) => r.status === "identical").length;
-        const uitzonderingBiketypeidSortering = next.filter((r) => r.status === "uitzondering-biketypeid-sortering").length;
         const diff = next.filter((r) => r.status === "diff").length;
         const err = next.filter((r) => r.status === "error").length;
         const skipped = next.filter((r) => r.status === "skipped").length;
         const updated = {
           results: next,
-          summary: { total: next.length, identical, diff, error: err, skipped, uitzonderingBiketypeidSortering },
+          summary: { total: next.length, identical, diff, error: err, skipped },
         };
         saveFullDatasetToStorage(updated);
         return updated;
@@ -853,20 +788,19 @@ const FmsApiComparePage: React.FC = () => {
     [autoCompareParamValues]
   );
 
-  const updateRowStatusByTestId = useCallback((testId: string, status: "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering", error?: string) => {
+  const updateRowStatusByTestId = useCallback((testId: string, status: "identical" | "diff" | "error" | "skipped", error?: string) => {
     setFullDatasetResults((prev) => {
       if (!prev) return prev;
       const next = prev.results.map((row) =>
         row.testId === testId ? { ...row, status, ...(error && { error }) } : row
       );
       const identical = next.filter((r) => r.status === "identical").length;
-      const uitzonderingBiketypeidSortering = next.filter((r) => r.status === "uitzondering-biketypeid-sortering").length;
       const diff = next.filter((r) => r.status === "diff").length;
       const err = next.filter((r) => r.status === "error").length;
       const skipped = next.filter((r) => r.status === "skipped").length;
       const updated = {
         results: next,
-        summary: { total: next.length, identical, diff, error: err, skipped, uitzonderingBiketypeidSortering },
+        summary: { total: next.length, identical, diff, error: err, skipped },
       };
       saveFullDatasetToStorage(updated);
       return updated;
@@ -1236,9 +1170,7 @@ const FmsApiComparePage: React.FC = () => {
     const resultDescription =
       status === "identical"
         ? "Identiek"
-        : status === "uitzondering-biketypeid-sortering"
-          ? "Uitzondering - biketypeid sortering"
-          : status === "diff"
+        : status === "diff"
             ? "Verschilt"
             : status === "error"
               ? `Fout: ${errorMsg ?? "Onbekend"}`
@@ -1439,9 +1371,7 @@ const FmsApiComparePage: React.FC = () => {
     const resultDescription =
       status === "identical"
         ? "Identiek"
-        : status === "uitzondering-biketypeid-sortering"
-          ? "Uitzondering - biketypeid sortering"
-          : status === "diff"
+        : status === "diff"
             ? "Verschilt"
             : status === "error"
               ? `Fout: ${errorMsg ?? "Onbekend"}`
@@ -2021,9 +1951,6 @@ const FmsApiComparePage: React.FC = () => {
                 </div>
                 <p className="text-sm text-gray-600 mb-2 shrink-0">
                   {fullDatasetResults.summary.total} tests: {fullDatasetResults.summary.identical} identiek
-                  {(fullDatasetResults.summary.uitzonderingBiketypeidSortering ?? 0) > 0
-                    ? `, ${fullDatasetResults.summary.uitzonderingBiketypeidSortering} uitzondering biketypeid`
-                    : ""}
                   , {fullDatasetResults.summary.diff} verschillend, {fullDatasetResults.summary.error} fout
                   {((fullDatasetResults.summary as { skipped?: number }).skipped ?? 0) > 0
                     ? `, ${(fullDatasetResults.summary as { skipped: number }).skipped} overgeslagen (non-numeric citycode)`
@@ -2059,7 +1986,7 @@ const FmsApiComparePage: React.FC = () => {
                           key={r.testId}
                           onClick={() => handleFullDatasetRowClick(r)}
                           className={`border-t cursor-pointer hover:bg-gray-50 ${
-                            r.status === "identical" || r.status === "skipped" || r.status === "uitzondering-biketypeid-sortering" ? "bg-green-50" : r.status === "diff" || r.status === "error" ? "bg-red-50" : ""
+                            r.status === "identical" || r.status === "skipped" ? "bg-green-50" : r.status === "diff" || r.status === "error" ? "bg-red-50" : ""
                           }`}
                         >
                           <td className="p-2">{r.type}</td>
@@ -2080,7 +2007,6 @@ const FmsApiComparePage: React.FC = () => {
                           <td className="p-2">{r.endpointLabel}</td>
                           <td className="p-2">
                             {r.status === "identical" && "Identiek"}
-                            {r.status === "uitzondering-biketypeid-sortering" && "Uitzondering - biketypeid sortering"}
                             {r.status === "diff" && "Verschilt"}
                             {r.status === "error" && (r.error ? `Fout: ${r.error.slice(0, 50)}...` : "Fout")}
                             {r.status === "skipped" && "Overgeslagen (non-numeric citycode)"}

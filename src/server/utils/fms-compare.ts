@@ -1,62 +1,5 @@
 /** Shared comparison logic for FMS API old vs new. */
 
-/** V3 endpoints that return locations/sections with biketypes. Used for biketype sort uitzondering (all stallingen). */
-export const V3_ENDPOINTS_WITH_BIKETYPES = [
-  "v3-citycode",
-  "v3-locations",
-  "v3-location",
-  "v3-sections",
-  "v3-section",
-] as const;
-
-/**
- * Recursively sorts biketypes arrays by biketypeid ascending.
- * Detects arrays of objects with biketypeid property (locations.sections.biketypes).
- */
-export function sortBiketypesByBiketypeid(obj: unknown): unknown {
-  if (obj === null || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) {
-    const arr = obj.map(sortBiketypesByBiketypeid);
-    if (
-      arr.length > 0 &&
-      arr.every((x) => x != null && typeof x === "object" && "biketypeid" in (x as object))
-    ) {
-      return [...arr].sort(
-        (a, b) => ((a as { biketypeid: number }).biketypeid ?? 0) - ((b as { biketypeid: number }).biketypeid ?? 0)
-      );
-    }
-    return arr;
-  }
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    result[k] = sortBiketypesByBiketypeid(v);
-  }
-  return result;
-}
-
-/**
- * Applies biketype sort when endpoint returns locations/sections with biketypes.
- * Returns { old, new } with biketypes sorted by biketypeid ascending.
- * Used for all stallingen (all citycodes).
- */
-export function applyBiketypeSortForCitycode7300(
-  oldRes: string,
-  newRes: string,
-  _citycode: string,
-  endpointId: string
-): { old: string; new: string } {
-  if (!(V3_ENDPOINTS_WITH_BIKETYPES as readonly string[]).includes(endpointId)) {
-    return { old: oldRes, new: newRes };
-  }
-  try {
-    const oldObj = sortBiketypesByBiketypeid(JSON.parse(oldRes));
-    const newObj = sortBiketypesByBiketypeid(JSON.parse(newRes));
-    return { old: JSON.stringify(oldObj), new: JSON.stringify(newObj) };
-  } catch {
-    return { old: oldRes, new: newRes };
-  }
-}
-
 export type DynamicDiffOptions = {
   allowDynamicDiffs?: boolean;
   maxverschil?: number;
@@ -160,6 +103,43 @@ function canonicalJson(obj: unknown): string {
   return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonicalJson((obj as Record<string, unknown>)[k])).join(",") + "}";
 }
 
+function isSectionBiketypeRow(x: unknown): x is { biketypeid: number } {
+  return (
+    x !== null &&
+    typeof x === "object" &&
+    !Array.isArray(x) &&
+    typeof (x as Record<string, unknown>).biketypeid === "number"
+  );
+}
+
+function isSectionBiketypeObjectList(arr: unknown[]): boolean {
+  if (arr.length === 0) return true;
+  return arr.every(isSectionBiketypeRow);
+}
+
+/**
+ * Sorts each `biketypes` array that matches BaseRestService section shape (objects with `biketypeid`)
+ * by `biketypeid ascending`. Recurses into locations/sections/etc. so nested section payloads compare
+ * independent of ORM iteration order.
+ */
+export function normalizeSectionBiketypesOrderDeep(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => normalizeSectionBiketypesOrderDeep(item));
+  }
+  const rec = obj as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === "biketypes" && Array.isArray(v) && isSectionBiketypeObjectList(v)) {
+      const normalizedItems = v.map((item) => normalizeSectionBiketypesOrderDeep(item)) as { biketypeid: number }[];
+      out[k] = [...normalizedItems].sort((a, b) => a.biketypeid - b.biketypeid);
+    } else {
+      out[k] = normalizeSectionBiketypesOrderDeep(v);
+    }
+  }
+  return out;
+}
+
 function normalizePriceForCompare(obj: unknown): unknown {
   if (obj === null || typeof obj !== "object") return obj;
   if (Array.isArray(obj)) return obj.map(normalizePriceForCompare);
@@ -194,7 +174,12 @@ export function responsesMatch(endpointId: string, oldRes: string, newRes: strin
     try {
       const oldData = JSON.parse(oldRes);
       const newData = JSON.parse(newRes);
-      return canonicalJson(normalizePriceForCompare(oldData)) === canonicalJson(normalizePriceForCompare(newData));
+      return (
+        canonicalJson(
+          normalizeSectionBiketypesOrderDeep(normalizePriceForCompare(oldData))
+        ) ===
+        canonicalJson(normalizeSectionBiketypesOrderDeep(normalizePriceForCompare(newData)))
+      );
     } catch {
       return false;
     }
@@ -202,7 +187,9 @@ export function responsesMatch(endpointId: string, oldRes: string, newRes: strin
   try {
     const a = JSON.parse(oldRes);
     const b = JSON.parse(newRes);
-    return canonicalJson(a) === canonicalJson(b);
+    return (
+      canonicalJson(normalizeSectionBiketypesOrderDeep(a)) === canonicalJson(normalizeSectionBiketypesOrderDeep(b))
+    );
   } catch {
     return oldRes.trim() === newRes.trim();
   }

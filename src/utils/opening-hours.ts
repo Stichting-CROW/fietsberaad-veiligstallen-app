@@ -77,11 +77,38 @@ function getDayInTz(d: Date): number {
   return map[dayStr] ?? 0;
 }
 
-function isOpeningUnknown(
+/** Civil Y-M-D in Europe/Amsterdam for instant `d`. */
+function getYmdInAmsterdam(d: Date): { y: number; m: number; day: number } {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(d);
+  const y = parseInt(parts.find((p) => p.type === "year")?.value ?? "0", 10);
+  const m = parseInt(parts.find((p) => p.type === "month")?.value ?? "0", 10);
+  const day = parseInt(parts.find((p) => p.type === "day")?.value ?? "0", 10);
+  return { y, m, day };
+}
+
+function addCalendarDaysUtc(y: number, m: number, day: number, delta: number): { y: number; m: number; day: number } {
+  const t = new Date(Date.UTC(y, m - 1, day + delta));
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, day: t.getUTCDate() };
+}
+
+/** Weekday 0=Sun..6=Sat in Amsterdam for civil calendar date. */
+function getWeekdayIndexForAmsterdamCalendarDate(y: number, m: number, day: number): number {
+  const instant = new Date(Date.UTC(y, m - 1, day, 12, 0, 0));
+  return getDayInTz(instant);
+}
+
+/** ColdFusion Bikepark.isOpened: unknown if either slot missing from getOpeningHoursByDayCode. */
+function isScheduleIncomplete(
   openTime: Date | string | null | undefined,
   closeTime: Date | string | null | undefined
 ): boolean {
-  return openTime == null && closeTime == null;
+  return openTime == null || closeTime == null;
 }
 
 function isOpenAllDay(
@@ -110,7 +137,8 @@ export type IsOpenNowResult = {
 
 /**
  * Returns whether the location is open at the given time, based on the weekly schedule.
- * Matches ColdFusion isOpened and client formatOpeningToday logic.
+ * Matches ColdFusion Bikepark.isOpened (unknown when open or close missing for that day;
+ * closing minute inclusive, cf. CreateDateTime(..., second 59)).
  *
  * @param schedule - Open_zo/Dicht_zo, Open_ma/Dicht_ma, etc.
  * @param now - The moment to check
@@ -145,7 +173,7 @@ export function isOpenNow(
   const openTime = schedule[`Open_${dayKey}` as keyof OpeningHoursSchedule];
   const closeTime = schedule[`Dicht_${dayKey}` as keyof OpeningHoursSchedule];
 
-  if (isOpeningUnknown(openTime, closeTime)) {
+  if (isScheduleIncomplete(openTime, closeTime)) {
     return withCloseTime ? { isOpen: unknownAsOpen, closeTimeForDisplay: null } : unknownAsOpen;
   }
 
@@ -164,29 +192,29 @@ export function isOpenNow(
     if (currentMinutes >= openMins) {
       return withCloseTime ? { isOpen: true, closeTimeForDisplay: closeTime ?? null } : true;
     }
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const prevDay = getDayInTz(yesterday);
+    const cal = getYmdInAmsterdam(now);
+    const prevCal = addCalendarDaysUtc(cal.y, cal.m, cal.day, -1);
+    const prevDay = getWeekdayIndexForAmsterdamCalendarDate(prevCal.y, prevCal.m, prevCal.day);
     const prevDayKey = DAY_ORDER[prevDay];
     if (!prevDayKey) {
       return withCloseTime ? { isOpen: unknownAsOpen, closeTimeForDisplay: null } : unknownAsOpen;
     }
     const prevOpen = schedule[`Open_${prevDayKey}` as keyof OpeningHoursSchedule];
     const prevClose = schedule[`Dicht_${prevDayKey}` as keyof OpeningHoursSchedule];
-    if (isOpeningUnknown(prevOpen, prevClose)) {
+    if (isScheduleIncomplete(prevOpen, prevClose)) {
       return withCloseTime ? { isOpen: unknownAsOpen, closeTimeForDisplay: null } : unknownAsOpen;
     }
     const prevCloseMins = toMinutesInTz(prevClose);
     const prevOpenMins = toMinutesInTz(prevOpen);
     if (prevCloseMins < prevOpenMins) {
-      const open = currentMinutes < prevCloseMins;
+      const open = currentMinutes <= prevCloseMins;
       return withCloseTime
         ? { isOpen: open, closeTimeForDisplay: open ? prevClose ?? null : null }
         : open;
     }
     return withCloseTime ? { isOpen: false, closeTimeForDisplay: null } : false;
   }
-  const open = currentMinutes >= openMins && currentMinutes < closeMins;
+  const open = currentMinutes >= openMins && currentMinutes <= closeMins;
   return withCloseTime
     ? { isOpen: open, closeTimeForDisplay: open ? closeTime ?? null : null }
     : open;

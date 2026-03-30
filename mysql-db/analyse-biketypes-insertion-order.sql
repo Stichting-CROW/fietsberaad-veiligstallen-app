@@ -38,6 +38,7 @@ ORDER BY s.sectieId, sf.SectionBiketypeID ASC;
 -- =============================================================================
 -- 3. Stalling-level biketypes (sectie_fietstype with StallingsID set, sectieID null)
 --    Used when hasUniSectionPrices=1; same biketypes for all sections in location.
+--    sectie_fietstype.StallingsID references fietsenstallingen.ID (UUID), not StallingsID (short).
 -- =============================================================================
 SELECT
     f.StallingsID,
@@ -49,7 +50,7 @@ SELECT
     sf.Toegestaan,
     'stalling-level (StallingsID set, sectieID null)' AS source
 FROM fietsenstallingen f
-JOIN sectie_fietstype sf ON sf.StallingsID = f.StallingsID AND sf.sectieID IS NULL
+JOIN sectie_fietstype sf ON sf.StallingsID = f.ID AND sf.sectieID IS NULL
 LEFT JOIN fietstypen ft ON ft.ID = sf.BikeTypeID
 WHERE f.StallingsID = @locationid
   AND f.Status = '1'
@@ -75,6 +76,7 @@ WHERE f.StallingsID = @locationid
 -- =============================================================================
 -- 5. All sectie_fietstype for a location (both section + stalling level)
 --    Quick overview of insertion order across the whole location.
+--    sectie_fietstype.StallingsID references fietsenstallingen.ID (UUID).
 -- =============================================================================
 SELECT
     sf.SectionBiketypeID,
@@ -89,7 +91,7 @@ SELECT
 FROM sectie_fietstype sf
 LEFT JOIN fietsenstalling_sectie s ON s.sectieId = sf.sectieID
 LEFT JOIN fietstypen ft ON ft.ID = sf.BikeTypeID
-LEFT JOIN fietsenstallingen f ON f.ID = s.fietsenstallingsId
-WHERE (sf.StallingsID = @locationid AND sf.sectieID IS NULL)
-   OR (f.StallingsID = @locationid AND f.Status = '1')
+LEFT JOIN fietsenstallingen f ON f.ID = COALESCE(s.fietsenstallingsId, sf.StallingsID)
+WHERE (sf.sectieID IS NULL AND f.StallingsID = @locationid AND f.Status = '1')
+   OR (sf.sectieID IS NOT NULL AND f.StallingsID = @locationid AND f.Status = '1')
 ORDER BY sf.SectionBiketypeID ASC;
