@@ -1,7 +1,10 @@
 /**
  * Shared opening hours logic for stalling details (client) and FMS API (server).
- * Uses Europe/Amsterdam timezone via Intl - no moment dependency.
+ * Uses Europe/Amsterdam for real instants (`now`). Weekly `Open_*` / `Dicht_*` are MySQL `TIME`;
+ * Prisma maps those to `Date` with the clock in UTC components (see `getHourMinuteFromDbTime`).
  */
+
+import moment from "moment-timezone";
 
 const APP_TZ = "Europe/Amsterdam";
 
@@ -31,6 +34,21 @@ function toDate(d: Date | string | null | undefined): Date | null {
   return Number.isNaN(dateObj.getTime()) ? null : dateObj;
 }
 
+/**
+ * Hour/minute for fietsenstallingen `Open_*` / `Dicht_*` (`@db.Time`).
+ * Matches `getUTCHours()` in `fms-v3-openinghours.toHhmm` and ColdFusion `Hour()` on those values.
+ */
+function getHourMinuteFromDbTime(d: Date | string | null | undefined): { hour: number; minute: number } {
+  const dateObj = toDate(d);
+  if (!dateObj) return { hour: 0, minute: 0 };
+  return { hour: dateObj.getUTCHours(), minute: dateObj.getUTCMinutes() };
+}
+
+function toMinutesFromDbTime(d: Date | string | null | undefined): number {
+  const { hour, minute } = getHourMinuteFromDbTime(d);
+  return hour * 60 + minute;
+}
+
 /** Get hour and minute of a Date in APP_TZ using Intl. */
 function getHourMinuteInTz(d: Date | string | null | undefined): { hour: number; minute: number } {
   const dateObj = toDate(d);
@@ -47,14 +65,9 @@ function getHourMinuteInTz(d: Date | string | null | undefined): { hour: number;
   return { hour, minute };
 }
 
-function toMinutesInTz(d: Date | string | null | undefined): number {
-  const { hour, minute } = getHourMinuteInTz(d);
-  return hour * 60 + minute;
-}
-
-/** Format a time as HH:mm for display (e.g. "19:00"). Uses APP_TZ. */
+/** Format stall `TIME` as HH:mm (same interpretation as API periods / CF). */
 export function formatTimeHHmm(d: Date | string | null | undefined): string {
-  const { hour, minute } = getHourMinuteInTz(d);
+  const { hour, minute } = getHourMinuteFromDbTime(d);
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
@@ -103,6 +116,116 @@ function getWeekdayIndexForAmsterdamCalendarDate(y: number, m: number, day: numb
   return getDayInTz(instant);
 }
 
+/** ColdFusion DayOfWeek(): 1 = Sunday … 7 = Saturday (Amsterdam civil day of `d`). */
+function cfDayOfWeekFromDate(d: Date): number {
+  return getDayInTz(d) + 1;
+}
+
+/** ColdFusion helperclass.getDaycodeByDayOfWeek (1-based index into sf daycodes). */
+const CF_DAYCODE_BY_DOW = ["su", "mo", "tu", "we", "th", "fr", "sa"] as const;
+
+function cfDaycodeFromCfDow(cfDow: number): (typeof CF_DAYCODE_BY_DOW)[number] {
+  return CF_DAYCODE_BY_DOW[cfDow - 1]!;
+}
+
+function cfDayOfWeekFromDaycode(daycode: string): number {
+  const i = CF_DAYCODE_BY_DOW.indexOf(daycode as (typeof CF_DAYCODE_BY_DOW)[number]);
+  return i + 1;
+}
+
+const CF_DAYCODE_TO_SCHEDULE: Record<
+  (typeof CF_DAYCODE_BY_DOW)[number],
+  { open: keyof OpeningHoursSchedule; close: keyof OpeningHoursSchedule }
+> = {
+  su: { open: "Open_zo", close: "Dicht_zo" },
+  mo: { open: "Open_ma", close: "Dicht_ma" },
+  tu: { open: "Open_di", close: "Dicht_di" },
+  we: { open: "Open_wo", close: "Dicht_wo" },
+  th: { open: "Open_do", close: "Dicht_do" },
+  fr: { open: "Open_vr", close: "Dicht_vr" },
+  sa: { open: "Open_za", close: "Dicht_za" },
+};
+
+/** ColdFusion getNextDateByDayOfWeek: align `targetCfDow` to `now` using whole-day add. */
+function getNextMomentForCfDayOfWeek(targetCfDow: number, now: Date): moment.Moment {
+  const m = moment.tz(now, APP_TZ);
+  const currentCfDow = cfDayOfWeekFromDate(now);
+  const diff = (7 + targetCfDow - currentCfDow) % 7;
+  return m.clone().add(diff, "days");
+}
+
+type CfOpenCloseMoments = { open?: moment.Moment; close?: moment.Moment };
+
+/**
+ * Mirrors Bikepark.getOpeningHoursByDayCode (without exception overrides — not used in V3 row path).
+ */
+function buildCfOpeningHoursMoments(
+  daycode: (typeof CF_DAYCODE_BY_DOW)[number],
+  schedule: OpeningHoursSchedule,
+  now: Date
+): CfOpenCloseMoments {
+  const keys = CF_DAYCODE_TO_SCHEDULE[daycode];
+  const openSrc = schedule[keys.open];
+  const closeSrc = schedule[keys.close];
+  const out: CfOpenCloseMoments = {};
+  const anchor = getNextMomentForCfDayOfWeek(cfDayOfWeekFromDaycode(daycode), now);
+  const y = anchor.year();
+  const mo = anchor.month();
+  const d = anchor.date();
+
+  if (openSrc != null && toDate(openSrc)) {
+    const { hour, minute } = getHourMinuteFromDbTime(openSrc);
+    out.open = moment.tz(
+      { year: y, month: mo, day: d, hour, minute, second: 0, millisecond: 0 },
+      APP_TZ
+    );
+  }
+  if (closeSrc != null && toDate(closeSrc)) {
+    const { hour, minute } = getHourMinuteFromDbTime(closeSrc);
+    out.close = moment.tz(
+      { year: y, month: mo, day: d, hour, minute, second: 59, millisecond: 0 },
+      APP_TZ
+    );
+  }
+  if (out.open && out.close && out.close.isBefore(out.open)) {
+    out.close.add(1, "day");
+  }
+  return out;
+}
+
+function inCfDateRangeInstant(instant: Date, rangeStart: moment.Moment, rangeEnd: moment.Moment): boolean {
+  const t = instant.getTime();
+  return t >= rangeStart.valueOf() && t <= rangeEnd.valueOf();
+}
+
+/**
+ * ColdFusion Bikepark.isOpened — used for FMS `openinghours.opennow` parity.
+ * First tries today's daycode window; then yesterday's daycode with `date + 7 days` vs yesterday's window.
+ * When open or close is missing in the struct → treated as open (true), matching CF.
+ */
+export function bikeparkIsOpened(schedule: OpeningHoursSchedule, now: Date): boolean {
+  const daycode = cfDaycodeFromCfDow(cfDayOfWeekFromDate(now));
+  let st = buildCfOpeningHoursMoments(daycode, schedule, now);
+  if (st.open == null || st.close == null) {
+    return true;
+  }
+  if (inCfDateRangeInstant(now, st.open, st.close)) {
+    return true;
+  }
+
+  const yM = moment.tz(now, APP_TZ).clone().subtract(1, "day");
+  const yDaycode = cfDaycodeFromCfDow(cfDayOfWeekFromDate(yM.toDate()));
+  st = buildCfOpeningHoursMoments(yDaycode, schedule, now);
+  if (st.open == null) {
+    return false;
+  }
+  if (st.close == null) {
+    return false;
+  }
+  const shifted = moment.tz(now, APP_TZ).add(7, "days").toDate();
+  return inCfDateRangeInstant(shifted, st.open, st.close);
+}
+
 /** ColdFusion Bikepark.isOpened: unknown if either slot missing from getOpeningHoursByDayCode. */
 function isScheduleIncomplete(
   openTime: Date | string | null | undefined,
@@ -115,8 +238,8 @@ function isOpenAllDay(
   openTime: Date | string | null | undefined,
   closeTime: Date | string | null | undefined
 ): boolean {
-  const o = getHourMinuteInTz(openTime);
-  const c = getHourMinuteInTz(closeTime);
+  const o = getHourMinuteFromDbTime(openTime);
+  const c = getHourMinuteFromDbTime(closeTime);
   return o.hour === 0 && o.minute === 0 && c.hour === 23 && c.minute === 59;
 }
 
@@ -124,8 +247,8 @@ function isClosedAllDay(
   openTime: Date | string | null | undefined,
   closeTime: Date | string | null | undefined
 ): boolean {
-  const o = getHourMinuteInTz(openTime);
-  const c = getHourMinuteInTz(closeTime);
+  const o = getHourMinuteFromDbTime(openTime);
+  const c = getHourMinuteFromDbTime(closeTime);
   return o.hour === 0 && o.minute === 0 && c.hour === 0 && c.minute === 0;
 }
 
@@ -136,9 +259,8 @@ export type IsOpenNowResult = {
 };
 
 /**
- * Returns whether the location is open at the given time, based on the weekly schedule.
- * Matches ColdFusion Bikepark.isOpened (unknown when open or close missing for that day;
- * closing minute inclusive, cf. CreateDateTime(..., second 59)).
+ * Returns whether the location is open at the given time (UI heuristic on wall-clock minutes).
+ * For API parity with ColdFusion `Bikepark.isOpened`, use {@link bikeparkIsOpened} instead.
  *
  * @param schedule - Open_zo/Dicht_zo, Open_ma/Dicht_ma, etc.
  * @param now - The moment to check
@@ -177,8 +299,8 @@ export function isOpenNow(
     return withCloseTime ? { isOpen: unknownAsOpen, closeTimeForDisplay: null } : unknownAsOpen;
   }
 
-  const openMins = toMinutesInTz(openTime);
-  const closeMins = toMinutesInTz(closeTime);
+  const openMins = toMinutesFromDbTime(openTime);
+  const closeMins = toMinutesFromDbTime(closeTime);
 
   if (isOpenAllDay(openTime, closeTime)) {
     return withCloseTime ? { isOpen: true, closeTimeForDisplay: null } : true;
@@ -204,8 +326,8 @@ export function isOpenNow(
     if (isScheduleIncomplete(prevOpen, prevClose)) {
       return withCloseTime ? { isOpen: unknownAsOpen, closeTimeForDisplay: null } : unknownAsOpen;
     }
-    const prevCloseMins = toMinutesInTz(prevClose);
-    const prevOpenMins = toMinutesInTz(prevOpen);
+    const prevCloseMins = toMinutesFromDbTime(prevClose);
+    const prevOpenMins = toMinutesFromDbTime(prevOpen);
     if (prevCloseMins < prevOpenMins) {
       const open = currentMinutes <= prevCloseMins;
       return withCloseTime
