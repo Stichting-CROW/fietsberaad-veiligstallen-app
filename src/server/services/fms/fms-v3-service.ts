@@ -23,6 +23,22 @@ function getCityCacheKey(citycode: string, depth: number): string {
 const CITY_CACHE_TTL_MS =
   CACHE_CITYCODES_DURATION_MINUTES > 0 ? CACHE_CITYCODES_DURATION_MINUTES * 60 * 1000 : 0;
 
+/**
+ * MySQL Bit(1) may surface as boolean, number, bigint, or Buffer. Non-empty Buffer is truthy in JS
+ * even for b'0', which incorrectly enables hasUniBikeTypePrices → uniform stalling tariffs for all
+ * biketypes. ColdFusion only uses stalling-wide tarieven when both uni flags are true; otherwise
+ * per BikeparkBiketype (sectie_fietstype per StallingsID) applies.
+ */
+function mysqlBitIsTrue(v: unknown): boolean {
+  if (v === true) return true;
+  if (v === false || v == null) return false;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "bigint") return v !== 0n;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) return v.length > 0 && (v[0] ?? 0) === 1;
+  if (v instanceof Uint8Array) return v.length > 0 && (v[0] ?? 0) === 1;
+  return false;
+}
+
 function timeStart(label: string): number {
   return FMS_TIMING ? performance.now() : 0;
 }
@@ -30,6 +46,13 @@ function timeEnd(label: string, start: number) {
   if (FMS_TIMING && start) {
     console.log(`[FMS timing] ${label}: ${(performance.now() - start).toFixed(0)}ms`);
   }
+}
+
+/** CF BaseRestService.getSection: one JSON rate per cost period; tariefregel rows with null tijd+kosten become toRateOrNull null and must not appear as leading holes in the array. */
+function stripLeadingNullRates<T extends { timespan: number; cost: number } | null>(arr: T[]): T[] {
+  let i = 0;
+  while (i < arr.length && arr[i] === null) i++;
+  return arr.slice(i);
 }
 
 export type CityCode = {
@@ -410,6 +433,7 @@ async function getLocationsFull(
           titel: true,
           Bezetting: true,
           secties_fietstype: {
+            /* CF BikeparkSection.sectionBikeTypes has no orderby; ORM order matches SectionBiketypeID (PK), not BikeTypeID. */
             orderBy: { SectionBiketypeID: "asc" },
             select: {
               SectionBiketypeID: true,
@@ -535,16 +559,18 @@ async function assembleSectionsFromRows(
   const uniSectieIds: number[] = [];
   const stallingIdsForUniRates: string[] = [];
   for (const row of rows) {
+    const rowUniBike = mysqlBitIsTrue(row.hasUniBikeTypePrices);
+    const rowUniSection = mysqlBitIsTrue(row.hasUniSectionPrices);
     for (const s of row.fietsenstalling_secties ?? []) {
       for (const sf of s.secties_fietstype ?? []) {
         if (sf.SectionBiketypeID) allSectionBikeTypeIds.push(sf.SectionBiketypeID);
       }
-      if (row.hasUniBikeTypePrices && s.sectieId) uniSectieIds.push(s.sectieId);
+      if (rowUniBike && s.sectieId) uniSectieIds.push(s.sectieId);
     }
-    if (row.hasUniSectionPrices && !row.hasUniBikeTypePrices && row.ID) {
+    if (rowUniSection && !rowUniBike && row.ID) {
       stallingsNeedingStallingBiketypes.push(row.ID);
     }
-    if (row.hasUniBikeTypePrices && row.hasUniSectionPrices && row.ID) {
+    if (rowUniBike && rowUniSection && row.ID) {
       stallingIdsForUniRates.push(row.ID);
     }
   }
@@ -644,6 +670,8 @@ async function assembleSectionsFromRows(
   }
 
   return rows.map((row) => {
+    const rowUniBike = mysqlBitIsTrue(row.hasUniBikeTypePrices);
+    const rowUniSection = mysqlBitIsTrue(row.hasUniSectionPrices);
     const secties = (row.fietsenstalling_secties ?? []).slice().sort((a, b) => a.sectieId - b.sectieId);
     return secties.map((s) => {
         const data: Record<string, unknown> = {
@@ -675,18 +703,22 @@ async function assembleSectionsFromRows(
           raw.length === 0 ? [null, null, null] : raw;
 
         let sectionRates: RateOrNullLoc[] | null = null;
-        if (row.hasUniBikeTypePrices) {
-          const sectieTr = s.sectieId ? tariefByUniSectie.get(s.sectieId) : null;
-          const sectieKp = s.sectieId ? kostenBySectie.get(s.sectieId) : null;
-          const fromSectie =
-            sectieTr && sectieTr.length > 0
-              ? sectieTr.map(toRateOrNullLoc)
-              : (sectieKp ?? []).map(toRateFromKp);
-          if (fromSectie.some((r) => r != null)) {
-            sectionRates = fromSectie;
-          } else if (row.hasUniSectionPrices && row.ID) {
+        /** CF BikeparkSection.getCostPeriods: uni bike type uses stalling-only when uni section+bike, else sectie-only; never sectie fallback when both uni flags. */
+        let applyUniformUniBikeRatesToBiketypes = false;
+        if (rowUniBike) {
+          if (rowUniSection && row.ID) {
             const stallingTr = tariefByStalling.get(row.ID);
-            sectionRates = stallingTr && stallingTr.length > 0 ? stallingTr.map(toRateOrNullLoc) : null;
+            sectionRates = stallingTr ? stallingTr.map(toRateOrNullLoc) : [];
+            applyUniformUniBikeRatesToBiketypes = true;
+          } else if (!rowUniSection) {
+            const sectieTr = s.sectieId ? tariefByUniSectie.get(s.sectieId) : null;
+            const sectieKp = s.sectieId ? kostenBySectie.get(s.sectieId) : null;
+            const fromSectie =
+              sectieTr && sectieTr.length > 0
+                ? sectieTr.map(toRateOrNullLoc)
+                : (sectieKp ?? []).map(toRateFromKp);
+            sectionRates = fromSectie;
+            applyUniformUniBikeRatesToBiketypes = true;
           }
           if (sectionRates && sectionRates.some((r) => r != null)) {
             data.rates = sectionRates.filter((r): r is { timespan: number; cost: number } => r != null);
@@ -696,19 +728,24 @@ async function assembleSectionsFromRows(
         type SfRow = { SectionBiketypeID: number; Toegestaan: boolean | null; BikeTypeID: number | null; Capaciteit: number | null };
         const sft = (s.secties_fietstype ?? []) as SfRow[];
         if (sft.length > 0) {
-          const useStallingBiketypes = row.hasUniSectionPrices && !row.hasUniBikeTypePrices && row.ID;
+          const useStallingBiketypes = rowUniSection && !rowUniBike && row.ID;
+        /* CF BaseRestService.getSection: cost-period loop is not gated on allowed (proxy/SectorBikeType differs); REST exposes rates for disallowed types when getCostPeriods returns rows. */
         const mapped = sft.map((sf) => {
-            const rates: Array<{ timespan: number; cost: number } | null> =
-              sectionRates && sectionRates.length > 0
-                ? toRatesArr(sectionRates)
-                : (() => {
-                    const tr = useStallingBiketypes
-                      ? tariefByBikeTypeIdByStalling.get(row.ID!)?.get(sf.BikeTypeID ?? 0)
-                      : tariefBySbt.get(sf.SectionBiketypeID);
-                    const fromTr = tr ? tr.map(toRateOrNullLoc) : [];
-                    return fromTr.length > 0 ? toRatesArr(fromTr) : [null, null, null];
-                  })();
             const allowed = sf.Toegestaan ?? false;
+            let rates: Array<{ timespan: number; cost: number } | null>;
+            if (applyUniformUniBikeRatesToBiketypes) {
+              const trimmed = stripLeadingNullRates(sectionRates ?? []);
+              rates = toRatesArr(trimmed);
+            } else {
+              let tr = useStallingBiketypes
+                ? tariefByBikeTypeIdByStalling.get(row.ID!)?.get(sf.BikeTypeID ?? 0)
+                : tariefBySbt.get(sf.SectionBiketypeID);
+              if (useStallingBiketypes && (!tr || tr.length === 0)) {
+                tr = tariefBySbt.get(sf.SectionBiketypeID);
+              }
+              const fromTr = stripLeadingNullRates(tr ? tr.map(toRateOrNullLoc) : []);
+              rates = fromTr.length > 0 ? toRatesArr(fromTr) : [null, null, null];
+            }
             const out: { allowed: boolean; biketypeid: number; rates: Array<{ timespan: number; cost: number } | null>; capacity?: number } = {
               allowed,
               biketypeid: sf.BikeTypeID ?? 0,
@@ -717,6 +754,7 @@ async function assembleSectionsFromRows(
             if (allowed && sf.Capaciteit != null && sf.Capaciteit > 0) out.capacity = sf.Capaciteit;
             return out;
           });
+          /* CF BaseRestService.getSection: loops getSectionBikeTypes() in ORM order (SectionBiketypeID), not sorted by biketypeid. */
           data.biketypes = mapped;
         }
         return toSectionOrder(data) as ColdFusionSection;
@@ -1277,8 +1315,7 @@ async function buildSectionFromSectie(
     data.maxsubscriptions = stalling.AantalReserveerbareKluizen;
   }
 
-  /* ColdFusion: each biketype gets rates from section.getCostPeriods(biketype). When hasUniBikeTypePrices, same rates apply to all biketypes. Rates can be at section-level (sectieID) or stalling-level (stallingsID, sectieID=null) when hasUniSectionPrices. */
-  /* Old API uses timespan 24 (hours) when tijdsspanne is null/0; rates array can have null for empty slots. */
+  /* ColdFusion Bikepark.getCostPeriods: stalling-wide variables.costperiods only when hasUniSectionPrices && hasUniBikeTypePrices; else per BikeparkBiketype when uni section, or per section biketype. Use mysqlBitIsTrue for Bit(1) fields. Old API: timespan 24 when tijdsspanne null/0; rate slots may be null. */
   const DEFAULT_TIMESPAN = 24;
   const toRate = (t: { tijdsspanne: number | null; kosten: unknown }): { timespan: number; cost: number } => {
     const cost = Number(t.kosten ?? 0);
@@ -1301,10 +1338,13 @@ async function buildSectionFromSectie(
   };
 
   type RateOrNull = { timespan: number; cost: number } | null;
-  let sectionLevelRates: RateOrNull[] | null = null;
-  if (stalling?.hasUniBikeTypePrices) {
+  const uniSection = mysqlBitIsTrue(stalling?.hasUniSectionPrices);
+  const uniBike = mysqlBitIsTrue(stalling?.hasUniBikeTypePrices);
+  /** CF BikeparkSection.getCostPeriods: uni section+bike => stalling tariefs only (no sectie fallback). Uni bike only => sectie/kostenperioden only. */
+  let uniformBiketypeRates: RateOrNull[] | null = null;
+  let applyUniformUniBikeRatesToBiketypes = false;
+  if (uniBike && stalling?.ID) {
     const tUni = timeStart(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} uniBikeTypePrices`);
-    /* ColdFusion BikeparkSection.getCostPeriods: hasUniSectionPrices is checked first; when true, rates come from Bikepark (stallingsID). */
     const sectieWhere = sectionidForLookup
       ? {
           OR: [
@@ -1314,16 +1354,14 @@ async function buildSectionFromSectie(
         }
       : { sectieID: sectie.sectieId, sectionBikeTypeID: null };
     const stallingWhere = { stallingsID: stalling.ID, sectieID: null, sectionBikeTypeID: null };
-    if (stalling?.hasUniSectionPrices && stalling?.ID) {
+    if (uniSection) {
       const stallingTariefregels = await prisma.tariefregels.findMany({
         where: stallingWhere,
         orderBy: { index: "asc" },
       });
-      if (stallingTariefregels.length > 0) {
-        sectionLevelRates = stallingTariefregels.map(toRateOrNull);
-      }
-    }
-    if (!sectionLevelRates || sectionLevelRates.length === 0) {
+      uniformBiketypeRates = stallingTariefregels.map(toRateOrNull);
+      applyUniformUniBikeRatesToBiketypes = true;
+    } else {
       const sectieTariefregels = await prisma.tariefregels.findMany({
         where: sectieWhere,
         orderBy: { index: "asc" },
@@ -1332,21 +1370,17 @@ async function buildSectionFromSectie(
         where: { sectieId: sectie.sectieId },
         orderBy: { index: "asc" },
       });
-      sectionLevelRates =
+      uniformBiketypeRates =
         sectieTariefregels.length > 0
           ? sectieTariefregels.map(toRateOrNull)
           : kostenperioden.map(toRateFromKostenperiode);
-      if (sectionLevelRates.length === 0 && stalling?.hasUniSectionPrices && stalling?.ID) {
-        const stallingTariefregels = await prisma.tariefregels.findMany({
-          where: stallingWhere,
-          orderBy: { index: "asc" },
-        });
-        sectionLevelRates = stallingTariefregels.length > 0 ? stallingTariefregels.map(toRateOrNull) : null;
-      }
+      applyUniformUniBikeRatesToBiketypes = true;
     }
     timeEnd(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} uniBikeTypePrices`, tUni);
-    const hasRates = sectionLevelRates && sectionLevelRates.some((r) => r != null);
-    if (hasRates && sectionLevelRates) data.rates = sectionLevelRates.filter((r): r is { timespan: number; cost: number } => r != null);
+    const hasRates = uniformBiketypeRates.some((r) => r != null);
+    if (hasRates && uniformBiketypeRates) {
+      data.rates = uniformBiketypeRates.filter((r): r is { timespan: number; cost: number } => r != null);
+    }
   }
 
   if (sectie.secties_fietstype.length > 0) {
@@ -1354,10 +1388,11 @@ async function buildSectionFromSectie(
     const tariefByBikeTypeId = new Map<number, { tijdsspanne: number | null; kosten: unknown }[]>();
     let stallingSftForAllowed: { BikeTypeID: number | null; Toegestaan: boolean | null }[] = [];
 
-    if (!stalling?.hasUniBikeTypePrices) {
+    if (!uniBike) {
       const tTarief = timeStart(`getSection ${locationid}/${sectionidForLookup ?? sectie.sectieId} tariefregels`);
       /* ColdFusion: when hasUniSectionPrices, rates come from stalling-level SectionBikeTypes (sectie_fietstype with StallingsID, sectieID null), not section-level. */
-      const useStallingBiketypes = stalling?.hasUniSectionPrices && stalling?.ID;
+      const useStallingBiketypes = uniSection && stalling?.ID;
+      const sectionSbtIds = sectie.secties_fietstype.map((sf) => sf.SectionBiketypeID);
       let sectionBikeTypeIds: number[];
       let stallingSft: { SectionBiketypeID: number; BikeTypeID: number | null; Toegestaan: boolean | null }[] = [];
       if (useStallingBiketypes) {
@@ -1367,9 +1402,11 @@ async function buildSectionFromSectie(
           select: { SectionBiketypeID: true, BikeTypeID: true, Toegestaan: true },
         });
         stallingSftForAllowed = stallingSft;
-        sectionBikeTypeIds = stallingSft.map((sft) => sft.SectionBiketypeID);
+        const stallingSbtIds = stallingSft.map((sft) => sft.SectionBiketypeID);
+        /* Load tariefregels for stalling SBTs and section SBTs: fietskluizen / uni-section stalls may have rows on section sectie_fietstype that are not on the stalling master list (legacy API still exposes them). */
+        sectionBikeTypeIds = [...new Set([...stallingSbtIds, ...sectionSbtIds])];
       } else {
-        sectionBikeTypeIds = sectie.secties_fietstype.map((sf) => sf.SectionBiketypeID);
+        sectionBikeTypeIds = sectionSbtIds;
       }
 
       const tariefregels = await prisma.tariefregels.findMany({
@@ -1381,13 +1418,15 @@ async function buildSectionFromSectie(
       if (useStallingBiketypes) {
         const sbtToBikeType = new Map(stallingSft.map((s) => [s.SectionBiketypeID, s.BikeTypeID]));
         for (const t of tariefregels) {
-          if (t.sectionBikeTypeID != null) {
-            const bikeTypeId = sbtToBikeType.get(t.sectionBikeTypeID);
-            if (bikeTypeId != null) {
-              const arr = tariefByBikeTypeId.get(bikeTypeId) ?? [];
-              arr.push(t);
-              tariefByBikeTypeId.set(bikeTypeId, arr);
-            }
+          if (t.sectionBikeTypeID == null) continue;
+          const bySbt = tariefBySbt.get(t.sectionBikeTypeID) ?? [];
+          bySbt.push(t);
+          tariefBySbt.set(t.sectionBikeTypeID, bySbt);
+          const bikeTypeFromStalling = sbtToBikeType.get(t.sectionBikeTypeID);
+          if (bikeTypeFromStalling != null) {
+            const arr = tariefByBikeTypeId.get(bikeTypeFromStalling) ?? [];
+            arr.push(t);
+            tariefByBikeTypeId.set(bikeTypeFromStalling, arr);
           }
         }
       } else {
@@ -1401,33 +1440,7 @@ async function buildSectionFromSectie(
       }
     }
 
-    let sectionLevelFallback: RateOrNull[] | null = null;
-    if ((!sectionLevelRates || sectionLevelRates.length === 0) && !stalling?.hasUniBikeTypePrices) {
-      const sectieTariefWhere = sectionidForLookup
-        ? { OR: [{ sectieID: sectie.sectieId, sectionBikeTypeID: null }, { truncatedSectieID: sectionidForLookup, sectionBikeTypeID: null }] }
-        : { sectieID: sectie.sectieId, sectionBikeTypeID: null };
-      const sectieTarief = await prisma.tariefregels.findMany({
-        where: sectieTariefWhere,
-        orderBy: { index: "asc" },
-      });
-      const kostenperiodenFallback = await prisma.fietsenstalling_sectie_kostenperioden.findMany({
-        where: { sectieId: sectie.sectieId },
-        orderBy: { index: "asc" },
-      });
-      const fromSectie =
-        sectieTarief.length > 0
-          ? sectieTarief.map(toRateOrNull)
-          : kostenperiodenFallback.map(toRateFromKostenperiode);
-      if (fromSectie.some((r) => r != null)) {
-        sectionLevelFallback = fromSectie;
-      } else if (stalling?.hasUniSectionPrices && stalling?.ID) {
-        const stallingTarief = await prisma.tariefregels.findMany({
-          where: { stallingsID: stalling.ID, sectieID: null, sectionBikeTypeID: null },
-          orderBy: { index: "asc" },
-        });
-        sectionLevelFallback = stallingTarief.length > 0 ? stallingTarief.map(toRateOrNull) : null;
-      }
-    }
+    /* CF BikeparkSection.getCostPeriods: when not uni bike type, returns getSectionBiketypeByBikeType(...).getCostperiods() only — no sectie-wide tarief/kostenperioden fallback onto other fietstypes. */
 
     const toRatesArray = (raw: RateOrNull[] | Array<{ timespan: number; cost: number }>): Array<{ timespan: number; cost: number } | null> => {
       const arr = raw as RateOrNull[];
@@ -1438,7 +1451,7 @@ async function buildSectionFromSectie(
     /* ColdFusion getSection loops section.getSectionBikeTypes() and uses sectionbiketype.getIsBikeTypeAllowed() for allowed.
        So allowed always comes from section-level Toegestaan (sf.Toegestaan), never stalling-level. */
     const stallingBikeTypeIds = new Set<number>();
-    if (stalling?.hasUniSectionPrices && stalling?.ID) {
+    if (uniSection && stalling?.ID) {
       const sftSource = stallingSftForAllowed.length > 0
         ? stallingSftForAllowed
         : await prisma.sectie_fietstype.findMany({
@@ -1452,24 +1465,23 @@ async function buildSectionFromSectie(
     const mapped = sectie.secties_fietstype.map((sf) => {
       const allowed = sf.Toegestaan ?? false;
       const bikeTypeId = sf.BikeTypeID ?? 0;
-      /* When hasUniSectionPrices, rates come from stalling; biketypes not in stalling get new SectionBikeType with no costperiods → []. */
-      const biketypeNotInStalling = stalling?.hasUniSectionPrices && stallingBikeTypeIds.size > 0 && !stallingBikeTypeIds.has(bikeTypeId);
+      /* Stalling master list (uni section): prefer BikeparkBiketype tarief by bike type; if missing, fall back to this section row’s sectie_fietstype.tariefregels (fietskluizen may store tariffs on section SBTs not on stalling list). */
+      const biketypeNotInStalling = uniSection && stallingBikeTypeIds.size > 0 && !stallingBikeTypeIds.has(bikeTypeId);
       let rates: Array<{ timespan: number; cost: number } | null>;
-      if (!allowed || biketypeNotInStalling) {
-        rates = [null, null, null];
-      } else if (sectionLevelRates && sectionLevelRates.length > 0) {
-        rates = toRatesArray(sectionLevelRates);
+      /* CF BaseRestService.getSection: fills rates from getCostPeriods for every sectionbiketype even when allowed=false (see FIXME in BaseRestService.cfc). */
+      if (applyUniformUniBikeRatesToBiketypes) {
+        rates = toRatesArray(stripLeadingNullRates(uniformBiketypeRates ?? []));
       } else {
-        const tr =
-          tariefByBikeTypeId.size > 0
-            ? tariefByBikeTypeId.get(bikeTypeId)
-            : tariefBySbt.get(sf.SectionBiketypeID);
-        const fromTr = tr ? tr.map(toRateOrNull) : [];
+        let tr: { tijdsspanne: number | null; kosten: unknown }[] | undefined;
+        if (!biketypeNotInStalling && tariefByBikeTypeId.size > 0) {
+          tr = tariefByBikeTypeId.get(bikeTypeId);
+        }
+        if (!tr || tr.length === 0) {
+          tr = tariefBySbt.get(sf.SectionBiketypeID);
+        }
+        const fromTr = stripLeadingNullRates(tr ? tr.map(toRateOrNull) : []);
         if (fromTr.length > 0) {
           rates = toRatesArray(fromTr);
-        } else if (sectionLevelFallback && sectionLevelFallback.length > 0 && !stalling?.hasUniSectionPrices) {
-          /* Only use section-level fallback when NOT hasUniSectionPrices; otherwise stalling has no rates for this biketype. */
-          rates = sectionLevelFallback;
         } else {
           rates = [null, null, null];
         }

@@ -377,6 +377,7 @@ export default async function handle(
                   include: {
                     secties_fietstype: {
                       select: { SectionBiketypeID: true },
+                      orderBy: { BikeTypeID: "asc" },
                     },
                   },
                 });

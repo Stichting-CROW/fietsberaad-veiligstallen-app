@@ -52,7 +52,8 @@ export const selectSectieDetailsType = {
           naamenkelvoud: true
         }
       }
-    }
+    },
+    orderBy: { BikeTypeID: "asc" }
   }
 } satisfies Prisma.fietsenstalling_sectieSelect;
 

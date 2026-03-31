@@ -16,6 +16,7 @@ import { reportOccupationData } from "~/server/services/fms/report-occupation-se
 import { addSubscription, subscribe } from "~/server/services/fms/subscription-service";
 import { logFmsCall } from "~/server/services/fms/webservice-log";
 import * as wachtrijService from "~/server/services/fms/wachtrij-service";
+import { assertFmsWriteAllowedForSession } from "~/server/services/fms/fms-write-policy";
 
 function set401(res: NextApiResponse, hadAuthHeader: boolean) {
   if (!hadAuthHeader) {
@@ -91,6 +92,11 @@ export default async function handle(
       res.status(400).json({ message: "sectionID required", status: 0 });
       return;
     }
+  }
+
+  if (writeMethods.includes(method)) {
+    const writeOk = await assertFmsWriteAllowedForSession(req, res);
+    if (!writeOk) return;
   }
 
   try {

@@ -87,4 +87,6 @@ logs/*
 !/docs/documentatie-crow/1-api/**
 /docs/analyse-modules
 /docs/analyse-change-dataowner/
+!/docs/analyse-api/
+!/docs/analyse-api/**
 .tmp/
