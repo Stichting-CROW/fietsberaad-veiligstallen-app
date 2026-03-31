@@ -8,6 +8,7 @@
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as v3Service from "~/server/services/fms/fms-v3-service";
+import { assertFmsWriteAllowedForSession } from "~/server/services/fms/fms-write-policy";
 
 function setCors(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -19,7 +20,9 @@ export default async function handle(
 ) {
   setCors(res);
   if (req.method !== "GET") {
-    res.status(405).json({ message: "Method not allowed" });
+    const writeOk = await assertFmsWriteAllowedForSession(req, res);
+    if (!writeOk) return;
+    res.status(405).json({ message: "Method not allowed", status: 0 });
     return;
   }
 

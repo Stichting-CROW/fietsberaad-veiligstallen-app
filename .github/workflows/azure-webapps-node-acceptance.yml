@@ -63,6 +63,7 @@ jobs:
           echo "SMTP_USER=$SMTP_USER" >> .env
           echo "SMTP_PASS=$SMTP_PASS" >> .env
           echo "SMTP_FROM=$SMTP_FROM" >> .env
+          echo "ENABLE_WRITE_API=true" >> .env
       - name: print env file
         run: cat .env
 
@@ -83,6 +84,7 @@ jobs:
           SMTP_USER: ${{ secrets.ACC_SMTP_USER }}
           SMTP_PASS: ${{ secrets.ACC_SMTP_PASS }}
           SMTP_FROM: ${{ secrets.ACC_SMTP_FROM }}
+          ENABLE_WRITE_API: "true"
         run: |
           npm install
           npm run build
