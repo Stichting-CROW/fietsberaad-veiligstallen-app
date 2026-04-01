@@ -5,7 +5,7 @@
  * Time: "HHmm" (e.g. "0800", "1830").
  */
 
-import { isOpenNow } from "~/utils/opening-hours";
+import { bikeparkIsOpened } from "~/utils/opening-hours";
 
 // ColdFusion days order: ["su","mo","tu","we","th","fr","sa"]
 type DayKey = "zo" | "ma" | "di" | "wo" | "do" | "vr" | "za";
@@ -156,25 +156,30 @@ export function buildOpeningHours(
   }
 
   // When no periods: either no data at all (unknown => open) or all days closed (=> closed).
-  // Don't assume opennow=true; compute from isOpenNow which handles both cases correctly.
+  // Don't assume opennow=true; compute from bikeparkIsOpened (CF Bikepark.isOpened).
   if (periods.length === 0) {
     let opennow: boolean;
     try {
-      opennow = isOpenNow(input, now, { unknownAsOpen: true });
+      opennow = bikeparkIsOpened(input, now);
     } catch {
       opennow = true; // Fallback: treat as open on error
     }
     return { opennow, periods: [] };
   }
 
-  // Check if all days are open 00:00-23:59 (isNonStopOpen when not fietskluizen)
+  // ColdFusion Bikepark.isNonStopOpen (non–fietskluizen): isOpenAllDay('mo') AND … AND su.
+  // Each isOpenAllDay requires open+close defined; missing day ⇒ not non-stop. Do not skip unknowns.
   let allOpen24h = true;
   for (const day of DAY_ORDER) {
     const openKey = `Open_${day}` as keyof OpeningHoursInput;
     const dichtKey = `Dicht_${day}` as keyof OpeningHoursInput;
     const openTime = input[openKey];
     const closeTime = input[dichtKey];
-    if (!isOpeningUnknown(openTime, closeTime) && !isOpenAllDay(openTime, closeTime)) {
+    if (isOpeningUnknown(openTime, closeTime)) {
+      allOpen24h = false;
+      break;
+    }
+    if (!isOpenAllDay(openTime, closeTime)) {
       allOpen24h = false;
       break;
     }
@@ -189,7 +194,7 @@ export function buildOpeningHours(
   // Compute opennow using shared per-day logic (ColdFusion isOpened), not merged periods.
   let opennow: boolean;
   try {
-    opennow = isOpenNow(input, now, { unknownAsOpen: true });
+    opennow = bikeparkIsOpened(input, now);
   } catch {
     opennow = true; // Fallback: treat as open on error
   }
