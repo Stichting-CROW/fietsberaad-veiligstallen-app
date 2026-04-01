@@ -17,6 +17,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import {
   getUserFromCredentials,
   getUserFromLoginCode,
+  getUserFromMagicLinkToken,
 } from "../../../utils/auth-tools";
 
 import { VSUserRoleValuesNew } from "~/types/users";
@@ -99,13 +100,14 @@ providers.push(
           return null;
         }
 
-        const user = await getUserFromLoginCode(credentials);
-
+        let user = await getUserFromLoginCode(credentials);
+        if (!user) {
+          user = await getUserFromMagicLinkToken(credentials);
+        }
         if (!user) {
           console.error("No user found for token");
           return null;
         }
-
         return user;
       } catch (error) {
         console.error("Error in token-login authorize:", error);

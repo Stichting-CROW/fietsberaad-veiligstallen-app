@@ -8,6 +8,7 @@ import type { VSContactExploitant, VSContactGemeenteInLijst, VSContact } from "~
 import { getNewRoleLabel, logSession } from '~/types/utils';
 import { getOrganisationByID } from "~/utils/organisations";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
+import { AdminButton } from "./AdminButton";
 
 interface TopBarProps {
   gemeenten: VSContactGemeenteInLijst[] | undefined;
@@ -227,47 +228,36 @@ const TopBar: React.FC<TopBarProps> = ({
         )}
         
         {shouldShowBackButton && (
-          <button
-            onClick={() => onOrganisatieSelect(ownOrganisationID||"")}
-            className="
-              inline-flex h-10 items-center justify-center rounded-lg px-4
-              font-semibold text-white shadow-lg transition hover:brightness-110
-            "
+          <AdminButton
+            onClick={() => onOrganisatieSelect(ownOrganisationID || "")}
             style={{
               backgroundColor: themeColor1 || "#15aeef",
             }}
           >
             Terug naar {ownOrganisationName}
-          </button>
+          </AdminButton>
         )}
 
-        <a
+        <AdminButton
           href="https://fms.veiligstallen.nl"
           target="_blank"
-          className="
-            inline-flex h-10 items-center justify-center rounded-lg px-4
-            font-semibold text-white shadow-lg transition hover:brightness-110
-          "
+          title="Ga naar het oude FMS beheersysteem"
           style={{
             backgroundColor: themeColor1 || "#15aeef",
           }}
-          title="Ga naar het oude FMS beheersysteem"
         >
           FMS
-        </a>
+        </AdminButton>
 
-        <button
-          className="
-            inline-flex h-10 items-center justify-center whitespace-nowrap rounded-lg px-4
-            font-semibold text-white shadow-lg transition hover:brightness-110
-          "
+        <AdminButton
+          onClick={handleLoginClick}
+          className="whitespace-nowrap"
           style={{
             backgroundColor: themeColor2 || themeColor1,
           }}
-          onClick={handleLoginClick}
         >
           {session ? "Log uit" : "Log in"}
-        </button>
+        </AdminButton>
       </div>
       </div>
     </header>

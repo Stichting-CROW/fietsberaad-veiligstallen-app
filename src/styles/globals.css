@@ -87,8 +87,12 @@ body, #__next, #__next > main {
 
 .modal-wrapper {
   width: 90dvw;
+  /* width: fit-content; */
   max-width: 1200px;
-  /*  height: 90dvh;*/
+}
+
+.modal-wrapper--fit-content {
+  width: fit-content;
 }
 
 .modal {

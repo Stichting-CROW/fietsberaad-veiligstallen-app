@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { VSUserRoleValuesNew } from '~/types/users';
 import { UserEditComponent } from './UserEditComponent';
 import ExploitantManagementComponent from './ExploitantManagementComponent';
@@ -15,14 +16,17 @@ import { VSSecurityTopic } from '~/types/securityprofile';
 type UserComponentProps = { 
   siteID: string | null,
   contacts: {ID: string, CompanyName: string, ItemType?: string}[],
+  /** When set, opens the "Bewerk gebruiker" modal for this user (e.g. from URL /beheer/.../userId) */
+  initialEditUserId?: string,
 };
 
 const UsersComponent: React.FC<UserComponentProps> = (props) => {
+  const router = useRouter();
   const roles = Object.values(VSUserRoleValuesNew).map(role => ({
     label: getNewRoleLabel(role),
     value: role.toString()
   }))
-  const [id, setId] = useState<string | undefined>(undefined);
+  const [id, setId] = useState<string | undefined>(props.initialEditUserId);
   const [deleteAnchorEl, setDeleteAnchorEl] = useState<HTMLElement | null>(null);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
@@ -89,8 +93,19 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
     console.log(`Reset password for user: ${userId}`);
   };
 
+  const getUsersBasePath = () => {
+    // Extract base path e.g. /beheer/usersgebruikersbeheerfietsberaad from current URL
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : router.asPath;
+    const segments = pathname.split('/').filter(Boolean);
+    return '/' + segments.slice(0, 2).join('/') || '/beheer';
+  };
+
   const handleEditUser = (userId: string) => {
     setId(userId);
+    // Use History API to update URL without triggering Next.js navigation (avoids route switch and flicker)
+    const basePath = getUsersBasePath();
+    const newUrl = `${basePath}/${userId}`;
+    window.history.pushState(null, '', newUrl);
   };
 
   const handleDeleteClick = (event: React.MouseEvent<HTMLElement>, userId: string) => {
@@ -253,12 +268,23 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
 
   const title = "Gebruikers";
 
+  const clearModalAndUrl = () => {
+    const wasEditingUserId = id;
+    setId(undefined);
+    // Use History API to clear userId from URL without triggering Next.js navigation (avoids flicker)
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : router.asPath;
+    if (wasEditingUserId && pathname.endsWith(`/${wasEditingUserId}`)) {
+      const basePath = getUsersBasePath();
+      window.history.replaceState(null, '', basePath);
+    }
+  };
+
   const handleUserEditClose = (userChanged: boolean, confirmClose: boolean) => {
     if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?')===false)) { 
       return;
     }
 
-    setId(undefined);
+    clearModalAndUrl();
 
     if (userChanged) { reloadUsers(); }
   }
@@ -386,7 +412,7 @@ const UsersComponent: React.FC<UserComponentProps> = (props) => {
             siteID={props.siteID}
             siteCompanyName={currentGemeente?.CompanyName || "onbekend"}
             onClose={handleUserEditClose} 
-          />, false, "Gebruiker bewerken", () => setId(undefined))
+          />, false, "Gebruiker bewerken", clearModalAndUrl)
       )}
       <div className={`${id!==undefined ? "hidden" : ""}`}>
         <div className="flex justify-between items-center mb-4">

@@ -57,6 +57,9 @@ yarn-error.log*
 mysql-db/export-db.sql
 mysql-db/export-db.zip
 
+# local MySQL data (Docker volume - restrictively permissioned, breaks build scans)
+mysql-db/persist-db/
+
 #uploads
 /public/uploads*
 
