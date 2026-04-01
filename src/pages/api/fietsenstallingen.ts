@@ -158,6 +158,16 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   }
 
   try {
+    const tariefcodes = await prisma.tariefcodes.findMany({
+      select: {
+        ID: true,
+        Omschrijving: true,
+      },
+    });
+    const tariefcodeMap = new Map<number, string>(
+      tariefcodes.map((t) => [t.ID, t.Omschrijving ?? ""])
+    );
+
     const parkings = await prisma.fietsenstallingen.findMany({
       where: {
         Coordinaten: { not: null },
@@ -280,12 +290,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         .filter((s) => s.length > 0);
       const allServices = [...new Set([...servicesFromRelation, ...extraServices])].join("; ");
 
-      const tariffs = parking.OmschrijvingTarieven?.trim()
-        ? parking.OmschrijvingTarieven.trim()
-        : (parking.Tariefcode !== null ? `Tariefcode:${parking.Tariefcode}` : "");
+      const tariffs = parking.Tariefcode !== null
+        ? (tariefcodeMap.get(parking.Tariefcode)?.trim() ?? "")
+        : "";
 
       const row: GooglePoiRow = {
-        ID: parking.StallingsID || parking.ID,
+        ID: parking.ID,
         NAME: parking.Title,
         TYPE: normalizeGoogleType(parking.Type),
         LAT: coords.lat,
