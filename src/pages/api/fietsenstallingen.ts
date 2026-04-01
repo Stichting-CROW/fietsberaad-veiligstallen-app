@@ -26,11 +26,18 @@ type GooglePoiRow = {
   AP_LAT: string;
   AP_LON: string;
   ATTR: string;
+  CAPACITY_TOTAL: string;
+  CAPACITY_PER_VEHICLE_TYPE: string;
+  SERVICES: string;
+  TARIFFS: string;
+  GUARDED: string;
+  OPERATOR: string;
 };
 
 const GOOGLE_POI_HEADERS: (keyof GooglePoiRow)[] = [
   "ID", "NAME", "TYPE", "LAT", "LON", "FULL_AD", "ST_NUM", "ST_NAME", "CITY", "STATE", "ZIP",
   "PHONE", "WEBSITE", "MON", "TUES", "WED", "THURS", "FRI", "SAT", "SUN", "AP_LAT", "AP_LON", "ATTR",
+  "CAPACITY_TOTAL", "CAPACITY_PER_VEHICLE_TYPE", "SERVICES", "TARIFFS", "GUARDED", "OPERATOR",
 ];
 
 const ALLOWED_STALLINGTYPE_NAMES = [
@@ -101,6 +108,42 @@ const normalizeGoogleType = (internalType: string | null): string => {
   }
 };
 
+const aggregateCapacityByVehicleType = (
+  sections: Array<{
+    secties_fietstype: Array<{
+      Toegestaan: boolean | null;
+      Capaciteit: number | null;
+      fietstype: { Name: string | null } | null;
+    }>;
+  }>
+): { total: number; byType: string } => {
+  const totalsByType = new Map<string, number>();
+  let total = 0;
+
+  for (const section of sections) {
+    for (const vehicleType of section.secties_fietstype) {
+      if (!vehicleType.Toegestaan) continue;
+      const cap = vehicleType.Capaciteit ?? 0;
+      if (cap <= 0) continue;
+      const typeName = (vehicleType.fietstype?.Name ?? "Unknown").trim() || "Unknown";
+      totalsByType.set(typeName, (totalsByType.get(typeName) ?? 0) + cap);
+      total += cap;
+    }
+  }
+
+  const byType = [...totalsByType.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, cap]) => `${name}:${cap}`)
+    .join("; ");
+
+  return { total, byType };
+};
+
+const deriveGuarded = (stallingTypeName: string | null | undefined): string => {
+  if (!stallingTypeName) return "";
+  return stallingTypeName.toLowerCase().includes("onbewaakt") ? "no" : "yes";
+};
+
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed" });
@@ -160,9 +203,42 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             UrlName: true,
           },
         },
+        contacts_fietsenstallingen_ExploitantIDTocontacts: {
+          select: {
+            CompanyName: true,
+          },
+        },
         fietsenstalling_type: {
           select: {
             name: true,
+          },
+        },
+        OmschrijvingTarieven: true,
+        Tariefcode: true,
+        Capacity: true,
+        ExtraServices: true,
+        fietsenstallingen_services: {
+          select: {
+            services: {
+              select: {
+                Name: true,
+              },
+            },
+          },
+        },
+        fietsenstalling_secties: {
+          select: {
+            secties_fietstype: {
+              select: {
+                Toegestaan: true,
+                Capaciteit: true,
+                fietstype: {
+                  select: {
+                    Name: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -190,6 +266,24 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         ? `https://veiligstallen.nl/${municipalityUrl}/?name=${titleSlug}&stallingid=${parking.ID}`
         : `https://veiligstallen.nl/?name=${titleSlug}&stallingid=${parking.ID}`;
 
+      const sectionCapacity = aggregateCapacityByVehicleType(parking.fietsenstalling_secties);
+      const totalCapacity = sectionCapacity.total > 0
+        ? sectionCapacity.total
+        : (parking.Capacity ?? 0);
+
+      const servicesFromRelation = parking.fietsenstallingen_services
+        .map((s) => s.services.Name.trim())
+        .filter((name) => name.length > 0);
+      const extraServices = (parking.ExtraServices ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      const allServices = [...new Set([...servicesFromRelation, ...extraServices])].join("; ");
+
+      const tariffs = parking.OmschrijvingTarieven?.trim()
+        ? parking.OmschrijvingTarieven.trim()
+        : (parking.Tariefcode !== null ? `Tariefcode:${parking.Tariefcode}` : "");
+
       const row: GooglePoiRow = {
         ID: parking.StallingsID || parking.ID,
         NAME: parking.Title,
@@ -214,6 +308,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         AP_LAT: coords.lat,
         AP_LON: coords.lon,
         ATTR: parking.fietsenstalling_type?.name ? `subtype=${parking.fietsenstalling_type.name}` : "",
+        CAPACITY_TOTAL: String(totalCapacity),
+        CAPACITY_PER_VEHICLE_TYPE: sectionCapacity.byType,
+        SERVICES: allServices,
+        TARIFFS: tariffs,
+        GUARDED: deriveGuarded(parking.fietsenstalling_type?.name),
+        OPERATOR: parking.contacts_fietsenstallingen_ExploitantIDTocontacts?.CompanyName ?? "",
       };
 
       rows.push(GOOGLE_POI_HEADERS.map((header) => escapeCsvField(row[header])).join(","));
