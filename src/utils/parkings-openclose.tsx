@@ -17,6 +17,14 @@ const getDichtTimeKey = (day: DayPrefix): keyof ParkingDetailsType => {
   return ('Dicht_' + day) as keyof ParkingDetailsType;
 }
 
+/** Prisma `@db.Time` and ISO strings: use UTC components (same as `opening-hours`). */
+function momentUtcFromStoredTime(value: string | Date | null | undefined): moment.Moment {
+  if (value == null) return moment.invalid();
+  if (typeof value === "string") return moment.utc(value);
+  if (value instanceof Date) return moment.utc(value);
+  return moment.invalid();
+}
+
 export const formatTime = (time: moment.Moment): string => {
   return time.format('HH:mm');
 };
@@ -91,8 +99,8 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
     ? customCloseTime
     : (daytxt ? parkingdata[getDichtTimeKey(daytxt)] : null));
 
-  const openinfo = typeof opentime === 'string' ? moment.utc(opentime) : moment.invalid();
-  const closeinfo = typeof closetime === 'string' ? moment.utc(closetime) : moment.invalid();
+  const openinfo = momentUtcFromStoredTime(opentime as string | Date | null);
+  const closeinfo = momentUtcFromStoredTime(closetime as string | Date | null);
 
   const isNS = parkingdata.EditorCreated === "NS-connector";
 
@@ -175,11 +183,11 @@ export const formatOpeningTimes = (
     : (day && day !== null && day !== undefined
         ? parkingdata[getDichtTimeKey(day as DayPrefix)]
         : null));
-  const tmpopen = typeof opentime === 'string' ? moment.utc(opentime) : moment.invalid();
+  const tmpopen = momentUtcFromStoredTime(opentime as string | Date | null);
   const hoursopen = tmpopen.hours();
   const minutesopen = String(tmpopen.minutes()).padStart(2, "0");
 
-  const tmpclose = typeof closetime === 'string' ? moment.utc(closetime) : moment.invalid();
+  const tmpclose = momentUtcFromStoredTime(closetime as string | Date | null);
   const hoursclose = tmpclose.hours();
   const minutesclose = String(tmpclose.minutes()).padStart(2, "0");
 
