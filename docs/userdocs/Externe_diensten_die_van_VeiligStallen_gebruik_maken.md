@@ -11,13 +11,20 @@ De fietsenstallingendata in VeiligStallen kan opgehaald worden via API's, zodat 
 
 ## Beschikbare API's
 
-See: TODO
+TODO: Link naar API's
+
+## OpenStreetMap (OSM) voorbereiding
+
+We bereiden integratie met OSM voor middels import en conflatie. Zie:
+
+- `docs/OSM_import_field_mapping.md`
+- `docs/OSM_import_proposal_template.md`
 
 ## Zo komt VeiligStallen-stallingdata in Google Maps
 
 CROW heeft zich aangemeld bij het Google Maps Partner Program om data eenvoudig aan Google Maps en Google Transit te kunnen aanbieden. De data die wordt gedeeld komt uit deze CSV API endpoint URL:
 
-- `http://beta.veiligstallen.nl/api/google/fietsenstallingen?format=google_poi`
+- `https://beta.veiligstallen.nl/api/google/fietsenstallingen?format=google_poi`
 
 en bevat de volgende velden:
 
