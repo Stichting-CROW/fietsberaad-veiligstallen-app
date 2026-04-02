@@ -4,6 +4,14 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { resolveExistingTableNames } from "~/server/utils/mysql-schema-tables";
+
+const NEW_WACHTRIJ_STATS_TABLES = [
+  "new_wachtrij_transacties",
+  "new_wachtrij_pasids",
+  "new_wachtrij_betalingen",
+  "new_wachtrij_sync",
+] as const;
 
 export type StatisticsDataRow = {
   bikeparkID: string;
@@ -54,6 +62,22 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   const dateFilterWebserviceLog = `AND tijdstip >= '${dateStart} 00:00:00'`;
 
+  const emptyCounts = Promise.resolve([] as CountRow[]);
+
+  const mirrorTableNames = await resolveExistingTableNames([
+    ...NEW_WACHTRIJ_STATS_TABLES,
+    "new_bezettingsdata_tmp",
+  ]);
+  const mirrorSql = new Map(mirrorTableNames.map((n) => [n.toLowerCase(), n]));
+  const qMirror = (lower: string, fragment: string) => {
+    const t = mirrorSql.get(lower.toLowerCase());
+    if (!t) return emptyCounts;
+    const safe = String(t).replace(/`/g, "``");
+    return prisma.$queryRawUnsafe<CountRow[]>(
+      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM \`${safe}\` WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${fragment} GROUP BY bikeparkID`
+    );
+  };
+
   const [wt, wp, wb, ws, bdt, nbdt, nwt, nwp, nwb, nws, wsl, wsa, wss] = await Promise.all([
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM wachtrij_transacties WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
@@ -70,21 +94,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM bezettingsdata_tmp WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterBezetting} GROUP BY bikeparkID`
     ),
-    prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM new_bezettingsdata_tmp WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterBezetting} GROUP BY bikeparkID`
-    ).catch(() => [] as CountRow[]),
-    prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM new_wachtrij_transacties WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
-    ).catch(() => [] as CountRow[]),
-    prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM new_wachtrij_pasids WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
-    ).catch(() => [] as CountRow[]),
-    prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM new_wachtrij_betalingen WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
-    ).catch(() => [] as CountRow[]),
-    prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM new_wachtrij_sync WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
-    ).catch(() => [] as CountRow[]),
+    qMirror("new_bezettingsdata_tmp", dateFilterBezetting),
+    qMirror("new_wachtrij_transacties", dateFilter),
+    qMirror("new_wachtrij_pasids", dateFilter),
+    qMirror("new_wachtrij_betalingen", dateFilter),
+    qMirror("new_wachtrij_sync", dateFilter),
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM webservice_log WHERE LOWER(TRIM(method)) = 'updatelocker' AND bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterWebserviceLog} GROUP BY bikeparkID`
     ).catch(() => [] as CountRow[]),
