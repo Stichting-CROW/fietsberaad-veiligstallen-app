@@ -4,6 +4,16 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
+import { resolveExistingTableNames } from "~/server/utils/mysql-schema-tables";
+
+/** Optional mirror tables used by parking simulation / FMS test queue (may be absent locally). */
+const NEW_STATS_UNION_TABLES = [
+  "new_wachtrij_transacties",
+  "new_wachtrij_pasids",
+  "new_wachtrij_betalingen",
+  "new_wachtrij_sync",
+  "new_bezettingsdata_tmp",
+] as const;
 
 export type StallingListItem = {
   contactName: string;
@@ -39,13 +49,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     UNION SELECT DISTINCT bikeparkID ${collate} FROM bezettingsdata_tmp WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
     UNION SELECT DISTINCT bikeparkID ${collate} FROM webservice_log WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
   `;
-  const unionNew = `
-    UNION SELECT DISTINCT bikeparkID ${collate} FROM new_wachtrij_transacties WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
-    UNION SELECT DISTINCT bikeparkID ${collate} FROM new_wachtrij_pasids WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
-    UNION SELECT DISTINCT bikeparkID ${collate} FROM new_wachtrij_betalingen WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
-    UNION SELECT DISTINCT bikeparkID ${collate} FROM new_wachtrij_sync WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
-    UNION SELECT DISTINCT bikeparkID ${collate} FROM new_bezettingsdata_tmp WHERE bikeparkID IS NOT NULL AND bikeparkID != ''
-  `;
+  const existingNewNames = await resolveExistingTableNames(NEW_STATS_UNION_TABLES);
+  const unionNew = existingNewNames
+    .map(
+      (t) =>
+        `UNION SELECT DISTINCT bikeparkID ${collate} FROM \`${String(t).replace(/`/g, "``")}\` WHERE bikeparkID IS NOT NULL AND bikeparkID != ''`
+    )
+    .join("\n");
 
   const sql = `
     SELECT
@@ -53,30 +63,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       COALESCE(f.Title, p.bikeparkID) AS parkingName,
       p.bikeparkID,
       COALESCE(f.Type, '(onbekend)') AS stallingType
-    FROM (${unionLegacy}${unionNew}) p
+    FROM (${unionLegacy}${unionNew.length > 0 ? `\n${unionNew}` : ""}) p
     INNER JOIN fietsenstallingen f ON f.StallingsID ${collate} = p.bikeparkID AND f.Status = '1'
     LEFT JOIN contacts c ON c.ID = f.SiteID
     LEFT JOIN contacts c2 ON c2.ID = f.ExploitantID
     ORDER BY contactName, parkingName
   `;
 
-  let data: StallingListItem[];
-  try {
-    data = await prisma.$queryRawUnsafe<StallingListItem[]>(sql);
-  } catch {
-    const sqlLegacy = `
-      SELECT
-        COALESCE(c.CompanyName, c2.CompanyName, '(onbekend)') AS contactName,
-        COALESCE(f.Title, p.bikeparkID) AS parkingName,
-        p.bikeparkID,
-        COALESCE(f.Type, '(onbekend)') AS stallingType
-      FROM (${unionLegacy}) p
-      INNER JOIN fietsenstallingen f ON f.StallingsID ${collate} = p.bikeparkID AND f.Status = '1'
-      LEFT JOIN contacts c ON c.ID = f.SiteID
-      LEFT JOIN contacts c2 ON c2.ID = f.ExploitantID
-      ORDER BY contactName, parkingName
-    `;
-    data = await prisma.$queryRawUnsafe<StallingListItem[]>(sqlLegacy);
-  }
+  const data = await prisma.$queryRawUnsafe<StallingListItem[]>(sql);
   return res.status(200).json({ data });
 }
