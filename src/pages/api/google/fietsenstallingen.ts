@@ -182,6 +182,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           { Coordinaten: "" },
           { Title: { contains: "Systeemstalling" } },
           { Status: "aanm" },
+          { Status: "AANM" },
         ],
       },
       select: {
@@ -336,7 +337,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     res.setHeader("Content-Disposition", `attachment; filename="fietsenstallingen_google_poi_${fileDate}.csv"`);
     res.status(200).send(csvContent);
   } catch (error) {
-    console.error("[api/fietsenstallingen] Failed to generate google_poi export:", error);
+    console.error("[api/google/fietsenstallingen] Failed to generate google_poi export:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
