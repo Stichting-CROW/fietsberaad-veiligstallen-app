@@ -85,6 +85,8 @@ logs/*
 
 #local docs
 /docs/**
+!/docs/userdocs/
+!/docs/userdocs/**
 !/docs/documentatie-crow/
 !/docs/documentatie-crow/1-api
 !/docs/documentatie-crow/1-api/**
