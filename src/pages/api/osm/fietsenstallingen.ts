@@ -31,6 +31,7 @@ type OSMFeature = {
     "veiligstallen:type_name"?: string;
     "veiligstallen:services"?: string;
     "veiligstallen:capacity_per_vehicle_type"?: string;
+    "veiligstallen:last_verified_by_data_owner": string | null;
     "veiligstallen:id": string;
   };
 };
@@ -204,6 +205,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       },
       select: {
         ID: true,
+        SiteID: true,
         Title: true,
         Location: true,
         Postcode: true,
@@ -247,6 +249,18 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       orderBy: [{ Plaats: "asc" }, { Title: "asc" }],
     });
 
+    const dataOwnerIds = [...new Set(parkings.map((parking) => parking.SiteID).filter((siteId): siteId is string => Boolean(siteId)))];
+    const lastControles = dataOwnerIds.length > 0
+      ? await prisma.contacts_datakwaliteitcontroles.groupBy({
+          by: ["contact_id"],
+          where: { contact_id: { in: dataOwnerIds } },
+          _max: { createdAt: true },
+        })
+      : [];
+    const lastControleByDataOwner = new Map(
+      lastControles.map((controle) => [controle.contact_id, controle._max.createdAt ?? null])
+    );
+
     const features: OSMFeature[] = [];
 
     for (const parking of parkings) {
@@ -283,6 +297,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         amenity: "bicycle_parking",
         "ref:veiligstallen": parking.ID,
         source: "VeiligStallen",
+        "veiligstallen:last_verified_by_data_owner":
+          lastControleByDataOwner.get(parking.SiteID ?? "")?.toISOString() ?? null,
         "veiligstallen:id": parking.ID,
       };
 
