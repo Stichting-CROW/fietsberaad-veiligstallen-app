@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import { useRouter, useSearchParams } from "next/navigation";
 import useQueryParam from "../hooks/useQueryParam";
@@ -20,11 +20,28 @@ const Login: NextPage = () => {
   const emailRef = useRef<HTMLInputElement | null>(null);
   const passwordRef = useRef<HTMLInputElement | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const magicLinkAttemptedRef = useRef(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const magicToken = searchParams.get("token");
+  const magicUserid = searchParams.get("userid");
   const error = useQueryParam("error")[0];
+
+  useEffect(() => {
+    if (magicLinkAttemptedRef.current || !magicToken || !magicUserid) return;
+    magicLinkAttemptedRef.current = true;
+    void signIn("token-login", {
+      userid: magicUserid,
+      token: magicToken,
+      redirect: false,
+    }).then((result) => {
+      if (result?.ok) {
+        router.push(redirect || "/beheer");
+      }
+    });
+  }, [magicToken, magicUserid, redirect, router]);
 
   const onSignIn = async (e: any) => {
     try {

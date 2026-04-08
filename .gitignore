@@ -57,6 +57,9 @@ yarn-error.log*
 mysql-db/export-db.sql
 mysql-db/export-db.zip
 
+# local MySQL data (Docker volume - restrictively permissioned, breaks build scans)
+mysql-db/persist-db/
+
 #uploads
 /public/uploads*
 
@@ -82,9 +85,14 @@ logs/*
 
 #local docs
 /docs/**
+!/docs/OSM*
+!/docs/userdocs/
+!/docs/userdocs/**
 !/docs/documentatie-crow/
 !/docs/documentatie-crow/1-api
 !/docs/documentatie-crow/1-api/**
 /docs/analyse-modules
 /docs/analyse-change-dataowner/
+!/docs/analyse-api/
+!/docs/analyse-api/**
 .tmp/

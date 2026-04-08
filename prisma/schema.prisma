@@ -534,6 +534,7 @@ model contacts {
   isManagedByContacts contact_contact[] @relation("isManagedByContacts")
 
   user_contact_roles user_contact_role[] @relation("ContactUserContactRole")
+  contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
 
   @@unique([ItemType, CompanyName], map: "ItemType")
   @@index([CompanyName], map: "CompanyName")
@@ -550,6 +551,20 @@ model contacts_faq {
   @@unique([SiteID, FaqID], map: "SiteID")
   @@index([FaqID], map: "FK4D3BB92A5CC39A7")
   @@index([SiteID], map: "FK4D3BB92A668AE523")
+}
+
+model contacts_datakwaliteitcontroles {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  createdAt  DateTime @default(now())
+  contact_id String   @db.VarChar(35)
+  user_id    String   @db.VarChar(35)
+
+  contact contacts       @relation(fields: [contact_id], references: [ID], onDelete: Restrict, onUpdate: Restrict)
+  user    security_users @relation(fields: [user_id], references: [UserID], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([contact_id])
+  @@index([user_id])
+  @@index([createdAt])
 }
 
 model contacts_fietsberaad {
@@ -779,12 +794,12 @@ model fietsenstallingen {
   contacts_fietsenstallingen_ExploitantIDTocontacts contacts?                    @relation("fietsenstallingen_ExploitantIDTocontacts", fields: [ExploitantID], references: [ID], onDelete: Restrict, onUpdate: Restrict, map: "FKF4836A5566279D18")
   fietsenstallingen_services                        fietsenstallingen_services[]
 
-  fietsenstallingen_winkansen    fietsenstallingen_winkansen[]
   transacties_archief             transacties_archief[]
   fmsservice_permit               fmsservice_permit[]
   fietsenstalling_type            fietsenstallingtypen?             @relation(fields: [Type], references: [id])
   fietsenstalling_secties         fietsenstalling_sectie[]
-  sectie_fietstype_StallingsID    sectie_fietstype[]             @relation("sectie_fietstype_StallingsID")
+  /// Stalling-level sectie_fietstype only. Used when hasUniSectionPrices=true (rates + biketypeNotInStalling). Otherwise use fietsenstalling_sectie.secties_fietstype.
+  sectie_fietstype_StallingsID    sectie_fietstype[]     @relation("sectie_fietstype_StallingsID")
   abonnementsvorm_fietsenstalling abonnementsvorm_fietsenstalling[]
   uitzonderingenopeningstijden    uitzonderingenopeningstijden[]
 
@@ -812,8 +827,6 @@ model fietsenstallingen_winkansen {
   FietsenstallingID String? @db.VarChar(35)
   DagNr             Int?
   Winkans           Int?
-
-  fietsenstallingen fietsenstallingen? @relation(fields: [FietsenstallingID], references: [ID], onDelete: Cascade, map: "FK3430E4F62B597E32")
 
   @@unique([FietsenstallingID, DagNr], map: "stallingsID + DagNr = uniek")
   @@index([FietsenstallingID], map: "FK3430E4F62B597E32")
@@ -1194,6 +1207,10 @@ model schema_version {
   @@index([version_rank], map: "schema_version_vr_idx")
 }
 
+/// sectie_fietstype: bike types per section or per stalling.
+/// - Section-level: sectieID set, links via fietsenstalling_sectie. Used for allowed/capacity per section.
+/// - Stalling-level: sectieID null, StallingsID set. Only used when hasUniSectionPrices; same biketypes/rates for all sections.
+///   StallingsID references fietsenstallingen.ID (UUID), not StallingsID (short).
 model sectie_fietstype {
   SectionBiketypeID Int      @id @default(autoincrement())
   Capaciteit        Int?
@@ -1203,8 +1220,8 @@ model sectie_fietstype {
   BikeTypeID        Int?
 
   fietsenstalling_sectie     fietsenstalling_sectie? @relation(fields: [sectieID], references: [sectieId], onDelete: NoAction, map: "FK_sectie_fietstype_sectie")
-  fietsenstalling_StallingsID fietsenstallingen?      @relation("sectie_fietstype_StallingsID", fields: [StallingsID], references: [ID], onDelete: NoAction)
-  fietstype                  fietstypen?             @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, map: "FK_sectie_fietstype_fietstype")
+  fietsenstalling_StallingsID fietsenstallingen?     @relation("sectie_fietstype_StallingsID", fields: [StallingsID], references: [ID], onDelete: NoAction)
+  fietstype                  fietstypen?            @relation(fields: [BikeTypeID], references: [ID], onDelete: NoAction, map: "FK_sectie_fietstype_fietstype")
 
   @@unique([sectieID, StallingsID, BikeTypeID], map: "sectieID_2")
   @@index([BikeTypeID], map: "BikeTypeID")
@@ -1251,7 +1268,8 @@ model security_users {
   Status                String?                @db.VarChar(4)
   security_roles        security_roles?        @relation(fields: [RoleID], references: [RoleID], onDelete: Restrict, onUpdate: Restrict, map: "security_users_ibfk_1")
   security_users_sites  security_users_sites[]
-  user_contact_roles    user_contact_role[]    
+  user_contact_roles    user_contact_role[]
+  contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
 
   @@unique([UserID, SiteID], map: "unique_userID_siteID")
   @@index([RoleID], map: "RoleID")

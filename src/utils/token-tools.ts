@@ -99,4 +99,83 @@ export function checkToken(token: string): TokenData | false {
         console.error('checkToken - unable to validate token', ex);
         return false;
     }
+}
+
+export interface MagicLinkTokenData {
+    userid: string;
+    contactId: string;
+    validTo: number; // Unix timestamp in seconds
+}
+
+const MAGIC_LINK_VALIDITY_DAYS = 14;
+
+/**
+ * Generates a signed magic-link token for datakwaliteit controle emails.
+ * Valid for 14 days by default.
+ */
+export function calculateMagicLinkToken(
+    userId: string,
+    contactId: string,
+    validityDays = MAGIC_LINK_VALIDITY_DAYS
+): { token: string; validTo: number } | false {
+    try {
+        const signerKey = process.env.LOGINTOKEN_SIGNER_PRIVATE_KEY;
+        if (!signerKey) {
+            console.error('calculateMagicLinkToken - missing signer private key');
+            return false;
+        }
+
+        const validTo = Math.floor(Date.now() / 1000) + validityDays * 24 * 3600;
+        const tokenData: MagicLinkTokenData = {
+            userid: userId.toLowerCase(),
+            contactId,
+            validTo
+        };
+
+        const dataString = JSON.stringify(tokenData);
+        const hmac = crypto.createHmac(ALGORITHM, signerKey);
+        hmac.update(dataString);
+        const signature = hmac.digest('hex');
+
+        const token = Buffer.from(JSON.stringify({ data: tokenData, signature })).toString('base64');
+        return { token, validTo };
+    } catch (ex: unknown) {
+        console.error('calculateMagicLinkToken - unable to calculate token', ex);
+        return false;
+    }
+}
+
+/**
+ * Validates a magic-link token and returns the contained data if valid.
+ */
+export function checkMagicLinkToken(token: string): MagicLinkTokenData | false {
+    try {
+        const signerKey = process.env.LOGINTOKEN_SIGNER_PRIVATE_KEY;
+        if (!signerKey) {
+            console.error('checkMagicLinkToken - missing signer private key');
+            return false;
+        }
+
+        const decodedToken = Buffer.from(token, 'base64').toString();
+        const { data, signature } = JSON.parse(decodedToken);
+
+        const hmac = crypto.createHmac(ALGORITHM, signerKey);
+        hmac.update(JSON.stringify(data));
+        const calculatedSignature = hmac.digest('hex');
+
+        if (calculatedSignature !== signature) {
+            console.error('checkMagicLinkToken - invalid signature');
+            return false;
+        }
+
+        if (data.validTo < Math.floor(Date.now() / 1000)) {
+            console.error('checkMagicLinkToken - token expired');
+            return false;
+        }
+
+        return data as MagicLinkTokenData;
+    } catch (ex: unknown) {
+        console.error('checkMagicLinkToken - unable to validate token', ex);
+        return false;
+    }
 } 

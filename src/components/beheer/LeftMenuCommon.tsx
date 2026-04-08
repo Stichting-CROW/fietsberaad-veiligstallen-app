@@ -22,7 +22,7 @@ export const LeftMenuItem = ({
   icon?: IconType,
   isActive?: boolean,
 }) => {
-  const isSelected = component === activecomponent || isActive;
+  const isSelected = typeof isActive === "boolean" ? isActive : component === activecomponent;
   const Icon = icon;
 
   if (!component) {

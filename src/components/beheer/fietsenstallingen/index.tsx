@@ -10,12 +10,45 @@ import { useSession } from 'next-auth/react';
 import { Table } from '~/components/common/Table';
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import { AdminButton } from '~/components/beheer/AdminButton';
+import { StallingsdataControleModal } from './StallingsdataControleModal';
 
 interface FietsenstallingenComponentProps {
   type: 'fietsenstallingen' | 'fietskluizen' | 'buurtstallingen';
+  openControleModal?: boolean;
 }
 
-const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({ type }) => {
+const MAILFREQUENTIE_STORAGE_KEY = "VS_mailfrequentie_contactpersonen";
+const DEFAULT_REMINDER_OPTION = "Elk jaar";
+const REMINDER_OPTION_TO_MONTHS: Record<string, number | null> = {
+  "Elk kwartaal": 3,
+  "Elk halfjaar": 6,
+  "Elk jaar": 12,
+  "Elke 2 jaar": 24,
+  Nooit: null,
+};
+
+function getReminderOptionForContact(contactId: string): string {
+  if (typeof window === "undefined") return DEFAULT_REMINDER_OPTION;
+  try {
+    const raw = window.localStorage.getItem(MAILFREQUENTIE_STORAGE_KEY);
+    if (!raw) return DEFAULT_REMINDER_OPTION;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed[contactId];
+    if (typeof value === "string" && value in REMINDER_OPTION_TO_MONTHS) {
+      return value;
+    }
+  } catch {
+    // Ignore malformed localStorage and fallback to default.
+  }
+  return DEFAULT_REMINDER_OPTION;
+}
+
+function getReminderLabel(months: number): string {
+  return `${months} ${months === 1 ? "maand" : "maanden"}`;
+}
+
+const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({ type, openControleModal }) => {
   const router = useRouter();
   const { data: session, status } = useSession();
   const selectedGemeenteID = session?.user?.activeContactId || "";
@@ -26,6 +59,9 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const canCreateNew = hasFietsenstallingenAdmin;
   const canDelete = hasFietsenstallingenAdmin;
 
+  const [controleModalOpen, setControleModalOpen] = useState(false);
+  const [lastDatakwaliteitControleAt, setLastDatakwaliteitControleAt] = useState<Date | null | undefined>(undefined);
+  const [controleReminderMonths, setControleReminderMonths] = useState<number | null>(12);
   const [currentParkingId, setCurrentParkingId] = useState<string | undefined>(undefined);
   const [currentParking, setCurrentParking] = useState<ParkingDetailsType | undefined>(undefined);
   const [currentRevision, setCurrentRevision] = useState<number>(0);
@@ -92,9 +128,54 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login?redirect=/beheer/fietsenstallingen');
+      const email =
+        typeof router.query.email === "string" ? router.query.email : "";
+      const redirectTarget = router.asPath?.startsWith("/beheer")
+        ? router.asPath
+        : "/beheer/fietsenstallingen";
+      const loginWithCodeUrl = `/login-with-code?redirect=${encodeURIComponent(redirectTarget)}${
+        email ? `&email=${encodeURIComponent(email)}` : ""
+      }`;
+      router.push(loginWithCodeUrl);
     }
-  }, [status, router]);
+  }, [status, router, router.asPath, router.query.email]);
+
+  useEffect(() => {
+    if (openControleModal) {
+      setControleModalOpen(true);
+    }
+  }, [openControleModal]);
+
+  useEffect(() => {
+    if (!selectedGemeenteID) {
+      setControleReminderMonths(12);
+      return;
+    }
+    const option = getReminderOptionForContact(selectedGemeenteID);
+    setControleReminderMonths(REMINDER_OPTION_TO_MONTHS[option] ?? 12);
+  }, [selectedGemeenteID, controleModalOpen]);
+
+  // Fetch last datakwaliteit controle for this contact
+  useEffect(() => {
+    if (!selectedGemeenteID) {
+      setLastDatakwaliteitControleAt(undefined);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/protected/contactpersonen/datakwaliteit-controle')
+      .then((res) => res.json())
+      .then((data: { lastControleAt?: string | null }) => {
+        if (!cancelled && data.lastControleAt) {
+          setLastDatakwaliteitControleAt(new Date(data.lastControleAt));
+        } else if (!cancelled) {
+          setLastDatakwaliteitControleAt(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLastDatakwaliteitControleAt(null);
+      });
+    return () => { cancelled = true; };
+  }, [selectedGemeenteID, controleModalOpen]);
 
   // Get parking object if parkingId changes
   useEffect(() => {
@@ -135,18 +216,17 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   }, [currentRevision]);
 
   useEffect(() => {
-    if("id" in router.query) {
+    if ("id" in router.query) {
       const id = router.query.id;
-      if(id) {
+      // "controle" is a special path for the datakwaliteit modal, not a parking ID
+      if (id && id !== "controle") {
         setCurrentParkingId(id as string);
       } else {
-        // Clear the current parking ID when navigating to the overview page
         setCurrentParkingId(undefined);
       }
     } else {
-      // Clear the current parking ID when no ID is in the URL
       setCurrentParkingId(undefined);
-    }   
+    }
   }, [router.query.id]);
 
   useEffect(() => {
@@ -368,26 +448,62 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">Fietsenstallingen</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            {canCreateNew && (
+              <AdminButton
+                onClick={() => setControleModalOpen(true)}
+                style={{ backgroundColor: '#22c55e' }}
+              >
+                Controle
+              </AdminButton>
+            )}
+            {canCreateNew && (
+              <AdminButton
+                onClick={() => handleEdit('new')}
+                style={{ backgroundColor: '#22c55e' }}
+              >
+                Nieuwe stalling
+              </AdminButton>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="mb-2">
             {nAanmeldingen.length > 0 && (
               <button
                 onClick={() => setSelectedStatusFilter('aanm')}
                 className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
                 title="Klik om aanmeldingen te filteren"
               >
-                <span className="text-yellow-600 text-2xl">⚠️</span>
-                { nAanmeldingen.length > 1 && (<span>Er zijn nieuwe stallingen aangemeld in uw gemeente, Klik hier om ze te bekijken.</span>)}
-                { nAanmeldingen.length === 1 && (<span>Er is een nieuwe stalling aangemeld, Klik hier om deze te bekijken.</span>)}
+                <span className="text-yellow-600 text-lg">⚠️</span>
+                { nAanmeldingen.length > 1 && (<span>Er zijn nieuwe stallingen aangemeld in uw gemeente, Klik hier om ze te bekijken</span>)}
+                { nAanmeldingen.length === 1 && (<span>Er is een nieuwe stalling aangemeld, Klik hier om deze te bekijken</span>)}
               </button>
             )}
           </div>
-          {canCreateNew && (
-            <button 
-              onClick={() => handleEdit('new')}
-              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Nieuwe stalling
-            </button>
-          )}
+          {(() => {
+            if (controleReminderMonths === null) {
+              return null;
+            }
+            const reminderThreshold = new Date();
+            reminderThreshold.setMonth(reminderThreshold.getMonth() - controleReminderMonths);
+            const showControleReminder =
+              lastDatakwaliteitControleAt !== undefined &&
+              (lastDatakwaliteitControleAt === null || lastDatakwaliteitControleAt <= reminderThreshold);
+            return showControleReminder ? (
+              <div className="mb-2">
+                <button
+                  onClick={() => setControleModalOpen(true)}
+                  className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium hover:bg-yellow-200 transition-colors"
+                >
+                  <span className="text-yellow-600 text-lg">⚠️</span>
+                  De stallingsdata is langer dan {getReminderLabel(controleReminderMonths)} niet-gecontroleerd. Klik hier voor de controleprocedure
+                </button>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         <div className="mb-4">
@@ -531,6 +647,16 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   return (
     <div>
       {currentParkingId === undefined ? renderOverview() : renderEdit()}
+      {controleModalOpen && (
+        <StallingsdataControleModal
+          onClose={() => {
+            setControleModalOpen(false);
+            router.push(`/beheer/${type}`);
+          }}
+          session={session}
+          lastControleAt={lastDatakwaliteitControleAt}
+        />
+      )}
     </div>
   );
 };

@@ -11,18 +11,30 @@ import {
   getDefaultSecurityProfile,
 } from "~/types/users";
 import { createSecurityProfile } from "~/utils/server/securitycontext";
-import { checkToken } from "~/utils/token-tools";
+import { checkToken, checkMagicLinkToken } from "~/utils/token-tools";
 import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 
 type OrgAccountData = Pick<security_users, "UserID" | "DisplayName" | "UserName" | "GroupID" | "ParentID" | "SiteID" | "EncryptedPassword"> & {
   user_contact_roles: { 
-    ContactID: string,
-    isOwnOrganization: boolean,
-    NewRoleID: string
+    ContactID: string;
+    isOwnOrganization: boolean;
+    NewRoleID: string;
   }[];
 };
 
+type OrgAccountDataWithRole = OrgAccountData & {
+  user_contact_roles: { ContactID: string; isOwnOrganization: boolean; NewRoleID: string }[];
+};
+
 const getProfileUser = async(orgaccount: OrgAccountData): Promise<User|false> => {
+    const mainContactId = orgaccount.user_contact_roles.find((role) => role.isOwnOrganization)?.ContactID || undefined;
+    if (mainContactId === undefined) {
+      return false;
+    }
+    return getProfileUserWithActiveContact(orgaccount as OrgAccountDataWithRole, mainContactId);
+};
+
+const getProfileUserWithActiveContact = async(orgaccount: OrgAccountDataWithRole, activeContactId: string): Promise<User|false> => {
     const profileUserAccount: User = {
       id: "",
       name: "",
@@ -37,18 +49,23 @@ const getProfileUser = async(orgaccount: OrgAccountData): Promise<User|false> =>
       return false;
     }
 
-    const roleId = orgaccount?.user_contact_roles.find((role) => role.ContactID === mainContactId)?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
-    const activeContactType = await getOrganisationTypeByID(mainContactId);
+    const roleForActive = orgaccount.user_contact_roles.find((role) => role.ContactID === activeContactId);
+    if (!roleForActive) {
+      return false;
+    }
+
+    const roleId = roleForActive.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
+    const activeContactType = await getOrganisationTypeByID(activeContactId);
 
     profileUserAccount.id = orgaccount.UserID || "";
     profileUserAccount.name = orgaccount?.DisplayName || "";
     profileUserAccount.email = orgaccount?.UserName || "";
     profileUserAccount.mainContactId = mainContactId;
-    profileUserAccount.activeContactId = mainContactId;
+    profileUserAccount.activeContactId = activeContactId;
     profileUserAccount.securityProfile = createSecurityProfile(roleId, activeContactType);
 
     return profileUserAccount;
-}
+};
 
 // always returns the user's main account
 export const getUserFromCredentials = async (
@@ -76,7 +93,8 @@ export const getUserFromCredentials = async (
         user_contact_roles: {
           select: {
             ContactID: true,
-            isOwnOrganization: true
+            isOwnOrganization: true,
+            NewRoleID: true,
           }
         }
       },
@@ -146,14 +164,17 @@ export const getUserFromLoginCode = async (
           GroupID: true,
           ParentID: true,
           EncryptedPassword: true,
+          DisplayName: true,
+          UserName: true,
           user_contact_roles: {
             select: {
               ContactID: true,
-              isOwnOrganization: true
+              isOwnOrganization: true,
+              NewRoleID: true,
             }
           }
         },
-      }) as OrgAccountData;
+      }) as OrgAccountDataWithRole;
 
       const profileUserAccount = await getProfileUser(orgaccount);
       if (profileUserAccount) {
@@ -175,6 +196,46 @@ export const getUserFromLoginCode = async (
         name: error.name,
       });
     }
+    return null;
+  }
+};
+
+export const getUserFromMagicLinkToken = async (
+  credentials: Record<"userid" | "token", string> | undefined,
+): Promise<User | null> => {
+  try {
+    if (!credentials?.userid || !credentials?.token) {
+      return null;
+    }
+
+    const tokenData = checkMagicLinkToken(credentials.token);
+    if (!tokenData || tokenData.userid.toLowerCase() !== credentials.userid.toLowerCase()) {
+      return null;
+    }
+
+    const orgaccount = await prisma.security_users.findFirst({
+      where: { UserID: credentials.userid },
+      select: {
+        UserID: true,
+        DisplayName: true,
+        UserName: true,
+        user_contact_roles: {
+          select: {
+            ContactID: true,
+            isOwnOrganization: true,
+            NewRoleID: true,
+          },
+        },
+      },
+    }) as OrgAccountDataWithRole | null;
+
+    if (!orgaccount) {
+      return null;
+    }
+
+    return getProfileUserWithActiveContact(orgaccount, tokenData.contactId);
+  } catch (error) {
+    console.error("Error in getUserFromMagicLinkToken:", error);
     return null;
   }
 };

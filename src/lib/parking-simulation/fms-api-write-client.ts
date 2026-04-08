@@ -2,6 +2,8 @@
  * Client for FMS REST v2 API write calls.
  * Used by simulation; credentials from session/settings.
  * Always pass transactionDate from simulation clock.
+ *
+ * `credentials: "include"` sends the Next-Auth cookie so writes can pass fietsberaad_superadmin checks (when ENABLE_WRITE_API is set).
  */
 
 export interface FmsCredentials {
@@ -46,6 +48,7 @@ export async function uploadTransaction(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/uploadJsonTransaction/${bikeparkID}/${sectionID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -67,6 +70,7 @@ export async function syncSector(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/syncSector/${bikeparkID}/${sectionID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -91,6 +95,7 @@ export async function addSaldo(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addJsonSaldo/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -114,6 +119,7 @@ export async function saveBike(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/saveJsonBike/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -142,6 +148,7 @@ export async function reportOccupationData(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/reportOccupationData/${bikeparkID}/${sectionID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -175,6 +182,7 @@ export async function uploadTransactions(
 ): Promise<{ ids?: number[]; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/uploadJsonTransactions/${bikeparkID}/${sectionID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -199,6 +207,7 @@ export async function addSaldos(
 ): Promise<{ ids?: number[]; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addJsonSaldos/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -222,6 +231,7 @@ export async function saveBikes(
 ): Promise<{ ids?: number[]; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/saveJsonBikes/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -248,6 +258,7 @@ export async function updateLocker(
 ): Promise<{ message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/updateLocker/${bikeparkID}/${sectionID}/${placeID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -276,6 +287,7 @@ export async function addSubscription(
 ): Promise<{ id?: number; message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addSubscription/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -293,6 +305,7 @@ export async function subscribe(
 ): Promise<{ message?: string; status?: number }> {
   const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/subscribe/${bikeparkID}`);
   const res = await fetch(url, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json",

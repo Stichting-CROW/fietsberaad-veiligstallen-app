@@ -247,6 +247,7 @@ export const selectParkingDetailsType = {
             Capaciteit: true,
             fietstype: { select: { Name: true } },
           },
+          orderBy: { BikeTypeID: "asc" },
         },
       },
     },

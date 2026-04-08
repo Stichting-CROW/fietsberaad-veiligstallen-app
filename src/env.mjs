@@ -19,6 +19,8 @@ const server = z.object({
   NSCONNECTOR_SUBSCRIPTION_KEY: z.string().optional(),
   FMS_TEST_USER: z.string().min(1).optional(),
   FMS_TEST_PASS: z.string().min(1).optional(),
+  /** FMS v2/v3 mutations: set true / 1 / yes on acceptance or local; omit on production */
+  ENABLE_WRITE_API: z.string().optional(),
 });
 
 /**
@@ -56,6 +58,7 @@ const processEnv = {
   NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
   FMS_TEST_USER: process.env.FMS_TEST_USER,
   FMS_TEST_PASS: process.env.FMS_TEST_PASS,
+  ENABLE_WRITE_API: process.env.ENABLE_WRITE_API,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 

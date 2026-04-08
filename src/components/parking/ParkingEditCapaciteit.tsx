@@ -96,6 +96,13 @@ const getCapacityForFietstype = (fietstypeName: string, capacitydata: capacityda
   return 0;
 }
 
+const getBikeTypeKeysSortedByID = (detailed: capacitydata["detailed"], allFietstypen: VSFietstype[]): string[] =>
+  Object.keys(detailed).sort((a, b) => {
+    const idA = allFietstypen.find((ft) => ft.Name === a)?.ID ?? 999;
+    const idB = allFietstypen.find((ft) => ft.Name === b)?.ID ?? 999;
+    return idA - idB;
+  });
+
 const getAllowedValueForFietstype = (fietstypeName: string, capacitydata: capacitydata | null, localChanges: ParkingSections | undefined): boolean => {
   if (!capacitydata) return false;
 
@@ -262,7 +269,8 @@ const ParkingEditCapaciteit = ({
       </>
     );
   } else {
-    content = Object.keys(capacitydata.detailed).map(key => {
+    const sortedKeys = getBikeTypeKeysSortedByID(capacitydata.detailed, VSFietsTypenWaarden);
+    content = sortedKeys.map(key => {
       const detail = capacitydata.detailed[key];
       if (detail === undefined) {
         return null;
@@ -289,7 +297,7 @@ const ParkingEditCapaciteit = ({
   return (
     <>
       <div className="ml-2 grid grid-cols-4">
-        {capacitydata && Object.keys(capacitydata.detailed).map(fietstypename => {
+        {capacitydata && getBikeTypeKeysSortedByID(capacitydata.detailed, VSFietsTypenWaarden).map(fietstypename => {
           const item = capacitydata.detailed[fietstypename];
 
           const capacity = getCapacityForFietstype(fietstypename, capacitydata, update);

@@ -150,7 +150,7 @@ async function extractOne(sourceId: string, targetStallingsId: string, title: st
 
   const sectieFietstypes = await prisma.sectie_fietstype.findMany({
     where: {
-      OR: [{ sectieID: { in: sectieIds } }, { StallingsID: sourceStallingsId }],
+      OR: [{ sectieID: { in: sectieIds } }, { StallingsID: stalling.ID }],
     },
   });
 

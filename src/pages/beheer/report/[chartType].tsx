@@ -26,7 +26,10 @@ export const getServerSideProps = async (context: GetServerSidePropsContext): Pr
 
   // Check if there is no session (user not logged in)
   if (!session) {
-    return { redirect: { destination: "/login?redirect=/beheer", permanent: false } };
+    const redirect = context.resolvedUrl || "/beheer";
+    const email = typeof context.query.email === "string" ? context.query.email : "";
+    const loginWithCodeUrl = `/login-with-code?redirect=${encodeURIComponent(redirect)}${email ? `&email=${encodeURIComponent(email)}` : ""}`;
+    return { redirect: { destination: loginWithCodeUrl, permanent: false } };
   }
 
   return { props: {} };

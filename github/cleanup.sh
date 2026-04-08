@@ -13,6 +13,7 @@ gh variable delete PROD_AZURE_APP_NAME
 gh variable delete PROD_NEXTAUTH_SECRET
 gh variable delete PROD_NEXTAUTH_URL
 gh variable delete PROD_NEXT_PUBLIC_MAPBOX_TOKEN
+gh variable delete PROD_REMINDER_RUNTIME_ENV
 gh variable delete PROD_DATABASE_URL
 gh variable delete PROD_NEXT_PUBLIC_API_BASE_URL
 gh variable delete PROD_NEXT_PUBLIC_WEB_BASE_URL

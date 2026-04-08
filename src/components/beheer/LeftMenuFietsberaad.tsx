@@ -1,13 +1,17 @@
 // LeftMenuFietsberaad.tsx
 import React from 'react';
+import { useRouter } from 'next/router';
 import {
   FiBriefcase,
+  FiCheckSquare,
   FiClock,
   FiDownload,
+  FiEdit2,
   FiFileText,
   FiGrid,
   FiHelpCircle,
   FiHome,
+  FiMail,
   FiMap,
   FiMapPin,
   FiServer,
@@ -18,9 +22,8 @@ import {
 
 import { VSSecurityTopic, type VSUserSecurityProfile } from '~/types/securityprofile';
 import { VSMenuTopic } from '~/types/';
-import { VSUserRoleValuesNew } from '~/types/users';
 
-import { userHasRight, userHasRole } from '~/types/utils';
+import { userHasRight } from '~/types/utils';
 interface LeftMenuFietsberaadProps {
   securityProfile?: VSUserSecurityProfile;
   activecomponent: VSMenuTopic | undefined;
@@ -34,7 +37,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
   activecomponent,
   onSelect,
 }) => {
-  // Do only show reports? Temporary for testing, 2025-05
+  const router = useRouter();
 
   const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
@@ -98,6 +101,58 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiServer}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Contactpersonen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Mail contactpersonen'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mail-contactpersonen')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mail-contactpersonen')}
+                icon={FiMail}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Bewerk mailsjabloon'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mailsjabloon')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mailsjabloon')}
+                icon={FiEdit2}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Mailfrequentie'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/mailfrequentie-contactpersonen')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/mailfrequentie-contactpersonen')}
+                icon={FiMail}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Contactpersonen}
+                title={'Datakwaliteit-controles'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/beheer/contactpersonen/datakwaliteitcontroles')}
+                isActive={router.asPath.includes('/beheer/contactpersonen/datakwaliteitcontroles')}
+                icon={FiCheckSquare}
               />
             </>
           </LeftMenuItem>

@@ -129,7 +129,10 @@ export const getServerSideProps = async (context: GetServerSidePropsContext): Pr
 
   // Check if there is no session (user not logged in)
   if (!session) {
-    return { redirect: { destination: "/login?redirect=/beheer", permanent: false } };
+    const redirect = context.resolvedUrl || "/beheer";
+    const email = typeof context.query.email === "string" ? context.query.email : "";
+    const loginWithCodeUrl = `/login-with-code?redirect=${encodeURIComponent(redirect)}${email ? `&email=${encodeURIComponent(email)}` : ""}`;
+    return { redirect: { destination: loginWithCodeUrl, permanent: false } };
   }
 
   return { props: {} };
@@ -400,6 +403,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <DocumentsComponent />;
           break;
         case VSMenuTopic.ContactsGemeenten:
+        case VSMenuTopic.Contactpersonen:
           selectedComponent = (
             <GemeenteComponent fietsenstallingtypen={fietsenstallingtypen || []}/>
           );
@@ -423,7 +427,17 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <LogboekComponent />;
           break;
         case VSMenuTopic.UsersGebruikersbeheerFietsberaad:
-          selectedComponent = <UsersComponent siteID={"1"} contacts={contacts} />;
+          selectedComponent = (
+            <UsersComponent
+              siteID={"1"}
+              contacts={contacts}
+              initialEditUserId={
+                queryRouter.query.id && typeof queryRouter.query.id === "string"
+                  ? queryRouter.query.id
+                  : undefined
+              }
+            />
+          );
           break;
         case VSMenuTopic.UsersGebruikersbeheerGemeente:
           selectedComponent = <UsersComponent siteID={selectedContactID} contacts={contacts} />;
@@ -438,21 +452,21 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" />;
+            selectedComponent = <FietsenstallingenComponent type="fietsenstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.Fietskluizen:
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="fietskluizen" />;
+            selectedComponent = <FietsenstallingenComponent type="fietskluizen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.Buurtstallingen:
           if (!hasFietsenstallingenAccess) {
             selectedComponent = <AccessDenied />;
           } else {
-            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" />;
+            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
           }
           break;
         case VSMenuTopic.BarcodereeksenSleutelhangers: {

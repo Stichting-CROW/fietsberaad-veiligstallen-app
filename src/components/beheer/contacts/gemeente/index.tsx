@@ -3,6 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import GemeenteEdit from "~/components/contact/GemeenteEdit";
+import ContactpersonenEmail from "~/components/beheer/contacts/ContactpersonenEmail";
+import Mailsjabloon from "~/components/beheer/contacts/Mailsjabloon";
+import DatakwaliteitControles from "~/components/beheer/contacts/DatakwaliteitControles";
+import MailfrequentieContactpersonen from "~/components/beheer/contacts/MailfrequentieContactpersonen";
 import type { VSFietsenstallingType } from "~/types/parking";
 import ParkingEdit from '~/components/parking/ParkingEdit';
 import GemeenteFilter from '~/components/beheer/common/GemeenteFilter';
@@ -369,6 +373,20 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
 
   if(errorUsers || errorGemeenten || errorExploitanten) {
     return <div>Error: {errorUsers || errorGemeenten || errorExploitanten}</div>;
+  }
+
+  const id = router.query.id as string | undefined;
+  if (id === "mail-contactpersonen") {
+    return <ContactpersonenEmail />;
+  }
+  if (id === "mailfrequentie-contactpersonen") {
+    return <MailfrequentieContactpersonen />;
+  }
+  if (id === "mailsjabloon") {
+    return <Mailsjabloon />;
+  }
+  if (id === "datakwaliteitcontroles") {
+    return <DatakwaliteitControles />;
   }
 
   return (

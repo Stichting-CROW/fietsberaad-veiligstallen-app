@@ -1,5 +1,6 @@
 import React from "react";
 import { diff } from "deep-object-diff";
+import { normalizeSectionBiketypesOrderDeep } from "~/server/utils/fms-compare";
 
 export type EndpointDef = {
   id: string;
@@ -9,12 +10,12 @@ export type EndpointDef = {
   oldPath?: string;
 };
 
-export type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped" | "uitzondering-biketypeid-sortering";
+export type RowStatus = "pending" | "loading" | "identical" | "diff" | "error" | "skipped";
 
 function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOnly: string } | null {
   try {
-    const oldObj = JSON.parse(oldJson) as object;
-    const newObj = JSON.parse(newJson) as object;
+    const oldObj = normalizeSectionBiketypesOrderDeep(JSON.parse(oldJson)) as object;
+    const newObj = normalizeSectionBiketypesOrderDeep(JSON.parse(newJson)) as object;
     const newDiff = diff(oldObj, newObj);
     const oldDiff = diff(newObj, oldObj);
     const newKeys = Object.keys(newDiff);
@@ -151,7 +152,6 @@ export const EndpointComparisonTable: React.FC<EndpointComparisonTableProps> = (
                   {status === "pending" && "—"}
                   {status === "loading" && "..."}
                   {status === "identical" && "Identiek"}
-                  {status === "uitzondering-biketypeid-sortering" && "Uitzondering - biketypeid sortering"}
                   {status === "diff" && "Verschilt"}
                   {status === "skipped" && "Overgeslagen"}
                   {status === "error" && (() => {

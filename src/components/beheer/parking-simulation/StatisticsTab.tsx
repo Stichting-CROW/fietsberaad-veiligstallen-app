@@ -61,6 +61,39 @@ type OverviewRow = {
   countSubscribe: number;
 };
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** yyyymmdd-HHmm for Excel-friendly filename (no colons). */
+function writeApiStatistiekCsvBasename(overzichtMode: boolean): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+  const hm = `${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+  return `${ymd}-${hm}-write-api-statistiek${overzichtMode ? "-overzicht" : ""}.csv`;
+}
+
+function escapeCsvCell(value: string | number): string {
+  const s = String(value ?? "");
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function downloadTextFile(filename: string, text: string, mime: string): void {
+  const blob = new Blob(["\uFEFF", text], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 const StatisticsTab: React.FC<StatisticsTabProps> = () => {
   const [dateStart, setDateStart] = useState(DEFAULT_DATE_START);
   const [overzicht, setOverzicht] = useState(false);
@@ -234,6 +267,82 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
     }
   };
 
+  const hasData = statsData !== null;
+  const hasStallings = stallingsList !== null;
+
+  const handleExportCsv = () => {
+    if (!stallingsList) return;
+    const lines: string[][] = [];
+    if (overzicht) {
+      lines.push(["Peildatum (start)", dateStart, "", "", "", "", "", "", "", ""]);
+      lines.push([
+        "Contact",
+        "Stalling type",
+        "Aantal stallings",
+        "uploadJsonTransaction(s)",
+        "saveJsonBike(s)",
+        "addJsonSaldo(s)",
+        "syncSector",
+        "report(Json)OccupationData",
+        "updateLocker",
+        "addSubscription",
+        "subscribe",
+      ]);
+      for (const row of sortedOverviewData) {
+        lines.push([
+          escapeCsvCell(row.contactName),
+          escapeCsvCell(row.stallingType),
+          escapeCsvCell(row.countStallings),
+          escapeCsvCell(row.countTransacties),
+          escapeCsvCell(row.countPasids),
+          escapeCsvCell(row.countBetalingen),
+          escapeCsvCell(row.countSync),
+          escapeCsvCell(row.countReportOccupation),
+          escapeCsvCell(row.countUpdateLocker),
+          escapeCsvCell(row.countAddSubscription),
+          escapeCsvCell(row.countSubscribe),
+        ]);
+      }
+    } else {
+      lines.push(["Peildatum (start)", dateStart, "", "", "", "", "", "", "", "", "", ""]);
+      lines.push([
+        "Contact",
+        "Stalling",
+        "bikeparkID",
+        "Stalling type",
+        "uploadJsonTransaction(s)",
+        "saveJsonBike(s)",
+        "addJsonSaldo(s)",
+        "syncSector",
+        "report(Json)OccupationData",
+        "updateLocker",
+        "addSubscription",
+        "subscribe",
+      ]);
+      for (const row of sortedData) {
+        lines.push([
+          escapeCsvCell(row.contactName),
+          escapeCsvCell(row.parkingName),
+          escapeCsvCell(row.bikeparkID),
+          escapeCsvCell(row.stallingType),
+          escapeCsvCell(hasData ? row.countTransacties : "–"),
+          escapeCsvCell(hasData ? row.countPasids : "–"),
+          escapeCsvCell(hasData ? row.countBetalingen : "–"),
+          escapeCsvCell(hasData ? row.countSync : "–"),
+          escapeCsvCell(hasData ? row.countReportOccupation : "–"),
+          escapeCsvCell(hasData ? row.countUpdateLocker : "–"),
+          escapeCsvCell(hasData ? row.countAddSubscription : "–"),
+          escapeCsvCell(hasData ? row.countSubscribe : "–"),
+        ]);
+      }
+    }
+    const csv = lines.map((cells) => cells.join(",")).join("\r\n");
+    downloadTextFile(writeApiStatistiekCsvBasename(overzicht), csv, "text/csv");
+  };
+
+  const exportDisabled =
+    !stallingsList || (overzicht ? sortedOverviewData.length === 0 : sortedData.length === 0);
+
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortBy !== column) return null;
     return sortOrder === "asc" ? (
@@ -243,12 +352,29 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
     );
   };
 
-  const hasData = statsData !== null;
-  const hasStallings = stallingsList !== null;
-
   return (
     <div className="bg-white border rounded-lg p-6">
-      <h2 className="text-lg font-semibold mb-4">Statistieken</h2>
+      <h2 className="text-lg font-semibold mb-2">Statistieken</h2>
+      <p className="text-sm text-gray-600 mb-2 max-w-4xl leading-relaxed">
+        Per stalling het aantal binnengekomen{" "}
+        <strong>FMS write-API-schrijfacties</strong>: geteld via de wachtrijtabellen (transacties,
+        pasregistraties, saldo-aanvullingen, sectiesynchronisatie, tijdelijke bezettingsdata) en voor{" "}
+        <strong>updateLocker</strong>, <strong>addSubscription</strong> en <strong>subscribe</strong> via het
+        webservice-log (als daar gelogd). Alleen registraties{" "}
+        <strong>vanaf de gekozen startdatum</strong> tellen mee. <strong>Overzicht</strong> sommeert per contact
+        en stallingtype.
+      </p>
+      <p className="text-sm text-gray-600 mb-4 max-w-4xl leading-relaxed">
+        <strong>Niet zichtbaar</strong> zijn schrijfacties die <strong>alleen rechtstreeks</strong> op
+        eindtabellen landen (bijv. <strong>abonnementen</strong>, <strong>accounts</strong>,{" "}
+        <strong>fietsenstalling_plek</strong>) en geen rij in de wachtrij of in{" "}
+        <strong>bezettingsdata_tmp</strong> achterlaten: <strong>addSubscription</strong> en{" "}
+        <strong>subscribe</strong> horen daarbij—die staan hier pas als er een passende regel in{" "}
+        <strong>webservice_log</strong> staat. Bezettingsrapportage telt alleen wat via{" "}
+        <strong>bezettingsdata_tmp</strong> binnenkomt. Ook ontbreken o.a.{" "}
+        <strong>setUrlWebserviceForLocker</strong>, kluis-methodes naar <strong>fmsservicelog</strong>, en mutaties
+        via beheer of achtergrondprocessen.
+      </p>
         <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-2">
           <label htmlFor="stat-date-start" className="text-sm font-medium text-gray-700 leading-10">
@@ -296,6 +422,14 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
           }`}
         >
           {refreshing ? "Bezig…" : "Vernieuw"}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={exportDisabled}
+          className="h-10 px-4 rounded font-medium border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Exporteer CSV
         </button>
       </div>
 

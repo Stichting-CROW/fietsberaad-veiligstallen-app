@@ -49,7 +49,7 @@ jobs:
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
           echo "NEXT_PUBLIC_WEB_BASE_URL=$NEXT_PUBLIC_WEB_BASE_URL" >> .env
-          echo "NODE_ENV=production >>" .env
+          echo "NODE_ENV=acceptance >>" .env
           echo "DATABASE_URL=$DATABASE_URL" >> .env
           echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env
           echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env
@@ -63,6 +63,7 @@ jobs:
           echo "SMTP_USER=$SMTP_USER" >> .env
           echo "SMTP_PASS=$SMTP_PASS" >> .env
           echo "SMTP_FROM=$SMTP_FROM" >> .env
+          echo "ENABLE_WRITE_API=true" >> .env
       - name: print env file
         run: cat .env
 
@@ -83,6 +84,7 @@ jobs:
           SMTP_USER: ${{ secrets.ACC_SMTP_USER }}
           SMTP_PASS: ${{ secrets.ACC_SMTP_PASS }}
           SMTP_FROM: ${{ secrets.ACC_SMTP_FROM }}
+          ENABLE_WRITE_API: "true"
         run: |
           npm install
           npm run build
