@@ -1,5 +1,65 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-04-08
+
+**Features**
+
+- Add `/api/osm/fietsenstallingen` endpoint for OSM
+- In /api/osm/fietsenstallingen, add "last_verified_by_data_owner" key
+- In /api/osm/fietsenstallingen: Return all types except for fietkluizen
+- feat(google-poi): Create new public fietsenstallingen API endpoint
+- feat(google-poi): Add capacity, services, guarded:yes/no, operator, tariff
+- feat(google-poi): Add tariffs
+- feat(ParkingView) Add JSON-LD structured schema.org tags
+- Add partial V2/V3 API (read methods / open data) (#212)
+- feat(StallingsdataControle): In modal, show last data quality check date
+- feat(Contactpersonen): Login-with-code & redirect, auto mail cron
+- feat(contactpersonen): 'Contactpersonen' has its own LeftMenu heading now
+- feat(contactpersonen): Set mail frequency, better template edit & send
+- feat(contactpersonen): A-Z contacts, rich text editor, better test mail
+- feat(datakwaliteit): Link contactpersoon naam aan 'Bewerk gebruiker'
+- feat(datakwaliteit): Toon lijst met laatste controles door contactpersonen
+- feat(datakwaliteit-controle): Toon 'controleer data' alleen na 6 maanden
+- feat: Make table for logging 'did check data quality' + Add migration
+- feat: Sort fietsenstallingen list for reminder email by name + add Type
+- feat: In reminder mail to contacts: Show table with all parkings
+- feat(tools-reminder-contactpersonen): Manual email contactpersonen
+- feat(fietsenstallingen-admin): Add controle-modal (Controleer stallingen)
+
+**Bug Fixes**
+
+- feat(contactpersonen-email): Fix env specific image URL and button URL pt5
+- feat(contactpersonen-email): Fix env specific image URL and button URL pt4
+- feat(contactpersonen-email): Fix env specific image URL and button URL pt3
+- fix(contactpersonen-reminder-mail): Use correct base URL in mail pt. 2
+- fix(contactpersonen-reminder-mail): Use correct base URL in mail content
+- fix(contactpersonen-reminder-mail): Link buttons to correct environment
+- fix(ContactpersonenEmail): Fix image not visible in preview modal
+- fix(ContactpersonenEmail): Fix image not visible in mail
+- fix(ContactpersonenEmail): Fix image not visible in email that's sent
+- fix(TipTapEditor) Fix images showing as broken
+- fix(package.json) Avoid EMFILE limits on Linux
+- fix: Fix failing migration for adding contacts_datakwaliteitcontroles
+- fix: Created placeholder migration.sql files for missing migrations
+- fix: /beheer/fietsenstallingen/controle not loading + Magic link for "No"
+- fix: Make 'npm run build' work by ignoring MySQL data dir
+- Make stalling write API usage statistics work when mirror tables are not present
+
+**Improvements**
+
+- Add attribution label to map
+- refactor(google-poi-api): Move /api/fietsenstallingen to /api/google/f...
+
+**Technical**
+
+- Sync acceptance to main (#215)
+- docs(osm): Add proposal to OSM for sharing data with OSM
+- docs(userdocs): Create docs on how CSV for Google can be used
+- feat(contactpersonen): Emails should have max-width:100%
+- feat(contactpersonen-email): Don't include inactive parkings in the mail
+- Nieuwe Prisma migratie voor VerificationToken
+- chore(login-with-code) Better error handling
+
 ## VeiligStallen 2026-03-18
 
 **Features**
