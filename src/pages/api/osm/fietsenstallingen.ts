@@ -2,13 +2,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
 import { titleToSlug } from "~/utils/slug";
 
-const ALLOWED_STALLINGTYPE_NAMES = [
-  "Bewaakte stalling",
-  "Geautomatiseerde stalling",
-  "Stalling met toezicht",
-  "Onbewaakte stalling",
-] as const;
-
 type OSMFeature = {
   type: "Feature";
   geometry: {
@@ -191,7 +184,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       where: {
         Coordinaten: { not: null },
         fietsenstalling_type: {
-          is: { name: { in: [...ALLOWED_STALLINGTYPE_NAMES] } },
+          is: { name: { not: "fietskluizen" } },
         },
         ...(cbsCodeFilter !== undefined
           ? {

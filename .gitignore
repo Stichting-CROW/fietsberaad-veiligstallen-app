@@ -85,6 +85,7 @@ logs/*
 
 #local docs
 /docs/**
+!/docs/OSM*
 !/docs/userdocs/
 !/docs/userdocs/**
 !/docs/documentatie-crow/
