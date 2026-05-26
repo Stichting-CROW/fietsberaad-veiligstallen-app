@@ -298,15 +298,23 @@ export default async function handle(
 
         // Rights validation: Updating role is only allowed for gebruikers_dataeigenaar_admin
         if(parsed.RoleID && userHasRight(session.user.securityProfile, VSSecurityTopic.gebruikers_dataeigenaar_admin)) {
+          const ownOrgRole = await prisma.user_contact_role.findFirst({
+            where: { UserID: id, isOwnOrganization: true },
+            select: { ContactID: true },
+          });
+          const isOwnOrganization = !ownOrgRole || ownOrgRole.ContactID === activeContactId;
+
           await prisma.user_contact_role.upsert({
             where: { UserID: id, ContactID: activeContactId },
             update: { 
               NewRoleID: parsed.RoleID,
             },
             create: { 
+              ID: generateID(),
               UserID: id, 
               ContactID: activeContactId,
               NewRoleID: parsed.RoleID,
+              isOwnOrganization,
             },
           });
 

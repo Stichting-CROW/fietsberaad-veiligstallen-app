@@ -150,7 +150,7 @@ export const UserEditComponent = (props: UserEditComponentProps) => {
     };
 
     const validateData = async (data: z.infer<typeof securityUserCreateSchema> | z.infer<typeof securityUserUpdateSchema>) => {
-      const responseValidate = await makeClientApiCall<SecurityUserValidateResponse>(`/api/protected/security_users/validate/`, 'POST', data);
+      const responseValidate = await makeClientApiCall<SecurityUserValidateResponse>(`/api/protected/security_users/validate`, 'POST', data);
       if(!responseValidate.success) {
         setErrorMessage(`Kan gebruikersdata niet valideren: (${responseValidate.error})`);
         return false;
