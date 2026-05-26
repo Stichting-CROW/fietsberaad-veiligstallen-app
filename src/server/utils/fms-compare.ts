@@ -150,6 +150,43 @@ function normalizePriceForCompare(obj: unknown): unknown {
   return result;
 }
 
+function isV2BikeTypeRow(x: unknown): x is { bikeTypeID: number } {
+  return (
+    x !== null &&
+    typeof x === "object" &&
+    !Array.isArray(x) &&
+    typeof (x as Record<string, unknown>).bikeTypeID === "number"
+  );
+}
+
+/** v2 getJsonSubscriptionTypes: stable order for subscription types and nested bikeTypes. */
+export function normalizeV2SubscriptionTypesForCompare(obj: unknown): unknown {
+  if (!Array.isArray(obj)) return normalizePriceForCompare(obj);
+  return [...obj]
+    .map((item) => {
+      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+        return normalizePriceForCompare(item);
+      }
+      const rec = item as Record<string, unknown>;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (k === "bikeTypes" && Array.isArray(v) && v.every(isV2BikeTypeRow)) {
+          out[k] = [...v]
+            .sort((a, b) => a.bikeTypeID - b.bikeTypeID)
+            .map((row) => normalizePriceForCompare(row));
+        } else {
+          out[k] = normalizePriceForCompare(v);
+        }
+      }
+      return out;
+    })
+    .sort(
+      (a, b) =>
+        ((a as { subscriptionTypeID?: number }).subscriptionTypeID ?? 0) -
+        ((b as { subscriptionTypeID?: number }).subscriptionTypeID ?? 0)
+    );
+}
+
 export function responsesMatch(endpointId: string, oldRes: string, newRes: string): boolean {
   if (endpointId === "v2-getServerTime") {
     try {
@@ -166,6 +203,45 @@ export function responsesMatch(endpointId: string, oldRes: string, newRes: strin
       const newMs = toMs(newRes);
       if (Number.isNaN(oldMs) || Number.isNaN(newMs)) return false;
       return Math.abs(oldMs - newMs) < 1000;
+    } catch {
+      return false;
+    }
+  }
+  if (endpointId === "v2-getJsonSubscriptionTypes") {
+    try {
+      const oldData = JSON.parse(oldRes);
+      const newData = JSON.parse(newRes);
+      return (
+        canonicalJson(normalizeV2SubscriptionTypesForCompare(oldData)) ===
+        canonicalJson(normalizeV2SubscriptionTypesForCompare(newData))
+      );
+    } catch {
+      return false;
+    }
+  }
+  if (endpointId === "v3-bikeupdates") {
+    try {
+      const stripFrom = (raw: string) => {
+        const o = JSON.parse(raw) as { from?: string; data?: unknown; citycode?: string };
+        return JSON.stringify({ citycode: o.citycode, data: o.data ?? [] });
+      };
+      return stripFrom(oldRes) === stripFrom(newRes);
+    } catch {
+      return false;
+    }
+  }
+  if (endpointId === "v3-balances" || endpointId === "v3-subscriptions") {
+    try {
+      const a = JSON.parse(oldRes);
+      const b = JSON.parse(newRes);
+      if (!Array.isArray(a) || !Array.isArray(b)) return false;
+      const sortBy = (arr: unknown[]) =>
+        [...arr].sort((x, y) => {
+          const xa = x as { idcode?: string };
+          const ya = y as { idcode?: string };
+          return (xa.idcode ?? "").localeCompare(ya.idcode ?? "");
+        });
+      return canonicalJson(sortBy(a)) === canonicalJson(sortBy(b));
     } catch {
       return false;
     }

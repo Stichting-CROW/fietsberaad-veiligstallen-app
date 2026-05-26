@@ -71,6 +71,128 @@ paths:
                 items:
                   $ref: '#/components/schemas/ClientType'
 
+  /v2/getJsonSubscriptionTypes/{bikeparkID}:
+    get:
+      summary: Abonnementsvormen voor stalling
+      description: |
+        Geeft de abonnementsvormen die beschikbaar zijn voor de gegeven stalling (proxy.SubscriptionType).
+        Vereist operator-rechten voor het bikepark (HTTP Basic Auth).
+      tags: [V2]
+      parameters:
+        - name: bikeparkID
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "9933_001"
+          description: StallingsID (postcode_volgnummer)
+      responses:
+        '200':
+          description: Array van abonnementsvormen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V2SubscriptionType'
+        '400':
+          description: bikeparkID ontbreekt
+        '401':
+          description: Unauthorized
+
+  /v2/setUrlWebserviceForLocker/{bikeparkID}/{sectionID}/{placeID}:
+    post:
+      summary: Callback-URL voor fietskluis instellen
+      description: |
+        Zet urlwebservice op een kluisplek. Vereist ENABLE_WRITE_API, superadmin-sessie en operator Basic Auth.
+      tags: [V2 Write]
+      parameters:
+        - name: bikeparkID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sectionID
+          in: path
+          required: true
+          schema:
+            type: string
+          description: externalId van de sector
+        - name: placeID
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Numeriek plek-ID (fietsenstalling_plek.id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Callback-URL die de kluis moet aanroepen bij wijzigingen
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+        '400':
+          description: url, bikeparkID, sectionID of placeID ontbreekt
+        '401':
+          description: Unauthorized of schrijven niet toegestaan
+        '405':
+          description: Alleen POST of PUT
+    put:
+      summary: Callback-URL voor fietskluis instellen (PUT)
+      tags: [V2 Write]
+      parameters:
+        - name: bikeparkID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sectionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: placeID
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
   /v3/citycodes:
     get:
       summary: Lijst van citycodes (gemeenten)
@@ -108,6 +230,324 @@ paths:
         '404':
           description: Niet gevonden
 
+  /v3/citycodes/{citycode}/locations/{locationid}/balances:
+    get:
+      summary: Saldi in gemeente (operator)
+      tags: [V3 Protected]
+      parameters:
+        - name: citycode
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: locationid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array van saldi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V3BalanceEntry'
+        '401':
+          description: Unauthorized
+
+  /v3/citycodes/{citycode}/locations/{locationid}/subscriptions:
+    get:
+      summary: Abonnementen op locatie (operator)
+      tags: [V3 Protected]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+      responses:
+        '200':
+          description: Array van abonnementen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/V3SubscriptionEntry'
+    post:
+      summary: Abonnement toevoegen (operator)
+      description: Vereist ENABLE_WRITE_API en superadmin-sessie naast Basic Auth.
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscription:
+                  $ref: '#/components/schemas/V3SubscriptionWrite'
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/bikeupdates:
+    get:
+      summary: Fietsmutaties sinds tijdstip
+      tags: [V3 Protected]
+      parameters:
+        - name: citycode
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: locationid
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Mutaties
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V3BikeUpdatesResponse'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/completedtransactions:
+    post:
+      summary: Afgeronde transactie (bikepark-niveau)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completedtransaction:
+                  $ref: '#/components/schemas/V3CompletedTransaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}:
+    post:
+      summary: Tijdelijke pas koppelen aan definitieve pas (koppelpas)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - name: idtype
+          in: path
+          required: true
+          schema:
+            type: integer
+            description: "3=tijdelijk, 4=tmp_sleutelhanger"
+        - name: idcode
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newidcodes:
+                  type: object
+                  properties:
+                    idcode:
+                      type: string
+                    idtype:
+                      type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/transactions:
+    post:
+      summary: Stallingstransactie (sector)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction:
+                  $ref: '#/components/schemas/V3Transaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/completedtransactions:
+    post:
+      summary: Afgeronde transactie (sector)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completedtransaction:
+                  $ref: '#/components/schemas/V3CompletedTransaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation:
+    post:
+      summary: Sector synchroniseren en/of bezetting doorgeven
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/V3OccupationData'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}:
+    put:
+      summary: Plek bijwerken (url, status, credentials)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+        - $ref: '#/components/parameters/V3Placeid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                properties:
+                  $ref: '#/components/schemas/V3PlaceProperties'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+    post:
+      summary: Plek-log (updatePost)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+        - $ref: '#/components/parameters/V3Placeid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                properties:
+                  $ref: '#/components/schemas/V3LogProperties'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/transactions:
+    post:
+      summary: Stallingstransactie (plek)
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+        - $ref: '#/components/parameters/V3Placeid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction:
+                  $ref: '#/components/schemas/V3Transaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/subscriptions:
+    post:
+      summary: Abonnement op plek
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+        - $ref: '#/components/parameters/V3Placeid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscription:
+                  $ref: '#/components/schemas/V3SubscriptionWrite'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
   /v3/citycodes/{citycode}/locations:
     get:
       summary: Locaties in gemeente
@@ -135,6 +575,32 @@ components:
       type: http
       scheme: basic
       description: HTTP Basic Auth (UrlName + Password uit contacts)
+
+  parameters:
+    V3Citycode:
+      name: citycode
+      in: path
+      required: true
+      schema:
+        type: string
+    V3Locationid:
+      name: locationid
+      in: path
+      required: true
+      schema:
+        type: string
+    V3Sectionid:
+      name: sectionid
+      in: path
+      required: true
+      schema:
+        type: string
+    V3Placeid:
+      name: placeid
+      in: path
+      required: true
+      schema:
+        type: string
 
   schemas:
     BikeType:
@@ -164,6 +630,216 @@ components:
           type: integer
         name:
           type: string
+
+    V2BikeTypeInSubscription:
+      type: object
+      properties:
+        bikeTypeID:
+          type: integer
+        name:
+          type: string
+
+    V2SubscriptionType:
+      type: object
+      description: ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes)
+      properties:
+        subscriptionTypeID:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        durationInMonth:
+          type: integer
+          description: Duur in maanden
+        bikeTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/V2BikeTypeInSubscription'
+
+    Result:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Ok
+        status:
+          type: integer
+          example: 1
+        id:
+          type: integer
+        subscriptionid:
+          type: integer
+
+    V3Transaction:
+      type: object
+      required: [idcode, transactiondate, type]
+      properties:
+        idcode:
+          type: string
+        idtype:
+          type: integer
+        transactiondate:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [in, out]
+        typecheck:
+          type: string
+        bikeid:
+          type: string
+        price:
+          type: number
+        paymenttypeid:
+          type: integer
+        clienttypeid:
+          type: integer
+
+    V3CompletedTransaction:
+      type: object
+      properties:
+        checkindate:
+          type: string
+          format: date-time
+        checkoutdate:
+          type: string
+          format: date-time
+        checkintype:
+          type: string
+        typecheckout:
+          type: string
+        price:
+          type: number
+        clienttypeid:
+          type: integer
+        biketypeid:
+          type: integer
+
+    V3SubscriptionWrite:
+      type: object
+      required: [subscriptiontypeid, idcode]
+      properties:
+        subscriptiontypeid:
+          type: integer
+        idcode:
+          type: string
+        idtype:
+          type: integer
+        startdate:
+          type: string
+        expirationdate:
+          type: string
+        cost:
+          type: number
+
+    V3PlaceProperties:
+      type: object
+      properties:
+        urlwebservice:
+          type: string
+        name:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        statuscode:
+          type: integer
+        transactiondate:
+          type: string
+          format: date-time
+        cost:
+          type: number
+        paymenttypeid:
+          type: integer
+
+    V3LogProperties:
+      type: object
+      properties:
+        action:
+          type: string
+        type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        idtype:
+          type: integer
+        idcode:
+          type: string
+        description:
+          type: string
+        actionid:
+          type: integer
+
+    V3OccupationData:
+      type: object
+      properties:
+        transactiondate:
+          type: string
+          format: date-time
+        bikes:
+          type: array
+          items:
+            type: object
+            properties:
+              idcode:
+                type: string
+              idtype:
+                type: integer
+              bikeid:
+                type: string
+              transactiondate:
+                type: string
+        occupation:
+          type: integer
+        checkins:
+          type: integer
+        checkouts:
+          type: integer
+        intervalinminutes:
+          type: integer
+
+    V3BalanceEntry:
+      type: object
+      properties:
+        idcode:
+          type: string
+        idtype:
+          type: integer
+        balance:
+          type: number
+
+    V3SubscriptionEntry:
+      type: object
+      properties:
+        idcode:
+          type: string
+        idtype:
+          type: integer
+        subscriptiontypeid:
+          type: integer
+        startdate:
+          type: string
+        expirationdate:
+          type: string
+        price:
+          type: number
+        placeid:
+          type: integer
+
+    V3BikeUpdatesResponse:
+      type: object
+      properties:
+        citycode:
+          type: string
+        from:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
 
     CityCode:
       type: object

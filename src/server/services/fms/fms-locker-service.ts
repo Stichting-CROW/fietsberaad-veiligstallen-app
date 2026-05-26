@@ -205,3 +205,54 @@ export async function isAllowedToUse(
 
   return { allowed: true, messageCode: "OK" };
 }
+
+/**
+ * setUrlWebserviceForLocker – set callback URL on a locker place (fietskluizen).
+ * ColdFusion: BaseFMSService.setUrlWebserviceForLocker → place.urlwebservice.
+ */
+export async function setUrlWebserviceForLocker(
+  bikeparkID: string,
+  sectionID: string,
+  placeID: string,
+  url: string
+): Promise<{ status: number; message: string }> {
+  if (!url || typeof url !== "string" || !url.trim()) {
+    return { status: 0, message: "url required" };
+  }
+
+  const placeIdNum = parseInt(placeID, 10);
+  if (Number.isNaN(placeIdNum)) {
+    return { status: 0, message: "Unknown locker " + placeID };
+  }
+
+  const bikepark = await getBikeparkByExternalID(bikeparkID);
+  if (!bikepark) {
+    return { status: 0, message: "Unknown location " + bikeparkID };
+  }
+
+  const sectie = await prisma.fietsenstalling_sectie.findFirst({
+    where: {
+      externalId: sectionID,
+      fietsenstalling: { StallingsID: bikeparkID, Status: "1" },
+    },
+    select: { sectieId: true },
+  });
+  if (!sectie) {
+    return { status: 0, message: "Unknown section " + sectionID };
+  }
+
+  const place = await prisma.fietsenstalling_plek.findFirst({
+    where: { id: BigInt(placeIdNum), sectie_id: BigInt(sectie.sectieId) },
+    select: { id: true },
+  });
+  if (!place) {
+    return { status: 0, message: "Unknown locker " + placeID };
+  }
+
+  await prisma.fietsenstalling_plek.update({
+    where: { id: place.id },
+    data: { urlwebservice: url.trim() },
+  });
+
+  return { status: 1, message: "OK" };
+}

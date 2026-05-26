@@ -33,6 +33,9 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
   "v3-section",
   "v3-places",
   "v3-subscriptiontypes",
+  "v3-balances",
+  "v3-subscriptions",
+  "v3-bikeupdates",
 ];
 
 function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
@@ -76,9 +79,16 @@ async function fetchWithAuth(
   }
 }
 
-function appendDepthParam(url: string, depth: string): string {
+function appendDepthParam(url: string, depth: string, endpointId: string): string {
+  if (endpointId.startsWith("v2-")) return url;
+  const protectedReads = new Set([
+    "v3-balances",
+    "v3-subscriptions",
+    "v3-bikeupdates",
+  ]);
+  if (protectedReads.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}depth=${encodeURIComponent(depth)}`;
+  return `${url}${sep}depth=${encodeURIComponent(depth)}&fields=${encodeURIComponent("*")}`;
 }
 
 function buildOldUrl(
@@ -98,8 +108,12 @@ function buildOldUrl(
   else if (endpointId === "v3-section" && locationid && sectionid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}`;
   else if (endpointId === "v3-places" && locationid && sectionid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}/places`;
   else if (endpointId === "v3-subscriptiontypes" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+  else if (endpointId === "v3-balances" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/balances`;
+  else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
+  else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
+  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) url = `${base}/v2/REST/getJsonSubscriptionTypes/${locationid}`;
   else return "";
-  return appendDepthParam(url, depth);
+  return appendDepthParam(url, depth, endpointId);
 }
 
 function buildNewUrl(
@@ -119,8 +133,12 @@ function buildNewUrl(
   else if (endpointId === "v3-section" && locationid && sectionid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}`;
   else if (endpointId === "v3-places" && locationid && sectionid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}/places`;
   else if (endpointId === "v3-subscriptiontypes" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+  else if (endpointId === "v3-balances" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/balances`;
+  else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
+  else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
+  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) url = `${base}/api/fms/v2/getJsonSubscriptionTypes/${locationid}`;
   else return "";
-  return appendDepthParam(url, depth);
+  return appendDepthParam(url, depth, endpointId);
 }
 
 const ENDPOINT_LABELS: Record<string, string> = {
@@ -131,6 +149,10 @@ const ENDPOINT_LABELS: Record<string, string> = {
   "v3-section": "V3 sections/{sectionid}",
   "v3-places": "V3 sections/{sectionid}/places",
   "v3-subscriptiontypes": "V3 locations/{locationid}/subscriptiontypes",
+  "v3-balances": "V3 locations/{locationid}/balances",
+  "v3-subscriptions": "V3 locations/{locationid}/subscriptions",
+  "v3-bikeupdates": "V3 locations/{locationid}/bikeupdates",
+  "v2-getJsonSubscriptionTypes": "V2 getJsonSubscriptionTypes/{bikeparkID}",
 };
 
 /**
@@ -278,6 +300,10 @@ export default async function handle(
         await runTest("v3-location", "location", citycode, locationid, undefined, locationtype);
         await runTest("v3-sections", "location", citycode, locationid, undefined, locationtype);
         await runTest("v3-subscriptiontypes", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v3-balances", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v3-subscriptions", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v3-bikeupdates", "location", citycode, locationid, undefined, locationtype);
+        await runTest("v2-getJsonSubscriptionTypes", "location", citycode, locationid, undefined, locationtype);
 
         const locSections = sections.filter((s) => s.citycode === citycode && s.locationid === locationid);
         for (const { sectionid, locationtype: secLocationtype } of locSections) {

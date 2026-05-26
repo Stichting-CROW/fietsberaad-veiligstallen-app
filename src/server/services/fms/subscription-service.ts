@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
 import { getBikepassByPassId } from "../queue/account-service";
+import { passtype2string } from "./fms-idtypes";
 
 function shortUUID(): string {
   return randomUUID().replace(/-/g, "");
@@ -23,6 +24,8 @@ function parseDate(val: string | undefined): Date {
 export type AddSubscriptionInput = {
   subscriptiontypeID: number;
   passID?: string;
+  /** ColdFusion idtype (0=sleutelhanger, 1=ovchip, 2=cijfercode, …) */
+  idtype?: number;
   accountID?: string;
   amount?: number;
   paymentTypeID?: number;
@@ -64,11 +67,13 @@ export async function addSubscription(
   let bikepassID: string | null = null;
 
   if (input.passID) {
+    const pastype =
+      input.idtype != null ? passtype2string(input.idtype) : "sleutelhanger";
     const bikepass = await getBikepassByPassId(
       prisma,
       input.passID,
       bikepark.SiteID,
-      "sleutelhanger",
+      pastype,
       false
     );
     accountID = bikepass.AccountID ?? undefined;

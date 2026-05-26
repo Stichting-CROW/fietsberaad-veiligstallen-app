@@ -43,6 +43,13 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v2-getJsonBikeTypes", label: "V2 getJsonBikeTypes", path: "/v2/getJsonBikeTypes", params: [], oldPath: "/REST/v1/getBikeTypes" },
   { id: "v2-getJsonPaymentTypes", label: "V2 getJsonPaymentTypes", path: "/v2/getJsonPaymentTypes", params: [], oldPath: "/REST/v1/getPaymentTypes" },
   { id: "v2-getJsonClientTypes", label: "V2 getJsonClientTypes", path: "/v2/getJsonClientTypes", params: [], oldPath: "/REST/v1/getClientTypes" },
+  {
+    id: "v2-getJsonSubscriptionTypes",
+    label: "V2 getJsonSubscriptionTypes/{bikeparkID}",
+    path: "/v2/getJsonSubscriptionTypes",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonSubscriptionTypes",
+  },
   { id: "v3-citycodes", label: "V3 citycodes", path: "/rest/v3/citycodes", params: [] },
   { id: "v3-citycode", label: "V3 citycodes/{citycode}", path: "/rest/v3/citycodes", params: ["citycode"] },
   { id: "v3-locations", label: "V3 citycodes/{citycode}/locations", path: "/rest/v3/citycodes", params: ["citycode"] },
@@ -51,9 +58,14 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-section", label: "V3 sections/{sectionid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
   { id: "v3-places", label: "V3 sections/{sectionid}/places", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
   { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-balances", label: "V3 locations/{locationid}/balances", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-subscriptions", label: "V3 locations/{locationid}/subscriptions", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-bikeupdates", label: "V3 locations/{locationid}/bikeupdates", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
 ];
 
-const GLOBAL_ENDPOINTS = ENDPOINTS.filter((e) => e.id.startsWith("v2-") || e.id === "v3-citycodes") as EndpointDef[];
+const GLOBAL_ENDPOINTS = ENDPOINTS.filter(
+  (e) => (e.id.startsWith("v2-") && !e.params.includes("bikeparkID")) || e.id === "v3-citycodes"
+) as EndpointDef[];
 const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e)) as EndpointDef[];
 
 /** Old API fails for non-numeric citycode (ColdFusion citycode type=numeric). These endpoints are skipped. */
@@ -63,6 +75,9 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
   "v3-section",
   "v3-places",
   "v3-subscriptiontypes",
+  "v3-balances",
+  "v3-subscriptions",
+  "v3-bikeupdates",
 ];
 
 function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
@@ -94,6 +109,7 @@ const STORAGE_KEY_SETTINGS = "fms-api-compare-settings";
 const DEFAULT_PARAMS: Record<string, string> = {
   citycode: "9933",
   locationid: "9933_001",
+  bikeparkID: "9933_001",
   sectionid: "9933_001_1",
   depth: "3",
 };
@@ -193,11 +209,18 @@ function hasRequiredParams(endpoint: (typeof ENDPOINTS)[0], params: Record<strin
   return endpoint.params.every((p) => (params[p] ?? "").trim().length > 0);
 }
 
-function appendDepthParam(url: string, depth: string, endpointId: string): string {
+function appendV3QueryParams(url: string, depth: string, endpointId: string): string {
   if (!url) return url; // Avoid returning "?depth=3" when url is empty (causes fetch to fail in Node)
   if (!endpointId.startsWith("v3-")) return url;
+  const protectedReads = new Set([
+    "v3-balances",
+    "v3-subscriptions",
+    "v3-bikeupdates",
+  ]);
+  if (protectedReads.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}depth=${encodeURIComponent(depth)}`;
+  let out = `${url}${sep}depth=${encodeURIComponent(depth)}&fields=${encodeURIComponent("*")}`;
+  return out;
 }
 
 function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, oldApiBase: string): string {
@@ -209,6 +232,9 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     else if (paramValues.locationid) {
       path += `/locations/${paramValues.locationid}`;
       if (endpoint.id === "v3-subscriptiontypes") url = `${oldApiBase}${path}/subscriptiontypes`;
+      else if (endpoint.id === "v3-balances") url = `${oldApiBase}${path}/balances`;
+      else if (endpoint.id === "v3-subscriptions") url = `${oldApiBase}${path}/subscriptions`;
+      else if (endpoint.id === "v3-bikeupdates") url = `${oldApiBase}${path}/bikeupdates`;
       else if (endpoint.id === "v3-sections") url = `${oldApiBase}${path}/sections`;
       else if (endpoint.id === "v3-location") url = `${oldApiBase}${path}`;
       else if (paramValues.sectionid) {
@@ -223,8 +249,11 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
   } else {
     const path = "oldPath" in endpoint && endpoint.oldPath ? endpoint.oldPath : endpoint.path;
     url = `${oldApiBase}${path}`;
+    if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
+      url += `/${paramValues.bikeparkID}`;
+    }
   }
-  return appendDepthParam(url, paramValues.depth ?? "3", endpoint.id);
+  return appendV3QueryParams(url, paramValues.depth ?? "3", endpoint.id);
 }
 
 function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, baseNew: string): string {
@@ -233,6 +262,9 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
   if (endpoint.id.startsWith("v2-")) {
     const method = endpoint.path.split("/").pop() ?? "";
     url = `${baseNew}${base}/v2/${method}`;
+    if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
+      url += `/${paramValues.bikeparkID}`;
+    }
   } else if (endpoint.id.startsWith("v3-")) {
     if (endpoint.id === "v3-citycodes") url = `${baseNew}${base}/v3/citycodes`;
     else if (!paramValues.citycode) url = `${baseNew}${base}/v3/citycodes`;
@@ -244,6 +276,9 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         p += `/locations/${paramValues.locationid}`;
         if (endpoint.id === "v3-location") url = p;
         else if (endpoint.id === "v3-subscriptiontypes") url = `${p}/subscriptiontypes`;
+        else if (endpoint.id === "v3-balances") url = `${p}/balances`;
+        else if (endpoint.id === "v3-subscriptions") url = `${p}/subscriptions`;
+        else if (endpoint.id === "v3-bikeupdates") url = `${p}/bikeupdates`;
         else if (endpoint.id === "v3-sections") url = `${p}/sections`;
         else if ((endpoint.id === "v3-places" || endpoint.id === "v3-section") && paramValues.sectionid) {
           p += `/sections/${paramValues.sectionid}`;
@@ -251,13 +286,23 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
           else url = `${p}/places`;
         } else if (endpoint.id === "v3-places" || endpoint.id === "v3-section") url = "";
         else url = p;
-      } else if (endpoint.id === "v3-location" || endpoint.id === "v3-sections" || endpoint.id === "v3-subscriptiontypes") url = "";
-      else url = p;
+      } else if (
+        endpoint.id === "v3-location" ||
+        endpoint.id === "v3-sections" ||
+        endpoint.id === "v3-subscriptiontypes" ||
+        endpoint.id === "v3-balances" ||
+        endpoint.id === "v3-subscriptions" ||
+        endpoint.id === "v3-bikeupdates"
+      ) {
+        url = "";
+      } else {
+        url = p;
+      }
     }
   } else {
     return "";
   }
-  return appendDepthParam(url, paramValues.depth ?? "3", endpoint.id);
+  return appendV3QueryParams(url, paramValues.depth ?? "3", endpoint.id);
 }
 
 /** Prepares responses and returns status + strings for display. Section `biketypes` order ignored for identity (see fms-compare). */
@@ -432,6 +477,12 @@ const FmsApiComparePage: React.FC = () => {
       .catch(() => setSectionOptions([]))
       .finally(() => setOptionsLoading((o) => ({ ...o, section: false })));
   }, [paramValues.locationid, locationIdToInternalId]);
+
+  // bikeparkID (StallingsID) follows selected location for v2 getJsonSubscriptionTypes
+  useEffect(() => {
+    const lid = paramValues.locationid ?? "";
+    setParamValues((p) => (p.bikeparkID === lid ? p : { ...p, bikeparkID: lid }));
+  }, [paramValues.locationid]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -825,6 +876,7 @@ const FmsApiComparePage: React.FC = () => {
       ...paramValues,
       citycode: r.citycode,
       locationid: locationid ?? "",
+      bikeparkID: locationid ?? "",
       sectionid: sectionid ?? "",
       depth: fullDatasetDepth ?? "3",
     };

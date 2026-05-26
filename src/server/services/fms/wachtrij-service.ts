@@ -13,7 +13,7 @@ type BikeInput = {
   biketypeID?: number;
 };
 
-type TransactionInput = {
+export type TransactionInput = {
   type: "in" | "out" | "In" | "Out" | "afboeking" | "Afboeking";
   typeCheck?: string;
   transactionDate: string;

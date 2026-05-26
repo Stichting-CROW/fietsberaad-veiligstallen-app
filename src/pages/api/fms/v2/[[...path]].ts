@@ -10,8 +10,13 @@ import {
   getBikeUpdates,
   getSubscriptors,
   getLockerInfo,
+  getSubscriptionTypes,
 } from "~/server/services/fms/fms-read-service";
-import { updateLocker, isAllowedToUse } from "~/server/services/fms/fms-locker-service";
+import {
+  updateLocker,
+  isAllowedToUse,
+  setUrlWebserviceForLocker,
+} from "~/server/services/fms/fms-locker-service";
 import { reportOccupationData } from "~/server/services/fms/report-occupation-service";
 import { addSubscription, subscribe } from "~/server/services/fms/subscription-service";
 import { logFmsCall } from "~/server/services/fms/webservice-log";
@@ -76,14 +81,15 @@ export default async function handle(
     "reportOccupationData",
     "reportJsonOccupationData",
     "updateLocker",
+    "setUrlWebserviceForLocker",
     "addSubscription",
     "subscribe",
   ];
 
-  const writeMethodRequiresBikepark = ["saveJsonBike", "saveJsonBikes", "addJsonSaldo", "addJsonSaldos", "uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "addSubscription", "subscribe"];
-  const writeMethodRequiresSection = ["uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "getLockerInfo", "isAllowedToUse"];
+  const writeMethodRequiresBikepark = ["saveJsonBike", "saveJsonBikes", "addJsonSaldo", "addJsonSaldos", "uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "setUrlWebserviceForLocker", "addSubscription", "subscribe"];
+  const writeMethodRequiresSection = ["uploadJsonTransaction", "uploadJsonTransactions", "syncSector", "reportOccupationData", "reportJsonOccupationData", "updateLocker", "setUrlWebserviceForLocker", "getLockerInfo", "isAllowedToUse"];
 
-  if (writeMethods.includes(method) || ["getLockerInfo", "isAllowedToUse", "updateLocker"].includes(method)) {
+  if (writeMethods.includes(method) || ["getLockerInfo", "isAllowedToUse", "updateLocker", "setUrlWebserviceForLocker"].includes(method)) {
     if (!bikeparkID && writeMethodRequiresBikepark.includes(method)) {
       res.status(400).json({ message: "bikeparkID required", status: 0 });
       return;
@@ -174,6 +180,15 @@ export default async function handle(
         res.status(200).json(subscriptors);
         break;
       }
+      case "getJsonSubscriptionTypes": {
+        if (!bikeparkID) {
+          res.status(400).json({ message: "bikeparkID required", status: 0 });
+          return;
+        }
+        const types = await getSubscriptionTypes(bikeparkID);
+        res.status(200).json(types);
+        break;
+      }
       case "getLockerInfo": {
         if (!bikeparkID || !sectionID) {
           res.status(400).json({ message: "bikeparkID and sectionID required", status: 0 });
@@ -234,6 +249,40 @@ export default async function handle(
           "updateLocker",
           bikeparkID,
           `${sectionID}/${placeID} status=${body.statuscode ?? body.statusCode ?? 0} result=${result.status}`
+        );
+        res.status(200).json({ message: result.message, status: result.status });
+        break;
+      }
+      case "setUrlWebserviceForLocker": {
+        if (req.method !== "POST" && req.method !== "PUT") {
+          res.status(405).json({ message: "Method not allowed", status: 0 });
+          return;
+        }
+        if (!bikeparkID || !sectionID) {
+          res.status(400).json({ message: "bikeparkID and sectionID required", status: 0 });
+          return;
+        }
+        const placeID = path[3] ?? req.query.placeID;
+        if (!placeID || typeof placeID !== "string") {
+          res.status(400).json({ message: "placeID required", status: 0 });
+          return;
+        }
+        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
+        const url = (body.url ?? req.query.url) as string | undefined;
+        if (!url || typeof url !== "string") {
+          res.status(400).json({ message: "url required", status: 0 });
+          return;
+        }
+        const result = await setUrlWebserviceForLocker(
+          bikeparkID,
+          sectionID,
+          placeID,
+          url
+        );
+        void logFmsCall(
+          "setUrlWebserviceForLocker",
+          bikeparkID,
+          `${sectionID}/${placeID} url=${url} result=${result.status}`
         );
         res.status(200).json({ message: result.message, status: result.status });
         break;

@@ -1,9 +1,9 @@
 # FMS REST API Next.js Migration and Transaction Processing Plan
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Created:** 2026-02  
-**Updated:** 2026-02-27  
-**Status:** Active – merged from API Porting Plan and FMS API Next.js Migration plan.
+**Updated:** 2026-05-19  
+**Status:** Active – merged from API Porting Plan and FMS API Next.js Migration plan. V2 REST and V3 (open + protected reads + writes) ported; see §4.
 
 ---
 
@@ -27,8 +27,8 @@
 | **Test municipality** | ✅ Done | Create/delete with 7 stallings (config-driven); documenttemplates, contact_report_settings copied from Utrecht |
 | **Extract stallings script** | ✅ Done | `scripts/extract-stallings.ts` + config; outputs to generated file |
 | **FMS migration** | ✅ Done | `new_wachtrij_*` tables and triggers |
-| **FMS v2 read endpoints** | ✅ Done | getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes, getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo, updateLocker, isAllowedToUse |
-| **FMS v2 write endpoints** | ✅ Done | saveJsonBike(s), uploadJsonTransaction(s), addJsonSaldo(s), syncSector |
+| **FMS v2 read endpoints** | ✅ Done | Public: getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes. Protected: getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getJsonSubscriptionTypes, getLockerInfo, isAllowedToUse |
+| **FMS v2 write endpoints** | ✅ Done | saveJsonBike(s), uploadJsonTransaction(s), addJsonSaldo(s), syncSector, reportOccupationData, addSubscription, subscribe, updateLocker, setUrlWebserviceForLocker (ENABLE_WRITE_API + superadmin for locker URL) |
 | **Wachtrij service** | ✅ Done | `src/server/services/fms/wachtrij-service.ts` – inserts into queue tables |
 | **Swagger/OpenAPI** | ✅ Done | Spec + UI at `/api/docs` (public); write ops documented |
 | **GET comparison page** | ✅ Done | `/test/fms-api-compare` |
@@ -38,7 +38,11 @@
 | **Scheduler/cron** | ✅ Done | `/api/cron/process-queues` (Bearer CRON_SECRET) |
 | **Business logic services** | ✅ Done | bikeparkService, transactionService, accountService |
 | **Archive process** | ⏳ Phase 2 | Daily archive of processed queue records |
-| **V3 API** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). Biketypes ordered by SectionBiketypeID; ColdFusion has no orderby (see §14.1, A.11). |
+| **V3 open data (GET)** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). Biketypes ordered by SectionBiketypeID; ColdFusion has no orderby (see §14.1, A.11). |
+| **V3 protected reads (GET)** | ✅ Done | balances, subscriptions, bikeupdates, idcodes/{idtype}/{idcode}/balance — `fms-v3-protected-reads.ts`; compare: v3-balances, v3-subscriptions, v3-bikeupdates |
+| **V3 writes (POST/PUT)** | ✅ Done | transactions, completedtransactions, subscriptions, updatePlace, logs/actions, occupation/sync, koppelpas — `fms-v3-write-service.ts`; ENABLE_WRITE_API + superadmin session; OpenAPI V3 Write tag; not in compare tool |
+| **V3 `fields` query param** | ✅ Done | `fms-v3-fields.ts` — ColdFusion `ListFindNoCase` rules, occupation bundles, `location.subscriptiontypes` explicit-only; cache key includes `fields` |
+| **FMS compare — optional V2 reads** | ⏳ Optional | getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo implemented in API but not yet in compare UI |
 | **Testing** | ❌ Pending | Unit tests, integration tests |
 | **API migration guide** | ❌ Pending | Documentation for clients |
 
@@ -118,9 +122,12 @@ flowchart TB
 
 | Component | Location | Status | Purpose |
 |-----------|----------|--------|---------|
-| **FMS V2 API** | `src/pages/api/fms/v2/[[...path]].ts` | ✅ Done | Method-based REST (saveJsonBike, uploadJsonTransaction, addJsonSaldo, syncSector, read-only) |
-| **FMS V3 API** | `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ Done | Resource hierarchy (citycodes, locations, sections, places, subscriptiontypes) |
+| **FMS V2 API** | `src/pages/api/fms/v2/[[...path]].ts` | ✅ Done | All REST V2 methods from `FMSService.cfc` (reads, writes, lockers, subscriptions) |
+| **FMS V3 API** | `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ Done | Open GET + protected GET + writes; dispatches to v3-service, protected-reads, write-service |
 | **FMS V3 Service** | `src/server/services/fms/fms-v3-service.ts` | ✅ Done | Location/section/place assembly, ColdFusion-compatible response structure |
+| **FMS V3 protected reads** | `src/server/services/fms/fms-v3-protected-reads.ts` | ✅ Done | balances, subscriptions, bikeupdates, single balance |
+| **FMS V3 writes** | `src/server/services/fms/fms-v3-write-service.ts` | ✅ Done | transactions, completedtransactions, subscriptions, places, occupation, koppelpas |
+| **FMS auth / write policy** | `fms-auth.ts`, `fms-write-policy.ts` | ✅ Done | Basic Auth permits; ENABLE_WRITE_API + superadmin gate for writes |
 | **Wachtrij Service** | `src/server/services/fms/wachtrij-service.ts` | ✅ Done | Insert into wachtrij_* queue tables |
 | **new_* tables create/drop** | `src/components/beheer/database/DataApiComponent.tsx` | ✅ Done | Create/drop new_* tables; triggers via manual SQL (amber box after create-tables) |
 | **Parking Simulation** | `src/components/beheer/parking-simulation/` | ✅ Done | Simulation UI: DashboardOverview, SettingsTab, StallingPanel; tables bootstrap |
@@ -317,7 +324,7 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 
 ## 4. FMS REST API (V2/V3)
 
-**Status: 🔶 Partial** – Read-only and write endpoints done. **V2:** getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo, updateLocker, isAllowedToUse, addSubscription, subscribe implemented. **V3 open data:** citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). **TODO:** balances, subscriptions, bikeupdates (V3 protected).
+**Status: ✅ Done** (REST scope from ColdFusion `FMSService.cfc` and `fms_service.cfc`). **Remaining gaps:** optional compare-tool entries for some V2 reads; simplified `koppelpas` and place-subscription validation vs ColdFusion (see §4.3).
 
 **Reference:** [QUEUE_PROCESSOR_PORTING_PLAN.md](QUEUE_PROCESSOR_PORTING_PLAN.md) Appendix E – only REST is used; SOAP/CFC remote is deprecated.
 
@@ -330,7 +337,7 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 /api/fms/v3/citycodes/... (V3: REST resource hierarchy)
 ```
 
-**Implementation:** `/api/fms/v2/[[...path]]` – path format: `{method}/{bikeparkID}/{sectionID}`. Write methods require HTTP Basic Auth (operator permit). Service: `src/server/services/fms/wachtrij-service.ts`.
+**Implementation:** `/api/fms/v2/[[...path]]` – path format: `{method}/{bikeparkID}/{sectionID}`. Protected methods require HTTP Basic Auth (operator / dataprovider permits). Writes enqueue via `wachtrij-service.ts`; `setUrlWebserviceForLocker` also requires `ENABLE_WRITE_API` and superadmin session (`fms-write-policy.ts`).
 
 ### 4.2 V2 Endpoints
 
@@ -346,11 +353,56 @@ lon = center_lon + (r / (111320 * cos(center_lat * π/180))) * sin(angle_rad)
 | Add subscription | POST | `/api/fms/v2/addSubscription/{bikeparkID}` | abonnementen, financialtransactions |
 | Subscribe (link pass to subscription) | POST | `/api/fms/v2/subscribe/{bikeparkID}` | abonnementen, accounts_pasids |
 
-**Read-only:** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes, getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo. **Locker:** updateLocker (POST), isAllowedToUse (GET, rfid/passID query).
+**Read-only (public):** getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes.
+
+**Read-only (Basic Auth):** getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getJsonSubscriptionTypes, getLockerInfo.
+
+**Locker:** updateLocker (POST), isAllowedToUse (GET, rfid/passID query), setUrlWebserviceForLocker (POST/PUT, operator + write gate).
+
+**Other writes:** reportOccupationData / reportJsonOccupationData → `bezettingsdata_tmp` (not wachtrij).
 
 ### 4.3 V3 Endpoints
 
-V3 REST hierarchy: citycodes, citycodes/{citycode}, citycodes/{citycode}/locations, citycodes/{citycode}/locations/{locationid}, sections, section/{id}, places, subscriptiontypes.
+**Route:** `/api/fms/v3/citycodes/[[...path]]` — services: `fms-v3-service.ts` (open GET), `fms-v3-protected-reads.ts` (protected GET), `fms-v3-write-service.ts` (POST/PUT).
+
+#### 4.3.1 Open data (no auth)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/v3/citycodes` | List citycodes |
+| GET | `/v3/citycodes/{citycode}` | City + locations (`?depth=`, `?fields=` partial) |
+| GET | `/v3/citycodes/{citycode}/locations` | Locations list |
+| GET | `/v3/citycodes/{citycode}/locations/{locationid}` | Single location |
+| GET | `…/locations/{locationid}/sections` | Sections list |
+| GET | `…/sections/{sectionid}` | Single section |
+| GET | `…/sections/{sectionid}/places` | Places list |
+| GET | `…/locations/{locationid}/subscriptiontypes` | Subscription types |
+
+#### 4.3.2 Protected reads (Basic Auth)
+
+| Method | Path | Permit |
+|--------|------|--------|
+| GET | `…/locations/{locationid}/balances` | operator |
+| GET | `…/locations/{locationid}/subscriptions` | operator |
+| GET | `…/locations/{locationid}/bikeupdates?from=` | operator, dataprovider.type1 (max 1 week) |
+| GET | `…/idcodes/{idtype}/{idcode}/balance` | operator |
+
+#### 4.3.3 Writes (Basic Auth + ENABLE_WRITE_API + superadmin session)
+
+| Method | Path | Permit | Handler |
+|--------|------|--------|---------|
+| POST | `…/locations/{locationid}/subscriptions` | operator | addSubscriptionV3 → wachtrij / abonnementen |
+| POST | `…/locations/{locationid}/completedtransactions` | operator, dataprovider.type2 | transacties_archief |
+| POST | `…/sections/{sectionid}/transactions` | operator, dataprovider.type1 | wachtrij_transacties |
+| POST | `…/sections/{sectionid}/completedtransactions` | operator, dataprovider.type2 | transacties_archief |
+| POST | `…/sections/{sectionid}/occupation` | type1 if `bikes`, type2 if `occupation` | sync + bezettingsdata |
+| PUT/POST | `…/places/{placeid}` | operator | updatePlace / log (updatePost) |
+| POST | `…/places/{placeid}/transactions` | operator, dataprovider.type1 | wachtrij_transacties |
+| POST | `…/places/{placeid}/subscriptions` | operator | addSubscriptionV3 + plekID |
+| POST | `…/places/{placeid}/logs`, `…/actions` | operator | fmsservicelog |
+| POST | `…/idcodes/{idtype}/{idcode}` (location/section/place) | operator | koppelpas (idtype 3/4 only) |
+
+**Known simplifications vs ColdFusion:** `koppelpas` omits full account takeover and place `bikeParked` logic; place-level subscriptions set `plekID` without full `isAllowedToUse` validation; locker statuscode `3` (reserved) not implemented in `fms-locker-service.ts`.
 
 ### 4.4 V3 Response Structure (ColdFusion Compatibility)
 
@@ -391,11 +443,11 @@ The V3 API response structure is synced with the ColdFusion REST API (`BaseRestS
 
 The comparison page includes a **depth** filter (values 1, 2, or 3, default 3) that is passed as `?depth=X` to all V3 API calls. Depth controls how much nested data is returned (e.g. depth≥2 includes sections and places in section responses).
 
-> **Note:** The `fields` parameter is not yet implemented in the new version of the API. See [§5.2 ColdFusion `fields` Parameter](#52-coldfusion-fields-parameter) for how the old API handles it.
-
 ### 5.2 ColdFusion `fields` Parameter
 
-The ColdFusion REST API (`fms_service.cfc`, `BaseRestService.cfc`) uses a `fields` query parameter to control which properties are included in responses. The Next.js V3 API does not yet implement this; responses include all fields.
+The ColdFusion REST API (`fms_service.cfc`, `BaseRestService.cfc`) uses a `fields` query parameter to control which properties are included in responses. The Next.js V3 API implements the same rules in `src/server/services/fms/fms-v3-fields.ts` (see also `docs/analyse-api/fms-v3-fields-query-werkelijk-gedrag.md`).
+
+**Query behaviour:** When `fields` is omitted, only always-included keys are returned (`citycode`, `locationid`). Use `fields=*` for all fields except `subscriptiontypes` (requires explicit `location.subscriptiontypes`). The compare tool appends `fields=*` on V3 GET URLs for full parity checks.
 
 **Parameter binding:** `fields` is declared with `restargsource="query"` and has **no default**. When the client omits `?fields=`, the argument is empty/undefined.
 
@@ -544,11 +596,22 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 | `src/server/services/fms/wachtrij-service.ts` | ✅ | Insert into queue tables |
 | `src/server/utils/fms-table-resolver.ts` | ✅ | Resolve table names for processor |
 | `src/server/services/queue/processor.ts` | ✅ | processQueues(); pasids → transacties → betalingen → sync |
-| `src/pages/api/fms/v2/[[...path]].ts` | ✅ | V2 routes (read + write ops done) |
-| `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ | V3 routes (citycodes, locations, sections, places, subscriptiontypes) |
-| `src/pages/test/fms-api-compare.tsx` | ✅ | GET comparison UI |
+| `src/pages/api/fms/v2/[[...path]].ts` | ✅ | V2 routes — all REST methods |
+| `src/pages/api/fms/v3/citycodes/[[...path]].ts` | ✅ | V3 routes — open GET, protected GET, writes |
+| `src/server/services/fms/fms-v3-fields.ts` | ✅ | V3 `fields` query filtering (ColdFusion parity) |
+| `src/server/services/fms/fms-v3-service.ts` | ✅ | V3 open data assembly |
+| `src/server/services/fms/fms-v3-protected-reads.ts` | ✅ | V3 protected reads |
+| `src/server/services/fms/fms-v3-write-service.ts` | ✅ | V3 writes |
+| `src/server/services/fms/fms-read-service.ts` | ✅ | V2 read helpers (e.g. subscription types) |
+| `src/server/services/fms/fms-idtypes.ts` | ✅ | idtype / passtype mapping |
+| `src/server/services/fms/fms-auth.ts` | ✅ | Basic Auth + permit checks |
+| `src/server/services/fms/fms-write-policy.ts` | ✅ | ENABLE_WRITE_API + superadmin gate |
+| `src/server/services/fms/fms-locker-service.ts` | ✅ | updateLocker, setUrlWebserviceForLocker |
+| `src/server/services/fms/subscription-service.ts` | ✅ | addSubscription (V2 + V3) |
+| `src/pages/test/fms-api-compare.tsx` | ✅ | GET comparison UI (V2 globals + subscriptiontypes; V3 open + protected reads) |
+| `src/lib/openapi/fms-api.yaml` | ✅ | OpenAPI source (V2 Write, V3 Protected, V3 Write tags) |
 | `src/server/utils/fms-compare.ts` | ✅ | Comparison logic: prepareForCompare, applyBiketypeSortForCitycode7300, responsesMatch |
-| `src/lib/openapi/fms-api.json` | ✅ | OpenAPI 3.0 spec |
+| `src/lib/openapi/fms-api.json` | ✅ | OpenAPI 3.0 spec (generated from yaml) |
 | `src/pages/test/fms-api-docs.tsx` | ✅ | Swagger UI |
 | `src/components/beheer/database/DataApiComponent.tsx` | ✅ | new_* tables create/drop (Database → Beheer) |
 | `src/pages/api/protected/data-api/fms-tables.ts` | ✅ | Create/drop new_* tables; returns manualSql for triggers (UI: Database → Beheer) |
@@ -570,11 +633,15 @@ Functions with `type="numeric"` fail before the body runs because ColdFusion tri
 7. ~~Phase 3 – Transaction processing (queue processor)~~ ✅
 8. ~~documenttemplates, contact_report_settings for test municipality~~ ✅
 9. ~~V3 open data endpoints~~ ✅ (locations, sections, places, subscriptiontypes)
-10. Testing
-11. API migration guide
-12. **TODO:** Update V3 `exploitantcontact` to match Contact beheerder form logic (HelpdeskHandmatigIngesteld, exploitant Helpdesk, site Helpdesk). Currently uses BeheerderContact only for ColdFusion compatibility.
-13. ~~**TODO:** Align V3 `occupied`/`capacity`/`free` with ColdFusion~~ ✅ Done. See [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md).
-14. **TODO:** Resolve count differences between old and new API for `citycodes/{citycode}` and for `citycodes/{citycode}/locations` (old vs new, not between the two endpoints). Suspected cause: records in the `wachtrij` table affecting occupied/capacity/free calculations. To investigate and fix later.
+10. ~~V3 protected reads~~ ✅ (balances, subscriptions, bikeupdates, idcodes balance)
+11. ~~V3 writes~~ ✅ (transactions, places, occupation, koppelpas, etc.)
+12. Testing
+13. API migration guide
+14. ~~V3 `fields` query parameter~~ ✅ Done (see §5.2, `fms-v3-fields.ts`)
+15. **TODO (optional):** Add V2 getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo to compare tool
+16. **TODO:** Update V3 `exploitantcontact` to match Contact beheerder form logic (HelpdeskHandmatigIngesteld, exploitant Helpdesk, site Helpdesk). Currently uses BeheerderContact only for ColdFusion compatibility.
+17. ~~**TODO:** Align V3 `occupied`/`capacity`/`free` with ColdFusion~~ ✅ Done. See [OCCUPIED_CAPACITY_COMPARISON.md](OCCUPIED_CAPACITY_COMPARISON.md).
+18. **TODO:** Resolve count differences between old and new API for `citycodes/{citycode}` and for `citycodes/{citycode}/locations` (old vs new, not between the two endpoints). Suspected cause: records in the `wachtrij` table affecting occupied/capacity/free calculations. To investigate and fix later.
 
 ---
 

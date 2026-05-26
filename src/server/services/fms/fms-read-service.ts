@@ -328,3 +328,97 @@ export async function getLockerInfo(
 
   return { name, statuscode: PLACE_STATUS.FREE, ...(maxParkingTime > 0 && { maxParkingTime }) };
 }
+
+/** ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes). */
+export type V2SubscriptionTypeOutput = {
+  subscriptionTypeID: number;
+  name: string;
+  price: number;
+  durationInMonth: number;
+  bikeTypes: Array<{ bikeTypeID: number; name: string }>;
+};
+
+/**
+ * getSubscriptionTypes – subscription types available for a bikepark.
+ * ColdFusion: BaseFMSService.getSubscriptionTypes → proxy.SubscriptionType[].
+ */
+export async function getSubscriptionTypes(
+  bikeparkID: string
+): Promise<V2SubscriptionTypeOutput[]> {
+  const stalling = await prisma.fietsenstallingen.findFirst({
+    where: { StallingsID: bikeparkID, Status: "1" },
+    select: { ID: true, Type: true },
+  });
+  if (!stalling) return [];
+
+  const links = await prisma.abonnementsvorm_fietsenstalling.findMany({
+    where: { BikeparkID: stalling.ID },
+    include: {
+      abonnementsvormen: {
+        select: {
+          ID: true,
+          naam: true,
+          prijs: true,
+          tijdsduur: true,
+          bikeparkTypeID: true,
+          isActief: true,
+        },
+      },
+    },
+  });
+
+  const filtered = links.filter((l) => {
+    const av = l.abonnementsvormen;
+    if (!av) return false;
+    const bt = av.bikeparkTypeID;
+    return !bt || bt === stalling.Type;
+  });
+
+  // ColdFusion: bikepark.hasSubscriptionType() – at least one active type, else [].
+  const hasActive = filtered.some((l) => l.abonnementsvormen?.isActief);
+  if (!hasActive) return [];
+
+  const subscriptionIds = filtered.map((l) => l.SubscriptiontypeID);
+  const bikeTypeLinks =
+    subscriptionIds.length > 0
+      ? await prisma.abonnementsvorm_fietstype.findMany({
+          where: { SubscriptiontypeID: { in: subscriptionIds } },
+          select: { SubscriptiontypeID: true, BikeTypeID: true },
+        })
+      : [];
+
+  const bikeTypeIds = [...new Set(bikeTypeLinks.map((l) => l.BikeTypeID))];
+  const fietstypenRows =
+    bikeTypeIds.length > 0
+      ? await prisma.fietstypen.findMany({
+          where: { ID: { in: bikeTypeIds } },
+          select: { ID: true, Name: true },
+        })
+      : [];
+  const fietstypeNameById = new Map(fietstypenRows.map((ft) => [ft.ID, ft.Name ?? ""]));
+
+  const bikeTypesBySub = new Map<number, Array<{ bikeTypeID: number; name: string }>>();
+  for (const link of bikeTypeLinks) {
+    const list = bikeTypesBySub.get(link.SubscriptiontypeID) ?? [];
+    const name = fietstypeNameById.get(link.BikeTypeID) ?? "";
+    if (!list.some((b) => b.bikeTypeID === link.BikeTypeID)) {
+      list.push({ bikeTypeID: link.BikeTypeID, name });
+    }
+    bikeTypesBySub.set(link.SubscriptiontypeID, list);
+  }
+
+  return filtered
+    .map((l) => {
+      const av = l.abonnementsvormen!;
+      return {
+        subscriptionTypeID: av.ID,
+        name: av.naam ?? "",
+        price: av.prijs ? Number(av.prijs) : 0,
+        durationInMonth: av.tijdsduur ?? 0,
+        bikeTypes: (bikeTypesBySub.get(l.SubscriptiontypeID) ?? []).sort(
+          (a, b) => a.bikeTypeID - b.bikeTypeID
+        ),
+      };
+    })
+    .sort((a, b) => a.subscriptionTypeID - b.subscriptionTypeID);
+}
