@@ -240,13 +240,18 @@ export async function getAutoReminderPreview(now = new Date()): Promise<Recipien
     const months = REMINDER_OPTION_TO_MONTHS[selectedFreq];
     if (months === null) continue;
 
+    const stallingenForSite = stallingenBySite.get(pair.contactId) ?? [];
+    // Only send to contactpersonen whose organisation has at least one active stalling.
+    const hasActiveStalling = stallingenForSite.some((s) => s.status !== "0");
+    if (!hasActiveStalling) continue;
+
     const lastControleAt = lastControleBySite.get(pair.contactId) ?? null;
     if (lastControleAt) {
       const nextReminderAt = addMonths(lastControleAt, months);
       if (now < nextReminderAt) continue;
     }
 
-    const tabelHtml = buildTabelHtml(stallingenBySite.get(pair.contactId) ?? [], pair.email);
+    const tabelHtml = buildTabelHtml(stallingenForSite, pair.email);
     const dataEigenaar = contactNameMap.get(pair.contactId) ?? pair.contactId;
     const body = removeEmptyShortcodes(templateBody, "", "");
     const html = formatTemplateBodyForHtml(body)

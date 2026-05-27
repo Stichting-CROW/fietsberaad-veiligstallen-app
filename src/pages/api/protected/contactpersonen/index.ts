@@ -130,6 +130,10 @@ export default async function handle(
         status: s.status,
       }));
 
+      // Only include contactpersonen whose organisation has at least one active stalling.
+      const hasActiveStalling = fietsenstallingenForUser.some((s) => s.status !== "0");
+      if (!hasActiveStalling) continue;
+
       result.push({
         UserID: user.UserID,
         UserName: user.UserName,
