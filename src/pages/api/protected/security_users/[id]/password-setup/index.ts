@@ -132,7 +132,7 @@ ${initiatorEmail}`;
     subject,
     text,
     html,
-    replyTo: session.user.email ?? undefined,
+    replyTo: cfg.replyTo,
   });
 
   res.status(200).json({ ok: true });

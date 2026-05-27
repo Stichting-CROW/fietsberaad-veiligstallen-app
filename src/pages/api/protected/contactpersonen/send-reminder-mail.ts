@@ -226,6 +226,7 @@ export default async function handle(
         subject,
         html,
         text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+        replyTo: cfg.replyTo,
       });
     } catch (e) {
       console.error("send-reminder-mail - error:", e);

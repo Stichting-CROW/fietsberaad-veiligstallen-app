@@ -308,6 +308,7 @@ export async function sendAutoReminderEmails(now = new Date()) {
       subject: item.subject,
       html: item.html,
       text: item.text,
+      replyTo: cfg.replyTo,
     });
   }
 

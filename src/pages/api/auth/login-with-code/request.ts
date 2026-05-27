@@ -106,6 +106,7 @@ export default async function handler(
       subject: "Je inlogcode voor VeiligStallen",
       html: `<p>Gebruik deze code om in te loggen:</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p><p>Deze code is 15 minuten geldig.</p>`,
       text: `Gebruik deze code om in te loggen: ${code}. Deze code is 15 minuten geldig.`,
+      replyTo: cfg.replyTo,
     });
   } catch (error) {
     console.error("login-with-code request mail error:", error);
