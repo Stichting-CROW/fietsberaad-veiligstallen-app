@@ -1,5 +1,32 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-05-27
+
+**Features**
+
+- Port additional FMS V2/V3 API endpoints: protected reads (balances, subscriptions, bikeupdates) and write routes (subscriptions, transactions, completed-transactions, occupation, place updates/logs/actions, idcode coupling)
+- V3 catchall split into handleGet/handleWrite with Basic auth + permits per ColdFusion behaviour
+- V2: `getJsonSubscriptionTypes` and `setUrlWebserviceForLocker` added
+- Add `fields` query parameter handling for V3 city/location/section responses
+- feat(login): Autofocus email address field
+- feat(mail-contactpersonen): Add 'last edited' date to table
+
+**Bug Fixes**
+
+- Fix datakwaliteit/user-edit role update flow
+
+**Improvements**
+
+- In /api/osm/fietsenstallingen: Only include active fietsenstallingen
+- feat(mail-contactpersonen): Only include organisations with >= 1 stalling in reminder mail
+
+**Technical**
+
+- fms-compare + test/compare-full-dataset + fms-api-compare page: cover the new endpoints
+- fms-idtypes: passtype <-> integer mapping and ColdFusion datetime formatter
+- fms-auth: `hasAnyPermit` for comma-separated permit checks
+- subscription-service: honour idtype on `addSubscription`
+
 ## VeiligStallen 2026-04-08
 
 **Features**
