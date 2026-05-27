@@ -29,6 +29,16 @@ export async function makeClientApiCall<T>(
             ...(body && { body: JSON.stringify(body) })
         });
 
+        const contentType = response.headers.get('content-type') ?? '';
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            const preview = text.replace(/\s+/g, ' ').slice(0, 120);
+            return {
+                success: false,
+                error: `Server gaf geen JSON terug (HTTP ${response.status}): ${preview}`,
+            };
+        }
+
         const data = await response.json();
 
         if (!response.ok) {

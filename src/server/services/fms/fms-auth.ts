@@ -106,3 +106,10 @@ export function hasPermit(permits: string[], required: string): boolean {
   if (permits.includes("admin")) return true;
   return permits.some((p) => p.toLowerCase() === required.toLowerCase());
 }
+
+/** ColdFusion checkRights with comma-separated permits (any match). */
+export function hasAnyPermit(permits: string[], required: string): boolean {
+  if (permits.includes("admin")) return true;
+  const parts = required.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.some((part) => hasPermit(permits, part));
+}

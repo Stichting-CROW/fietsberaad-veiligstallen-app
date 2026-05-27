@@ -17,6 +17,7 @@ export default async function handle(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  try {
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     console.error("Niet geautoriseerd - geen sessie gevonden");
@@ -91,7 +92,17 @@ export default async function handle(
         {field: "UserName" as const, message: "Er bestaat al een gebruiker met dit email adres"},
       ];
 
-      const oldValues = !isNew ? await getSecurityUserNew(data.UserID, validateUserSessionResult.activeContactId) : undefined;
+      let oldValues: Awaited<ReturnType<typeof getSecurityUserNew>> | undefined;
+      if (!isNew) {
+        oldValues = await getSecurityUserNew(data.UserID, validateUserSessionResult.activeContactId);
+        if (oldValues === false) {
+          res.status(200).json({
+            valid: false,
+            message: "Gebruiker niet gevonden of geen rol voor deze organisatie",
+          });
+          return;
+        }
+      }
 
       for(const field of uniqueFields) {
         const isChanged = oldValues && (oldValues[field.field] !== data[field.field]);
@@ -117,4 +128,9 @@ export default async function handle(
       res.status(405).json({valid: false, message: "Deze methode is niet toegestaan"}); // Method Not Allowed
     }
   }
+  } catch (e) {
+    console.error("security_users validate - error:", e);
+    res.status(500).json({ valid: false, message: "Validatie mislukt door een serverfout" });
+  }
 }
+

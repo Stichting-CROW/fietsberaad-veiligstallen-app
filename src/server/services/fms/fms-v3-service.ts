@@ -1,5 +1,12 @@
 import { prisma } from "~/server/db";
 import { buildOpeningHours } from "./fms-v3-openinghours";
+import {
+  filterCity,
+  filterLocation,
+  filterSectionForApi,
+  type FieldsParam,
+  useMinimalCitycodesLocationShape,
+} from "./fms-v3-fields";
 
 const FMS_TIMING = false;
 
@@ -16,8 +23,8 @@ const CACHE_CITYCODES_DURATION_MINUTES =
   process.env.NODE_ENV === "development" ? 0 : 30;
 const cityCache = new Map<string, { data: CityWithLocations; expires: number }>();
 
-function getCityCacheKey(citycode: string, depth: number): string {
-  return `city:${citycode}:d:${depth}`;
+function getCityCacheKey(citycode: string, depth: number, fields?: string): string {
+  return `city:${citycode}:d:${depth}:f:${fields ?? ""}`;
 }
 
 const CITY_CACHE_TTL_MS =
@@ -104,6 +111,8 @@ export type ColdFusionLocation = {
   description?: string;
   /** Array of service names (BaseRestService setIfExists). */
   services?: string[];
+  /** Only when fields contains `location.subscriptiontypes` (not included for `*`). */
+  subscriptiontypes?: ColdFusionSubscriptionType[];
 };
 
 export type LocationSummary = {
@@ -236,9 +245,9 @@ export async function getCity(
   citycode: string,
   options: GetCitiesOptions = {}
 ): Promise<CityWithLocations | null> {
-  const { depth = 3 } = options;
+  const { depth = 3, fields } = options;
   if (CITY_CACHE_TTL_MS > 0) {
-    const cacheKey = getCityCacheKey(citycode, depth);
+    const cacheKey = getCityCacheKey(citycode, depth, fields);
     const cached = cityCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) {
       return cached.data;
@@ -264,18 +273,20 @@ export async function getCity(
       ? await getLocationsFull(citycode, {
           depth,
           forV3Citycodes: options.forV3Citycodes ?? false,
+          fields,
         })
       : [];
 
   timeEnd("getCity getLocationsFull", tLoc);
   timeEnd("getCity total", t0);
-  const result = toCityWithLocationsOrder({
+  const built = toCityWithLocationsOrder({
     citycode: council.ZipID,
     name: council.CompanyName ?? undefined,
     locations,
   });
+  const result = filterCity(built, fields, depth);
   if (CITY_CACHE_TTL_MS > 0) {
-    cityCache.set(getCityCacheKey(citycode, depth), {
+    cityCache.set(getCityCacheKey(citycode, depth, fields), {
       data: result,
       expires: Date.now() + CITY_CACHE_TTL_MS,
     });
@@ -366,10 +377,18 @@ export async function getFullDatasetIds(options?: { citycode?: string }): Promis
 /** ColdFusion-compatible: full location objects for a city. Uses single query + bulk fetches, assembles in memory. */
 async function getLocationsFull(
   citycode: string,
-  options: { depth?: number; limit?: number; forV3Citycodes?: boolean; omitSections?: boolean } = {}
+  options: {
+    depth?: number;
+    limit?: number;
+    forV3Citycodes?: boolean;
+    omitSections?: boolean;
+    fields?: FieldsParam;
+  } = {}
 ): Promise<ColdFusionLocation[]> {
   const t0 = timeStart("getLocationsFull total");
-  const { depth = 3, limit, forV3Citycodes = false, omitSections = false } = options;
+  const { depth = 3, limit, forV3Citycodes = false, omitSections = false, fields } = options;
+  const minimalListShape =
+    forV3Citycodes && useMinimalCitycodesLocationShape(fields);
   const includeSections = depth >= 2 && !omitSections;
 
   const tFind = timeStart("getLocationsFull findMany locations");
@@ -459,17 +478,16 @@ async function getLocationsFull(
 
   const result: ColdFusionLocation[] = [];
   for (let i = 0; i < rows.length; i++) {
-    result.push(
-      buildColdFusionLocation(
-        rows[i] as LocationRow,
-        sectionsForRows[i] ?? [],
-        ocfResults[i]!,
-        includeSections,
-        forV3Citycodes
-      )
+    const built = buildColdFusionLocation(
+      rows[i] as LocationRow,
+      sectionsForRows[i] ?? [],
+      ocfResults[i]!,
+      includeSections,
+      minimalListShape
     );
+    result.push(filterLocation(built, fields, depth, { embeddedInCity: forV3Citycodes }));
   }
-  // citycodes list: order by locationid (old API uses this for getCities). citycodes/{citycode}: order by name (title asc).
+  // citycodes list: order by locationid (old API uses this for getCities). citycodes/{citycode}/locations: order by name (title asc).
   if (forV3Citycodes) {
     result.sort((a, b) => (a.locationid ?? "").localeCompare(b.locationid ?? "", undefined, { numeric: true }));
   } else {
@@ -1068,10 +1086,10 @@ function parseCoordinaten(s: string | null): [string | undefined, string | undef
 
 export async function getLocations(
   citycode: string,
-  options: { depth?: number; fields?: string } = {}
+  options: { depth?: number; fields?: FieldsParam } = {}
 ): Promise<ColdFusionLocation[]> {
   // Old API: citycodes/{citycode}/locations includes sections when depth > 1 (BaseRestService getLocation line 391).
-  return getLocationsFull(citycode, options);
+  return getLocationsFull(citycode, { ...options, forV3Citycodes: false });
 }
 
 /**
@@ -1082,7 +1100,8 @@ export async function getLocations(
 export async function getLocation(
   locationid: string,
   depth = 2,
-  useNewTables = false
+  useNewTables = false,
+  fields?: FieldsParam
 ): Promise<ColdFusionLocation | null> {
   const stalling = await prisma.fietsenstallingen.findFirst({
     where: {
@@ -1174,19 +1193,21 @@ export async function getLocation(
     }
     loc.occupied = totalOccupied;
     loc.free = free;
-    return loc;
+    return filterLocation(loc, fields, depth);
   }
-  return buildColdFusionLocation(
+  const built = buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
     ocf,
     depth >= 2
   );
+  return filterLocation(built, fields, depth);
 }
 
 export async function getSections(
   locationid: string,
-  depth = 2
+  depth = 2,
+  fields?: FieldsParam
 ): Promise<SectionSummary[]> {
   const t0 = timeStart(`getSections ${locationid}`);
   const tFind = timeStart(`getSections ${locationid} findMany secties`);
@@ -1212,7 +1233,9 @@ export async function getSections(
   );
   timeEnd(`getSections ${locationid} getSection x${secties.length}`, tGetSection);
   timeEnd(`getSections ${locationid}`, t0);
-  return sections.filter((s): s is SectionSummary => s != null);
+  return sections
+    .filter((s): s is SectionSummary => s != null)
+    .map((s) => filterSectionForApi(s, fields, false));
 }
 
 /** Section for secties without externalId. ColdFusion getBikeparkSections includes all sections; sectionid is null when no externalId. */
@@ -1508,7 +1531,7 @@ async function buildSectionFromSectie(
     if (places.length > 0) data.places = places;
   }
 
-  return toSectionOrder(data) as SectionSummary;
+  return filterSectionForApi(toSectionOrder(data) as SectionSummary, undefined, false);
 }
 
 /** Key order for section response. Matches old API (BaseRestService.getSection): maxsubscriptions, sectionid, name, biketypes, places, rates. */

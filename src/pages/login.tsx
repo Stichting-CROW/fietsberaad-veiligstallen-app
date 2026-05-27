@@ -160,6 +160,7 @@ const Login: NextPage = () => {
                     type="email"
                     placeholder="E-mail"
                     required
+                    autoFocus={!magicToken || !magicUserid}
                     className="w-full"
                   />
                 </div>

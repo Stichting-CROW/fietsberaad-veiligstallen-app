@@ -205,6 +205,11 @@ function MapboxMap({
       accessToken: process ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : "",
       // style: "maplibre://styles/mapbox/streets-v11",
       style: nine3030,
+      attributionControl: false,
+      customAttribution: [
+        '<a href="https://www.mapbox.com/about/maps" target="_blank" rel="noopener noreferrer">© Mapbox</a>',
+        '<a href="http://www.openstreetmap.org/about/" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>',
+      ],
       center: defaultCenter ?? [5, 52],
       zoom: defaultZoom ?? 7,
       // Disable map rotation
@@ -214,6 +219,7 @@ function MapboxMap({
       // Disable rotation through keyboard
       keyboard: false,
     });
+    mapboxMap.addControl(new maplibregl.AttributionControl(), "bottom-left");
 
     mapboxMap.on('styleimagemissing', (e) => {
       mapboxMap.addImage(e.id, { width: 0, height: 0, data: new Uint8Array(0) });
@@ -639,17 +645,24 @@ function MapboxMap({
   const isSm = typeof window !== "undefined" && window.innerWidth < 640;
 
   return (
-    <div
-      ref={mapNode}
-      style={{ width: "100vw", height: "100dvh", overflowY: "hidden" }}
-      onClick={() => {
-        dispatch(setActiveParkingId(undefined));
-        dispatch(setActiveArticle({
-          articleTitle: undefined,
-          municipality: undefined,
-        }));
-      }}
-    />
+    <div className="relative" style={{ width: "100vw", height: "100dvh", overflowY: "hidden" }}>
+      <div
+        ref={mapNode}
+        style={{ width: "100%", height: "100%", overflowY: "hidden" }}
+        onClick={() => {
+          dispatch(setActiveParkingId(undefined));
+          dispatch(setActiveArticle({
+            articleTitle: undefined,
+            municipality: undefined,
+          }));
+        }}
+      />
+      <div className="absolute left-2 bottom-2 z-20 bg-white/90 px-2 py-1 text-xs leading-4 rounded shadow">
+        <a href="https://www.mapbox.com/about/maps" target="_blank" rel="noopener noreferrer">© Mapbox</a>
+        {", "}
+        <a href="http://www.openstreetmap.org/about/" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
+      </div>
+    </div>
   );
 }
 

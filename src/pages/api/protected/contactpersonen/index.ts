@@ -17,6 +17,7 @@ export type ContactpersonWithStallingen = {
     urlName: string | null;
     type: string;
     status: string | null;
+    dateModified: string | null;
   }[];
 };
 
@@ -90,19 +91,26 @@ export default async function handle(
         SiteID: true,
         Type: true,
         Status: true,
+        DateModified: true,
         fietsenstalling_type: { select: { name: true } },
       },
     });
 
     const stallingenBySite = new Map<
       string,
-      { id: string; title: string | null; type: string; status: string | null }[]
+      { id: string; title: string | null; type: string; status: string | null; dateModified: string | null }[]
     >();
     for (const f of fietsenstallingen) {
       if (!f.SiteID) continue;
       const type = f.fietsenstalling_type?.name ?? f.Type ?? "Onbekend";
       const list = stallingenBySite.get(f.SiteID) ?? [];
-      list.push({ id: f.ID, title: f.Title, type, status: f.Status });
+      list.push({
+        id: f.ID,
+        title: f.Title,
+        type,
+        status: f.Status,
+        dateModified: f.DateModified ? f.DateModified.toISOString() : null,
+      });
       stallingenBySite.set(f.SiteID, list);
     }
 
@@ -128,7 +136,12 @@ export default async function handle(
         urlName: gemeente.UrlName,
         type: s.type,
         status: s.status,
+        dateModified: s.dateModified,
       }));
+
+      // Only include contactpersonen whose organisation has at least one active stalling.
+      const hasActiveStalling = fietsenstallingenForUser.some((s) => s.status !== "0");
+      if (!hasActiveStalling) continue;
 
       result.push({
         UserID: user.UserID,

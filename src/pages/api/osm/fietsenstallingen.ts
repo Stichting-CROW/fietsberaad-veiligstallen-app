@@ -184,6 +184,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const parkings = await prisma.fietsenstallingen.findMany({
       where: {
         Coordinaten: { not: null },
+        Status: "1",
         fietsenstalling_type: {
           is: { name: { not: "fietskluizen" } },
         },
@@ -199,8 +200,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         NOT: [
           { Coordinaten: "" },
           { Title: { contains: "Systeemstalling" } },
-          { Status: "aanm" },
-          { Status: "AANM" },
         ],
       },
       select: {
