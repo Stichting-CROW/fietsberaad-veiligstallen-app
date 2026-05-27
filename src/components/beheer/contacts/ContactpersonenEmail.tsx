@@ -35,6 +35,16 @@ function formatStallingName(name: string, status: string | null): string {
   return name;
 }
 
+function formatDateNL(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(date.getFullYear());
+  return `${dd}-${mm}-${yyyy}`;
+}
+
 function buildTabelHtml(
   fietsenstallingen: {
     id: string;
@@ -42,6 +52,7 @@ function buildTabelHtml(
     urlName: string | null;
     type: string;
     status?: string | null;
+    dateModified?: string | null;
   }[]
 ): string {
   const buttons = `<p style="${P_STYLE}"><a href="${BASE_URL}/beheer/fietsenstallingen/controle" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;margin-right:8px" target="_blank">Ja, gecontroleerd</a> <a href="${BASE_URL}/beheer/fietsenstallingen" style="display:inline-block;background:#6b7280;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600" target="_blank">Nee, nu controleren</a></p>`;
@@ -65,9 +76,10 @@ function buildTabelHtml(
     qs.set("stallingid", s.id);
     const bekijkUrl = `${BASE_URL}${path}/?${qs.toString()}`;
     const bewerkUrl = `${BASE_URL}/beheer/fietsenstallingen?id=${s.id}`;
-    return `<tr><td align="left">${name}</td><td align="left">${s.type}</td><td align="left"><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td align="left"><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
+    const laatstBewerkt = formatDateNL(s.dateModified);
+    return `<tr><td align="left">${name}</td><td align="left">${s.type}</td><td align="left">${laatstBewerkt}</td><td align="left"><a href="${bekijkUrl}" target="_blank">Bekijk</a></td><td align="left"><a href="${bewerkUrl}" target="_blank">Bewerk</a></td></tr>`;
   });
-  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th align="left">Naam fietsenstalling</th><th align="left">Type</th><th align="left">Bekijk</th><th align="left">Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  const table = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;"><thead><tr><th align="left">Naam fietsenstalling</th><th align="left">Type</th><th align="left">Laatst bewerkt</th><th align="left">Bekijk</th><th align="left">Bewerk</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
   return table + buttons;
 }
 
@@ -309,6 +321,8 @@ const ContactpersonenEmail: React.FC = () => {
               title: string | null;
               urlName: string | null;
               type: string;
+              status?: string | null;
+              dateModified?: string | null;
             }[],
             dataEigenaar: "Voorbeeld",
           };
