@@ -542,10 +542,28 @@ const FmsApiComparePage: React.FC = () => {
   const [fullDatasetResults, setFullDatasetResults] = useState<FullDatasetTestResponse | null>(() => loadStoredFullDataset());
   const [showOnlyFailedFullDataset, setShowOnlyFailedFullDataset] = useState(true);
   const [fullDatasetLocationtypeFilter, setFullDatasetLocationtypeFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "instellingen">("algemeen");
+  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "reporting" | "instellingen">("algemeen");
   const [allowDynamicDiffs, setAllowDynamicDiffs] = useState(() => loadStoredSettings().allowDynamicDiffs);
   const [maxverschil, setMaxverschil] = useState(() => loadStoredSettings().maxverschil);
   const [showStallingNames, setShowStallingNames] = useState(() => loadStoredSettings().showStallingNames);
+
+  // Reporting tab state (compares old CF vs new reporting transactions endpoint)
+  const [reportingType, setReportingType] = useState<"checkout" | "checkin" | "overlap">("checkout");
+  const [reportingYear, setReportingYear] = useState("");
+  const [reportingMonth, setReportingMonth] = useState("");
+  const [reportingFrom, setReportingFrom] = useState("");
+  const [reportingTo, setReportingTo] = useState("");
+  const [reportingStatus, setReportingStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [reportingOldResult, setReportingOldResult] = useState("");
+  const [reportingNewResult, setReportingNewResult] = useState("");
+  const [reportingOldError, setReportingOldError] = useState("");
+  const [reportingNewError, setReportingNewError] = useState("");
+  const [reportingOldDurationSeconds, setReportingOldDurationSeconds] = useState<number | null>(null);
+  const [reportingNewDurationSeconds, setReportingNewDurationSeconds] = useState<number | null>(null);
+  const [reportingOldUrl, setReportingOldUrl] = useState("");
+  const [reportingNewUrl, setReportingNewUrl] = useState("");
+  const [reportingMatch, setReportingMatch] = useState<boolean | null>(null);
+  const [reportingError, setReportingError] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1482,6 +1500,106 @@ const FmsApiComparePage: React.FC = () => {
     void navigator.clipboard.writeText(instruction);
   };
 
+  const handleReportingFetch = async () => {
+    const citycode = paramValues.citycode ?? "";
+    const locationid = paramValues.locationid ?? "";
+    if (!citycode || !locationid) {
+      setReportingStatus("error");
+      setReportingError("Selecteer eerst een organisatie en stalling.");
+      return;
+    }
+
+    const query = new URLSearchParams();
+    if (reportingType) query.set("type", reportingType);
+    if (reportingFrom.trim()) query.set("from", reportingFrom.trim());
+    if (reportingTo.trim()) query.set("to", reportingTo.trim());
+    if (reportingYear.trim()) query.set("year", reportingYear.trim());
+    if (reportingMonth.trim()) query.set("month", reportingMonth.trim());
+    const qs = query.toString();
+    const suffix = `/citycodes/${encodeURIComponent(citycode)}/locations/${encodeURIComponent(locationid)}/transactions${qs ? `?${qs}` : ""}`;
+
+    const newBase = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
+    const oldBase = oldApiUrl || OLD_API_BASE;
+    const newUrl = `${newBase}/api/reporting${suffix}`;
+    const oldUrl = `${oldBase}/rest/reporting/v1${suffix}`;
+
+    setReportingOldUrl(oldUrl);
+    setReportingNewUrl(newUrl);
+    setReportingStatus("loading");
+    setReportingError("");
+    setReportingOldError("");
+    setReportingNewError("");
+    setReportingOldResult("");
+    setReportingNewResult("");
+    setReportingOldDurationSeconds(null);
+    setReportingNewDurationSeconds(null);
+    setReportingMatch(null);
+
+    // Both endpoints use the same security_users Basic auth. The shared proxy
+    // also avoids CORS for the old (remote) API.
+    const body: { authorizationHeader?: string; oldUrl: string; newUrl: string } = { oldUrl, newUrl };
+    if (authUsername && authPassword) {
+      body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
+    }
+
+    const formatResult = (s: string) => {
+      try {
+        return JSON.stringify(JSON.parse(s), null, 2);
+      } catch {
+        return s;
+      }
+    };
+
+    try {
+      const res = await fetch("/api/protected/fms-api-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const { oldError, newError, oldResult, newResult, oldDurationSeconds, newDurationSeconds, message } = data as {
+        oldError?: string;
+        newError?: string;
+        oldResult?: string;
+        newResult?: string;
+        oldDurationSeconds?: number;
+        newDurationSeconds?: number;
+        message?: string;
+      };
+
+      if (oldDurationSeconds != null) setReportingOldDurationSeconds(oldDurationSeconds);
+      if (newDurationSeconds != null) setReportingNewDurationSeconds(newDurationSeconds);
+
+      if (!res.ok && !oldError && !newError) {
+        setReportingStatus("error");
+        setReportingError(message ?? "Request mislukt");
+        return;
+      }
+
+      if (oldError) {
+        setReportingOldError(oldError);
+      } else {
+        setReportingOldResult(formatResult(oldResult ?? ""));
+      }
+      if (newError) {
+        setReportingNewError(newError);
+      } else {
+        setReportingNewResult(formatResult(newResult ?? ""));
+      }
+
+      if (!oldError && !newError) {
+        const diffResult = getDiffOnly(oldResult ?? "", newResult ?? "");
+        setReportingMatch(diffResult != null && diffResult.oldOnly === "{}" && diffResult.newOnly === "{}");
+      } else {
+        setReportingMatch(null);
+      }
+      setReportingStatus("done");
+    } catch (err) {
+      setReportingStatus("error");
+      setReportingError(err instanceof Error ? err.message : "Fetch mislukt");
+    }
+  };
+
   if (!session) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -1607,6 +1725,17 @@ const FmsApiComparePage: React.FC = () => {
             }`}
           >
             Geautomatiseerd Testen
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("reporting")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "reporting"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Reporting
           </button>
           <button
             type="button"
@@ -2067,6 +2196,234 @@ const FmsApiComparePage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "reporting" && (
+          <div>
+            <p className="text-sm text-gray-600 mb-4">
+              Vergelijkt de oude en nieuwe reporting-API:{" "}
+              <code className="bg-gray-100 px-1 rounded">
+                /rest/reporting/v1/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
+              </code>{" "}
+              (oud) versus{" "}
+              <code className="bg-gray-100 px-1 rounded">
+                /api/reporting/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
+              </code>{" "}
+              (nieuw). Beide endpoints gebruiken Basic Auth tegen{" "}
+              <code className="bg-gray-100 px-1 rounded">security_users</code> (beheer-inlog), dus vul hierboven
+              beheer-credentials in (niet de FMS data-provider credentials). De oude API gebruikt het veld
+              &quot;Oude API url&quot; als basis, de nieuwe het veld &quot;Nieuwe API url&quot;.
+            </p>
+
+            <div className="flex flex-wrap items-end gap-4 mb-4">
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organisatie</label>
+                <Autocomplete
+                  options={cityOptions}
+                  getOptionLabel={(o) => o.label}
+                  value={
+                    cityOptions.find((o) => o.value === (paramValues.citycode ?? "")) ??
+                    ((paramValues.citycode ?? "")
+                      ? { value: paramValues.citycode ?? "", label: `${paramValues.citycode} (opgeslagen)` }
+                      : null)
+                  }
+                  onChange={(_, newValue) =>
+                    setParamValues((p) => ({
+                      ...p,
+                      citycode: newValue?.value ?? "",
+                      locationid: "",
+                      sectionid: "",
+                    }))
+                  }
+                  isOptionEqualToValue={(a, b) => a.value === b.value}
+                  loading={optionsLoading.city}
+                  disabled={optionsLoading.city}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder={optionsLoading.city ? "Laden..." : "Typ om te zoeken..."}
+                      size="small"
+                      className="w-full"
+                    />
+                  )}
+                />
+              </div>
+              <div className="w-auto min-w-[20rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stalling</label>
+                <Autocomplete
+                  options={locationOptions}
+                  getOptionLabel={(o) => o.label}
+                  value={
+                    locationOptions.find((o) => o.value === (paramValues.locationid ?? "")) ??
+                    ((paramValues.locationid ?? "")
+                      ? { value: paramValues.locationid ?? "", label: `${paramValues.locationid} (opgeslagen)` }
+                      : null)
+                  }
+                  onChange={(_, newValue) =>
+                    setParamValues((p) => ({
+                      ...p,
+                      locationid: newValue?.value ?? "",
+                      sectionid: "",
+                    }))
+                  }
+                  isOptionEqualToValue={(a, b) => a.value === b.value}
+                  loading={optionsLoading.location}
+                  disabled={optionsLoading.location || !paramValues.citycode}
+                  slotProps={{ paper: { sx: { minWidth: 280 } } }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder={
+                        optionsLoading.location
+                          ? "Laden..."
+                          : !paramValues.citycode
+                            ? "Selecteer eerst organisatie"
+                            : "Typ om te zoeken..."
+                      }
+                      size="small"
+                      className="w-full"
+                    />
+                  )}
+                />
+              </div>
+              <div className="w-auto min-w-[8rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={reportingType}
+                  onChange={(e) => setReportingType(e.target.value as "checkout" | "checkin" | "overlap")}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="checkout">checkout</option>
+                  <option value="checkin">checkin</option>
+                  <option value="overlap">overlap</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-4 mb-2">
+              <div className="w-auto min-w-[6rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jaar</label>
+                <input
+                  type="number"
+                  value={reportingYear}
+                  onChange={(e) => setReportingYear(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="bijv. 2026"
+                />
+              </div>
+              <div className="w-auto min-w-[5rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maand</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={reportingMonth}
+                  onChange={(e) => setReportingMonth(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="1-12"
+                />
+              </div>
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Van (from)</label>
+                <input
+                  type="text"
+                  value={reportingFrom}
+                  onChange={(e) => setReportingFrom(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tot (to)</label>
+                <input
+                  type="text"
+                  value={reportingTo}
+                  onChange={(e) => setReportingTo(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleReportingFetch()}
+                disabled={reportingStatus === "loading" || !paramValues.citycode || !paramValues.locationid}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {reportingStatus === "loading" ? "Bezig..." : "Vergelijken"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Als <code className="bg-gray-100 px-1 rounded">from</code> en <code className="bg-gray-100 px-1 rounded">to</code>{" "}
+              zijn ingevuld hebben die voorrang boven jaar/maand. Zonder periode wordt standaard de vorige maand gebruikt.
+            </p>
+
+            {reportingStatus === "error" && (
+              <div className="bg-red-50 border border-red-300 rounded p-3 mb-3 text-sm text-red-700">
+                Fout: {reportingError || "Onbekende fout"}
+              </div>
+            )}
+
+            {reportingMatch !== null && (
+              <div
+                className={`rounded p-3 mb-3 text-sm font-medium ${
+                  reportingMatch
+                    ? "bg-green-50 border border-green-300 text-green-800"
+                    : "bg-red-50 border border-red-300 text-red-800"
+                }`}
+              >
+                {reportingMatch ? "Identiek: oude en nieuwe API geven dezelfde data." : "Verschillend: oude en nieuwe API geven andere data."}
+              </div>
+            )}
+
+            {(reportingOldUrl || reportingNewUrl) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                    Oude API
+                    {reportingOldDurationSeconds != null && (
+                      <span className="font-normal text-gray-500"> ({reportingOldDurationSeconds}s)</span>
+                    )}
+                  </h3>
+                  {reportingOldUrl && (
+                    <p className="text-xs text-gray-600 mb-2 break-all">
+                      <code className="bg-gray-100 px-1 rounded">{reportingOldUrl}</code>
+                    </p>
+                  )}
+                  {reportingOldError ? (
+                    <div className="bg-red-50 border border-red-300 rounded p-3 text-sm text-red-700 break-words">
+                      Fout: {reportingOldError}
+                    </div>
+                  ) : (
+                    <pre className="bg-gray-50 border rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words">
+                      {reportingOldResult || (reportingStatus === "loading" ? "Bezig..." : "")}
+                    </pre>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                    Nieuwe API
+                    {reportingNewDurationSeconds != null && (
+                      <span className="font-normal text-gray-500"> ({reportingNewDurationSeconds}s)</span>
+                    )}
+                  </h3>
+                  {reportingNewUrl && (
+                    <p className="text-xs text-gray-600 mb-2 break-all">
+                      <code className="bg-gray-100 px-1 rounded">{reportingNewUrl}</code>
+                    </p>
+                  )}
+                  {reportingNewError ? (
+                    <div className="bg-red-50 border border-red-300 rounded p-3 text-sm text-red-700 break-words">
+                      Fout: {reportingNewError}
+                    </div>
+                  ) : (
+                    <pre className="bg-gray-50 border rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words">
+                      {reportingNewResult || (reportingStatus === "loading" ? "Bezig..." : "")}
+                    </pre>
+                  )}
                 </div>
               </div>
             )}
