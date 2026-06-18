@@ -37,7 +37,10 @@ function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOn
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // Endpoints aligned with ColdFusion REST (remote/REST/FMSService.cfc) and V3 (fms_service.cfc).
 // Old V2: REST/v1/ uses getBikeTypes, getPaymentTypes, getClientTypes, getServerTime (not getJson*).
-// getJsonBikeType/{id} omitted: not in REST API; new API matches old.
+// v2 getJsonBikeType/{id}: implemented in the new API, but omitted here because the old CF API
+// has no REST equivalent to diff against (getJsonBikeTypes already validates the bike-type data 1:1).
+// v3 isAllowedToUse: implemented, but operator-protected and dependent on live pass state, so it is
+// not a deterministic parity read and is excluded from the automatic comparison suite.
 const ENDPOINTS: { id: string; label: string; path: string; params: string[]; oldPath?: string }[] = [
   { id: "v2-getServerTime", label: "V2 getServerTime", path: "/v2/getServerTime", params: [], oldPath: "/REST/v1/getServerTime" },
   { id: "v2-getJsonBikeTypes", label: "V2 getJsonBikeTypes", path: "/v2/getJsonBikeTypes", params: [], oldPath: "/REST/v1/getBikeTypes" },
@@ -57,6 +60,8 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-sections", label: "V3 locations/{locationid}/sections", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-section", label: "V3 sections/{sectionid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
   { id: "v3-places", label: "V3 sections/{sectionid}/places", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
+  { id: "v3-place", label: "V3 sections/{sectionid}/places/{placeid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid", "placeid"] },
+  { id: "v3-locationscsv", label: "V3 citycodes/{citycode}/locationscsv", path: "/rest/v3/citycodes", params: ["citycode"] },
   { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-balances", label: "V3 locations/{locationid}/balances", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-subscriptions", label: "V3 locations/{locationid}/subscriptions", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
@@ -74,6 +79,8 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
   "v3-sections",
   "v3-section",
   "v3-places",
+  "v3-place",
+  "v3-locationscsv",
   "v3-subscriptiontypes",
   "v3-balances",
   "v3-subscriptions",
@@ -96,8 +103,8 @@ function buildFullDatasetTestId(
 }
 
 function getTypeForEndpoint(endpointId: string): "city" | "location" | "section" {
-  if (endpointId === "v3-citycode" || endpointId === "v3-locations") return "city";
-  if (endpointId === "v3-section" || endpointId === "v3-places") return "section";
+  if (endpointId === "v3-citycode" || endpointId === "v3-locations" || endpointId === "v3-locationscsv") return "city";
+  if (endpointId === "v3-section" || endpointId === "v3-places" || endpointId === "v3-place") return "section";
   return "location";
 }
 
@@ -111,6 +118,7 @@ const DEFAULT_PARAMS: Record<string, string> = {
   locationid: "9933_001",
   bikeparkID: "9933_001",
   sectionid: "9933_001_1",
+  placeid: "",
   depth: "3",
 };
 
@@ -229,6 +237,7 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     let path = `/rest/v3/citycodes/${paramValues.citycode}`;
     if (endpoint.id === "v3-citycode") url = `${oldApiBase}${path}`;
     else if (endpoint.id === "v3-locations") url = `${oldApiBase}${path}/locations`;
+    else if (endpoint.id === "v3-locationscsv") url = `${oldApiBase}${path}/locationscsv`;
     else if (paramValues.locationid) {
       path += `/locations/${paramValues.locationid}`;
       if (endpoint.id === "v3-subscriptiontypes") url = `${oldApiBase}${path}/subscriptiontypes`;
@@ -240,6 +249,7 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
       else if (paramValues.sectionid) {
         path += `/sections/${paramValues.sectionid}`;
         if (endpoint.id === "v3-places") url = `${oldApiBase}${path}/places`;
+        else if (endpoint.id === "v3-place" && paramValues.placeid) url = `${oldApiBase}${path}/places/${paramValues.placeid}`;
         else if (endpoint.id === "v3-section") url = `${oldApiBase}${path}`;
         else url = "";
       } else url = "";
@@ -272,6 +282,7 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
       let p = `${baseNew}${base}/v3/citycodes/${paramValues.citycode}`;
       if (endpoint.id === "v3-citycode") url = p;
       else if (endpoint.id === "v3-locations") url = `${p}/locations`;
+      else if (endpoint.id === "v3-locationscsv") url = `${p}/locationscsv`;
       else if (paramValues.locationid) {
         p += `/locations/${paramValues.locationid}`;
         if (endpoint.id === "v3-location") url = p;
@@ -280,11 +291,12 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         else if (endpoint.id === "v3-subscriptions") url = `${p}/subscriptions`;
         else if (endpoint.id === "v3-bikeupdates") url = `${p}/bikeupdates`;
         else if (endpoint.id === "v3-sections") url = `${p}/sections`;
-        else if ((endpoint.id === "v3-places" || endpoint.id === "v3-section") && paramValues.sectionid) {
+        else if ((endpoint.id === "v3-places" || endpoint.id === "v3-place" || endpoint.id === "v3-section") && paramValues.sectionid) {
           p += `/sections/${paramValues.sectionid}`;
           if (endpoint.id === "v3-section") url = p;
+          else if (endpoint.id === "v3-place") url = paramValues.placeid ? `${p}/places/${paramValues.placeid}` : "";
           else url = `${p}/places`;
-        } else if (endpoint.id === "v3-places" || endpoint.id === "v3-section") url = "";
+        } else if (endpoint.id === "v3-places" || endpoint.id === "v3-place" || endpoint.id === "v3-section") url = "";
         else url = p;
       } else if (
         endpoint.id === "v3-location" ||
@@ -1798,6 +1810,16 @@ const FmsApiComparePage: React.FC = () => {
                 <option value={paramValues.sectionid ?? ""}>{paramValues.sectionid} (opgeslagen)</option>
               )}
             </select>
+          </div>
+          <div className="w-auto min-w-[8rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Plek (placeID)</label>
+            <input
+              type="text"
+              value={paramValues.placeid ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, placeid: e.target.value }))}
+              placeholder="bv. 12345"
+              className="w-auto min-w-[8rem] p-2 border rounded"
+            />
           </div>
           <div className="w-auto min-w-[4rem]">
             <label className="block text-sm font-medium text-gray-700 mb-1">Depth</label>

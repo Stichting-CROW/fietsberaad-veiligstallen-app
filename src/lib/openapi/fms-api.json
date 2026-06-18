@@ -63,6 +63,46 @@
         }
       }
     },
+    "/v2/getJsonBikeType/{bikeTypeID}": {
+      "get": {
+        "summary": "Eén fietstype",
+        "description": "Geeft de details van het fietstype met het gegeven BikeTypeID (ColdFusion getJsonBikeType).",
+        "tags": [
+          "V2"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "bikeTypeID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            },
+            "description": "ID van het fietstype"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fietstype (legacy keys BIKETYPEID/NAME)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BikeTypeLegacy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bikeTypeID ontbreekt"
+          },
+          "404": {
+            "description": "Fietstype niet gevonden"
+          }
+        }
+      }
+    },
     "/v2/getJsonPaymentTypes": {
       "get": {
         "summary": "Betalingstypen",
@@ -768,6 +808,42 @@
       }
     },
     "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}": {
+      "get": {
+        "summary": "Eén plek",
+        "tags": [
+          "V3"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V3Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V3Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V3Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V3Placeid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plek",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Niet gevonden"
+          }
+        }
+      },
       "put": {
         "summary": "Plek bijwerken (url, status, credentials)",
         "tags": [
@@ -986,6 +1062,140 @@
           }
         }
       }
+    },
+    "/v3/citycodes/{citycode}/locationscsv": {
+      "get": {
+        "summary": "Locaties in gemeente als CSV-regels",
+        "description": "Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door \";\"\n(ColdFusion getLocationsCSV). Object- en array-velden worden overgeslagen.\n",
+        "tags": [
+          "V3"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Komma-gescheiden veldselectie (zelfde semantiek als locations)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van CSV-regels (één per locatie)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places": {
+      "get": {
+        "summary": "Plekken in sector",
+        "tags": [
+          "V3"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V3Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V3Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V3Sectionid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van plekken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/idcodes/{idtype}/{idcode}": {
+      "get": {
+        "summary": "Mag ID-middel deze plek gebruiken (operator)",
+        "description": "Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken\n(ColdFusion isAllowedToUse). Vereist operator Basic Auth.\n",
+        "tags": [
+          "V3 Protected"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V3Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V3Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V3Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V3Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "0=sleutelhanger, 1=ovchip, 2=cijfercode, 3=tijdelijk"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultaat van de toegangscontrole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V3IsAllowedToUse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized of onvoldoende rechten"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1066,6 +1276,59 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "V2BikeTypeLegacy": {
+        "type": "object",
+        "description": "Legacy v2-vorm van een fietstype (hoofdletter-keys, zoals getJsonBikeTypes).",
+        "properties": {
+          "BIKETYPEID": {
+            "type": "integer"
+          },
+          "NAME": {
+            "type": "string"
+          }
+        }
+      },
+      "PlaceSummary": {
+        "type": "object",
+        "description": "ColdFusion BaseRestService.getPlace (publieke velden).",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "datelaststatusupdate": {
+            "type": "string",
+            "description": "Alleen aanwezig als er een statusupdate-datum is."
+          },
+          "statuscode": {
+            "type": "integer",
+            "description": "status % 10 — 0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking"
+          }
+        }
+      },
+      "V3IsAllowedToUse": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "messagecode": {
+            "type": "string",
+            "description": "OK, BLOCKED, RESERVED, PARKED_ELSEWHERE, INVALID_ID"
+          },
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "saldo": {
+            "type": "number"
           }
         }
       },
