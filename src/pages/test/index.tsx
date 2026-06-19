@@ -161,6 +161,13 @@ const TestIndexPage: React.FC = () => {
               >
                 Wachtrij replay (new_*)
               </Button>
+              <Button
+                onClick={() => handleNavigate('/test/fms-write-tests')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                FMS schrijf-tests (new_*)
+              </Button>
             </>
           )}
 
