@@ -13,8 +13,9 @@ import {
 import { createSecurityProfile } from "~/utils/server/securitycontext";
 import { checkToken, checkMagicLinkToken } from "~/utils/token-tools";
 import { getOrganisationTypeByID } from "~/utils/server/database-tools";
+import { encryptPasswordForApi, isValidApiPasswordHash } from "~/utils/server/password-tools";
 
-type OrgAccountData = Pick<security_users, "UserID" | "DisplayName" | "UserName" | "GroupID" | "ParentID" | "SiteID" | "EncryptedPassword"> & {
+type OrgAccountData = Pick<security_users, "UserID" | "DisplayName" | "UserName" | "GroupID" | "ParentID" | "SiteID" | "EncryptedPassword" | "EncryptedPassword2"> & {
   user_contact_roles: { 
     ContactID: string;
     isOwnOrganization: boolean;
@@ -90,6 +91,7 @@ export const getUserFromCredentials = async (
         DisplayName: true,
         UserName: true,
         EncryptedPassword: true,
+        EncryptedPassword2: true,
         user_contact_roles: {
           select: {
             ContactID: true,
@@ -106,6 +108,21 @@ export const getUserFromCredentials = async (
       orgaccount.EncryptedPassword !== null
     ) {
       if (await bcrypt.compare(password, orgaccount.EncryptedPassword)) {
+        // Lazily backfill the ColdFusion remote API hash (EncryptedPassword2)
+        // when it is missing or malformed. This mirrors the legacy
+        // UserSession.cfc behaviour and lets pre-existing accounts self-heal on
+        // their next successful login. We have the plaintext password here, so
+        // we can compute the correct SHA-256 hash.
+        if (!isValidApiPasswordHash(orgaccount.EncryptedPassword2)) {
+          try {
+            await prisma.security_users.update({
+              where: { UserID: orgaccount.UserID },
+              data: { EncryptedPassword2: encryptPasswordForApi(password) },
+            });
+          } catch (backfillError) {
+            console.error("### getUserFromCredentials - failed to backfill EncryptedPassword2", backfillError);
+          }
+        }
         const profileUserAccount = await getProfileUser(orgaccount);
         if (profileUserAccount) {
           return profileUserAccount;

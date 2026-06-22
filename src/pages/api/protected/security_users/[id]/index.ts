@@ -15,6 +15,7 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { getOrganisationTypeByID } from "~/utils/server/database-tools";
 import { syncSecurityUsersSitesFromUserContactRole } from "~/utils/server/user-sync-tools";
+import { encryptPasswordForApi } from "~/utils/server/password-tools";
 
 const saltRounds = 13;
 
@@ -39,6 +40,7 @@ export const securityUserUpdateSchema = securityUserCreateSchema.partial().requi
 const oldSecurityUserCreateSchema = securityUserCreateSchema.omit({password: true, RoleID: true}).extend({
   RoleID: z.nativeEnum(VSUserRoleValues),
   EncryptedPassword: z.string(),
+  EncryptedPassword2: z.string(),
 });
 
 export const oldSecurityUserUpdateSchema = oldSecurityUserCreateSchema.partial().required({UserID: true})
@@ -173,7 +175,8 @@ export default async function handle(
           ParentID: null,
           LastLogin: null,
           Locale: "Dutch (Standard)",
-          EncryptedPassword2: "",
+          // SHA-256 hash required by the ColdFusion remote API Basic Auth.
+          EncryptedPassword2: encryptPasswordForApi(parsed.password),
           Theme: "default",
           SendMailToMailAddress: null
         }
@@ -294,6 +297,8 @@ export default async function handle(
 
         if(parsed.password) {
           updateData.EncryptedPassword = await bcrypt.hash(parsed.password, saltRounds);
+          // Keep the ColdFusion remote API Basic Auth hash in sync.
+          updateData.EncryptedPassword2 = encryptPasswordForApi(parsed.password);
         }
 
         // Rights validation: Updating role is only allowed for gebruikers_dataeigenaar_admin
