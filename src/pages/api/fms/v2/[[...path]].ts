@@ -21,7 +21,7 @@ import { reportOccupationData } from "~/server/services/fms/report-occupation-se
 import { addSubscription, subscribe } from "~/server/services/fms/subscription-service";
 import { logFmsCall } from "~/server/services/fms/webservice-log";
 import * as wachtrijService from "~/server/services/fms/wachtrij-service";
-import { assertFmsWriteAllowedForSession } from "~/server/services/fms/fms-write-policy";
+import { assertFmsWriteApiEnabled } from "~/server/services/fms/fms-write-policy";
 
 function set401(res: NextApiResponse, hadAuthHeader: boolean) {
   if (!hadAuthHeader) {
@@ -101,8 +101,7 @@ export default async function handle(
   }
 
   if (writeMethods.includes(method)) {
-    const writeOk = await assertFmsWriteAllowedForSession(req, res);
-    if (!writeOk) return;
+    if (!assertFmsWriteApiEnabled(res)) return;
   }
 
   try {

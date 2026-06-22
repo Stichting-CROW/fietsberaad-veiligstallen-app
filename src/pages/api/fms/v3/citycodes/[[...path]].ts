@@ -10,7 +10,7 @@ import {
   parseBasicAuth,
   validateFmsAuth,
 } from "~/server/services/fms/fms-auth";
-import { assertFmsWriteAllowedForSession } from "~/server/services/fms/fms-write-policy";
+import { assertFmsWriteApiEnabled } from "~/server/services/fms/fms-write-policy";
 import { parseFieldsQuery } from "~/server/services/fms/fms-v3-fields";
 
 function setCors(res: NextApiResponse) {
@@ -191,8 +191,7 @@ async function handleWrite(
   res: NextApiResponse,
   path: string[]
 ) {
-  const writeOk = await assertFmsWriteAllowedForSession(req, res);
-  if (!writeOk) return;
+  if (!assertFmsWriteApiEnabled(res)) return;
 
   const citycode = path[0];
   if (!citycode) {
