@@ -108,7 +108,7 @@ export default async function handle(
   // Opt-in parallel ingestion: when ?target=new (or ?useNewTables=true) is passed on a
   // write call, enqueue directly into the shadow input queues (new_wachtrij_*) instead of
   // the production wachtrij_* tables. Default stays production (live shadow via triggers).
-  // Only reachable after the write gate (superadmin + ENABLE_WRITE_API).
+  // Only reachable after the write gate (ENABLE_WRITE_API + Basic-auth operator permit).
   const wachtrijTarget: wachtrijService.WachtrijTarget = {
     useNewTables: req.query.target === "new" || req.query.useNewTables === "true",
   };
