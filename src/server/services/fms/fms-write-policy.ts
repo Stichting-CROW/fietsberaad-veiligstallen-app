@@ -1,15 +1,19 @@
 /**
- * FMS REST v2/v3 mutation policy:
- * - `ENABLE_WRITE_API`: must be set to a truthy value (`true`, `1`, `yes`) for mutations to be allowed.
- * - When enabled: writes require a logged-in fietsberaad_superadmin (Next-Auth), plus existing v2 Basic-auth validation.
+ * FMS REST v2/v3 mutation policy.
+ *
+ * - `ENABLE_WRITE_API`: must be set to a truthy value (`true`, `1`, `yes`) for
+ *   mutations to be allowed at all. This is an environment-level kill switch so
+ *   writes can be disabled entirely (e.g. on environments where the FMS write
+ *   API should never run).
+ * - Authorization of writes is handled exactly like the legacy ColdFusion FMS
+ *   REST API: by HTTP Basic Auth on the dataprovider/operator account plus its
+ *   per-stalling `permit` (checked in the route handlers via `validateFmsAuth` /
+ *   `requireV3Auth`). There is intentionally NO Next-Auth session requirement -
+ *   the API is meant to be consumed by machine clients using Basic Auth.
  * - Reads are unchanged (no flag).
  */
 
-import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "~/pages/api/auth/[...nextauth]";
-import { VSSecurityTopic } from "~/types/securityprofile";
-import { userHasRight } from "~/types/utils";
+import type { NextApiResponse } from "next";
 
 function isTruthyEnv(value: string | undefined): boolean {
   if (value == null || value === "") return false;
@@ -23,20 +27,15 @@ export function isFmsWriteApiEnabled(): boolean {
 }
 
 /**
- * Require ENABLE_WRITE_API and fietsberaad_superadmin session.
- * @returns false if response was sent
+ * Gate FMS writes on the ENABLE_WRITE_API environment kill switch.
+ * Per-request authorization (Basic Auth + operator/dataprovider permit) is
+ * enforced by the route handlers themselves.
+ *
+ * @returns false if a response (403) was sent
  */
-export async function assertFmsWriteAllowedForSession(
-  req: NextApiRequest,
-  res: NextApiResponse
-): Promise<boolean> {
+export function assertFmsWriteApiEnabled(res: NextApiResponse): boolean {
   if (!isFmsWriteApiEnabled()) {
     res.status(403).json({ message: "FMS write API is disabled", status: 0 });
-    return false;
-  }
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.securityProfile || !userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin)) {
-    res.status(403).json({ message: "Forbidden", status: 0 });
     return false;
   }
   return true;

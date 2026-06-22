@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FMS REST API",
-    "description": "Fietsenstallingen Management Service REST API (V2 en V3)",
+    "description": "Fietsenstallingen Management Service REST API (V2 en V3).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar; endpoints met een slotje vereisen geldige credentials én het juiste recht (`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de FMS REST API (v2/v3). Deze worden in FMS beheerd onder *Dataleveranciers* en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |\n| `dataprovider.type2` | Afgeronde transacties + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties, secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit. Uitzonderingen: het synchroniseren van check-ins/check-outs vereist `operator` of `dataprovider.type1`; bezettingsdata (`occupation`) vereist `operator` of `dataprovider.type2`.",
     "version": "1.0.0"
   },
   "servers": [
@@ -156,7 +156,7 @@
     "/v2/setUrlWebserviceForLocker/{bikeparkID}/{sectionID}/{placeID}": {
       "post": {
         "summary": "Callback-URL voor fietskluis instellen",
-        "description": "Zet urlwebservice op een kluisplek. Vereist ENABLE_WRITE_API, superadmin-sessie en operator Basic Auth.\n",
+        "description": "Zet urlwebservice op een kluisplek. Vereist dat ENABLE_WRITE_API aanstaat en operator Basic Auth.\n",
         "tags": [
           "V2 Write"
         ],
@@ -441,7 +441,7 @@
       },
       "post": {
         "summary": "Abonnement toevoegen (operator)",
-        "description": "Vereist ENABLE_WRITE_API en superadmin-sessie naast Basic Auth.",
+        "description": "Vereist dat ENABLE_WRITE_API aanstaat, naast Basic Auth met operator-permit.",
         "tags": [
           "V3 Write"
         ],
