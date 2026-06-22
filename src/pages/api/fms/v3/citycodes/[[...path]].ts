@@ -146,7 +146,37 @@ async function handleGet(
         return;
       }
       if (subPath3 === "places") {
-        res.status(200).json(await v3Service.getPlaces(locationid, sectionid));
+        const placeid = path[6];
+        if (!placeid) {
+          res.status(200).json(await v3Service.getPlaces(locationid, sectionid));
+          return;
+        }
+        // GET …/places/{placeid}/idcodes/{idtype}/{idcode} → isAllowedToUse (operator)
+        if (path[7] === "idcodes" && path[8] != null && path[9] != null) {
+          if (!(await requireV3Auth(req, res, locationid, "operator"))) return;
+          const idtype = parseInt(path[8], 10);
+          if (Number.isNaN(idtype)) {
+            res.status(400).json({ message: "Invalid idtype", status: 0 });
+            return;
+          }
+          res.status(200).json(
+            await v3Protected.isAllowedToUseV3(
+              citycode,
+              locationid,
+              sectionid,
+              placeid,
+              idtype,
+              path[9]
+            )
+          );
+          return;
+        }
+        const place = await v3Service.getPlace(locationid, sectionid, placeid);
+        if (!place) {
+          res.status(404).json({ message: "Place not found" });
+          return;
+        }
+        res.status(200).json(place);
         return;
       }
       const section = await v3Service.getSection(locationid, sectionid, depth);
@@ -169,6 +199,11 @@ async function handleGet(
       return;
     }
     res.status(200).json(location);
+    return;
+  }
+
+  if (subPath === "locationscsv") {
+    res.status(200).json(await v3Service.getLocationsCsv(citycode, fields));
     return;
   }
 
