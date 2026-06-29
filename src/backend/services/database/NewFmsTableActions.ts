@@ -80,6 +80,20 @@ export async function createNewFmsTables(): Promise<boolean> {
       INDEX \`new_ws_transactionDate\`(\`transactionDate\`),
       PRIMARY KEY (\`ID\`)
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS \`new_wachtrij_managed_transacties\` (
+      \`ID\` INTEGER NOT NULL AUTO_INCREMENT,
+      \`bikeparkID\` VARCHAR(8) NOT NULL,
+      \`externalTransactionID\` VARCHAR(100) NOT NULL,
+      \`payload\` TEXT NOT NULL,
+      \`processed\` TINYINT(1) NOT NULL DEFAULT 0,
+      \`processDate\` TIMESTAMP(0) NULL,
+      \`error\` TEXT NULL,
+      \`dateCreated\` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+      INDEX \`new_wmt_bikeparkID\`(\`bikeparkID\`),
+      INDEX \`new_wmt_externalTransactionID\`(\`externalTransactionID\`),
+      INDEX \`new_wmt_processed\`(\`processed\`),
+      PRIMARY KEY (\`ID\`)
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS \`new_transacties\` (
       \`ID\` INTEGER NOT NULL AUTO_INCREMENT,
       \`ZipID\` VARCHAR(4) NULL,
@@ -88,6 +102,7 @@ export async function createNewFmsTables(): Promise<boolean> {
       \`SectieID_uit\` VARCHAR(13) NULL,
       \`PlaceID\` BIGINT NULL,
       \`ExternalPlaceID\` VARCHAR(100) NULL,
+      \`ExternalTransactionID\` VARCHAR(100) NULL,
       \`PassUUID\` VARCHAR(35) NULL,
       \`PasID\` VARCHAR(35) NOT NULL,
       \`Pastype\` INTEGER NULL,
@@ -112,6 +127,7 @@ export async function createNewFmsTables(): Promise<boolean> {
       INDEX \`new_t_Date_checkin\`(\`Date_checkin\`),
       INDEX \`new_t_Date_checkout\`(\`Date_checkout\`),
       INDEX \`new_t_ExploitantID\`(\`ExploitantID\`),
+      INDEX \`new_t_ExternalTransactionID\`(\`ExternalTransactionID\`),
       INDEX \`new_t_FietsenstallingID\`(\`FietsenstallingID\`),
       INDEX \`new_t_PasID\`(\`PasID\`),
       INDEX \`new_t_PassUUID\`(\`PassUUID\`),
@@ -123,6 +139,7 @@ export async function createNewFmsTables(): Promise<boolean> {
       INDEX \`new_t_ZipID\`(\`ZipID\`),
       INDEX \`new_t_dateCreated\`(\`dateCreated\`),
       INDEX \`new_t_dateModified\`(\`dateModified\`),
+      UNIQUE INDEX \`new_t_uk_fietsenstalling_external_tx\`(\`FietsenstallingID\`, \`ExternalTransactionID\`),
       PRIMARY KEY (\`ID\`)
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS \`new_transacties_archief\` (

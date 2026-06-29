@@ -192,6 +192,33 @@ export async function addSaldoToWachtrij(
   return { id: row.ID };
 }
 
+export type ManagedTransactionPayload = Record<string, unknown>;
+
+export async function addManagedTransactionToWachtrij(
+  bikeparkID: string,
+  sectionID: string,
+  managed: ManagedTransactionPayload,
+  opts: WachtrijTarget = {}
+): Promise<{ id: number }> {
+  const externalTransactionID = String(
+    managed.externaltransactionid ?? managed.externalTransactionID ?? ""
+  ).trim();
+  if (!externalTransactionID) {
+    throw new Error("externaltransactionid is verplicht");
+  }
+
+  const payload = JSON.stringify({ ...managed, sectionid: managed.sectionid ?? sectionID });
+  const data = {
+    bikeparkID,
+    externalTransactionID,
+    payload,
+  };
+  const row = opts.useNewTables
+    ? await prisma.new_wachtrij_managed_transacties.create({ data })
+    : await prisma.wachtrij_managed_transacties.create({ data });
+  return { id: row.ID };
+}
+
 export async function addSyncToWachtrij(
   sync: SyncInput,
   opts: WachtrijTarget = {}

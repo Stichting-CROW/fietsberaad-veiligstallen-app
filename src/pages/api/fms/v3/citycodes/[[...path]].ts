@@ -269,6 +269,17 @@ async function handleWrite(
       return;
     }
 
+    // POST …/locations/{id}/managedtransactions
+    if (path[3] === "managedtransactions" && !path[4]) {
+      if (method !== "POST") return methodNotAllowed(res, method);
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      const managed = (body.managedtransaction ?? body) as Record<string, unknown>;
+      const sectionid = String(managed.sectionid ?? managed.sectionid_checkin ?? locationid);
+      const result = await v3Write.uploadManagedTransactionV3(locationid, sectionid, managed);
+      res.status(200).json(result);
+      return;
+    }
+
     // POST …/locations/{id}/idcodes/{idtype}/{idcode} (koppelpas)
     if (path[3] === "idcodes" && path[4] != null && path[5] != null) {
       if (method !== "POST") return methodNotAllowed(res, method);
@@ -322,6 +333,16 @@ async function handleWrite(
         sectionid,
         transaction
       );
+      res.status(200).json(result);
+      return;
+    }
+
+    // POST …/sections/{sec}/managedtransactions
+    if (path[5] === "managedtransactions" && !path[6]) {
+      if (method !== "POST") return methodNotAllowed(res, method);
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      const managed = (body.managedtransaction ?? body) as Record<string, unknown>;
+      const result = await v3Write.uploadManagedTransactionV3(locationid, sectionid, managed);
       res.status(200).json(result);
       return;
     }

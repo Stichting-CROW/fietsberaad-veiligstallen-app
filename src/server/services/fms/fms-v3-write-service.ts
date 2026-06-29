@@ -9,10 +9,12 @@ import { addSubscription } from "./subscription-service";
 import { updateLocker } from "./fms-locker-service";
 import { reportOccupationData } from "./report-occupation-service";
 import {
+  addManagedTransactionToWachtrij,
   addSyncToWachtrij,
   addTransactionToWachtrij,
   type TransactionInput,
 } from "./wachtrij-service";
+import { validateManagedTransaction, type ManagedTransactionInput } from "../queue/managed-transaction-service";
 import { assertLocationInCity } from "./fms-v3-protected-reads";
 import { passtype2integer, passtype2string } from "./fms-idtypes";
 import { logFmsCall } from "./webservice-log";
@@ -79,6 +81,71 @@ export async function uploadTransactionV3(
     "uploadTransaction",
     locationid,
     `${sectionid} place=${placeid ?? ""} id=${result.id}`
+  );
+  return okResult({ id: result.id });
+}
+
+function mapV3ManagedTransaction(raw: Record<string, unknown>): ManagedTransactionInput {
+  return {
+    externaltransactionid: String(raw.externaltransactionid ?? raw.externalTransactionID ?? ""),
+    idcode: String(raw.idcode ?? ""),
+    idtype: raw.idtype != null ? Number(raw.idtype) : 0,
+    checkindate: String(raw.checkindate ?? raw.checkInDate ?? ""),
+    checkintype: String(raw.checkintype ?? raw.checkInType ?? "user"),
+    checkoutdate:
+      raw.checkoutdate != null
+        ? String(raw.checkoutdate)
+        : raw.checkOutDate != null
+          ? String(raw.checkOutDate)
+          : null,
+    checkouttype:
+      raw.checkouttype != null
+        ? String(raw.checkouttype)
+        : raw.checkOutType != null
+          ? String(raw.checkOutType)
+          : null,
+    stallingsduur: raw.stallingsduur != null ? Number(raw.stallingsduur) : null,
+    stallingskosten: raw.stallingskosten as number | string | null | undefined,
+    sectionid_checkin:
+      raw.sectionid_checkin != null
+        ? String(raw.sectionid_checkin)
+        : raw.sectionid != null
+          ? String(raw.sectionid)
+          : undefined,
+    sectionid_out: raw.sectionid_out != null ? String(raw.sectionid_out) : undefined,
+    placeid: raw.placeid != null ? Number(raw.placeid) : undefined,
+    externalplaceid: raw.externalplaceid != null ? String(raw.externalplaceid) : undefined,
+    bikeid_in:
+      raw.bikeid_in != null ? String(raw.bikeid_in) : raw.bikeidIn != null ? String(raw.bikeidIn) : undefined,
+    bikeid_out:
+      raw.bikeid_out != null ? String(raw.bikeid_out) : raw.bikeidOut != null ? String(raw.bikeidOut) : undefined,
+    biketypeid: raw.biketypeid != null ? Number(raw.biketypeid) : undefined,
+    clienttypeid: raw.clienttypeid != null ? Number(raw.clienttypeid) : undefined,
+    tariefstaffels: raw.tariefstaffels != null ? String(raw.tariefstaffels) : undefined,
+    reserveringsduur: raw.reserveringsduur != null ? Number(raw.reserveringsduur) : undefined,
+    passuuid: raw.passuuid != null ? String(raw.passuuid) : undefined,
+  };
+}
+
+export async function uploadManagedTransactionV3(
+  locationid: string,
+  sectionid: string,
+  managedRaw: Record<string, unknown>,
+  opts: { useNewTables?: boolean } = {}
+): Promise<FmsOkResult> {
+  const managed = mapV3ManagedTransaction(managedRaw);
+  validateManagedTransaction(managed);
+
+  const result = await addManagedTransactionToWachtrij(
+    locationid,
+    sectionid,
+    { ...managedRaw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid },
+    opts
+  );
+  void logFmsCall(
+    "uploadManagedTransaction",
+    locationid,
+    `${sectionid} ext=${managed.externaltransactionid} id=${result.id}`
   );
   return okResult({ id: result.id });
 }

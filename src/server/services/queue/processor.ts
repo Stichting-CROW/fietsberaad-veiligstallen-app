@@ -1,17 +1,22 @@
 /**
  * Queue processor for new_wachtrij_* tables.
  * Mirrors ColdFusion processTransactions2.cfm.
- * Processing order: pasids (50) → transacties (50) → betalingen (200) → sync (1).
+ * Processing order: pasids (50) → transacties (50) → managed (50) → betalingen (200) → sync (1).
  */
 
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
 import { getBikepassByPassId, addSaldoObject } from "./account-service";
 import { putTransaction, putTransactionByID } from "./transaction-service";
+import {
+  putManagedTransaction,
+  type ManagedTransactionInput,
+} from "./managed-transaction-service";
 
 const USE_NEW_TABLES = true;
 const LIMIT_PASIDS = 50;
 const LIMIT_TRANSACTIES = 50;
+const LIMIT_MANAGED = 50;
 const LIMIT_BETALINGEN = 200;
 const LIMIT_SYNC = 1;
 const QUEUE_PROCESSOR_TIMEOUT = 3 * 60 * 1000; // 3 minutes
@@ -22,6 +27,7 @@ const PROCESSED = { WAITING: 0, ISOLATED: 9, LOCKED: 8, SUCCESS: 1, ERROR: 2 } a
 export type ProcessQueuesResult = {
   pasids: { processed: number; errors: number };
   transacties: { processed: number; errors: number };
+  managedTransacties: { processed: number; errors: number };
   betalingen: { processed: number; errors: number };
   sync: { processed: number; errors: number };
 };
@@ -44,6 +50,7 @@ function runProcessQueues(scope?: QueueProcessScope): Promise<ProcessQueuesResul
   const result: ProcessQueuesResult = {
     pasids: { processed: 0, errors: 0 },
     transacties: { processed: 0, errors: 0 },
+    managedTransacties: { processed: 0, errors: 0 },
     betalingen: { processed: 0, errors: 0 },
     sync: { processed: 0, errors: 0 },
   };
@@ -53,6 +60,7 @@ function runProcessQueues(scope?: QueueProcessScope): Promise<ProcessQueuesResul
       result.pasids = await processPasids(tx, scope);
       const transactiesResult = await processTransacties(tx, scope);
       result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
+      result.managedTransacties = await processManagedTransacties(tx);
       result.betalingen = await processBetalingen(tx, scope);
       result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate, scope);
       return result;
@@ -341,6 +349,91 @@ async function processTransacties(
   }
 
   return { processed, errors, latestProcessedTransactionDate };
+}
+
+function parseManagedPayload(payload: string): ManagedTransactionInput {
+  const raw = JSON.parse(payload) as Record<string, unknown>;
+  return {
+    externaltransactionid: String(raw.externaltransactionid ?? raw.externalTransactionID ?? ""),
+    idcode: String(raw.idcode ?? ""),
+    idtype: raw.idtype != null ? Number(raw.idtype) : undefined,
+    checkindate: String(raw.checkindate ?? raw.checkInDate ?? ""),
+    checkintype: String(raw.checkintype ?? raw.checkInType ?? "user"),
+    checkoutdate:
+      raw.checkoutdate != null ? String(raw.checkoutdate) : raw.checkOutDate != null ? String(raw.checkOutDate) : null,
+    checkouttype: raw.checkouttype != null ? String(raw.checkouttype) : raw.checkOutType != null ? String(raw.checkOutType) : null,
+    stallingsduur: raw.stallingsduur != null ? Number(raw.stallingsduur) : null,
+    stallingskosten: raw.stallingskosten as number | string | null | undefined,
+    sectionid: raw.sectionid != null ? String(raw.sectionid) : undefined,
+    sectionid_checkin: raw.sectionid_checkin != null ? String(raw.sectionid_checkin) : undefined,
+    sectionid_out: raw.sectionid_out != null ? String(raw.sectionid_out) : undefined,
+    placeid: raw.placeid != null ? Number(raw.placeid) : null,
+    externalplaceid: raw.externalplaceid != null ? String(raw.externalplaceid) : null,
+    bikeid_in: raw.bikeid_in != null ? String(raw.bikeid_in) : raw.bikeidIn != null ? String(raw.bikeidIn) : null,
+    bikeid_out: raw.bikeid_out != null ? String(raw.bikeid_out) : raw.bikeidOut != null ? String(raw.bikeidOut) : null,
+    biketypeid: raw.biketypeid != null ? Number(raw.biketypeid) : undefined,
+    clienttypeid: raw.clienttypeid != null ? Number(raw.clienttypeid) : undefined,
+    tariefstaffels: raw.tariefstaffels != null ? String(raw.tariefstaffels) : null,
+    reserveringsduur: raw.reserveringsduur != null ? Number(raw.reserveringsduur) : null,
+    passuuid: raw.passuuid != null ? String(raw.passuuid) : null,
+  };
+}
+
+async function processManagedTransacties(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+): Promise<{ processed: number; errors: number }> {
+  const model = tx.new_wachtrij_managed_transacties;
+
+  await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
+    `UPDATE new_wachtrij_managed_transacties SET processed = ? WHERE processed = ? ORDER BY dateCreated ASC LIMIT ?`,
+    PROCESSED.ISOLATED,
+    PROCESSED.WAITING,
+    LIMIT_MANAGED
+  );
+
+  const rows = await model.findMany({
+    where: { processed: PROCESSED.ISOLATED },
+    orderBy: { dateCreated: "asc" },
+  });
+  if (rows.length === 0) return { processed: 0, errors: 0 };
+
+  await model.updateMany({
+    where: { ID: { in: rows.map((r) => r.ID) } },
+    data: { processed: PROCESSED.LOCKED },
+  });
+
+  let processed = 0;
+  let errors = 0;
+
+  for (const row of rows) {
+    try {
+      const managed = parseManagedPayload(row.payload);
+      const sectionID = managed.sectionid_checkin ?? managed.sectionid ?? "";
+      if (!sectionID) {
+        throw new Error("sectionid ontbreekt in payload");
+      }
+      await putManagedTransaction(tx, {
+        bikeparkID: row.bikeparkID,
+        sectionID,
+        managed,
+        useNewTables: USE_NEW_TABLES,
+      });
+      await model.update({
+        where: { ID: row.ID },
+        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+      });
+      processed++;
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      await model.update({
+        where: { ID: row.ID },
+        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
+      });
+      errors++;
+    }
+  }
+
+  return { processed, errors };
 }
 
 async function processBetalingen(
