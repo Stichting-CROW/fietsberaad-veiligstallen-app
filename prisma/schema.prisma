@@ -1589,6 +1589,25 @@ model wachtrij_pasids_archive20240915 {
   @@index([processed], map: "processed")
 }
 
+model wachtrij_pasids_archive20250406 {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  passID          String    @db.VarChar(35)
+  barcode         String    @db.VarChar(35)
+  RFID            String    @db.VarChar(35)
+  RFIDBike        String    @db.VarChar(35)
+  biketypeID      Int?
+  bike            String    @db.Text
+  processed       Int       @default(0) @db.TinyInt
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  DateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, passID, barcode], map: "transactionDate")
+  @@index([processed], map: "processed")
+}
+
 model wachtrij_sync {
   ID              Int       @id @default(autoincrement())
   bikes           String    @db.LongText
@@ -1633,6 +1652,32 @@ model wachtrij_transacties {
 }
 
 model wachtrij_transacties_archive20240915 {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  sectionID       String    @db.VarChar(13)
+  placeID         Int?
+  externalPlaceID String?   @db.VarChar(100)
+  transactionID   Int       @default(0)
+  passID          String    @db.VarChar(35)
+  passtype        String?   @db.VarChar(20)
+  type            String    @db.VarChar(10)
+  typeCheck       String?   @db.VarChar(60)
+  price           Decimal?  @db.Decimal(5, 2)
+  transaction     String    @db.Text
+  processed       Boolean   @default(false)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, sectionID, transactionID, passID, passtype, type], map: "transactionDate_2")
+  @@index([passID], map: "passID")
+  @@index([processed], map: "processed")
+  @@index([transactionDate], map: "transactionDate")
+  @@index([type], map: "type")
+}
+
+model wachtrij_transacties_archive20250406 {
   ID              Int       @id @default(autoincrement())
   transactionDate DateTime? @db.Timestamp(0)
   bikeparkID      String    @db.VarChar(8)
@@ -2010,10 +2055,6 @@ model new_wachtrij_managed_transacties {
   @@index([externalTransactionID], map: "new_wmt_externalTransactionID")
   @@index([processed], map: "new_wmt_processed")
 }
-
-
-
-
 
 
 // Parking simulation (separate from Veiligstallen core)
