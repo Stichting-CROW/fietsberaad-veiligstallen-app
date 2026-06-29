@@ -88,6 +88,26 @@ const TestIndexPage: React.FC = () => {
           >
             Transacties overzicht
           </Button>
+
+          <Button
+            onClick={() => handleNavigate('/test/tag-report')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Tag rapport
+          </Button>
+
+          <Button
+            onClick={() => handleNavigate('/test/barcode-report')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Barcode rapport
+          </Button>
           
           <Button
             onClick={() => handleNavigate('/test/wachtrij')}

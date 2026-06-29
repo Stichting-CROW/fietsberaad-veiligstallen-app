@@ -1370,33 +1370,36 @@ model transacties {
   FietsenstallingID String    @db.VarChar(35)
   SectieID          String?   @db.VarChar(13)
   SectieID_uit      String?   @db.VarChar(13)
-  PlaceID           BigInt?
-  ExternalPlaceID   String?   @db.VarChar(100)
-  PassUUID          String?   @db.VarChar(35)
-  PasID             String    @db.VarChar(35)
-  Pastype           Int?
-  BarcodeFiets_in   String?   @db.VarChar(36)
-  BarcodeFiets_uit  String?   @db.VarChar(36)
-  Date_checkin      DateTime  @default(now()) @db.DateTime(0)
-  Date_checkout     DateTime? @db.DateTime(0)
-  Stallingsduur     Int?      @db.UnsignedInt
-  Type_checkin      String?   @db.VarChar(40)
-  Type_checkout     String?   @db.VarChar(40)
-  Stallingskosten   Decimal?  @default(0.00) @db.Decimal(8, 2)
-  Tariefstaffels    String?   @db.VarChar(255)
-  BikeTypeID        Int       @default(1) @db.SmallInt
-  ClientTypeID      Int       @default(1)
-  Reserveringsduur  Int?
-  ExploitantID      String?   @db.VarChar(35)
-  dateModified      DateTime? @db.Timestamp(0)
-  dateCreated       DateTime  @default(now()) @db.Timestamp(0)
+  PlaceID               BigInt?
+  ExternalPlaceID       String?   @db.VarChar(100)
+  ExternalTransactionID String?   @db.VarChar(100)
+  PassUUID              String?   @db.VarChar(35)
+  PasID                 String    @db.VarChar(35)
+  Pastype               Int?
+  BarcodeFiets_in       String?   @db.VarChar(36)
+  BarcodeFiets_uit      String?   @db.VarChar(36)
+  Date_checkin          DateTime  @default(now()) @db.DateTime(0)
+  Date_checkout         DateTime? @db.DateTime(0)
+  Stallingsduur         Int?      @db.UnsignedInt
+  Type_checkin          String?   @db.VarChar(40)
+  Type_checkout         String?   @db.VarChar(40)
+  Stallingskosten       Decimal?  @default(0.00) @db.Decimal(8, 2)
+  Tariefstaffels        String?   @db.VarChar(255)
+  BikeTypeID            Int       @default(1) @db.SmallInt
+  ClientTypeID          Int       @default(1)
+  Reserveringsduur      Int?
+  ExploitantID          String?   @db.VarChar(35)
+  dateModified          DateTime? @db.Timestamp(0)
+  dateCreated           DateTime  @default(now()) @db.Timestamp(0)
 
+  @@unique([FietsenstallingID, ExternalTransactionID], map: "uk_fietsenstalling_external_tx")
   @@index([BarcodeFiets_in], map: "BarcodeFiets_in")
   @@index([BikeTypeID], map: "BikeTypeID")
   @@index([ClientTypeID], map: "ClientTypeID")
   @@index([Date_checkin], map: "Date_checkin")
   @@index([Date_checkout], map: "Date_checkout")
   @@index([ExploitantID], map: "ExploitantID")
+  @@index([ExternalTransactionID], map: "ExternalTransactionID")
   @@index([FietsenstallingID], map: "FietsenstallingID")
   @@index([PasID], map: "PasID")
   @@index([PassUUID], map: "PassUUID")
@@ -1618,6 +1621,25 @@ model wachtrij_pasids_archive20240915 {
   @@index([processed], map: "processed")
 }
 
+model wachtrij_pasids_archive20250406 {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  passID          String    @db.VarChar(35)
+  barcode         String    @db.VarChar(35)
+  RFID            String    @db.VarChar(35)
+  RFIDBike        String    @db.VarChar(35)
+  biketypeID      Int?
+  bike            String    @db.Text
+  processed       Int       @default(0) @db.TinyInt
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  DateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, passID, barcode], map: "transactionDate")
+  @@index([processed], map: "processed")
+}
+
 model wachtrij_sync {
   ID              Int       @id @default(autoincrement())
   bikes           String    @db.LongText
@@ -1661,7 +1683,48 @@ model wachtrij_transacties {
   @@index([type], map: "type")
 }
 
+model wachtrij_managed_transacties {
+  ID                    Int       @id @default(autoincrement())
+  bikeparkID            String    @db.VarChar(8)
+  externalTransactionID String    @db.VarChar(100)
+  payload               String    @db.Text
+  processed             Int       @default(0) @db.TinyInt
+  processDate           DateTime? @db.Timestamp(0)
+  error                 String?   @db.Text
+  dateCreated           DateTime  @default(now()) @db.Timestamp(0)
+
+  @@index([bikeparkID], map: "wmt_bikeparkID")
+  @@index([externalTransactionID], map: "wmt_externalTransactionID")
+  @@index([processed], map: "wmt_processed")
+}
+
 model wachtrij_transacties_archive20240915 {
+  ID              Int       @id @default(autoincrement())
+  transactionDate DateTime? @db.Timestamp(0)
+  bikeparkID      String    @db.VarChar(8)
+  sectionID       String    @db.VarChar(13)
+  placeID         Int?
+  externalPlaceID String?   @db.VarChar(100)
+  transactionID   Int       @default(0)
+  passID          String    @db.VarChar(35)
+  passtype        String?   @db.VarChar(20)
+  type            String    @db.VarChar(10)
+  typeCheck       String?   @db.VarChar(60)
+  price           Decimal?  @db.Decimal(5, 2)
+  transaction     String    @db.Text
+  processed       Boolean   @default(false)
+  processDate     DateTime? @db.Timestamp(0)
+  error           String?   @db.Text
+  dateCreated     DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([transactionDate, bikeparkID, sectionID, transactionID, passID, passtype, type], map: "transactionDate_2")
+  @@index([passID], map: "passID")
+  @@index([processed], map: "processed")
+  @@index([transactionDate], map: "transactionDate")
+  @@index([type], map: "type")
+}
+
+model wachtrij_transacties_archive20250406 {
   ID              Int       @id @default(autoincrement())
   transactionDate DateTime? @db.Timestamp(0)
   bikeparkID      String    @db.VarChar(8)
@@ -2051,39 +2114,57 @@ model new_wachtrij_sync {
   @@index([transactionDate], map: "new_ws_transactionDate")
 }
 
-model new_transacties {
-  ID                Int       @id @default(autoincrement())
-  ZipID             String?   @db.VarChar(4)
-  FietsenstallingID String    @db.VarChar(35)
-  SectieID          String?   @db.VarChar(13)
-  SectieID_uit      String?   @db.VarChar(13)
-  PlaceID           BigInt?
-  ExternalPlaceID   String?   @db.VarChar(100)
-  PassUUID          String?   @db.VarChar(35)
-  PasID             String    @db.VarChar(35)
-  Pastype           Int?
-  BarcodeFiets_in   String?   @db.VarChar(36)
-  BarcodeFiets_uit  String?   @db.VarChar(36)
-  Date_checkin      DateTime  @default(now()) @db.DateTime(0)
-  Date_checkout     DateTime? @db.DateTime(0)
-  Stallingsduur     Int?      @db.UnsignedInt
-  Type_checkin      String?   @db.VarChar(40)
-  Type_checkout     String?   @db.VarChar(40)
-  Stallingskosten   Decimal?  @default(0.00) @db.Decimal(8, 2)
-  Tariefstaffels    String?   @db.VarChar(255)
-  BikeTypeID        Int       @default(1) @db.SmallInt
-  ClientTypeID      Int       @default(1)
-  Reserveringsduur  Int?
-  ExploitantID      String?   @db.VarChar(35)
-  dateModified      DateTime? @db.Timestamp(0)
-  dateCreated       DateTime  @default(now()) @db.Timestamp(0)
+model new_wachtrij_managed_transacties {
+  ID                    Int       @id @default(autoincrement())
+  bikeparkID            String    @db.VarChar(8)
+  externalTransactionID String    @db.VarChar(100)
+  payload               String    @db.Text
+  processed             Int       @default(0) @db.TinyInt
+  processDate           DateTime? @db.Timestamp(0)
+  error                 String?   @db.Text
+  dateCreated           DateTime  @default(now()) @db.Timestamp(0)
 
+  @@index([bikeparkID], map: "new_wmt_bikeparkID")
+  @@index([externalTransactionID], map: "new_wmt_externalTransactionID")
+  @@index([processed], map: "new_wmt_processed")
+}
+
+model new_transacties {
+  ID                    Int       @id @default(autoincrement())
+  ZipID                 String?   @db.VarChar(4)
+  FietsenstallingID     String    @db.VarChar(35)
+  SectieID              String?   @db.VarChar(13)
+  SectieID_uit          String?   @db.VarChar(13)
+  PlaceID               BigInt?
+  ExternalPlaceID       String?   @db.VarChar(100)
+  ExternalTransactionID String?   @db.VarChar(100)
+  PassUUID              String?   @db.VarChar(35)
+  PasID                 String    @db.VarChar(35)
+  Pastype               Int?
+  BarcodeFiets_in       String?   @db.VarChar(36)
+  BarcodeFiets_uit      String?   @db.VarChar(36)
+  Date_checkin          DateTime  @default(now()) @db.DateTime(0)
+  Date_checkout         DateTime? @db.DateTime(0)
+  Stallingsduur         Int?      @db.UnsignedInt
+  Type_checkin          String?   @db.VarChar(40)
+  Type_checkout         String?   @db.VarChar(40)
+  Stallingskosten       Decimal?  @default(0.00) @db.Decimal(8, 2)
+  Tariefstaffels        String?   @db.VarChar(255)
+  BikeTypeID            Int       @default(1) @db.SmallInt
+  ClientTypeID          Int       @default(1)
+  Reserveringsduur      Int?
+  ExploitantID          String?   @db.VarChar(35)
+  dateModified          DateTime? @db.Timestamp(0)
+  dateCreated           DateTime  @default(now()) @db.Timestamp(0)
+
+  @@unique([FietsenstallingID, ExternalTransactionID], map: "new_t_uk_fietsenstalling_external_tx")
   @@index([BarcodeFiets_in], map: "new_t_BarcodeFiets_in")
   @@index([BikeTypeID], map: "new_t_BikeTypeID")
   @@index([ClientTypeID], map: "new_t_ClientTypeID")
   @@index([Date_checkin], map: "new_t_Date_checkin")
   @@index([Date_checkout], map: "new_t_Date_checkout")
   @@index([ExploitantID], map: "new_t_ExploitantID")
+  @@index([ExternalTransactionID], map: "new_t_ExternalTransactionID")
   @@index([FietsenstallingID], map: "new_t_FietsenstallingID")
   @@index([PasID], map: "new_t_PasID")
   @@index([PassUUID], map: "new_t_PassUUID")
