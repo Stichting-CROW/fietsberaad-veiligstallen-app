@@ -1,13 +1,14 @@
 /**
  * Queue processor for new_wachtrij_* tables.
- * Mirrors ColdFusion processTransactions2.cfm.
+ * Mirrors ColdFusion processTransactions2.cfm (In/Uit, pasids, betalingen, sync, managed).
+ * Does not implement FMS tariff calculation or afboeking — see docs/nextjs-queue-processor-scope.md.
  * Processing order: pasids (50) → transacties (50) → managed (50) → betalingen (200) → sync (1).
  */
 
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
 import { getBikepassByPassId, addSaldoObject } from "./account-service";
-import { putTransaction, putTransactionByID } from "./transaction-service";
+import { closeTransactionById, putTransaction } from "./transaction-service";
 import {
   putManagedTransaction,
   type ManagedTransactionInput,
@@ -245,26 +246,21 @@ async function processTransacties(
       const typeNorm = (row.type || "").toLowerCase();
       const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
 
-      // Afboeking (transactionID ≠ 0): close by ID or skip when price=0. Skip type/section/bikepass for this path.
+      // transactionID ≠ 0: reservation/system close-by-ID only. Afboeking is not supported (no FMS tariff calc).
       if (transactionID !== 0) {
-        if (typeNorm === "afboeking" && (price == null || price === 0)) {
-          await model.update({
-            where: { ID: row.ID },
-            data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-          });
-          processed++;
-          latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
-          continue;
+        if (typeNorm === "afboeking") {
+          throw new Error(
+            "Afboeking wordt niet ondersteund door de Next.js processor (geen FMS-tariefberekening; zie docs/nextjs-queue-processor-scope.md)"
+          );
         }
-        await putTransactionByID(tx, {
+        await closeTransactionById(tx, {
           transactionID,
           transactionDate: transactionDate instanceof Date ? transactionDate : new Date(transactionDate),
           bikeparkID: row.bikeparkID,
-          stallingID: bikepark.ID,
           siteID: bikepark.SiteID,
           sectionID: row.sectionID,
           typeCheck: typeFixed,
-          berekentStallingskosten: bikepark.BerekentStallingskosten ?? false,
+          price,
           useNewTables: USE_NEW_TABLES,
         });
         await model.update({
@@ -328,7 +324,6 @@ async function processTransacties(
         price: price ?? undefined,
         zipID: bikepark.ZipID ?? undefined,
         exploitantID: bikepark.ExploitantID ?? undefined,
-        berekentStallingskosten: bikepark.BerekentStallingskosten,
         useNewTables: USE_NEW_TABLES,
       });
 

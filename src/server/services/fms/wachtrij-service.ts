@@ -123,10 +123,13 @@ export async function addTransactionToWachtrij(
     throw new Error("passID or idcode required");
   }
   const passtype = tx.idtype === 1 ? "ovchip" : tx.idtype === 2 ? "barcodebike" : "sleutelhanger";
+  // afboeking may still be enqueued (CF/legacy); Next.js processor rejects it — see docs/nextjs-queue-processor-scope.md
   const type: string =
     tx.type === "in" || tx.type === "In"
       ? "In"
-      : (tx.type === "afboeking" || tx.type === "Afboeking" ? "afboeking" : "Uit");
+      : tx.type === "afboeking" || tx.type === "Afboeking"
+        ? "afboeking"
+        : "Uit";
   const transactionJson = JSON.stringify(tx);
 
   const data = {

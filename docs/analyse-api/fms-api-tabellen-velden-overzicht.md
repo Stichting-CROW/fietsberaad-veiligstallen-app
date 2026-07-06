@@ -151,6 +151,8 @@ De volgende sectie beschrijft hoe de Transactie-core velden worden verwerkt per 
 
 **Flow:** Bij check-in met meerdere tariefstaffels wordt een afboeking voor de volgende kostenperiode in de wachtrij gezet.
 
+> **Next.js:** Niet geïmplementeerd. Geen productiestalling gebruikt FMS-tariefberekening; de Next.js processor weigert `type=afboeking` (zie [nextjs-queue-processor-scope.md](../nextjs-queue-processor-scope.md)). ColdFusion verwerkt afboeking tot CF-uitfasering (2027).
+
 | Stap | Actie | Tabel | Velden gewijzigd |
 |------|-------|-------|------------------|
 | 1 | putTransaction case "In" | wachtrij_transacties | INSERT: type="afboeking", typeCheck="system", transactionID, transactionDate = checkin + timespan eerste staffel |
