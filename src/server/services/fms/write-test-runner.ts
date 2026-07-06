@@ -18,7 +18,7 @@
  */
 
 import { prisma } from "~/server/db";
-import { processQueues } from "~/server/services/queue/processor";
+import { processQueuesForPassPrefix } from "~/server/services/queue/processor";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import {
   SYNTHETIC_PREFIX,
@@ -116,8 +116,9 @@ function buildContext(scope: WriteTestScope): WriteTestContext {
     runId,
     passPrefix,
     pass: (suffix: string) => `${passPrefix}${suffix}`,
-    // 1 hour ago so `transactionDate <= NOW()` always holds for the processor.
-    baseTime: new Date(Date.now() - 60 * 60 * 1000),
+    // 1 hour ago, floored to seconds (MySQL DateTime(0) parity).
+    baseTime: new Date(Math.floor((Date.now() - 60 * 60 * 1000) / 1000) * 1000),
+    syncQueueIds: [],
   };
 }
 
@@ -149,10 +150,9 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
   await prisma.new_wachtrij_pasids.deleteMany({ where: { passID: { startsWith: prefix } } });
   await prisma.new_wachtrij_transacties.deleteMany({ where: { passID: { startsWith: prefix } } });
   await prisma.new_wachtrij_betalingen.deleteMany({ where: { passID: { startsWith: prefix } } });
-  // Sync queue has no passID — scope by bikepark + this run's baseTime.
-  await prisma.new_wachtrij_sync.deleteMany({
-    where: { bikeparkID: ctx.bikeparkID, transactionDate: { gte: ctx.baseTime } },
-  });
+  if (ctx.syncQueueIds.length > 0) {
+    await prisma.new_wachtrij_sync.deleteMany({ where: { ID: { in: ctx.syncQueueIds } } });
+  }
 }
 
 async function runScenario(
@@ -176,11 +176,30 @@ async function runScenario(
     await assertTestgemeenteScope(ctx.bikeparkID, ctx.siteID);
 
     if (scenario.seed) await scenario.seed(ctx);
-    await scenario.act(ctx);
 
-    const runs = scenario.processRuns ?? 1;
-    for (let i = 0; i < runs; i++) {
-      await processQueues();
+    if (scenario.steps?.length) {
+      for (const step of scenario.steps) {
+        await step.run(ctx);
+        const runs = step.processRuns ?? 1;
+        for (let i = 0; i < runs; i++) {
+          await processQueuesForPassPrefix(ctx.passPrefix, {
+            bikeparkID: ctx.bikeparkID,
+            minTransactionDate: ctx.baseTime,
+          });
+        }
+      }
+    } else {
+      if (!scenario.act) {
+        throw new Error(`Scenario ${scenario.id} heeft geen act of steps`);
+      }
+      await scenario.act(ctx);
+      const runs = scenario.processRuns ?? 1;
+      for (let i = 0; i < runs; i++) {
+        await processQueuesForPassPrefix(ctx.passPrefix, {
+          bikeparkID: ctx.bikeparkID,
+          minTransactionDate: ctx.baseTime,
+        });
+      }
     }
 
     assertions = [];

@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { expandPermitString } from "~/types/fms-permit-types";
 
 export type FmsAuthResult =
   | { ok: true; urlName: string; permits: string[] }
@@ -87,7 +88,9 @@ export async function validateFmsAuth(
 
   if (permits.length === 0) return { ok: false, status: 401 };
 
-  const permitSet = new Set(permits.map((p) => p.permit));
+  const permitSet = new Set(
+    permits.flatMap((p) => expandPermitString(p.permit))
+  );
   if (bikeparkID) {
     const hasAccess = permits.some(
       (p) => p.bikeparkID === bikeparkID || p.bikeparkID === null
