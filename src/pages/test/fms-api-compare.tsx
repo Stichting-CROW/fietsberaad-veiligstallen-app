@@ -53,6 +53,41 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
     params: ["bikeparkID"],
     oldPath: "/v2/REST/getJsonSubscriptionTypes",
   },
+  {
+    id: "v2-getJsonSectors",
+    label: "V2 getJsonSectors/{bikeparkID}",
+    path: "/v2/getJsonSectors",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonSectors",
+  },
+  {
+    id: "v2-getJsonBikes",
+    label: "V2 getJsonBikes/{bikeparkID}",
+    path: "/v2/getJsonBikes",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonBikes",
+  },
+  {
+    id: "v2-getJsonBikeUpdates",
+    label: "V2 getJsonBikeUpdates/{bikeparkID}",
+    path: "/v2/getJsonBikeUpdates",
+    params: ["bikeparkID", "fromDate"],
+    oldPath: "/v2/REST/getJsonBikeUpdates",
+  },
+  {
+    id: "v2-getJsonSubscriptors",
+    label: "V2 getJsonSubscriptors/{bikeparkID}",
+    path: "/v2/getJsonSubscriptors",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonSubscriptors",
+  },
+  {
+    id: "v2-getLockerInfo",
+    label: "V2 getLockerInfo/{bikeparkID}/{sectionID}/{placeID}",
+    path: "/v2/getLockerInfo",
+    params: ["bikeparkID", "sectionid", "placeid"],
+    oldPath: "/v2/REST/getLockerInfo",
+  },
   { id: "v3-citycodes", label: "V3 citycodes", path: "/rest/v3/citycodes", params: [] },
   { id: "v3-citycode", label: "V3 citycodes/{citycode}", path: "/rest/v3/citycodes", params: ["citycode"] },
   { id: "v3-locations", label: "V3 citycodes/{citycode}/locations", path: "/rest/v3/citycodes", params: ["citycode"] },
@@ -66,6 +101,12 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-balances", label: "V3 locations/{locationid}/balances", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-subscriptions", label: "V3 locations/{locationid}/subscriptions", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-bikeupdates", label: "V3 locations/{locationid}/bikeupdates", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  {
+    id: "v3-balance",
+    label: "V3 idcodes/{idtype}/{idcode}/balance",
+    path: "/rest/v3/citycodes",
+    params: ["citycode", "locationid", "idtype", "idcode"],
+  },
 ];
 
 const GLOBAL_ENDPOINTS = ENDPOINTS.filter(
@@ -85,6 +126,7 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
   "v3-balances",
   "v3-subscriptions",
   "v3-bikeupdates",
+  "v3-balance",
 ];
 
 function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
@@ -119,6 +161,9 @@ const DEFAULT_PARAMS: Record<string, string> = {
   bikeparkID: "9933_001",
   sectionid: "9933_001_1",
   placeid: "",
+  fromDate: "2020-01-01T00:00:00.000Z",
+  idtype: "0",
+  idcode: "",
   depth: "3",
 };
 
@@ -224,6 +269,7 @@ function appendV3QueryParams(url: string, depth: string, endpointId: string): st
     "v3-balances",
     "v3-subscriptions",
     "v3-bikeupdates",
+    "v3-balance",
   ]);
   if (protectedReads.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
@@ -244,6 +290,9 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
       else if (endpoint.id === "v3-balances") url = `${oldApiBase}${path}/balances`;
       else if (endpoint.id === "v3-subscriptions") url = `${oldApiBase}${path}/subscriptions`;
       else if (endpoint.id === "v3-bikeupdates") url = `${oldApiBase}${path}/bikeupdates`;
+      else if (endpoint.id === "v3-balance" && paramValues.idtype && paramValues.idcode) {
+        url = `${oldApiBase}${path}/idcodes/${paramValues.idtype}/${paramValues.idcode}/balance`;
+      }
       else if (endpoint.id === "v3-sections") url = `${oldApiBase}${path}/sections`;
       else if (endpoint.id === "v3-location") url = `${oldApiBase}${path}`;
       else if (paramValues.sectionid) {
@@ -262,6 +311,15 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
       url += `/${paramValues.bikeparkID}`;
     }
+    if (endpoint.params.includes("sectionid") && paramValues.sectionid) {
+      url += `/${paramValues.sectionid}`;
+    }
+    if (endpoint.params.includes("placeid") && paramValues.placeid) {
+      url += `/${paramValues.placeid}`;
+    }
+    if (endpoint.id === "v2-getJsonBikeUpdates" && paramValues.fromDate) {
+      url += `${url.includes("?") ? "&" : "?"}fromDate=${encodeURIComponent(paramValues.fromDate)}`;
+    }
   }
   return appendV3QueryParams(url, paramValues.depth ?? "3", endpoint.id);
 }
@@ -274,6 +332,15 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     url = `${baseNew}${base}/v2/${method}`;
     if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
       url += `/${paramValues.bikeparkID}`;
+    }
+    if (endpoint.params.includes("sectionid") && paramValues.sectionid) {
+      url += `/${paramValues.sectionid}`;
+    }
+    if (endpoint.params.includes("placeid") && paramValues.placeid) {
+      url += `/${paramValues.placeid}`;
+    }
+    if (endpoint.id === "v2-getJsonBikeUpdates" && paramValues.fromDate) {
+      url += `${url.includes("?") ? "&" : "?"}fromDate=${encodeURIComponent(paramValues.fromDate)}`;
     }
   } else if (endpoint.id.startsWith("v3-")) {
     if (endpoint.id === "v3-citycodes") url = `${baseNew}${base}/v3/citycodes`;
@@ -290,6 +357,9 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         else if (endpoint.id === "v3-balances") url = `${p}/balances`;
         else if (endpoint.id === "v3-subscriptions") url = `${p}/subscriptions`;
         else if (endpoint.id === "v3-bikeupdates") url = `${p}/bikeupdates`;
+        else if (endpoint.id === "v3-balance" && paramValues.idtype && paramValues.idcode) {
+          url = `${p}/idcodes/${paramValues.idtype}/${paramValues.idcode}/balance`;
+        }
         else if (endpoint.id === "v3-sections") url = `${p}/sections`;
         else if ((endpoint.id === "v3-places" || endpoint.id === "v3-place" || endpoint.id === "v3-section") && paramValues.sectionid) {
           p += `/sections/${paramValues.sectionid}`;
@@ -304,7 +374,8 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         endpoint.id === "v3-subscriptiontypes" ||
         endpoint.id === "v3-balances" ||
         endpoint.id === "v3-subscriptions" ||
-        endpoint.id === "v3-bikeupdates"
+        endpoint.id === "v3-bikeupdates" ||
+        endpoint.id === "v3-balance"
       ) {
         url = "";
       } else {
@@ -1819,6 +1890,35 @@ const FmsApiComparePage: React.FC = () => {
               onChange={(e) => setParamValues((p) => ({ ...p, placeid: e.target.value }))}
               placeholder="bv. 12345"
               className="w-auto min-w-[8rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[14rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">fromDate (V2 bikeupdates)</label>
+            <input
+              type="text"
+              value={paramValues.fromDate ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, fromDate: e.target.value }))}
+              placeholder="ISO 8601"
+              className="w-auto min-w-[14rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[6rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">idtype</label>
+            <input
+              type="text"
+              value={paramValues.idtype ?? "0"}
+              onChange={(e) => setParamValues((p) => ({ ...p, idtype: e.target.value }))}
+              className="w-auto min-w-[6rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[12rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">idcode (V3 balance)</label>
+            <input
+              type="text"
+              value={paramValues.idcode ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, idcode: e.target.value }))}
+              placeholder="passID"
+              className="w-auto min-w-[12rem] p-2 border rounded"
             />
           </div>
           <div className="w-auto min-w-[4rem]">

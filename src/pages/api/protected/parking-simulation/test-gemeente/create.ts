@@ -9,13 +9,11 @@ import { generateID } from "~/utils/server/database-tools";
 import { createSecurityUsersSiteRecord } from "~/utils/server/user-sync-tools";
 import { VSContactItemType } from "~/types/contacts";
 import { VSUserRoleValuesNew } from "~/types/users";
-import { env } from "~/env.mjs";
 import {
   TESTGEMEENTE_NAME,
   CONTACT,
   COORDINATES,
   MODULES,
-  FMS_PERMIT,
   STALLINGS,
   STALLING_BASE,
   SECTIES,
@@ -76,13 +74,11 @@ export default async function handle(
 
     await prisma.$transaction(
       async (tx) => {
-        const contactPassword = env.FMS_TEST_PASS ?? undefined;
         await tx.contacts.create({
           data: {
             ID: contactId,
             ...CONTACT,
             Coordinaten: `${COORDINATES.centerLat}, ${COORDINATES.centerLon}`,
-            ...(contactPassword && { Password: contactPassword }),
           },
         });
 
@@ -126,15 +122,6 @@ export default async function handle(
           data: { ModuleID: moduleId, SiteID: contactId },
         });
       }
-
-      await tx.fmsservice_permit.create({
-        data: {
-          Permit: FMS_PERMIT.Permit,
-          OperatorID: contactId,
-          SiteID: contactId,
-          BikeparkID: FMS_PERMIT.BikeparkID,
-        },
-      });
 
       const utrechtDocumentTemplates = await tx.documenttemplates.findMany({
         where: { siteID: UTRECHT_ID },
@@ -287,6 +274,26 @@ export default async function handle(
                   kosten: kp.kosten || null,
                 },
               });
+            }
+          }
+
+          if (f.Type === "fietskluizen") {
+            for (let si = 0; si < u.sectiesTree.length; si++) {
+              const sec = u.sectiesTree[si]!;
+              const sectieId = sectieIdsByIndex[si];
+              if (sectieId == null) continue;
+              const plekCount = Math.max(1, sec.capaciteit ?? 1);
+              for (let p = 1; p <= plekCount; p++) {
+                await tx.fietsenstalling_plek.create({
+                  data: {
+                    sectie_id: BigInt(sectieId),
+                    titel: String(p),
+                    isActief: true,
+                    isGeblokkeerd: false,
+                    status: 0,
+                  },
+                });
+              }
             }
           }
 

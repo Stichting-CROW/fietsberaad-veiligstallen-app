@@ -11,6 +11,8 @@ type BikeInput = {
   RFID?: string;
   RFIDBike?: string;
   biketypeID?: number;
+  /** ISO timestamp; default is slightly in the past for immediate queue pickup. */
+  transactionDate?: string;
 };
 
 export type TransactionInput = {
@@ -50,10 +52,20 @@ type SyncInput = {
   transactionDate: string;
 };
 
+/**
+ * Timestamp for wachtrij rows. Slightly in the past so the queue processor
+ * (`transactionDate <= NOW()`) picks up rows immediately after insert, even when
+ * Node and MySQL clocks differ by a second or TIMESTAMP rounds up.
+ */
+function wachtrijTransactionDate(explicit?: string): Date {
+  if (explicit) return parseDate(explicit);
+  return new Date(Date.now() - 2000);
+}
+
 function parseDate(val: string | undefined): Date {
-  if (!val) return new Date();
+  if (!val) return wachtrijTransactionDate();
   const d = new Date(val);
-  if (isNaN(d.getTime())) return new Date();
+  if (isNaN(d.getTime())) return wachtrijTransactionDate();
   return d;
 }
 
@@ -76,7 +88,9 @@ export async function addBikeToWachtrij(
   bike: BikeInput,
   opts: WachtrijTarget = {}
 ): Promise<{ id: number }> {
-  const transactionDate = new Date();
+  const transactionDate = bike.transactionDate
+    ? parseDate(bike.transactionDate)
+    : wachtrijTransactionDate();
   const bikeJson = JSON.stringify(bike);
   const data = {
     transactionDate,

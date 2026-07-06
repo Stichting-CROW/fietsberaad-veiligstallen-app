@@ -1,17 +1,10 @@
 import React, { useState } from "react";
 import { Button } from "~/components/Button";
 import { addSubscription, subscribe } from "~/lib/parking-simulation/fms-api-write-client";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 
 export type Stalling = { id: string; locationid: string; title: string };
-
-function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
-  if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("parking-sim-apiUsername");
-  const p = localStorage.getItem("parking-sim-apiPassword");
-  const b = localStorage.getItem("parking-sim-baseUrl");
-  if (!u || !p) return null;
-  return { username: u, password: p, baseUrl: b || undefined };
-}
 
 async function fetchSimulationTime(): Promise<string> {
   const res = await fetch("/api/protected/parking-simulation/time");
@@ -25,6 +18,7 @@ type Props = {
 };
 
 const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
+  const { credentials } = useParkingSimCredentials();
   const [selectedLocationId, setSelectedLocationId] = useState(stallings[0]?.locationid ?? "");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -47,9 +41,8 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
   const [subLoading, setSubLoading] = useState(false);
 
   const handleAddSubscription = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMsg("Geen credentials. Configureer in Instellingen.");
+    if (!credentials) {
+      setMsg("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
       return;
     }
     const subscriptiontypeID = parseInt(addSubTypeID, 10);
@@ -69,7 +62,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
     setMsg(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const res = await addSubscription(creds, selectedLocationId, {
+      const res = await addSubscription(credentials, selectedLocationId, {
         subscriptiontypeID,
         passID: addSubPassID.trim(),
         amount: addSubAmount ? parseFloat(addSubAmount) : 0,
@@ -96,9 +89,8 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
   };
 
   const handleSubscribe = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMsg("Geen credentials. Configureer in Instellingen.");
+    if (!credentials) {
+      setMsg("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
       return;
     }
     const subscriptionID = parseInt(subSubscriptionID, 10);
@@ -117,7 +109,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
     setSubLoading(true);
     setMsg(null);
     try {
-      const res = await subscribe(creds, selectedLocationId, {
+      const res = await subscribe(credentials, selectedLocationId, {
         subscriptionID,
         passID: subPassID.trim(),
       });
@@ -152,7 +144,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
           <option value="">—</option>
           {stallings.map((s) => (
             <option key={s.id} value={s.locationid}>
-              {s.title}
+              {formatStallingLabel(s.title, s.locationid)}
             </option>
           ))}
         </select>
@@ -214,7 +206,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
           </div>
           <Button
             onClick={() => void handleAddSubscription()}
-            disabled={addSubLoading || !selectedLocationId || !addSubTypeID || !addSubPassID.trim() || !getStoredCredentials()}
+            disabled={addSubLoading || !selectedLocationId || !addSubTypeID || !addSubPassID.trim() || !credentials}
           >
             Abonnement toevoegen
           </Button>
@@ -247,7 +239,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
           </div>
           <Button
             onClick={() => void handleSubscribe()}
-            disabled={subLoading || !selectedLocationId || !subSubscriptionID || !subPassID.trim() || !getStoredCredentials()}
+            disabled={subLoading || !selectedLocationId || !subSubscriptionID || !subPassID.trim() || !credentials}
           >
             Pas koppelen aan abonnement
           </Button>

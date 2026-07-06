@@ -28,6 +28,39 @@ export type ProcessQueuesResult = {
 
 type ProcessTransactiesResult = { processed: number; errors: number; latestProcessedTransactionDate: Date };
 
+/** Optional filters for Tier A write tests (synthetic WTEST_ rows only). */
+export type QueueProcessScope = {
+  passIDPrefix?: string;
+  syncBikeparkID?: string;
+  syncMinTransactionDate?: Date;
+};
+
+function passIdScopeSql(scope: QueueProcessScope | undefined, column = "passID"): { sql: string; params: unknown[] } {
+  if (!scope?.passIDPrefix) return { sql: "", params: [] };
+  return { sql: ` AND ${column} LIKE ?`, params: [`${scope.passIDPrefix}%`] };
+}
+
+function runProcessQueues(scope?: QueueProcessScope): Promise<ProcessQueuesResult> {
+  const result: ProcessQueuesResult = {
+    pasids: { processed: 0, errors: 0 },
+    transacties: { processed: 0, errors: 0 },
+    betalingen: { processed: 0, errors: 0 },
+    sync: { processed: 0, errors: 0 },
+  };
+
+  return prisma.$transaction(
+    async (tx) => {
+      result.pasids = await processPasids(tx, scope);
+      const transactiesResult = await processTransacties(tx, scope);
+      result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
+      result.betalingen = await processBetalingen(tx, scope);
+      result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate, scope);
+      return result;
+    },
+    { timeout: QUEUE_PROCESSOR_TIMEOUT }
+  );
+}
+
 function parsePastypeFromBike(bike: unknown): string {
   if (!bike || typeof bike !== "object") return "sleutelhanger";
   const b = bike as Record<string, unknown>;
@@ -41,43 +74,43 @@ function parsePastypeFromBike(bike: unknown): string {
 }
 
 export async function processQueues(): Promise<ProcessQueuesResult> {
-  const result: ProcessQueuesResult = {
-    pasids: { processed: 0, errors: 0 },
-    transacties: { processed: 0, errors: 0 },
-    betalingen: { processed: 0, errors: 0 },
-    sync: { processed: 0, errors: 0 },
-  };
+  return runProcessQueues();
+}
 
-  await prisma.$transaction(
-    async (tx) => {
-      result.pasids = await processPasids(tx);
-      const transactiesResult = await processTransacties(tx);
-      result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
-      result.betalingen = await processBetalingen(tx);
-      result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate);
-    },
-    { timeout: QUEUE_PROCESSOR_TIMEOUT }
-  );
-
-  return result;
+/**
+ * Process only queue rows for a synthetic passID prefix (Tier A write tests).
+ * Avoids draining the full production/simulation backlog before test rows run.
+ */
+export async function processQueuesForPassPrefix(
+  passIDPrefix: string,
+  syncScope?: { bikeparkID: string; minTransactionDate: Date }
+): Promise<ProcessQueuesResult> {
+  return runProcessQueues({
+    passIDPrefix,
+    syncBikeparkID: syncScope?.bikeparkID,
+    syncMinTransactionDate: syncScope?.minTransactionDate,
+  });
 }
 
 async function processPasids(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  scope?: QueueProcessScope
 ): Promise<{ processed: number; errors: number }> {
   const model = tx.new_wachtrij_pasids;
+  const passScope = passIdScopeSql(scope);
 
   // Step 1: Isolate – atomically mark batch 0→9
   await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_pasids SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW()) ORDER BY transactionDate ASC LIMIT ?`,
+    `UPDATE new_wachtrij_pasids SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW())${passScope.sql} ORDER BY transactionDate ASC LIMIT ?`,
     PROCESSED.ISOLATED,
     PROCESSED.WAITING,
+    ...passScope.params,
     LIMIT_PASIDS
   );
 
   // Step 2: Select isolated batch, Step 3: Lock 9→8
   const rows = await model.findMany({
-    where: { processed: PROCESSED.ISOLATED },
+    where: { processed: PROCESSED.ISOLATED, ...(scope?.passIDPrefix ? { passID: { startsWith: scope.passIDPrefix } } : {}) },
     orderBy: { transactionDate: "asc" },
   });
   if (rows.length === 0) return { processed: 0, errors: 0 };
@@ -145,21 +178,27 @@ async function processPasids(
 }
 
 async function processTransacties(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  scope?: QueueProcessScope
 ): Promise<ProcessTransactiesResult> {
   const model = tx.new_wachtrij_transacties;
+  const passScope = passIdScopeSql(scope);
 
   // Step 1: Isolate – atomically mark batch 0→9
   await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_transacties SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW()) ORDER BY transactionDate ASC, type ASC LIMIT ?`,
+    `UPDATE new_wachtrij_transacties SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW())${passScope.sql} ORDER BY transactionDate ASC, type ASC LIMIT ?`,
     PROCESSED.ISOLATED,
     PROCESSED.WAITING,
+    ...passScope.params,
     LIMIT_TRANSACTIES
   );
 
   // Step 2: Select isolated batch, Step 3: Lock 9→8
   const rows = await model.findMany({
-    where: { processed: PROCESSED.ISOLATED },
+    where: {
+      processed: PROCESSED.ISOLATED,
+      ...(scope?.passIDPrefix ? { passID: { startsWith: scope.passIDPrefix } } : {}),
+    },
     orderBy: [{ transactionDate: "asc" }, { type: "asc" }],
   });
   if (rows.length === 0) {
@@ -305,21 +344,27 @@ async function processTransacties(
 }
 
 async function processBetalingen(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  scope?: QueueProcessScope
 ): Promise<{ processed: number; errors: number }> {
   const model = tx.new_wachtrij_betalingen;
+  const passScope = passIdScopeSql(scope);
 
   // Step 1: Isolate – atomically mark batch 0→9
   await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_betalingen SET processed = ? WHERE processed = ? AND transactionDate <= NOW() ORDER BY transactionDate ASC LIMIT ?`,
+    `UPDATE new_wachtrij_betalingen SET processed = ? WHERE processed = ? AND transactionDate <= NOW()${passScope.sql} ORDER BY transactionDate ASC LIMIT ?`,
     PROCESSED.ISOLATED,
     PROCESSED.WAITING,
+    ...passScope.params,
     LIMIT_BETALINGEN
   );
 
   // Step 2: Select isolated batch, Step 3: Lock 9→8
   const rows = await model.findMany({
-    where: { processed: PROCESSED.ISOLATED },
+    where: {
+      processed: PROCESSED.ISOLATED,
+      ...(scope?.passIDPrefix ? { passID: { startsWith: scope.passIDPrefix } } : {}),
+    },
     orderBy: { transactionDate: "asc" },
   });
   if (rows.length === 0) return { processed: 0, errors: 0 };
@@ -374,23 +419,35 @@ async function processBetalingen(
  */
 async function processSync(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  latestProcessedTransactionDate: Date
+  latestProcessedTransactionDate: Date,
+  scope?: QueueProcessScope
 ): Promise<{ processed: number; errors: number }> {
   const transactiesModel = tx.new_transacties;
   const model = tx.new_wachtrij_sync;
 
+  const syncBikeparkSql = scope?.syncBikeparkID ? " AND bikeparkID = ?" : "";
+  const syncMinDateSql = scope?.syncMinTransactionDate ? " AND transactionDate >= ?" : "";
+  const syncParams: unknown[] = [];
+  if (scope?.syncBikeparkID) syncParams.push(scope.syncBikeparkID);
+  if (scope?.syncMinTransactionDate) syncParams.push(scope.syncMinTransactionDate);
+
   // Step 1: Isolate – atomically mark one record 0→9 (only when transactionDate <= latest processed)
   await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_sync SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= ?) ORDER BY transactionDate ASC LIMIT ?`,
+    `UPDATE new_wachtrij_sync SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= ?)${syncBikeparkSql}${syncMinDateSql} ORDER BY transactionDate ASC LIMIT ?`,
     PROCESSED.ISOLATED,
     PROCESSED.WAITING,
     latestProcessedTransactionDate,
+    ...syncParams,
     LIMIT_SYNC
   );
 
   // Step 2: Select isolated record, Step 3: Lock 9→8
   const row = await model.findFirst({
-    where: { processed: PROCESSED.ISOLATED },
+    where: {
+      processed: PROCESSED.ISOLATED,
+      ...(scope?.syncBikeparkID ? { bikeparkID: scope.syncBikeparkID } : {}),
+      ...(scope?.syncMinTransactionDate ? { transactionDate: { gte: scope.syncMinTransactionDate } } : {}),
+    },
     orderBy: { transactionDate: "asc" },
   });
 

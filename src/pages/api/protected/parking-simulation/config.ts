@@ -50,6 +50,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         id: pmConfig.id,
         siteID: pmConfig.siteID,
         apiUsername: pmConfig.apiUsername,
+        apiPassword: pmConfig.apiPasswordEncrypted,
         baseUrl: pmConfig.baseUrl,
         processQueueBaseUrl: pmConfig.processQueueBaseUrl,
         useLocalProcessor: pmConfig.useLocalProcessor ?? false,

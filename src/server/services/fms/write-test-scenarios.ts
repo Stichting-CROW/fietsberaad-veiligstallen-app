@@ -53,6 +53,8 @@ export type WriteTestContext = {
   pass: (suffix: string) => string;
   /** Base timestamp (slightly in the past so `transactionDate <= NOW()` holds). */
   baseTime: Date;
+  /** new_wachtrij_sync IDs queued during this run (for precise assert/teardown). */
+  syncQueueIds: number[];
 };
 
 export type AssertionResult = {
@@ -64,17 +66,25 @@ export type AssertionResult = {
 
 export type Assertion = (ctx: WriteTestContext) => Promise<AssertionResult>;
 
+export type WriteScenarioStep = {
+  run: (ctx: WriteTestContext) => Promise<void>;
+  /** processQueues runs after this step (default 1). */
+  processRuns?: number;
+};
+
 export type WriteScenario = {
   id: string;
   label: string;
   description: string;
   /** FMS write methods exercised (for display only). */
   writeMethods: string[];
-  /** Optional deterministic seed run before `act`. */
+  /** Optional deterministic seed run before steps/act. */
   seed?: (ctx: WriteTestContext) => Promise<void>;
   /** Performs the write(s) under test (always with `useNewTables: true`). */
-  act: (ctx: WriteTestContext) => Promise<void>;
-  /** Number of processQueues() runs after acting (default 1). */
+  act?: (ctx: WriteTestContext) => Promise<void>;
+  /** Multi-phase flows: each step runs, then the queue processor (optional per step). */
+  steps?: WriteScenarioStep[];
+  /** Number of processQueues() runs after acting (default 1). Ignored when `steps` is set. */
   processRuns?: number;
   /** Golden-state assertions evaluated after processing. */
   assert: Assertion[];
@@ -117,23 +127,25 @@ function expectQueueProcessed(queue: WachtrijQueueWithPassID): Assertion {
   };
 }
 
-/** The sync input queue row inserted this run must have been processed successfully. */
+/** The sync input queue rows inserted this run must have been processed successfully. */
 function expectSyncProcessed(): Assertion {
   return async (ctx) => {
-    const total = await prisma.new_wachtrij_sync.count({
-      where: { bikeparkID: ctx.bikeparkID, transactionDate: { gte: ctx.baseTime } },
-    });
+    if (ctx.syncQueueIds.length === 0) {
+      return {
+        label: "new_wachtrij_sync: rij verwerkt",
+        ok: false,
+        expected: "≥1 sync-rij in deze run",
+        actual: "0 sync-rijen geregistreerd",
+      };
+    }
+    const total = ctx.syncQueueIds.length;
     const done = await prisma.new_wachtrij_sync.count({
-      where: {
-        bikeparkID: ctx.bikeparkID,
-        transactionDate: { gte: ctx.baseTime },
-        processed: PROCESSED_SUCCESS,
-      },
+      where: { ID: { in: ctx.syncQueueIds }, processed: PROCESSED_SUCCESS },
     });
     return {
       label: "new_wachtrij_sync: rij verwerkt",
-      ok: total > 0 && done === total,
-      expected: "alle (>0) sync-rijen processed=1",
+      ok: done === total,
+      expected: "alle sync-rijen processed=1",
       actual: `${done}/${total} verwerkt`,
     };
   };
@@ -237,6 +249,117 @@ function expectPasidBarcode(passSuffix: string, barcode: (ctx: WriteTestContext)
 /** Barcode used by the save-bike scenario (run-unique). */
 const bikeBarcode = (ctx: WriteTestContext): string => "BC-" + ctx.runId;
 
+function minutesAfter(ctx: WriteTestContext, minutes: number): Date {
+  return new Date(ctx.baseTime.getTime() + minutes * 60 * 1000);
+}
+
+async function addSyncBikes(
+  ctx: WriteTestContext,
+  when: Date,
+  passSuffixes: string[]
+): Promise<void> {
+  const { id } = await addSyncToWachtrij(
+    {
+      bikeparkID: ctx.bikeparkID,
+      sectionID: ctx.sectionID,
+      transactionDate: when.toISOString(),
+      bikes: passSuffixes.map((suffix) => ({
+        idcode: ctx.pass(suffix),
+        idtype: 0,
+        transactiondate: when.toISOString(),
+      })),
+    },
+    NEW_TARGET
+  );
+  ctx.syncQueueIds.push(id);
+}
+
+async function addEmptySync(ctx: WriteTestContext, when: Date): Promise<void> {
+  const { id } = await addSyncToWachtrij(
+    {
+      bikeparkID: ctx.bikeparkID,
+      sectionID: ctx.sectionID,
+      transactionDate: when.toISOString(),
+      bikes: [],
+    },
+    NEW_TARGET
+  );
+  ctx.syncQueueIds.push(id);
+}
+
+async function latestTransactie(passID: string) {
+  return prisma.new_transacties.findFirst({
+    where: { PasID: passID },
+    orderBy: { Date_checkin: "desc" },
+    select: {
+      Type_checkin: true,
+      Type_checkout: true,
+      Date_checkout: true,
+    },
+  });
+}
+
+async function isParkedInSection(ctx: WriteTestContext, passID: string): Promise<boolean> {
+  const pasid = await prisma.new_accounts_pasids.findFirst({
+    where: { PasID: passID },
+    select: { huidigeFietsenstallingId: true, huidigeSectieId: true },
+  });
+  return (
+    pasid?.huidigeFietsenstallingId === ctx.bikeparkID && pasid?.huidigeSectieId === ctx.sectionID
+  );
+}
+
+/** Pass is (not) marked as parked in the test section (huidigeFietsenstallingId/SectieId). */
+function expectParked(passSuffix: string, expected: boolean): Assertion {
+  return async (ctx) => {
+    const passID = ctx.pass(passSuffix);
+    const parked = await isParkedInSection(ctx, passID);
+    return {
+      label: `Geparkeerd in sectie voor ${passSuffix}`,
+      ok: parked === expected,
+      expected: expected ? "geparkeerd in sectie" : "niet geparkeerd in sectie",
+      actual: parked ? "geparkeerd in sectie" : "niet geparkeerd in sectie",
+    };
+  };
+}
+
+function expectTypeCheckin(passSuffix: string, expected: string): Assertion {
+  return async (ctx) => {
+    const tx = await latestTransactie(ctx.pass(passSuffix));
+    return {
+      label: `Type_checkin voor ${passSuffix}`,
+      ok: tx?.Type_checkin === expected,
+      expected,
+      actual: tx?.Type_checkin ?? "geen transactie",
+    };
+  };
+}
+
+function expectTypeCheckout(passSuffix: string, expected: string): Assertion {
+  return async (ctx) => {
+    const tx = await latestTransactie(ctx.pass(passSuffix));
+    return {
+      label: `Type_checkout voor ${passSuffix}`,
+      ok: tx?.Type_checkout === expected,
+      expected,
+      actual: tx?.Type_checkout ?? "geen transactie",
+    };
+  };
+}
+
+/** Count of sync queue rows registered for this run. */
+function expectSyncRowCount(expected: number): Assertion {
+  return async (ctx) => {
+    const count = ctx.syncQueueIds.length;
+    return {
+      label: "Aantal sync-wachtrijrijen deze run",
+      ok: count === expected,
+      expected: `${expected}`,
+      actual: `${count}`,
+    };
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Scenario registry (first batch)
 // ---------------------------------------------------------------------------
@@ -253,7 +376,12 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     act: async (ctx) => {
       await addBikeToWachtrij(
         ctx.bikeparkID,
-        { barcode: bikeBarcode(ctx), passID: ctx.pass("bike"), biketypeID: 1 },
+        {
+          barcode: bikeBarcode(ctx),
+          passID: ctx.pass("bike"),
+          biketypeID: 1,
+          transactionDate: ctx.baseTime.toISOString(),
+        },
         NEW_TARGET
       );
     },
@@ -326,7 +454,12 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     act: async (ctx) => {
       await addBikeToWachtrij(
         ctx.bikeparkID,
-        { barcode: "", passID: ctx.pass("saldo"), biketypeID: 1 },
+        {
+          barcode: "",
+          passID: ctx.pass("saldo"),
+          biketypeID: 1,
+          transactionDate: ctx.baseTime.toISOString(),
+        },
         NEW_TARGET
       );
       await addSaldoToWachtrij(
@@ -385,23 +518,166 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       "Stuurt een sync voor de sectie met één aanwezige fiets en controleert dat de sync-wachtrij verwerkt is.",
     writeMethods: ["v2 syncSector"],
     act: async (ctx) => {
-      await addSyncToWachtrij(
-        {
-          bikeparkID: ctx.bikeparkID,
-          sectionID: ctx.sectionID,
-          transactionDate: ctx.baseTime.toISOString(),
-          bikes: [
-            {
-              idcode: ctx.pass("sync"),
-              idtype: 0,
-              transactiondate: ctx.baseTime.toISOString(),
-            },
-          ],
-        },
-        NEW_TARGET
-      );
+      await addSyncBikes(ctx, ctx.baseTime, ["sync"]);
     },
     assert: [expectSyncProcessed()],
+  },
+  {
+    id: "sync-then-checkout",
+    label: "Sync-plaatsing zonder check-in, daarna normaal uitchecken",
+    description:
+      "Inventarisatie/sync plaatst een fiets (Type_checkin=sync) zonder voorafgaande check-in; daarna sluit een normale check-out de transactie af.",
+    writeMethods: ["v2 syncSector", "v2 uploadJsonTransaction"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await addSyncBikes(ctx, minutesAfter(ctx, 0), ["inv"]);
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await addTransactionToWachtrij(
+            ctx.bikeparkID,
+            ctx.sectionID,
+            {
+              type: "out",
+              transactionDate: minutesAfter(ctx, 5).toISOString(),
+              passID: ctx.pass("inv"),
+              idtype: 0,
+            },
+            undefined,
+            undefined,
+            undefined,
+            NEW_TARGET
+          );
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectSyncProcessed(),
+      expectQueueProcessed("transacties"),
+      expectClosedTransactie("inv"),
+      expectTransactieCount("inv", 1),
+      expectTypeCheckin("inv", "sync"),
+      expectTypeCheckout("inv", "user"),
+      expectParked("inv", false),
+    ],
+  },
+  {
+    id: "sync-rescan-present",
+    label: "Sync-plaatsing zonder check-in, opnieuw gescand bij inventarisatie",
+    description:
+      "Eerste sync plaatst de fiets; een tweede inventarisatie met dezelfde pas in de scanlijst laat één open sync-transactie staan.",
+    writeMethods: ["v2 syncSector"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await addSyncBikes(ctx, minutesAfter(ctx, 0), ["rescan"]);
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await addSyncBikes(ctx, minutesAfter(ctx, 5), ["rescan"]);
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectSyncRowCount(2),
+      expectSyncProcessed(),
+      expectOpenTransactie("rescan"),
+      expectTransactieCount("rescan", 1),
+      expectTypeCheckin("rescan", "sync"),
+      expectParked("rescan", true),
+    ],
+  },
+  {
+    id: "checkin-taken-sync-absent",
+    label: "Normale check-in, fiets weg zonder check-out, niet in inventarisatie",
+    description:
+      "Na een normale check-in verdwijnt de fiets zonder check-out; een lege inventarisatie sluit de transactie via sync-checkout af.",
+    writeMethods: ["v2 uploadJsonTransaction", "v2 syncSector"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await addTransactionToWachtrij(
+            ctx.bikeparkID,
+            ctx.sectionID,
+            {
+              type: "in",
+              transactionDate: minutesAfter(ctx, 0).toISOString(),
+              passID: ctx.pass("gone"),
+              idtype: 0,
+            },
+            undefined,
+            undefined,
+            undefined,
+            NEW_TARGET
+          );
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await addEmptySync(ctx, minutesAfter(ctx, 5));
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectQueueProcessed("transacties"),
+      expectSyncProcessed(),
+      expectClosedTransactie("gone"),
+      expectTransactieCount("gone", 1),
+      expectTypeCheckin("gone", "user"),
+      expectTypeCheckout("gone", "sync"),
+      expectParked("gone", false),
+    ],
+  },
+  {
+    id: "sync-inventory-ok",
+    label: "Inventarisatie klopt (check-in + scan aanwezig)",
+    description:
+      "Na normale check-in bevestigt een inventarisatie met de pas in de scanlijst dat alles klopt: open transactie blijft, fiets blijft geparkeerd.",
+    writeMethods: ["v2 uploadJsonTransaction", "v2 syncSector"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await addTransactionToWachtrij(
+            ctx.bikeparkID,
+            ctx.sectionID,
+            {
+              type: "in",
+              transactionDate: minutesAfter(ctx, 0).toISOString(),
+              passID: ctx.pass("ok"),
+              idtype: 0,
+            },
+            undefined,
+            undefined,
+            undefined,
+            NEW_TARGET
+          );
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await addSyncBikes(ctx, minutesAfter(ctx, 5), ["ok"]);
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectQueueProcessed("transacties"),
+      expectSyncProcessed(),
+      expectOpenTransactie("ok"),
+      expectTransactieCount("ok", 1),
+      expectTypeCheckin("ok", "user"),
+      expectParked("ok", true),
+    ],
   },
 ];
 

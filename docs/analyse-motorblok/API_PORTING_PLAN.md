@@ -18,6 +18,26 @@
 
 ---
 
+## Client migration (URL mapping)
+
+Clients moving from ColdFusion `remote.veiligstallen.nl` to the Next.js app:
+
+| ColdFusion | Next.js |
+|------------|---------|
+| `/v2/REST/{method}/{bikeparkID}/…` | `/api/fms/v2/{method}/{bikeparkID}/…` |
+| `/rest/v3/citycodes/…` | `/api/fms/v3/citycodes/…` |
+| `/rest/v3/servertime` | `/api/fms/v3/servertime` |
+| `/rest/v3/biketypes` | `/api/fms/v3/biketypes` |
+| `/rest/v3/paymenttypes` | `/api/fms/v3/paymenttypes` |
+
+- **Auth:** unchanged — HTTP Basic Auth with operator/dataprovider credentials per stalling.
+- **Writes:** require `ENABLE_WRITE_API=true` on the server **and** operator (or dataprovider) permit on the target stalling.
+- **Shadow ingestion:** append `?target=new` on V2 wachtrij writes to enqueue into `new_wachtrij_*` instead of production queues (testgemeente only, via triggers).
+- **OpenAPI / Swagger:** `/api/docs` lists all routes.
+- **Parity testing:** `/test/fms-api-compare` (reads), `/test/fms-write-tests` (Tier A + B writes).
+
+---
+
 ## Implementation Status
 
 | Area | Status | Notes |
@@ -30,8 +50,8 @@
 | **FMS v2 read endpoints** | ✅ Done | Public: getServerTime, getJsonBikeTypes, getJsonPaymentTypes, getJsonClientTypes. Protected: getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getJsonSubscriptionTypes, getLockerInfo, isAllowedToUse |
 | **FMS v2 write endpoints** | ✅ Done | saveJsonBike(s), uploadJsonTransaction(s), addJsonSaldo(s), syncSector, reportOccupationData, addSubscription, subscribe, updateLocker, setUrlWebserviceForLocker (ENABLE_WRITE_API + superadmin for locker URL) |
 | **Wachtrij service** | ✅ Done | `src/server/services/fms/wachtrij-service.ts` – inserts into queue tables |
-| **Swagger/OpenAPI** | ✅ Done | Spec + UI at `/api/docs` (public); write ops documented |
-| **GET comparison page** | ✅ Done | `/test/fms-api-compare` |
+| **Swagger/OpenAPI** | ✅ Done | Spec + UI at `/api/docs`; all V2/V3 routes documented incl. V3 aux (servertime, biketypes, paymenttypes) |
+| **GET comparison page** | ✅ Done | `/test/fms-api-compare` — globals, V3 reads, V2 protected reads, v3-balance |
 | **Queue processor** | ✅ Done | Process `new_wachtrij_*` → `new_transacties`, `new_accounts`, etc.; latestProcessedTransactionDate for sync |
 | **fms-table-resolver.ts** | ✅ Done | Resolve table names for processor |
 | **new_webservice_log** | ⏳ Optional | Log FMS API calls; may need to create `new_webservice_log` table (mirror from webservice_log). Parking-simulation stallings list uses webservice_log; add new_webservice_log to union when it exists. Next.js logs updateLocker to webservice_log; ColdFusion method name (if different) should be verified in BaseFMSService.cfc. |
@@ -40,11 +60,13 @@
 | **Archive process** | ⏳ Phase 2 | Daily archive of processed queue records |
 | **V3 open data (GET)** | ✅ Done | citycodes, locations, location/{id}, sections, section/{id}, places, subscriptiontypes. Response structure synced with ColdFusion (see §4.4). Biketypes ordered by SectionBiketypeID; ColdFusion has no orderby (see §14.1, A.11). |
 | **V3 protected reads (GET)** | ✅ Done | balances, subscriptions, bikeupdates, idcodes/{idtype}/{idcode}/balance — `fms-v3-protected-reads.ts`; compare: v3-balances, v3-subscriptions, v3-bikeupdates |
-| **V3 writes (POST/PUT)** | ✅ Done | transactions, completedtransactions, subscriptions, updatePlace, logs/actions, occupation/sync, koppelpas — `fms-v3-write-service.ts`; ENABLE_WRITE_API + superadmin session; OpenAPI V3 Write tag; not in compare tool |
+| **V3 writes (POST/PUT)** | ✅ Done | transactions, completedtransactions, subscriptions, updatePlace, logs/actions, occupation/sync, koppelpas — `fms-v3-write-service.ts`; ENABLE_WRITE_API + superadmin session |
+| **V3 aux routes** | ✅ Done | `/api/fms/v3/servertime`, `/api/fms/v3/biketypes`, `/api/fms/v3/paymenttypes` |
 | **V3 `fields` query param** | ✅ Done | `fms-v3-fields.ts` — ColdFusion `ListFindNoCase` rules, occupation bundles, `location.subscriptiontypes` explicit-only; cache key includes `fields` |
-| **FMS compare — optional V2 reads** | ⏳ Optional | getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo implemented in API but not yet in compare UI |
-| **Testing** | ❌ Pending | Unit tests, integration tests |
-| **API migration guide** | ❌ Pending | Documentation for clients |
+| **FMS compare — V2 protected reads** | ✅ Done | getJsonSectors, getJsonBikes, getJsonBikeUpdates, getJsonSubscriptors, getLockerInfo + v3-balance in compare UI and full-dataset (testgemeente) |
+| **Testing — Tier A** | ✅ Done | 6 queue-processor golden tests via `/test/fms-write-tests` (Tier A tab) |
+| **Testing — Tier B** | ✅ Done | HTTP ingress write tests for all V2/V3 write routes incl. fietskluizen (9933_003) via `/test/fms-write-tests` (Tier B tab) |
+| **API migration guide** | ✅ Done | See § Client migration (URL mapping) below |
 
 ---
 
