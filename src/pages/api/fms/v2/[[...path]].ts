@@ -21,7 +21,7 @@ import { reportOccupationData } from "~/server/services/fms/report-occupation-se
 import { addSubscription, subscribe } from "~/server/services/fms/subscription-service";
 import { logFmsCall } from "~/server/services/fms/webservice-log";
 import * as wachtrijService from "~/server/services/fms/wachtrij-service";
-import { assertFmsWriteAllowedForSession } from "~/server/services/fms/fms-write-policy";
+import { assertFmsWriteApiEnabled } from "~/server/services/fms/fms-write-policy";
 
 function set401(res: NextApiResponse, hadAuthHeader: boolean) {
   if (!hadAuthHeader) {
@@ -49,6 +49,7 @@ export default async function handle(
 
   const publicMethods = [
     "getJsonBikeTypes",
+    "getJsonBikeType",
     "getJsonPaymentTypes",
     "getJsonClientTypes",
     "getServerTime",
@@ -101,9 +102,16 @@ export default async function handle(
   }
 
   if (writeMethods.includes(method)) {
-    const writeOk = await assertFmsWriteAllowedForSession(req, res);
-    if (!writeOk) return;
+    if (!assertFmsWriteApiEnabled(res)) return;
   }
+
+  // Opt-in parallel ingestion: when ?target=new (or ?useNewTables=true) is passed on a
+  // write call, enqueue directly into the shadow input queues (new_wachtrij_*) instead of
+  // the production wachtrij_* tables. Default stays production (live shadow via triggers).
+  // Only reachable after the write gate (ENABLE_WRITE_API + Basic-auth operator permit).
+  const wachtrijTarget: wachtrijService.WachtrijTarget = {
+    useNewTables: req.query.target === "new" || req.query.useNewTables === "true",
+  };
 
   try {
     switch (method) {
@@ -116,6 +124,21 @@ export default async function handle(
         const types = await fmsService.getBikeTypes();
         const legacy = types.map((t) => ({ BIKETYPEID: t.bikeTypeID, NAME: t.name }));
         res.status(200).json(legacy);
+        break;
+      }
+      case "getJsonBikeType": {
+        const rawId = path[1] ?? (req.query.bikeTypeID as string) ?? (req.query.biketypeid as string);
+        const bikeTypeID = parseInt(String(rawId ?? ""), 10);
+        if (Number.isNaN(bikeTypeID)) {
+          res.status(400).json({ message: "bikeTypeID required", status: 0 });
+          return;
+        }
+        const type = await fmsService.getBikeType(bikeTypeID);
+        if (!type) {
+          res.status(404).json({ message: `BikeType ${bikeTypeID} not found`, status: 0 });
+          return;
+        }
+        res.status(200).json({ BIKETYPEID: type.bikeTypeID, NAME: type.name });
         break;
       }
       case "getJsonPaymentTypes": {
@@ -304,7 +327,7 @@ export default async function handle(
           res.status(400).json({ message: "barcode and passID required", status: 0 });
           return;
         }
-        const result = await wachtrijService.addBikeToWachtrij(bikeparkID!, bike);
+        const result = await wachtrijService.addBikeToWachtrij(bikeparkID!, bike, wachtrijTarget);
         res.status(200).json({ message: "Ok", status: 1, id: result.id });
         break;
       }
@@ -325,7 +348,7 @@ export default async function handle(
             biketypeID: b.biketypeID,
           };
           if (bike.barcode && bike.passID) {
-            const r = await wachtrijService.addBikeToWachtrij(bikeparkID!, bike);
+            const r = await wachtrijService.addBikeToWachtrij(bikeparkID!, bike, wachtrijTarget);
             ids.push(r.id);
           }
         }
@@ -343,7 +366,9 @@ export default async function handle(
           sectionID!,
           body,
           body.placeID,
-          body.externalPlaceID
+          body.externalPlaceID,
+          undefined,
+          wachtrijTarget
         );
         res.status(200).json({ message: "Ok", status: 1, id: result.id });
         break;
@@ -362,7 +387,9 @@ export default async function handle(
             sectionID!,
             tx,
             tx.placeID,
-            tx.externalPlaceID
+            tx.externalPlaceID,
+            undefined,
+            wachtrijTarget
           );
           ids.push(r.id);
         }
@@ -375,7 +402,7 @@ export default async function handle(
           return;
         }
         const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-        const result = await wachtrijService.addSaldoToWachtrij(bikeparkID!, body);
+        const result = await wachtrijService.addSaldoToWachtrij(bikeparkID!, body, wachtrijTarget);
         res.status(200).json({ message: "Ok", status: 1, id: result.id });
         break;
       }
@@ -388,7 +415,7 @@ export default async function handle(
         const saldos = Array.isArray(body) ? body : body.saldos ?? [];
         const ids: number[] = [];
         for (const s of saldos) {
-          const r = await wachtrijService.addSaldoToWachtrij(bikeparkID!, s);
+          const r = await wachtrijService.addSaldoToWachtrij(bikeparkID!, s, wachtrijTarget);
           ids.push(r.id);
         }
         res.status(200).json({ message: "Ok", status: 1, ids });
@@ -406,7 +433,7 @@ export default async function handle(
           sectionID: sectionID!,
           transactionDate: body.transactionDate ?? new Date().toISOString(),
         };
-        const result = await wachtrijService.addSyncToWachtrij(sync);
+        const result = await wachtrijService.addSyncToWachtrij(sync, wachtrijTarget);
         res.status(200).json({ message: "Ok", status: 1, id: result.id });
         break;
       }

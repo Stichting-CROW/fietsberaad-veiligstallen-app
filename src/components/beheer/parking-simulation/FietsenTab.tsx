@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
 import { uploadTransaction } from "~/lib/parking-simulation/fms-api-write-client";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 import { ActiesPanel, type Stalling } from "./ActiesPanel";
 
 const FIETSEN_TAB_STORAGE_KEY = "parking-mgmt-fietsen-tab";
@@ -16,16 +18,8 @@ type OccupationEntry = {
   bicycle?: Bicycle;
 };
 
-function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
-  if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("parking-sim-apiUsername");
-  const p = localStorage.getItem("parking-sim-apiPassword");
-  const b = localStorage.getItem("parking-sim-baseUrl");
-  if (!u || !p) return null;
-  return { username: u, password: p, baseUrl: b || undefined };
-}
-
 const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
+  const { credentials } = useParkingSimCredentials();
   const { data: bikeTypes } = useBikeTypes();
   const [state, setState] = useState<{ bicycles: Bicycle[]; occupation: OccupationEntry[] } | null>(null);
   const [statusFilter, setStatusFilter] = useState<"occupied" | "free" | "all">("occupied");
@@ -87,9 +81,8 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
   };
 
   const handleCheckOut = async (bicycleId: string) => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMessage("Geen credentials. Configureer in Instellingen of voeg Simulatie Dataprovider toe.");
+    if (!credentials) {
+      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
       return;
     }
     const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bicycleId);
@@ -112,7 +105,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
         barcodeBike: bike.barcode,
         bikeid: bike.barcode,
       };
-      const res = await uploadTransaction(creds, occ.locationid, occ.sectionid, tx);
+      const res = await uploadTransaction(credentials, occ.locationid, occ.sectionid, tx);
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -143,8 +136,10 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
   const getBikeTypeName = (id: number) =>
     bikeTypes.find((t) => t.ID === id)?.Name ?? bikeTypes.find((t) => t.ID === id)?.naamenkelvoud ?? `Type ${id}`;
 
-  const getStallingTitle = (locationid: string) =>
-    stallings.find((s) => s.locationid === locationid)?.title ?? locationid;
+  const getStallingTitle = (locationid: string) => {
+    const s = stallings.find((st) => st.locationid === locationid);
+    return s ? formatStallingLabel(s.title, s.locationid) : locationid;
+  };
 
   const tableRows = (state?.bicycles ?? []).map((bike) => {
     const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bike.id);
@@ -219,7 +214,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
               <option value="all">Alle</option>
               {stallings.map((s) => (
                 <option key={s.id} value={s.locationid}>
-                  {s.title}
+                  {formatStallingLabel(s.title, s.locationid)}
                 </option>
               ))}
             </select>
@@ -261,7 +256,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
                         </Button>
                         <Button
                           onClick={() => void handleCheckOut(bike.id)}
-                          disabled={checkOutLoading === bike.id || !getStoredCredentials()}
+                          disabled={checkOutLoading === bike.id || !credentials}
                           className="mb-0 whitespace-nowrap"
                         >
                           Check-out

@@ -25,6 +25,7 @@ import { FormGroup, FormLabel, FormControlLabel, Checkbox } from '@mui/material'
 import { AVAILABLE_MODULES } from '~/types/modules';
 import { userHasRight } from '~/types/utils';
 import { VSSecurityTopic } from '~/types/securityprofile';
+import GemeenteFmsPermits from "~/components/contact/GemeenteFmsPermits";
 
 type GemeenteEditProps = {
     id: string;
@@ -50,6 +51,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     // Check if user has fietsberaad admin rights (can edit Gemeentecode)
     const hasFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
     const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    const showFmsRechtenTab = props.id !== "new" && (hasFietsberaadAdmin || hasFietsberaadSuperadmin);
     const canEditGemeentecode = hasFietsberaadAdmin || hasFietsberaadSuperadmin;
 
     type CurrentState = {
@@ -618,6 +620,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               <Tab label="Algemeen" value="tab-algemeen" />
               <Tab label="Thema" value="tab-thema" />
               <Tab label="Kaart" value="tab-kaart" />
+              {showFmsRechtenTab && <Tab label="FMS rechten" value="tab-fms-rechten" />}
             </Tabs>
             {selectedTab === "tab-algemeen" && (
               <div className="mt-4 w-full">
@@ -812,6 +815,12 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                   </div>
                 </div>
               </div>
+            )}
+            {selectedTab === "tab-fms-rechten" && showFmsRechtenTab && (
+              <GemeenteFmsPermits
+                gemeenteId={props.id}
+                gemeenteName={CompanyName ?? activecontact?.CompanyName}
+              />
             )}
             {selectedTab === "tab-thema" && (
               <div className="border px-4 py-2 space-y-4">

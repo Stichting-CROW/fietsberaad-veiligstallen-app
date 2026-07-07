@@ -3,7 +3,7 @@
  * Used by simulation; credentials from session/settings.
  * Always pass transactionDate from simulation clock.
  *
- * `credentials: "include"` sends the Next-Auth cookie so writes can pass fietsberaad_superadmin checks (when ENABLE_WRITE_API is set).
+ * Writes are authorized purely by Basic Auth (operator/dataprovider permit) plus the ENABLE_WRITE_API kill switch; there is no Next-Auth session requirement. `credentials: "include"` is kept only so any session cookie is forwarded harmlessly.
  */
 
 export interface FmsCredentials {

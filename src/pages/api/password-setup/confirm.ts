@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "~/server/db";
 import { verifyPasswordSetupToken } from "~/utils/server/password-setup-token";
+import { encryptPasswordForApi } from "~/utils/server/password-tools";
 
 type ConfirmResponse =
   | { ok: true }
@@ -48,7 +49,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const hashedpassword = await bcrypt.hash(parsed.data.password, saltRounds);
   await prisma.security_users.update({
     where: { UserID: user.UserID },
-    data: { EncryptedPassword: hashedpassword, EncryptedPassword2: hashedpassword },
+    data: {
+      EncryptedPassword: hashedpassword,
+      // ColdFusion remote API Basic Auth checks the SHA-256 hash, not bcrypt.
+      EncryptedPassword2: encryptPasswordForApi(parsed.data.password),
+    },
   });
 
   res.status(200).json({ ok: true });

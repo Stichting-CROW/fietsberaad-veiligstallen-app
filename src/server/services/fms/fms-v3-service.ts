@@ -1584,6 +1584,80 @@ export async function getPlaces(
   });
 }
 
+/**
+ * Single place. ColdFusion BaseRestService.getPlace (REST /…/places/{placeid}).
+ * Validates the place belongs to the given section and location; returns null when not found.
+ * Public shape: { id, name, datelaststatusupdate?, statuscode } (protected fields omitted, matching getPlaces).
+ */
+export async function getPlace(
+  locationid: string,
+  sectionid: string,
+  placeid: string | number
+): Promise<PlaceSummary | null> {
+  const placeIdNum = typeof placeid === "number" ? placeid : parseInt(placeid, 10);
+  if (Number.isNaN(placeIdNum)) return null;
+
+  const sectie = await prisma.fietsenstalling_sectie.findFirst({
+    where: {
+      externalId: sectionid,
+      fietsenstalling: {
+        StallingsID: locationid,
+        Status: "1",
+      },
+    },
+    select: { sectieId: true },
+  });
+  if (!sectie) return null;
+
+  const p = await prisma.fietsenstalling_plek.findFirst({
+    where: { id: BigInt(placeIdNum), sectie_id: BigInt(sectie.sectieId) },
+    select: { id: true, titel: true, status: true, dateLastStatusUpdate: true },
+  });
+  if (!p) return null;
+
+  const status = p.status ?? 0;
+  const statuscode = typeof status === "number" ? status % 10 : 0;
+  const datelaststatusupdate =
+    p.dateLastStatusUpdate != null
+      ? p.dateLastStatusUpdate instanceof Date
+        ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
+        : String(p.dateLastStatusUpdate).slice(0, 19)
+      : undefined;
+  // ColdFusion key order: id, name, datelaststatusupdate (when set), statuscode
+  return {
+    id: Number(p.id),
+    name: p.titel ?? undefined,
+    ...(datelaststatusupdate != null && { datelaststatusupdate }),
+    statuscode,
+  };
+}
+
+/**
+ * GET …/{citycode}/locationscsv
+ * ColdFusion getLocationsCSV: depth=1 locations, one line per location with the simple
+ * (non-object/array) field values joined by ";" (trailing ";"). Object/array fields are skipped.
+ */
+export async function getLocationsCsv(
+  citycode: string,
+  fields?: FieldsParam
+): Promise<string[]> {
+  const locations = await getLocationsFull(citycode, { depth: 1, fields, forV3Citycodes: false });
+  return locations.map((loc) => {
+    let line = "";
+    for (const value of Object.values(loc as Record<string, unknown>)) {
+      if (
+        value != null &&
+        (typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean")
+      ) {
+        line += `${String(value)};`;
+      }
+    }
+    return line;
+  });
+}
+
 /** Places for secties without externalId (lookup by sectieId). */
 async function getPlacesBySectieId(
   locationid: string,

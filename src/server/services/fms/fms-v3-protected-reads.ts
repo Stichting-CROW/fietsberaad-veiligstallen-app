@@ -5,7 +5,14 @@
 
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
-import { formatCfDateTime, passtype2integer, passtype2string } from "./fms-idtypes";
+import {
+  formatCfDateTime,
+  isValidIdCode,
+  passtype2integer,
+  passtype2string,
+} from "./fms-idtypes";
+import { isAllowedToUse } from "./fms-locker-service";
+import { getPlace } from "./fms-v3-service";
 
 export type V3BalanceEntry = {
   idcode: string;
@@ -129,6 +136,51 @@ export async function getBalance(
 
   const balance = rows.length > 0 ? Number(rows[0]!.saldo ?? 0) : 0;
   return { idcode, idtype, balance };
+}
+
+export type V3IsAllowedToUseResult = {
+  allowed: boolean;
+  messagecode: string;
+  idcode: string;
+  idtype: number;
+  saldo?: number;
+};
+
+/**
+ * GET …/locations/{locationid}/sections/{sectionid}/places/{placeid}/idcodes/{idtype}/{idcode}
+ * ColdFusion: REST v3 fms_service.isAllowedToUse → place.isAllowedToUse, struct lowercased,
+ * with idcode/idtype echoed back. idtype 3 (tijdelijk) prefixes the idcode with "#" for the lookup.
+ */
+export async function isAllowedToUseV3(
+  citycode: string,
+  locationid: string,
+  sectionid: string,
+  placeid: string,
+  idtype: number,
+  idcode: string
+): Promise<V3IsAllowedToUseResult> {
+  if (!isValidIdCode(idcode, idtype)) {
+    return { allowed: false, messagecode: "INVALID_ID", idcode, idtype };
+  }
+
+  // Validate place belongs to the given section/location/city.
+  await assertLocationInCity(locationid, citycode);
+  const place = await getPlace(locationid, sectionid, placeid);
+  if (!place) {
+    return { allowed: false, messagecode: "INVALID_ID", idcode, idtype };
+  }
+
+  const lookupCode = idtype === 3 ? `#${idcode}` : idcode;
+  const result = await isAllowedToUse(locationid, sectionid, placeid, lookupCode);
+
+  const out: V3IsAllowedToUseResult = {
+    allowed: result.allowed,
+    messagecode: result.messageCode,
+    idcode,
+    idtype,
+  };
+  if (result.saldo != null) out.saldo = result.saldo;
+  return out;
 }
 
 /**

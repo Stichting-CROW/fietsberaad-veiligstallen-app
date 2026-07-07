@@ -3,17 +3,11 @@ import { FiRotateCcw } from "react-icons/fi";
 import { Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { Button } from "~/components/Button";
 import { ActiesPanel } from "./ActiesPanel";
+import { InventarisatiePanel } from "./InventarisatiePanel";
 import { StallingSlotOverview } from "./StallingSlotOverview";
 import { syncSector } from "~/lib/parking-simulation/fms-api-write-client";
-
-function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
-  if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("parking-sim-apiUsername");
-  const p = localStorage.getItem("parking-sim-apiPassword");
-  const b = localStorage.getItem("parking-sim-baseUrl");
-  if (!u || !p) return null;
-  return { username: u, password: p, baseUrl: b || undefined };
-}
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 
 type WachtrijTransactie = {
   ID: number;
@@ -107,11 +101,12 @@ type BezettingsdataTmpRow = { ID: number; timestampStartInterval: string | null;
 type BezettingsdataRow = { ID: number; timestampStartInterval: string | null; timestamp: string | null; interval: number; source: string | null; bikeparkID: string | null; sectionID: string | null; brutoCapacity: number | null; capacity: number | null; bulkreserveration: number; occupation: number | null; checkins: number | null; checkouts: number | null; open: boolean | null; fillup: boolean; rawData: string | null; dateModified: string; dateCreated: string | null };
 
 const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingskosten = false }) => {
+  const { credentials } = useParkingSimCredentials();
   const [layout, setLayout] = useState<Layout | null>(null);
   const [state, setState] = useState<{ bicycles: Bicycle[]; occupation?: OccupationEntry[]; session?: { simulationTimeOffsetSeconds?: number } } | null>(null);
   const [apiMessage, setApiMessage] = useState<string | null>(null);
   const tableTabValues = ["wachtrij_transacties", "transacties", "wachtrij_pasids", "wachtrij_betalingen", "wachtrij_sync", "bezettingsdata_tmp", "bezettingsdata"] as const;
-  type PanelTabValue = "stalling" | (typeof tableTabValues)[number];
+  type PanelTabValue = "stalling" | "inventarisatie" | (typeof tableTabValues)[number];
   const [panelTab, setPanelTab] = useState<PanelTabValue>("stalling");
   const [wachtrijTransacties, setWachtrijTransacties] = useState<WachtrijTransactie[]>([]);
   const [transacties, setTransacties] = useState<Transactie[]>([]);
@@ -131,6 +126,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const [syncList, setSyncList] = useState<SyncListSection[]>([]);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncLog, setSyncLog] = useState<string[]>([]);
+  const [inventarisatieRefreshKey, setInventarisatieRefreshKey] = useState(0);
   const loadAbortRef = useRef<AbortController | null>(null);
 
   const loadLayout = async () => {
@@ -312,9 +308,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   };
 
   const handleSyncExecute = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setSyncLog(["Fout: Geen credentials. Configureer in Instellingen."]);
+    if (!credentials) {
+      setSyncLog(["Fout: Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen."]);
       return;
     }
     setSyncListModalOpen(false);
@@ -335,7 +330,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           transactiondate: transactionDate,
         }));
         log.push(`syncSector ${locationid}/${sec.sectionid}: ${bikes.length} fietsen`);
-        const res = await syncSector(creds, locationid, sec.sectionid, { bikes, transactionDate });
+        const res = await syncSector(credentials, locationid, sec.sectionid, { bikes, transactionDate });
         if (res.status === 1) {
           log.push(`  OK (id: ${res.id})`);
         } else {
@@ -402,11 +397,15 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       loadState();
     };
     window.addEventListener("simulation-clock-updated", handler);
-    return () => window.removeEventListener("simulation-clock-updated", handler);
+    window.addEventListener("parking-slot-updated", handler);
+    return () => {
+      window.removeEventListener("simulation-clock-updated", handler);
+      window.removeEventListener("parking-slot-updated", handler);
+    };
   }, []);
 
   useEffect(() => {
-    if (panelTab === "stalling") {
+    if (panelTab === "stalling" || panelTab === "inventarisatie") {
       loadState();
       loadLayout();
       return;
@@ -424,7 +423,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   return (
     <div className="bg-white border rounded-lg p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold">{title} ({locationid})</h3>
+        <h3 className="text-lg font-semibold">{formatStallingLabel(title, locationid)}</h3>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -434,7 +433,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         <Button onClick={handleUpdateBezettingsdata} disabled={updateBezettingsdataLoading} style={{ backgroundColor: "#16a34a" }}>
           {updateBezettingsdataLoading ? "Bezig…" : "Update bezettingsdata"}
         </Button>
-        <Button onClick={handleSyncClick} disabled={!getStoredCredentials()} style={{ backgroundColor: "#16a34a" }}>
+        <Button onClick={handleSyncClick} disabled={!credentials} style={{ backgroundColor: "#16a34a" }}>
           Sync
         </Button>
         <Button onClick={handleRefreshAll} disabled={motorblokLoading} style={{ backgroundColor: "#16a34a" }}>
@@ -445,6 +444,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       <div className="flex items-center gap-2 mb-4">
         <Tabs value={panelTab} onChange={(_, v) => setPanelTab(v as PanelTabValue)}>
           <Tab label="Stalling" value="stalling" />
+          <Tab label="Inventarisatie" value="inventarisatie" />
           <Tab label={useLocalProcessor ? "Wachtrij transacties (new)" : "Wachtrij transacties"} value="wachtrij_transacties" />
           <Tab label={useLocalProcessor ? "Wachtrij pasids (new)" : "Wachtrij pasids"} value="wachtrij_pasids" />
           <Tab label={useLocalProcessor ? "Wachtrij betalingen (new)" : "Wachtrij betalingen"} value="wachtrij_betalingen" />
@@ -466,7 +466,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
               : "Onbekend"}
         </p>
         <p className="text-xs text-gray-500">
-          FMS API: {getStoredCredentials() ? "credentials geconfigureerd" : "geen credentials — configureer in Instellingen"}
+          FMS API: {credentials ? "credentials geconfigureerd" : "geen credentials — FMS_TEST_* env, FMS rechten, of Instellingen"}
         </p>
       </div>
 
@@ -527,6 +527,42 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           {apiMessage}
         </p>
       )}
+        </>
+      )}
+
+      {panelTab === "inventarisatie" && (
+        <>
+          <div className="mb-4">
+            <ActiesPanel
+              locationid={locationid}
+              stallings={[{ id: locationid, locationid, title }]}
+              onMessage={setApiMessage}
+              onSuccess={() => {
+                loadState();
+                loadLayout();
+                setInventarisatieRefreshKey((k) => k + 1);
+                window.dispatchEvent(new CustomEvent("parking-slot-updated"));
+              }}
+            />
+          </div>
+          <InventarisatiePanel
+            locationid={locationid}
+            sectionIds={normalizedSections.map((s) => s.sectionid)}
+            refreshKey={inventarisatieRefreshKey}
+            onMessage={setApiMessage}
+            onSuccess={() => {
+              loadState();
+              loadLayout();
+              loadMotorblok();
+              setInventarisatieRefreshKey((k) => k + 1);
+              window.dispatchEvent(new CustomEvent("parking-slot-updated"));
+            }}
+          />
+          {apiMessage && (
+            <p className={`mt-2 text-sm ${apiMessage.startsWith("Fout") ? "text-red-600" : "text-green-600"}`}>
+              {apiMessage}
+            </p>
+          )}
         </>
       )}
 

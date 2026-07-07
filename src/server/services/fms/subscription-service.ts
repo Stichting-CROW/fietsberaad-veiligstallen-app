@@ -9,6 +9,7 @@ import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
 import { getBikepassByPassId } from "../queue/account-service";
 import { passtype2string } from "./fms-idtypes";
+import { accounts_account_type } from "~/generated/prisma-client";
 
 function shortUUID(): string {
   return randomUUID().replace(/-/g, "");
@@ -78,6 +79,16 @@ export async function addSubscription(
     );
     accountID = bikepass.AccountID ?? undefined;
     bikepassID = bikepass.ID;
+  } else if (!accountID) {
+    // Subscription purchased before pass is linked (subscribe flow).
+    accountID = shortUUID();
+    await prisma.accounts.create({
+      data: {
+        ID: accountID,
+        saldo: 0,
+        account_type: accounts_account_type.SYSTEM,
+      },
+    });
   }
 
   if (!accountID) {
@@ -163,13 +174,14 @@ export async function subscribe(
     return { status: 0, message: "Subscription not found" };
   }
 
-  const bikepass = await prisma.accounts_pasids.findFirst({
-    where: {
-      PasID: passID,
-      SiteID: bikepark.SiteID,
-    },
-  });
-  if (!bikepass) {
+  const bikepass = await getBikepassByPassId(
+    prisma,
+    passID,
+    bikepark.SiteID,
+    "sleutelhanger",
+    false
+  );
+  if (!bikepass?.ID) {
     return { status: 0, message: "Pass not found for this site" };
   }
 

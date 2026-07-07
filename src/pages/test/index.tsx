@@ -148,14 +148,36 @@ const TestIndexPage: React.FC = () => {
                 FMS API vergelijking
               </Button>
               <Button
-                onClick={() => handleNavigate('/test/fms-api-docs')}
+                onClick={() => handleNavigate('/test/reporting-compare')}
                 className="py-6 px-8 text-center w-full"
                 style={{ backgroundColor: '#3B82F6' }}
               >
-                FMS API documentatie (Swagger)
+                Rapportage vergelijking
+              </Button>
+              <Button
+                onClick={() => handleNavigate('/test/replay-archive')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                Wachtrij replay (new_*)
+              </Button>
+              <Button
+                onClick={() => handleNavigate('/test/fms-write-tests')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                FMS schrijf-tests (new_*)
               </Button>
             </>
           )}
+
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS API documentatie (Swagger)
+          </Button>
           
         </div>
       </div>

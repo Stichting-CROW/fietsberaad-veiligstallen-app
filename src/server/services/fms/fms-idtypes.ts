@@ -39,6 +39,28 @@ export function passtype2string(idtype: number): string {
   return s;
 }
 
+/**
+ * ColdFusion BaseRestService.isValidIdCode — basic length/format validation per idtype.
+ * 0 (sleutelhanger): len <= 35; 1 (ovchip): always valid; 2 (cijfercode): len == 9;
+ * 3 (tijdelijk): len == 6. Unknown idtypes: treated as valid (CF returns undefined → falsy in CF,
+ * but unknown idtypes are not produced by the REST routes that call this).
+ */
+export function isValidIdCode(idcode: string, idtype: number): boolean {
+  const len = (idcode ?? "").length;
+  switch (idtype) {
+    case 0:
+      return len <= 35;
+    case 1:
+      return true;
+    case 2:
+      return len === 9;
+    case 3:
+      return len === 6;
+    default:
+      return true;
+  }
+}
+
 /** ColdFusion helperclass.dateTimeToString(..., true) — local time, no timezone suffix */
 export function formatCfDateTime(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

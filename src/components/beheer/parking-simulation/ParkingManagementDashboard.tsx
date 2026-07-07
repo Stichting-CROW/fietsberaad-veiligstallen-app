@@ -6,6 +6,7 @@ import StallingPanel from "./StallingPanel";
 import SettingsTab from "./SettingsTab";
 import StatisticsTab from "./StatisticsTab";
 import AbonnementenTab from "./AbonnementenTab";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
 type Stalling = { id: string; locationid: string; title: string; type: string; berekentStallingskosten?: boolean };
 
 const ParkingManagementDashboard: React.FC = () => {
@@ -114,7 +115,7 @@ const ParkingManagementDashboard: React.FC = () => {
         {showFullTabs && hasBikes && <Tab label="Fietsen" value="fietsen" />}
         {showFullTabs && <Tab label="Abonnementen" value="abonnementen" />}
         {showFullTabs && stallings.map((s) => (
-          <Tab key={s.id} label={s.title} value={s.locationid} />
+          <Tab key={s.id} label={formatStallingLabel(s.title, s.locationid)} value={s.locationid} />
         ))}
         <Tab label="Instellingen" value="settings" />
         <Tab label="Statistieken" value="statistics" />
