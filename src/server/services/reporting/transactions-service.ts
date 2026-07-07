@@ -78,35 +78,87 @@ export function resolvePeriod(query: {
   return { from, to, year, month, usesFromTo: false };
 }
 
+type ArchiefRow = Prisma.transacties_archiefGetPayload<Record<string, never>>;
+
 /**
  * Build the date-window filter for transacties_archief, ported from
  * getQArchivedRuweData's <cfswitch expression="#type#">.
  */
 function buildDateFilter(
-  type: TransactionType,
+  type: Exclude<TransactionType, "overlap">,
   from: Date,
   to: Date
 ): Prisma.transacties_archiefWhereInput {
   switch (type) {
     case "checkin":
       return { checkindate: { gte: from, lte: to } };
-    case "overlap":
-      return {
-        OR: [
-          { checkindate: { gte: from, lte: to } },
-          { checkoutdate: { gte: from, lte: to } },
-          {
-            AND: [
-              { checkindate: { lte: from } },
-              { OR: [{ checkoutdate: { gte: from } }, { checkoutdate: null }] },
-            ],
-          },
-        ],
-      };
     case "checkout":
     default:
       return { checkoutdate: { gte: from, lte: to, not: null } };
   }
+}
+
+/** ORDER BY checkoutdate, citycode, biketypeid (MySQL sorts NULL checkoutdate first in ASC). */
+function compareArchiefRows(a: ArchiefRow, b: ArchiefRow): number {
+  const aCheckout = a.checkoutdate ? a.checkoutdate.getTime() : Number.NEGATIVE_INFINITY;
+  const bCheckout = b.checkoutdate ? b.checkoutdate.getTime() : Number.NEGATIVE_INFINITY;
+  if (aCheckout !== bCheckout) return aCheckout - bCheckout;
+  if (a.citycode !== b.citycode) return a.citycode < b.citycode ? -1 : 1;
+  return a.biketypeid - b.biketypeid;
+}
+
+/**
+ * Fetch transaction rows for the requested type.
+ *
+ * For `overlap` the ColdFusion query uses an OR across checkindate/checkoutdate
+ * ranges. Running that as a single query defeats MySQL's indexes and triggers a
+ * full-table scan (all locations, all years), which effectively hangs for busy
+ * stations. We split it into separate indexed queries (each keeps citycode +
+ * locationid as plain equality) and merge/dedupe by primary key.
+ */
+async function fetchTransactionRows(
+  citycode: string,
+  locationid: string,
+  from: Date,
+  to: Date,
+  type: TransactionType
+): Promise<ArchiefRow[]> {
+  const orderBy: Prisma.transacties_archiefOrderByWithRelationInput[] = [
+    { checkoutdate: "asc" },
+    { citycode: "asc" },
+    { biketypeid: "asc" },
+  ];
+
+  if (type !== "overlap") {
+    return prisma.transacties_archief.findMany({
+      where: { citycode, locationid, ...buildDateFilter(type, from, to) },
+      orderBy,
+    });
+  }
+
+  const base = { citycode, locationid };
+  const [byCheckin, byCheckout, spanning] = await Promise.all([
+    prisma.transacties_archief.findMany({
+      where: { ...base, checkindate: { gte: from, lte: to } },
+    }),
+    prisma.transacties_archief.findMany({
+      where: { ...base, checkoutdate: { gte: from, lte: to } },
+    }),
+    prisma.transacties_archief.findMany({
+      where: {
+        ...base,
+        checkindate: { lte: from },
+        OR: [{ checkoutdate: { gte: from } }, { checkoutdate: null }],
+      },
+    }),
+  ]);
+
+  const byId = new Map<number, ArchiefRow>();
+  for (const row of [...byCheckin, ...byCheckout, ...spanning]) {
+    byId.set(row.ID, row);
+  }
+
+  return [...byId.values()].sort(compareArchiefRows);
 }
 
 /**
@@ -257,14 +309,7 @@ export async function getBikeparkTransactions(params: {
   const showSectionId = sections.length > 1;
   const defaults = buildDefaults(locationid, sections);
 
-  const rows = await prisma.transacties_archief.findMany({
-    where: {
-      citycode,
-      locationid,
-      ...buildDateFilter(type, from, to),
-    },
-    orderBy: [{ checkoutdate: "asc" }, { citycode: "asc" }, { biketypeid: "asc" }],
-  });
+  const rows = await fetchTransactionRows(citycode, locationid, from, to, type);
 
   const data = rows.map((row) => mapRuweDataRow(row, showSectionId));
 
