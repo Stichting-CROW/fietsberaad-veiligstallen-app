@@ -70,9 +70,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         ? (typeParam as TransactionType)
         : "checkout";
 
-    const { from, to } = resolvePeriod({
-      from: firstValue(req.query.from),
-      to: firstValue(req.query.to),
+    const fromParam = firstValue(req.query.from);
+    const toParam = firstValue(req.query.to);
+    const { from, to, year, month, usesFromTo } = resolvePeriod({
+      from: fromParam,
+      to: toParam,
       year: firstValue(req.query.year),
       month: firstValue(req.query.month),
     });
@@ -83,6 +85,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       from,
       to,
       type,
+      usesFromTo,
+      fromParam,
+      toParam,
+      year,
+      month,
     });
 
     res.status(200).json(result);
