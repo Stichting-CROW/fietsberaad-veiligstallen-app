@@ -66,3 +66,13 @@ export function formatCfDateTime(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+
+/**
+ * Format a MySQL DATETIME value for ColdFusion parity.
+ * Prisma maps DATETIME columns to JS Date using UTC wall-clock components; CF
+ * outputs those stored components without timezone conversion.
+ */
+export function formatCfDbDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
