@@ -1140,6 +1140,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/Result'
 
+  /v3/citycodes/{citycode}/locations/{locationid}/managedtransactions:
+    post:
+      summary: Beheerde transactie(s) (bikepark-niveau)
+      description: |
+        Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).
+        Bij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden
+        eerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [managedtransaction]
+                  properties:
+                    managedtransaction:
+                      $ref: '#/components/schemas/V3ManagedTransaction'
+                - type: object
+                  required: [managedtransactions]
+                  properties:
+                    managedtransactions:
+                      type: array
+                      maxItems: 50
+                      items:
+                        $ref: '#/components/schemas/V3ManagedTransaction'
+                - type: array
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/V3ManagedTransaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
   /v3/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}:
     post:
       summary: Tijdelijke pas koppelen aan definitieve pas (koppelpas)
@@ -1217,6 +1257,46 @@ paths:
               properties:
                 completedtransaction:
                   $ref: '#/components/schemas/V3CompletedTransaction'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+
+  /v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/managedtransactions:
+    post:
+      summary: Beheerde transactie(s) (sector)
+      description: |
+        Zelfde contract als bikepark-niveau `managedtransactions`. Default `sectionid` = sector uit URL;
+        per item overschrijfbaar via `sectionid` / `sectionid_checkin` in het payload.
+      tags: [V3 Write]
+      parameters:
+        - $ref: '#/components/parameters/V3Citycode'
+        - $ref: '#/components/parameters/V3Locationid'
+        - $ref: '#/components/parameters/V3Sectionid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [managedtransaction]
+                  properties:
+                    managedtransaction:
+                      $ref: '#/components/schemas/V3ManagedTransaction'
+                - type: object
+                  required: [managedtransactions]
+                  properties:
+                    managedtransactions:
+                      type: array
+                      maxItems: 50
+                      items:
+                        $ref: '#/components/schemas/V3ManagedTransaction'
+                - type: array
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
         '200':
           content:
@@ -1648,8 +1728,66 @@ components:
           example: 1
         id:
           type: integer
+        ids:
+          type: array
+          items:
+            type: integer
+          description: Wachtrij-IDs bij batch managedtransactions
         subscriptionid:
           type: integer
+
+    V3ManagedTransaction:
+      type: object
+      required: [externaltransactionid, idcode, checkindate, checkintype]
+      properties:
+        externaltransactionid:
+          type: string
+          maxLength: 100
+        idcode:
+          type: string
+        idtype:
+          type: integer
+          description: 0=sleutelhanger, 1=ovchip, 2=barcodebike
+        checkindate:
+          type: string
+          format: date-time
+        checkintype:
+          type: string
+          enum: [user, controle, system, sync, reservation]
+        checkoutdate:
+          type: string
+          format: date-time
+        checkouttype:
+          type: string
+          enum: [user, controle, system, sync, reservation]
+        stallingsduur:
+          type: integer
+        stallingskosten:
+          type: number
+        sectionid:
+          type: string
+        sectionid_checkin:
+          type: string
+        sectionid_out:
+          type: string
+        placeid:
+          type: integer
+        externalplaceid:
+          type: string
+        bikeid_in:
+          type: string
+        bikeid_out:
+          type: string
+        biketypeid:
+          type: integer
+        clienttypeid:
+          type: integer
+        tariefstaffels:
+          type: string
+        reserveringsduur:
+          type: integer
+        passuuid:
+          type: string
 
     V3Transaction:
       type: object

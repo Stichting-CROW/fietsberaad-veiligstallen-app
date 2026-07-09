@@ -269,13 +269,11 @@ async function handleWrite(
       return;
     }
 
-    // POST …/locations/{id}/managedtransactions
+    // POST …/locations/{id}/managedtransactions (single or batch)
     if (path[3] === "managedtransactions" && !path[4]) {
       if (method !== "POST") return methodNotAllowed(res, method);
       if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
-      const managed = (body.managedtransaction ?? body) as Record<string, unknown>;
-      const sectionid = String(managed.sectionid ?? managed.sectionid_checkin ?? locationid);
-      const result = await v3Write.uploadManagedTransactionV3(locationid, sectionid, managed);
+      const result = await v3Write.uploadManagedTransactionsRequestV3(locationid, locationid, body);
       res.status(200).json(result);
       return;
     }
@@ -337,12 +335,11 @@ async function handleWrite(
       return;
     }
 
-    // POST …/sections/{sec}/managedtransactions
+    // POST …/sections/{sec}/managedtransactions (single or batch)
     if (path[5] === "managedtransactions" && !path[6]) {
       if (method !== "POST") return methodNotAllowed(res, method);
       if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
-      const managed = (body.managedtransaction ?? body) as Record<string, unknown>;
-      const result = await v3Write.uploadManagedTransactionV3(locationid, sectionid, managed);
+      const result = await v3Write.uploadManagedTransactionsRequestV3(locationid, sectionid, body);
       res.status(200).json(result);
       return;
     }

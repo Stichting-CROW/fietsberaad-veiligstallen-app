@@ -334,6 +334,11 @@ run_v3_tests() {
     "{\"managedtransaction\":{\"externaltransactionid\":\"${ext_id}-loc\",\"idcode\":\"${pass}\",\"idtype\":0,\"checkindate\":\"${checkin}\",\"checkintype\":\"user\",\"sectionid\":\"${SECTION}\"}}" \
     "HTTP 200, status: 1"
 
+  run_case "v3-03b" "POST …/locations/{id}/managedtransactions (batch)" POST \
+    "${v3base}/managedtransactions" \
+    "{\"managedtransactions\":[{\"externaltransactionid\":\"${ext_id}-batch-a\",\"idcode\":\"${PASS_PREFIX}b1\",\"idtype\":0,\"checkindate\":\"${checkin}\",\"checkintype\":\"user\",\"sectionid\":\"${SECTION}\"},{\"externaltransactionid\":\"${ext_id}-batch-b\",\"idcode\":\"${PASS_PREFIX}b2\",\"idtype\":0,\"checkindate\":\"${checkin}\",\"checkintype\":\"user\",\"sectionid\":\"${SECTION}\"}]}" \
+    "HTTP 200, status: 1, ids array"
+
   run_case "v3-04" "POST …/sections/{sec}/occupation (sync + occupation)" POST \
     "${v3base}/sections/${SECTION}/occupation" \
     "{\"data\":{\"transactiondate\":\"${ts}\",\"occupation\":2,\"intervalinminutes\":15,\"bikes\":[{\"idcode\":\"${PASS_PREFIX}occ\",\"idtype\":0,\"transactiondate\":\"${ts}\"}]}}" \

@@ -19,11 +19,20 @@ import { assertLocationInCity } from "./fms-v3-protected-reads";
 import { passtype2integer, passtype2string } from "./fms-idtypes";
 import { logFmsCall } from "./webservice-log";
 
-export type FmsOkResult = { message: string; status: number; id?: number; subscriptionid?: number };
+export type FmsOkResult = {
+  message: string;
+  status: number;
+  id?: number;
+  ids?: number[];
+  subscriptionid?: number;
+};
 
-export function okResult(extra?: { id?: number; subscriptionid?: number }): FmsOkResult {
+export function okResult(extra?: { id?: number; ids?: number[]; subscriptionid?: number }): FmsOkResult {
   return { message: "OK", status: 1, ...extra };
 }
+
+/** Max items per POST (matches queue processor LIMIT_MANAGED). */
+export const MAX_MANAGED_TRANSACTIONS_BATCH = 50;
 
 export function errorResult(message: string): FmsOkResult {
   return { message, status: 0 };
@@ -127,6 +136,95 @@ function mapV3ManagedTransaction(raw: Record<string, unknown>): ManagedTransacti
   };
 }
 
+export type ParsedManagedTransactionsBody =
+  | { mode: "single"; item: Record<string, unknown> }
+  | { mode: "batch"; items: Record<string, unknown>[] };
+
+/** Single object, `{ managedtransaction }`, or batch array / `{ managedtransactions: [...] }`. */
+export function parseManagedTransactionsBody(body: unknown): ParsedManagedTransactionsBody {
+  if (Array.isArray(body)) {
+    return { mode: "batch", items: body as Record<string, unknown>[] };
+  }
+  if (!body || typeof body !== "object") {
+    throw new Error("Request body moet een object of array zijn");
+  }
+  const obj = body as Record<string, unknown>;
+  if (Array.isArray(obj.managedtransactions)) {
+    return { mode: "batch", items: obj.managedtransactions as Record<string, unknown>[] };
+  }
+  if (obj.managedtransaction != null && typeof obj.managedtransaction === "object") {
+    return { mode: "single", item: obj.managedtransaction as Record<string, unknown> };
+  }
+  if (obj.externaltransactionid != null || obj.externalTransactionID != null) {
+    return { mode: "single", item: obj };
+  }
+  throw new Error("managedtransaction of managedtransactions is verplicht");
+}
+
+/** Duplicate externaltransactionid in one request: last array entry wins. */
+export function dedupeManagedTransactionsLastWins(
+  items: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const item of items) {
+    const key = String(item.externaltransactionid ?? item.externalTransactionID ?? "")
+      .trim()
+      .toLowerCase();
+    if (!key) continue;
+    byKey.set(key, item);
+  }
+  return [...byKey.values()];
+}
+
+export async function uploadManagedTransactionsV3(
+  locationid: string,
+  defaultSectionid: string,
+  managedRaws: Record<string, unknown>[],
+  opts: { useNewTables?: boolean } = {}
+): Promise<FmsOkResult> {
+  if (managedRaws.length === 0) {
+    throw new Error("managedtransactions mag niet leeg zijn");
+  }
+  if (managedRaws.length > MAX_MANAGED_TRANSACTIONS_BATCH) {
+    throw new Error(`max ${MAX_MANAGED_TRANSACTIONS_BATCH} managedtransactions per request`);
+  }
+
+  const deduped = dedupeManagedTransactionsLastWins(managedRaws);
+  if (deduped.length === 0) {
+    throw new Error("managedtransactions mag niet leeg zijn");
+  }
+  const prepared: {
+    raw: Record<string, unknown>;
+    managed: ManagedTransactionInput;
+    sectionid: string;
+  }[] = [];
+
+  for (const raw of deduped) {
+    const managed = mapV3ManagedTransaction(raw);
+    validateManagedTransaction(managed);
+    const sectionid = String(managed.sectionid_checkin ?? raw.sectionid ?? defaultSectionid);
+    prepared.push({ raw, managed, sectionid });
+  }
+
+  const ids: number[] = [];
+  for (const { raw, managed, sectionid } of prepared) {
+    const result = await addManagedTransactionToWachtrij(
+      locationid,
+      sectionid,
+      { ...raw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid },
+      opts
+    );
+    ids.push(result.id);
+  }
+
+  void logFmsCall(
+    "uploadManagedTransactions",
+    locationid,
+    `${prepared.length} item(s) ids=${ids.join(",")}`
+  );
+  return okResult({ ids });
+}
+
 export async function uploadManagedTransactionV3(
   locationid: string,
   sectionid: string,
@@ -148,6 +246,22 @@ export async function uploadManagedTransactionV3(
     `${sectionid} ext=${managed.externaltransactionid} id=${result.id}`
   );
   return okResult({ id: result.id });
+}
+
+export async function uploadManagedTransactionsRequestV3(
+  locationid: string,
+  defaultSectionid: string,
+  body: unknown,
+  opts: { useNewTables?: boolean } = {}
+): Promise<FmsOkResult> {
+  const parsed = parseManagedTransactionsBody(body);
+  if (parsed.mode === "single") {
+    const sectionid = String(
+      parsed.item.sectionid ?? parsed.item.sectionid_checkin ?? defaultSectionid
+    );
+    return uploadManagedTransactionV3(locationid, sectionid, parsed.item, opts);
+  }
+  return uploadManagedTransactionsV3(locationid, defaultSectionid, parsed.items, opts);
 }
 
 type CompletedTxInput = Record<string, unknown>;
