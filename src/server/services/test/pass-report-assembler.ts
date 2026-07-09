@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { serializeDbDateTime } from "~/utils/datetime-nl";
 import type {
   TagReportAccountInfo,
   TagReportFinancialRecord,
@@ -416,10 +417,10 @@ export async function assemblePassReport(
 
     return {
       ID: r.ID,
-      Date_checkin: r.Date_checkin.toISOString(),
-      Date_checkout: r.Date_checkout?.toISOString() ?? null,
+      Date_checkin: serializeDbDateTime(r.Date_checkin)!,
+      Date_checkout: serializeDbDateTime(r.Date_checkout),
       Stallingsduur: r.Stallingsduur,
-      dateCreated: r.dateCreated.toISOString(),
+      dateCreated: serializeDbDateTime(r.dateCreated)!,
       FietsenstallingID: r.FietsenstallingID,
       StallingTitle: stalling?.Title ?? null,
       StallingsID: stalling?.StallingsID ?? null,
@@ -477,8 +478,8 @@ export async function assemblePassReport(
         p.BikeTypeID != null ? lookups.bikeTypeById.get(p.BikeTypeID) ?? null : null,
       huidigeStallingskosten:
         p.huidigeStallingskosten != null ? Number(p.huidigeStallingskosten) : null,
-      dateLastCheck: p.dateLastCheck?.toISOString() ?? null,
-      dateCreated: p.dateCreated?.toISOString() ?? null,
+      dateLastCheck: serializeDbDateTime(p.dateLastCheck),
+      dateCreated: serializeDbDateTime(p.dateCreated),
       currentlyParkedStallingTitle: currentStalling?.Title ?? null,
       currentlyParkedStallingsID: p.huidigeFietsenstallingId,
       currentlyParkedSectionName: currentSection?.titel ?? null,
@@ -506,9 +507,9 @@ export async function assemblePassReport(
         zip: account?.Zip ?? null,
         city: account?.City ?? null,
         saldo: account ? accountSaldo(account) : null,
-        dateLastSaldoUpdate: account?.dateLastSaldoUpdate?.toISOString() ?? null,
-        dateRegistration: account?.DateRegistration?.toISOString() ?? null,
-        lastLogin: account?.LastLogin?.toISOString() ?? null,
+        dateLastSaldoUpdate: serializeDbDateTime(account?.dateLastSaldoUpdate),
+        dateRegistration: serializeDbDateTime(account?.DateRegistration),
+        lastLogin: serializeDbDateTime(account?.LastLogin),
         status: account?.Status ?? null,
         accountType: account?.account_type ?? null,
         pasids,
@@ -523,9 +524,9 @@ export async function assemblePassReport(
 
     return {
       ID: r.ID,
-      transactionDate: r.transactionDate?.toISOString() ?? null,
-      depositDate: r.depositDate?.toISOString() ?? null,
-      dateCreated: r.dateCreated.toISOString(),
+      transactionDate: serializeDbDateTime(r.transactionDate),
+      depositDate: serializeDbDateTime(r.depositDate),
+      dateCreated: serializeDbDateTime(r.dateCreated)!,
       amount: r.amount != null ? Number(r.amount) : null,
       btw: r.btw != null ? Number(r.btw) : null,
       btwPercentage: r.btwPercentage ?? null,

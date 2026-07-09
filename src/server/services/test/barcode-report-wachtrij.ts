@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { serializeDbDateTime } from "~/utils/datetime-nl";
 import { resolveExistingTableNames } from "~/server/utils/mysql-schema-tables";
 
 export type BarcodeReportWachtrijRow = {
@@ -46,7 +47,7 @@ function escapeSqlLike(value: string): string {
 }
 
 function serializeValue(value: unknown): unknown {
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) return serializeDbDateTime(value);
   if (
     value !== null &&
     typeof value === "object" &&

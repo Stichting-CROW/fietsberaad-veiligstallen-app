@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "~/components/Button";
+import { formatDateTimeNl } from "~/utils/datetime-nl";
 import type {
   TagReportAccountInfo,
   TagReportFinancialRecord,
@@ -9,8 +10,7 @@ import type {
 } from "~/pages/api/protected/test/tag-report";
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("nl-NL");
+  return formatDateTimeNl(iso);
 }
 
 function formatDuration(minutes: number | null): string {
