@@ -7,6 +7,7 @@ import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
+import { OccupationComparisonSection } from "~/components/beheer/test/OccupationComparisonSection";
 import {
   prepareForCompare,
   responsesMatch,
@@ -625,7 +626,7 @@ const FmsApiComparePage: React.FC = () => {
   const [fullDatasetResults, setFullDatasetResults] = useState<FullDatasetTestResponse | null>(() => loadStoredFullDataset());
   const [showOnlyFailedFullDataset, setShowOnlyFailedFullDataset] = useState(true);
   const [fullDatasetLocationtypeFilter, setFullDatasetLocationtypeFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "reporting" | "instellingen">("algemeen");
+  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "reporting" | "occupation" | "instellingen">("algemeen");
   const [allowDynamicDiffs, setAllowDynamicDiffs] = useState(() => loadStoredSettings().allowDynamicDiffs);
   const [maxverschil, setMaxverschil] = useState(() => loadStoredSettings().maxverschil);
   const [showStallingNames, setShowStallingNames] = useState(() => loadStoredSettings().showStallingNames);
@@ -1822,6 +1823,17 @@ const FmsApiComparePage: React.FC = () => {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("occupation")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "occupation"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Occupation
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("instellingen")}
             className={`py-2 px-1 border-b-2 font-bold text-2xl ${
               activeTab === "instellingen"
@@ -2550,6 +2562,20 @@ const FmsApiComparePage: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "occupation" && (
+          <OccupationComparisonSection
+            oldApiUrl={oldApiUrl}
+            newApiUrl={newApiUrl}
+            authUsername={authUsername}
+            authPassword={authPassword}
+            cityOptions={cityOptions}
+            locationOptions={locationOptions}
+            optionsLoading={optionsLoading}
+            paramValues={paramValues}
+            setParamValues={setParamValues}
+          />
         )}
 
         {activeTab === "instellingen" && (
