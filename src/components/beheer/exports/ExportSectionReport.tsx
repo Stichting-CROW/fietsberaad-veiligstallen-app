@@ -9,6 +9,13 @@ interface ExportSectionReportProps extends ReportComponentProps {
   reportType: ReportType
 }
 
+/** Per-stalling CSVs on static.veiligstallen.nl use title before 2023, StallingsID from 2023 on. */
+function getPerStallingCsvNamePart(bikepark: BikeparkData, year: number): string {
+  return year < 2023
+    ? bikepark.bikeparkTitle.replace(/ /g, "_")
+    : bikepark.bikeparkID;
+}
+
 const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   reportType,
   gemeenteID,
@@ -89,7 +96,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_alle_stallingen_transacties.csv?${timestamp}`;
           link.download = `${gemeenteName}-alle-stallingen-${year}.xlsx`;
         } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${bikepark.bikeparkTitle.replace(/ /g, "_")}_transacties.csv?${timestamp}`;
+          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_transacties.csv?${timestamp}`;
           link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-${year}.xlsx`;
         }
         break;
@@ -98,7 +105,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_stallingsduur.csv?${timestamp}`;
           link.download = `${gemeenteName}-alle-stallingen-stallingsduur-${year}.xlsx`;
         } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${bikepark.bikeparkTitle.replace(/ /g, "_")}_stallingsduur.csv?${timestamp}`;
+          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_stallingsduur.csv?${timestamp}`;
           link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-stallingsduur-${year}.xlsx`;
         }
         break;
@@ -107,7 +114,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_bezetting.csv?${timestamp}`;
           link.download = `${gemeenteName}-alle-stallingen-bezetting-${year}.xlsx`;
         } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${bikepark.bikeparkTitle.replace(/ /g, "_")}_bezetting.csv?${timestamp}`;
+          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_bezetting.csv?${timestamp}`;
           link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-bezetting-${year}.xlsx`;
         }
         break;
