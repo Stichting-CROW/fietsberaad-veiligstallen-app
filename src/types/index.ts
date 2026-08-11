@@ -10,7 +10,7 @@ export enum VSMenuTopic {
     "Abonnementsvormen" = "abonnementsvormen",
     "Accounts" = "accounts",
     "ApisGekoppeldeLocaties" = "apisgekoppeldelocaties",
-    "ApisOverzicht" = "apisoverzicht",
+    // "ApisOverzicht" = "apisoverzicht",
     "ArticlesPages" = "articlespages",
     "BarcodereeksenFietsstickers" = "barcodereeksenfietsstickers",
     "BarcodereeksenSleutelhangers" = "barcodereeksensleutelhangers",

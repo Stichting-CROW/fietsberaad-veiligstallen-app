@@ -7,6 +7,8 @@ interface SearchFilterProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Replaces the default input styling, to match neighbouring controls. */
+  inputClassName?: string;
 }
 
 export const SearchFilter: React.FC<SearchFilterProps> = ({
@@ -15,7 +17,8 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
   value,
   onChange,
   placeholder = "Typ om te zoeken...",
-  className = ""
+  className = "",
+  inputClassName = "p-2 border border-gray-300 rounded-md"
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -28,7 +31,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({
         id={id}
         name={id}
         placeholder={placeholder}
-        className="mt-1 p-2 border border-gray-300 rounded-md" 
+        className={`mt-1 ${inputClassName}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
