@@ -318,9 +318,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <div className="flex items-center justify-center h-full">Redirecting...</div>;
           break;
         case VSMenuTopic.ArticlesPages:
-          // Check if user has access to site content
+          // Same gate as Website beheer menu + articles API write checks
           const hasInstellingenSiteContent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
-          if (!hasInstellingenSiteContent) {
+          const hasArticlesFietsberaadAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
+          const hasArticlesFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+          if (!hasInstellingenSiteContent && !hasArticlesFietsberaadAdmin && !hasArticlesFietsberaadSuperadmin) {
             selectedComponent = <AccessDenied />;
           } else {
             selectedComponent = <ArticlesComponent/>

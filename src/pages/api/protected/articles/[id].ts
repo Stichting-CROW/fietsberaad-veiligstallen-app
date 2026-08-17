@@ -47,9 +47,30 @@ export default async function handle(
     return;
   }
 
-  const hasInstellingenSiteContentPages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
-  if (!hasInstellingenSiteContentPages) {
-    res.status(403).json({ error: "Access denied - insufficient permissions" });
+  // Page edits: dedicated content right, or Fietsberaad admin rights (same gate as the Website beheer menu).
+  const securityProfile = session?.user?.securityProfile;
+  const hasInstellingenSiteContentPages = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_pages);
+  const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
+  const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  if (!hasInstellingenSiteContentPages && !hasFietsberaadAdmin && !hasFietsberaadSuperadmin) {
+    console.error("Articles write denied", {
+      userId: session.user.id,
+      activeContactId: session.user.activeContactId,
+      roleId: securityProfile?.roleId,
+      hasInstellingenSiteContentPages,
+      hasFietsberaadAdmin,
+      hasFietsberaadSuperadmin,
+    });
+    res.status(403).json({
+      error: "Access denied - insufficient permissions",
+      details: {
+        roleId: securityProfile?.roleId ?? null,
+        activeContactId: session.user.activeContactId ?? null,
+        hasInstellingenSiteContentPages,
+        hasFietsberaadAdmin,
+        hasFietsberaadSuperadmin,
+      },
+    });
     return;
   }
 
@@ -172,6 +193,7 @@ export default async function handle(
           console.error("Invalid or missing data:", JSON.stringify(e.errors,null,2));
           res.status(400).json({ error: e.errors });
         } else {
+          console.error("Error updating article:", e);
           res.status(500).json({error: "Error updating article"});
         }
       }

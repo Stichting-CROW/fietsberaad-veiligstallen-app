@@ -92,7 +92,23 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Het opslaan van de pagina is helaas niet gelukt.');
+        let serverMessage = '';
+        try {
+          const payload = await response.json() as { error?: unknown; details?: unknown };
+          if (typeof payload.error === 'string') {
+            serverMessage = payload.error;
+          } else if (payload.error) {
+            serverMessage = JSON.stringify(payload.error);
+          }
+          if (payload.details) {
+            serverMessage = `${serverMessage} (${JSON.stringify(payload.details)})`;
+          }
+        } catch {
+          // Non-JSON body (e.g. gateway/WAF HTML) — status alone is still useful.
+        }
+        throw new Error(
+          `Het opslaan van de pagina is helaas niet gelukt. [${response.status}${serverMessage ? `: ${serverMessage}` : ''}]`
+        );
       }
 
       onClose();
@@ -169,7 +185,7 @@ const ArticleEdit: React.FC<ArticleEditProps> = ({ id, onClose }) => {
           <div className="rounded-md border border-red-200 bg-red-50 p-4" role="alert">
             <p className="text-red-700 font-medium">{error}</p>
             <p className="mt-2 text-sm text-red-600">
-              Uw inleiding en pagina-inhoud staan hieronder, zodat u de teksten kunt kopiëren.
+              Je inleiding en pagina-inhoud staan hieronder, zodat je de teksten kunt kopiëren.
             </p>
           </div>
         )}

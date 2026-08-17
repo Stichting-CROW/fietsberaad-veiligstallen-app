@@ -27,8 +27,11 @@ export default async function handle(
       return;
     }
 
-    const hasInstellingenSiteContentPages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_site_content_pages);
-    if (!hasInstellingenSiteContentPages) {
+    const securityProfile = session?.user?.securityProfile;
+    const hasInstellingenSiteContentPages = userHasRight(securityProfile, VSSecurityTopic.instellingen_site_content_pages);
+    const hasFietsberaadAdmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_admin);
+    const hasFietsberaadSuperadmin = userHasRight(securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+    if (!hasInstellingenSiteContentPages && !hasFietsberaadAdmin && !hasFietsberaadSuperadmin) {
       res.status(403).json({valid: false, error: "Access denied - insufficient permissions"});
       return;
     }
