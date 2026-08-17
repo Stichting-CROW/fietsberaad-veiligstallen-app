@@ -254,7 +254,7 @@ const ArticlesComponent: React.FC = () => {
             {
               header: 'Acties',
               accessor: (article) => (
-                <div className="whitespace-nowrap">
+                <div className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <button 
                     onClick={() => handleEditArticle(article.ID)} 
                     className="text-yellow-500 mx-1 disabled:opacity-40"
@@ -279,6 +279,7 @@ const ArticlesComponent: React.FC = () => {
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSort={handleSort}
+          onRowClick={(article) => handleEditArticle(article.ID)}
         />
       </div>
     );
