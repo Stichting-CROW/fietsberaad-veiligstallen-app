@@ -14,6 +14,7 @@ import maplibregl from "maplibre-gl";
 // import { getParkingColor } from "~/utils/theme";
 // import { getParkingMarker, isPointInsidePolygon } from "~/utils/map/index";
 import { createEditGeoJson } from "~/utils/map/geojson";
+import { parseLatLng, toMapCenter } from "~/utils/map/coordinates";
 // import { parkingTypes } from "~/utils/parkings";
 
 // Import the mapbox-gl styles so that the map is displayed correctly
@@ -51,15 +52,9 @@ function ParkingEditLocation({
     // If stateMap already exists: Stop, as the map is already initiated
     if (stateMap) return;
 
-    // Get coords from parking variable
-    let ccoords;
-    if (centerCoords !== undefined) {
-      ccoords = centerCoords.split(",").map((coord: any) => Number(coord));
-    } else if (typeof parkingCoords === "string") {
-      ccoords = parkingCoords.split(",").map((coord: any) => Number(coord));
-    } else {
-      ccoords = [52.508011, 5.47328];
-    }
+    // Get coords from parking variable. Falls back to the centre of the country
+    // when the stalling has no usable WGS84 coordinate, so the editor still opens.
+    const center = toMapCenter(parseLatLng(centerCoords) ? centerCoords : parkingCoords);
 
     // otherwise, create a map instance
     const mapboxMap = new maplibregl.Map({
@@ -67,7 +62,7 @@ function ParkingEditLocation({
       accessToken: process ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : "",
       // style: "maplibre://styles/mapbox/streets-v11",
       style: nine3030,
-      center: ccoords ? [ccoords[1], ccoords[0]] : [52.508011, 5.47328],
+      center,
       zoom: initialZoom,
       // Disable map rotation
       dragRotate: false,
@@ -104,17 +99,10 @@ function ParkingEditLocation({
 
   // If 'centerCoords' variable changes: recenter map to new coordinates'
   React.useEffect(() => {
-    if (centerCoords !== "" && centerCoords !== undefined) {
-      // console.log('recenter map @', centerCoords)
-      if (stateMap) {
-        const coords = centerCoords.split(",").map((coord: any) => Number(coord));
-        try {
-          stateMap.setCenter([coords[1], coords[0]]);
-        } catch (e) {
-          console.warn("invalid manual location @", coords);
-        }
-      }
-    }
+    const latlng = parseLatLng(centerCoords);
+    if (!stateMap || latlng === undefined) return;
+
+    stateMap.setCenter([latlng.lng, latlng.lat]);
   }, [centerCoords]);
 
   // If 'parkingCoors' variable changes: Update source data

@@ -9,13 +9,13 @@ import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
 import {
-  getDefaultLocation,
   createVeiligstallenOrgLink,
 } from "~/utils/parkings";
 import {
   cbsCodeFromMunicipality,
   getMunicipalityBasedOnCbsCode,
 } from "~/utils/municipality";
+import { parseLatLng } from "~/utils/map/coordinates";
 import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 
 import ParkingEditAbonnementen from "~/components/parking/ParkingEditAbonnementen";
@@ -374,11 +374,14 @@ const ParkingEdit = ({
     };
 
     const checkCoordinatenType = (check: checkInfo): string => {
-      if (check.value === getDefaultLocation && check.newvalue === undefined) {
+      const coordinaten = check.newvalue !== undefined ? check.newvalue : check.value;
+      if (coordinaten === "" || coordinaten === null || coordinaten === undefined) {
         return `${check.text} is verplicht`;
-      } else {
-        return "";
       }
+      if (parseLatLng(coordinaten) === undefined) {
+        return `de locatie is ongeldig (${coordinaten}). Versleep de kaart om de stalling op de juiste plek te zetten.`;
+      }
+      return "";
     };
 
     const checks: checkInfo[] = [

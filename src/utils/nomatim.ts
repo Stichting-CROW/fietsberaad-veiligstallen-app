@@ -1,3 +1,5 @@
+import { parseLatLng } from "~/utils/map/coordinates";
+
 export type ReverseGeocodeResult = {
     // Define the types according to the data you expect from Nominatim
     address: {
@@ -26,9 +28,9 @@ const requestInterval = 1500; // 1.5 seconds -> api rate limit is 1 request per 
 
 export const reverseGeocode = async (latLong: string): Promise<ReverseGeocodeResult | false> => {
     try {
-        const [latitude, longitude] = latLong.split(',').map(coord => coord.trim());
-        if (!latitude || !longitude) {
-            throw new Error('Invalid latitude or longitude');
+        const latlng = parseLatLng(latLong);
+        if (latlng === undefined) {
+            return false;
         }
 
         const currentTime = Date.now();
@@ -40,7 +42,7 @@ export const reverseGeocode = async (latLong: string): Promise<ReverseGeocodeRes
 
         lastReverseRequestTime = Date.now();
 
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`;
 
         const response = await fetch(url);
         if (!response.ok) {
@@ -75,10 +77,9 @@ export const geocodeAddress = async (street: string, postcode: string, city: str
         }
 
         const results: GeocodeResult[] = await response.json();
-        if (results.length === 0) {
-            throw new Error('No results found');
-        }
 
+        // No match is a normal outcome, not an error: the caller asks the user to
+        // place the stalling by hand.
         // Assuming the first result is the most relevant
         return results[0] || false;
     } catch (error) {

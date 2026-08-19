@@ -1,3 +1,5 @@
+import { DEFAULT_LATLNG, parseLatLng } from "~/utils/map/coordinates";
+
 interface GeoJsonFeature {
   type: string;
   geometry: {
@@ -16,15 +18,16 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
   const features: GeoJsonFeature[] = [];
 
   input.forEach((x: any) => {
-    if (!x.Coordinaten) return;
-
-    const coords = x.Coordinaten.split(",").map((coord: any) => Number(coord)); // I.e.: 52.508011,5.473280;
+    // Stallingen without a usable WGS84 coordinate are left off the map: feeding
+    // MapLibre a NaN or out-of-range point breaks the whole source.
+    const latlng = parseLatLng(x.Coordinaten); // I.e.: 52.508011,5.473280;
+    if (latlng === undefined) return;
 
     features.push({
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [coords[1], coords[0]],
+        coordinates: [latlng.lng, latlng.lat],
       },
       properties: {
         id: x.ID,
@@ -43,15 +46,14 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
 };
 
 const createEditGeoJson = (Coordinaten: string) => {
-  const features: GeoJsonFeature[] = [];
+  const latlng = parseLatLng(Coordinaten) ?? DEFAULT_LATLNG; // I.e.: 52.508011,5.473280;
 
-  const coords = Coordinaten?.split(",").map((coord: any) => Number(coord)) ?? [52.508011, 5.47328]; // I.e.: 52.508011,5.473280;
-  if(undefined!==coords[0] && undefined!==coords[1]) { 
-    features.push({
+  const features: GeoJsonFeature[] = [
+    {
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [coords[1], coords[0]],
+        coordinates: [latlng.lng, latlng.lat],
       },
       properties: {
         title: "",
@@ -59,8 +61,8 @@ const createEditGeoJson = (Coordinaten: string) => {
         plaats: "",
         type: "",
       },
-    });
-  }
+    },
+  ];
 
   return {
     type: "FeatureCollection",
