@@ -44,8 +44,11 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
     }
     
     const json = await response.json();
-    // Protected API returns {data: ...}, extract the data
-    return json.data || json;
+    const data = json.data !== undefined ? json.data : json;
+    if (data === null || typeof data !== "object" || !("ID" in data) || !data.ID) {
+      return null;
+    }
+    return data as ParkingDetailsType;
   } catch (error: any) {
     console.error(`getParkingDetails - error for ID "${stallingId}":`, error.message);
     return null;
