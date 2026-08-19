@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { Button } from '~/components/Button';
-import { userHasRight } from '~/types/utils';
+import { userHasRight, canAccessFmsPermitsOverview } from '~/types/utils';
 import { VSSecurityTopic } from '~/types/securityprofile';
 
 const TestIndexPage: React.FC = () => {
   const router = useRouter();
   const { data: session } = useSession();
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  const hasFmsToegangOverzicht = canAccessFmsPermitsOverview(
+    session?.user?.securityProfile,
+    session?.user?.mainContactId
+  );
   const [nsConnectorAvailable, setNsConnectorAvailable] = useState<boolean | null>(null);
 
   const handleNavigate = (path: string) => {
@@ -130,6 +134,16 @@ const TestIndexPage: React.FC = () => {
           >
             CBS Gemeentecodes
           </Button>
+
+          {hasFmsToegangOverzicht && (
+            <Button
+              onClick={() => handleNavigate('/test/fms-toegang')}
+              className="py-6 px-8 text-center w-full"
+              style={{ backgroundColor: '#3B82F6' }}
+            >
+              FMS-toegang overzicht
+            </Button>
+          )}
 
           {hasFietsberaadSuperadmin && (
             <>

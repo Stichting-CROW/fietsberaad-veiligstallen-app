@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type ParkingDetailsType } from "~/types/parking";
+import { parseLatLng } from "~/utils/map/coordinates";
 
 export type VSFietsenstallingLijst = {
   ID: string;
@@ -132,7 +133,14 @@ export const fietsenstallingSchema = z.object({
   Open_zo: z.string().nullable().transform((val) => val ? new Date(val) : null),
   Dicht_zo: z.string().nullable().transform((val) => val ? new Date(val) : null),
   Openingstijden: z.string().nullable(),
-  Coordinaten: z.string().max(255).nullable(),
+  Coordinaten: z
+    .string()
+    .max(255)
+    .nullable()
+    .refine((val) => val === null || val === "" || parseLatLng(val) !== undefined, {
+      message:
+        "Coordinaten moeten worden opgegeven als 'breedtegraad,lengtegraad' in decimale graden, bijvoorbeeld 52.381383,4.628580",
+    }),
   EditorCreated: z.string().max(255).nullable(),
   DateCreated: z.string().nullable().transform((val) => val ? new Date(val) : null),
   EditorModified: z.string().max(255).nullable(),

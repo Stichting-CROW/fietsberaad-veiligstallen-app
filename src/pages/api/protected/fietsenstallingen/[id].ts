@@ -7,7 +7,7 @@ import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { fietsenstallingSchema, getDefaultNewFietsenstalling } from "~/types/fietsenstallingen";
 import { fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
 import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
-import { userHasRight } from "~/types/utils";
+import { userCanDeleteFietsenstalling, userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 // TODO: convert these types to the types in the types/parking.tsx file
 import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
@@ -308,12 +308,13 @@ export default async function handle(
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   
   // For POST and DELETE, require admin rights (or fietsberaad_superadmin for DELETE, e.g. parking simulation)
+  const canDeleteFietsenstalling = userCanDeleteFietsenstalling(session?.user?.securityProfile);
   const hasSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   if (req.method === "POST" && !hasFietsenstallingenAdmin) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
   }
-  if (req.method === "DELETE" && !hasFietsenstallingenAdmin && !hasSuperadmin) {
+  if (req.method === "DELETE" && !hasFietsenstallingenAdmin && !canDeleteFietsenstalling) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
   }
@@ -339,12 +340,36 @@ export default async function handle(
     const tmpstalling = await prisma.fietsenstallingen.findFirst({
       where: {
         ID: id
-      }
+      },
+      select: { SiteID: true, Status: true },
     });
 
-    if(!tmpstalling || !tmpstalling.SiteID || !sites.includes(tmpstalling.SiteID)) {
-      console.error("Unauthorized - no access to this organization", id);
+    if (!tmpstalling) {
+      res.status(404).json({ error: "Stalling not found" });
+      return;
+    }
+
+    if (
+      !hasSuperadmin &&
+      (!tmpstalling.SiteID || !sites.includes(tmpstalling.SiteID))
+    ) {
+      console.error(
+        "Unauthorized - no access to this organization",
+        tmpstalling.SiteID,
+        "stalling",
+        id,
+      );
       res.status(403).json({ error: "No access to this organization" });
+      return;
+    }
+
+    // Only Fietsberaad removes an established stalling; a gemeentebeheerder hides it.
+    // Withdrawing an own voorstel stays allowed, otherwise abandoned drafts pile up.
+    const isVoorstel = tmpstalling.Status === "aanm" || tmpstalling.Status === "new";
+    if (req.method === "DELETE" && !isVoorstel && !canDeleteFietsenstalling) {
+      res.status(403).json({
+        error: "Alleen de fietsberaad beheerder kan een stalling verwijderen. Zet de status op verborgen om de stalling onzichtbaar te maken.",
+      });
       return;
     }
   }
@@ -358,24 +383,8 @@ export default async function handle(
           return;
         }
 
-        const currentContactInfo = await prisma.contacts.findFirst({
-          where: {
-            ID: activeContactId
-          },
-          select: {
-            Coordinaten: true
-          }
-        });
-
-        if(!currentContactInfo || !currentContactInfo.Coordinaten) {
-          console.error("Unauthorized - no coordinaten for active contact ID", activeContactId);
-          res.status(403).json({ error: "No coordinaten for active contact ID" });
-          return;
-        }
-
         // add timestamp to the name
         const defaultRecord = getDefaultNewFietsenstalling('Test Fietsenstalling ' + new Date().toISOString());
-        defaultRecord.Coordinaten = currentContactInfo.Coordinaten;
 
         res.status(200).json({data: defaultRecord});
         return;
@@ -404,8 +413,9 @@ export default async function handle(
       try {
         const parseResult = fietsenstallingSchema.partial().safeParse(req.body);
         if (!parseResult.success) {
+          const message = parseResult.error.issues[0]?.message ?? "Unexpected/missing data error:";
           console.error("Unexpected/missing data error:", parseResult.error);
-          res.status(400).json({error: "Unexpected/missing data error:"});
+          res.status(400).json({error: message});
           return;
         }
 
@@ -573,8 +583,9 @@ export default async function handle(
         res.status(200).json({data: updatedFietsenstalling});
       } catch (e) {
         if (e instanceof z.ZodError) {
+          const message = e.issues[0]?.message ?? "Unexpected/missing data error:";
           console.error("Unexpected/missing data error:", e.errors);
-          res.status(400).json({error: "Unexpected/missing data error:"});
+          res.status(400).json({error: message});
         } else {
           console.error("Error updating fietsenstalling:", e);
           console.error("Error details:", {

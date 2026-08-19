@@ -14,6 +14,7 @@ import maplibregl from "maplibre-gl";
 // import { getParkingColor } from "~/utils/theme";
 // import { getParkingMarker, isPointInsidePolygon } from "~/utils/map/index";
 import { createEditGeoJson } from "~/utils/map/geojson";
+import { parseLatLng, toMapCenter } from "~/utils/map/coordinates";
 // import { parkingTypes } from "~/utils/parkings";
 
 // Import the mapbox-gl styles so that the map is displayed correctly
@@ -25,11 +26,13 @@ import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 function ParkingEditLocation({
   parkingCoords,
   centerCoords,
+  fallbackCoords,
   onPan,
   initialZoom = 16,
 }): React.ReactElement<{
   parkingCoords: string;
   centerCoords: string | undefined;
+  fallbackCoords?: string;
   onPan: Function<{ lat: number; lng: number }>;
 }> {
   // this is where the map instance will be stored after initialization
@@ -39,6 +42,7 @@ function ParkingEditLocation({
   // as a required parameter `container` when initializing the mapbox-gl
   // will contain `null` by default
   const mapNode = React.useRef(null);
+  const acceptUserPan = React.useRef(false);
 
   React.useEffect(() => {
     const node = mapNode.current;
@@ -51,15 +55,11 @@ function ParkingEditLocation({
     // If stateMap already exists: Stop, as the map is already initiated
     if (stateMap) return;
 
-    // Get coords from parking variable
-    let ccoords;
-    if (centerCoords !== undefined) {
-      ccoords = centerCoords.split(",").map((coord: any) => Number(coord));
-    } else if (typeof parkingCoords === "string") {
-      ccoords = parkingCoords.split(",").map((coord: any) => Number(coord));
-    } else {
-      ccoords = [52.508011, 5.47328];
-    }
+    acceptUserPan.current = false;
+    // Stored stalling coords if usable; otherwise the data-eigenaar / Utrecht viewport.
+    const stored = parseLatLng(centerCoords) ? centerCoords : parkingCoords;
+    const fallback = parseLatLng(fallbackCoords) ?? undefined;
+    const center = toMapCenter(stored, fallback);
 
     // otherwise, create a map instance
     const mapboxMap = new maplibregl.Map({
@@ -67,7 +67,7 @@ function ParkingEditLocation({
       accessToken: process ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : "",
       // style: "maplibre://styles/mapbox/streets-v11",
       style: nine3030,
-      center: ccoords ? [ccoords[1], ccoords[0]] : [52.508011, 5.47328],
+      center,
       zoom: initialZoom,
       // Disable map rotation
       dragRotate: false,
@@ -78,8 +78,11 @@ function ParkingEditLocation({
     });
 
     mapboxMap.on("load", () => onMapLoaded(mapboxMap));
+    mapboxMap.on("dragstart", () => {
+      acceptUserPan.current = true;
+    });
     mapboxMap.on("move", () => {
-      if (onPan) {
+      if (onPan && acceptUserPan.current) {
         const lng = mapboxMap.getCenter().lng;
         const lat = mapboxMap.getCenter().lat;
         onPan(lat, lng);
@@ -104,18 +107,11 @@ function ParkingEditLocation({
 
   // If 'centerCoords' variable changes: recenter map to new coordinates'
   React.useEffect(() => {
-    if (centerCoords !== "" && centerCoords !== undefined) {
-      // console.log('recenter map @', centerCoords)
-      if (stateMap) {
-        const coords = centerCoords.split(",").map((coord: any) => Number(coord));
-        try {
-          stateMap.setCenter([coords[1], coords[0]]);
-        } catch (e) {
-          console.warn("invalid manual location @", coords);
-        }
-      }
-    }
-  }, [centerCoords]);
+    const latlng = parseLatLng(centerCoords);
+    if (!stateMap || latlng === undefined) return;
+
+    stateMap.setCenter([latlng.lng, latlng.lat]);
+  }, [centerCoords, stateMap]);
 
   // If 'parkingCoors' variable changes: Update source data
   React.useEffect(() => {
@@ -193,6 +189,8 @@ function ParkingEditLocation({
     zIndex: 1,
   };
 
+  const locationMissing = parseLatLng(parkingCoords) === undefined;
+
   return (
     <div
       ref={mapNode}
@@ -200,6 +198,14 @@ function ParkingEditLocation({
       style={{ width: "100%", height: "696px", position: "relative" }}
     >
       <div className="map-cursor" style={cursorStyle}></div>
+      {locationMissing && (
+        <div
+          className="absolute left-3 right-3 top-3 z-10 rounded-lg bg-white/95 px-3 py-2 text-sm shadow"
+          style={{ pointerEvents: "none" }}
+        >
+          Deze stalling heeft geen geldige locatie. Versleep de kaart naar de juiste plek.
+        </div>
+      )}
     </div>
   );
 }

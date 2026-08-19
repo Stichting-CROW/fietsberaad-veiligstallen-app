@@ -72,11 +72,37 @@ export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: 
     return hasRight;
 }
 
+/**
+ * Removing a fietsenstalling is destructive and cascades over the whole database,
+ * so it is reserved for Fietsberaad. Gemeente-beheerders hide a stalling instead
+ * (Status "0"). Voorstellen are exempt: whoever may edit one may also withdraw it.
+ */
+export const userCanDeleteFietsenstalling = (profile: VSUserSecurityProfile | undefined): boolean =>
+    userHasRight(profile, VSSecurityTopic.fietsberaad_admin) ||
+    userHasRight(profile, VSSecurityTopic.fietsberaad_superadmin);
+
 export const userHasRole = (profile: VSUserSecurityProfile | undefined, role: VSUserRoleValuesNew): boolean => {
     if(!profile) return false;
 
     return profile.roleId === role;
 }
+
+/** Fietsberaad rootadmin (main org contact 1). */
+export const isFietsberaadRootAdmin = (
+    profile: VSUserSecurityProfile | undefined,
+    mainContactId?: string
+): boolean =>
+    mainContactId === "1" && profile?.roleId === VSUserRoleValuesNew.RootAdmin;
+
+/** Cross-gemeente FMS permit overview (Fietsberaad superadmin or main-org RootAdmin). */
+export const canAccessFmsPermitsOverview = (
+    profile: VSUserSecurityProfile | undefined,
+    mainContactId?: string
+): boolean => {
+    if (!profile) return false;
+    if (userHasRight(profile, VSSecurityTopic.fietsberaad_superadmin)) return true;
+    return isFietsberaadRootAdmin(profile, mainContactId);
+};
 
 export const logSession = (session: Session | null) => {
     if(!session) {

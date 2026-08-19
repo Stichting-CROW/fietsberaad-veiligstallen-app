@@ -1,3 +1,5 @@
+import { parseLatLng } from "~/utils/map/coordinates";
+
 interface GeoJsonFeature {
   type: string;
   geometry: {
@@ -16,15 +18,16 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
   const features: GeoJsonFeature[] = [];
 
   input.forEach((x: any) => {
-    if (!x.Coordinaten) return;
-
-    const coords = x.Coordinaten.split(",").map((coord: any) => Number(coord)); // I.e.: 52.508011,5.473280;
+    // Stallingen without a usable WGS84 coordinate are left off the map: feeding
+    // MapLibre a NaN or out-of-range point breaks the whole source.
+    const latlng = parseLatLng(x.Coordinaten); // I.e.: 52.508011,5.473280;
+    if (latlng === undefined) return;
 
     features.push({
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [coords[1], coords[0]],
+        coordinates: [latlng.lng, latlng.lat],
       },
       properties: {
         id: x.ID,
@@ -43,24 +46,27 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
 };
 
 const createEditGeoJson = (Coordinaten: string) => {
-  const features: GeoJsonFeature[] = [];
-
-  const coords = Coordinaten?.split(",").map((coord: any) => Number(coord)) ?? [52.508011, 5.47328]; // I.e.: 52.508011,5.473280;
-  if(undefined!==coords[0] && undefined!==coords[1]) { 
-    features.push({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [coords[1], coords[0]],
-      },
-      properties: {
-        title: "",
-        location: "",
-        plaats: "",
-        type: "",
-      },
-    });
-  }
+  const latlng = parseLatLng(Coordinaten);
+  // No usable WGS84 pair: return an empty collection so the editor does not
+  // draw a fake stalling at the viewport fallback. The map may still open
+  // via toMapCenter (data-eigenaar pin or Utrecht).
+  const features: GeoJsonFeature[] = latlng === undefined
+    ? []
+    : [
+        {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [latlng.lng, latlng.lat],
+          },
+          properties: {
+            title: "",
+            location: "",
+            plaats: "",
+            type: "",
+          },
+        },
+      ];
 
   return {
     type: "FeatureCollection",
