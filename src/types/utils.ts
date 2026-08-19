@@ -78,6 +78,23 @@ export const userHasRole = (profile: VSUserSecurityProfile | undefined, role: VS
     return profile.roleId === role;
 }
 
+/** Fietsberaad rootadmin (main org contact 1). */
+export const isFietsberaadRootAdmin = (
+    profile: VSUserSecurityProfile | undefined,
+    mainContactId?: string
+): boolean =>
+    mainContactId === "1" && profile?.roleId === VSUserRoleValuesNew.RootAdmin;
+
+/** Cross-gemeente FMS permit overview (Fietsberaad superadmin features). */
+export const canAccessFmsPermitsOverview = (
+    profile: VSUserSecurityProfile | undefined,
+    mainContactId?: string
+): boolean => {
+    if (!profile) return false;
+    if (userHasRight(profile, VSSecurityTopic.fietsberaad_superadmin)) return true;
+    return isFietsberaadRootAdmin(profile, mainContactId);
+};
+
 export const logSession = (session: Session | null) => {
     if(!session) {
         console.log("### no active session");

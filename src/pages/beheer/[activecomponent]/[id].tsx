@@ -162,6 +162,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
 
   const showAbonnementenRapporten = true;
   const [hasAbonnementenModule, setHasAbonnementenModule] = useState(false);
+  const [hasFmsModule, setHasFmsModule] = useState(false);
 
   const firstDate = new Date("2018-03-01");
 
@@ -256,11 +257,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     const ensureModuleState = async () => {
       if (!selectedContactID) {
         setHasAbonnementenModule(false);
+        setHasFmsModule(false);
         return;
       }
 
       if (selectedContactID === "1") {
         setHasAbonnementenModule(true);
+        setHasFmsModule(true);
         return;
       }
 
@@ -274,11 +277,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         const modules = data as VSmodules_contacts[];
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
+          setHasFmsModule(modules.some(module => module.ModuleID === "fms"));
         }
       } catch (error) {
         if (!cancelled) {
           console.error("Error fetching modules for contact:", error);
           setHasAbonnementenModule(false);
+          setHasFmsModule(false);
         }
       }
     };
@@ -307,6 +312,9 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       const hasFietsenstallingenAccess = hasFietsenstallingenAdmin || hasFietsenstallingenBeperkt;
       const hasAbonnementsvormenRights = userHasRight(session?.user?.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
       const hasAbonnementsvormenAccess = hasAbonnementsvormenRights && hasAbonnementenModule;
+      const hasFmsServices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
+      const hasFmsPermitsAccess = hasFmsServices && hasFmsModule && selectedContactID !== "1";
+      const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
       
       switch (activecomponent) {
         case VSMenuTopic.Home:
@@ -529,10 +537,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = <AccountsComponent />;
           break;
         case VSMenuTopic.ApisGekoppeldeLocaties:
-          selectedComponent = <ApisComponent type="gekoppelde-locaties" />;
-          break;
-        case VSMenuTopic.ApisOverzicht:
-          selectedComponent = <ApisComponent type="overzicht" />;
+          selectedComponent = hasFmsPermitsAccess ? (
+            <ApisComponent />
+          ) : (
+            <AccessDenied />
+          );
           break;
         // case VSMenuTopic.StallingInfo:
         //   selectedComponent = <StallingInfoComponent />;
@@ -561,6 +570,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     exploitanten: exploitanten || [],
     onSelect: (componentKey: VSMenuTopic) => handleSelectComponent(componentKey),
     hasAbonnementenModule,
+    hasFmsModule,
   });
 
   return (

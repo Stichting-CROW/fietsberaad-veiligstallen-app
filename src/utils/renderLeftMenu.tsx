@@ -16,6 +16,7 @@ export interface RenderLeftMenuParams {
   exploitanten: VSContactExploitant[];
   onSelect: (componentKey: VSMenuTopic) => void;
   hasAbonnementenModule?: boolean;
+  hasFmsModule?: boolean;
 }
 
 export const renderLeftMenu = ({
@@ -26,6 +27,7 @@ export const renderLeftMenu = ({
   exploitanten,
   onSelect,
   hasAbonnementenModule = false,
+  hasFmsModule = false,
 }: RenderLeftMenuParams): React.ReactElement => {
   // If user is Fietsberaad, show the Fietsberaad left menu
   if (selectedContactID === "1") {
@@ -48,6 +50,7 @@ export const renderLeftMenu = ({
           activecomponent={activecomponent}
           onSelect={onSelect}
           hasAbonnementenModule={hasAbonnementenModule}
+          hasFmsModule={hasFmsModule}
         />
       </div>
     );

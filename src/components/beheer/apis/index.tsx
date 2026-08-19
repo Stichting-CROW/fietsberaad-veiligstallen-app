@@ -1,19 +1,8 @@
-import { useRouter } from 'next/router';
-import React from 'react';
-import WorkInProgressComponent from '../WorkInProgressComponent';
+import React from "react";
+import GekoppeldeLocaties from "./GekoppeldeLocaties";
 
-
-interface ApisComponentProps {
-  type: "gekoppelde-locaties" | "overzicht";
-}
-
-const ApisComponent: React.FC<ApisComponentProps> = ({ type }) => {
-  const router = useRouter();
-  const { ...query } = router.query;
-
-  return (
-    <WorkInProgressComponent title={`Apis Module [${type==="overzicht" ? "Overzicht" : "Gekoppelde locaties"}]`} />
-  );
+const ApisComponent: React.FC = () => {
+  return <GekoppeldeLocaties />;
 };
 
 export default ApisComponent;
