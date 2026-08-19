@@ -74,15 +74,21 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
       const bikeTypeNameMap = new Map(bikeTypes.map(bt => [bt.ID, bt.Name || ""]));
 
-      bikeTypesByAbonnement = abonnementBikeLinks.reduce((map, link) => {
-        const existing = map.get(link.SubscriptiontypeID) ?? [];
+      const bikeTypesByAbonnementIds = new Map<number, Map<number, string>>();
+      for (const link of abonnementBikeLinks) {
         const label = bikeTypeNameMap.get(link.BikeTypeID);
-        if (label) {
-          existing.push(label);
-        }
-        map.set(link.SubscriptiontypeID, existing);
-        return map;
-      }, new Map<number, string[]>());
+        if (!label) continue;
+        const byBikeTypeId =
+          bikeTypesByAbonnementIds.get(link.SubscriptiontypeID) ?? new Map<number, string>();
+        byBikeTypeId.set(link.BikeTypeID, label);
+        bikeTypesByAbonnementIds.set(link.SubscriptiontypeID, byBikeTypeId);
+      }
+      bikeTypesByAbonnement = new Map(
+        [...bikeTypesByAbonnementIds.entries()].map(([id, byBikeTypeId]) => [
+          id,
+          [...byBikeTypeId.values()],
+        ]),
+      );
     }
 
     const filtered: AbonnementsvormenType[] = subscriptions

@@ -72,9 +72,10 @@ const createGeoJson = (input: ParkingDetailsType[]) => {
   const features: GeoJsonFeature[] = [];
 
   input.forEach((x) => {
-    if (!x.Coordinaten) return;
-
+    // Stallingen without a usable WGS84 coordinate are left off the map: feeding
+    // MapLibre a NaN or out-of-range point breaks the whole source.
     const coords = convertCoordinatenToCoords(x.Coordinaten);
+    if (coords === undefined) return;
 
     features.push({
       type: "Feature",
@@ -176,6 +177,7 @@ function MapboxMap({
     );
     if (selectedParking) {
       const coords = convertCoordinatenToCoords(selectedParking.Coordinaten);
+      if (coords === undefined) return;
       stateMap.flyTo({
         center: coords,
         // curve: 1,

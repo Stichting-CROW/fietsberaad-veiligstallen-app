@@ -1,3 +1,5 @@
+import { parseLatLng } from "~/utils/map/coordinates";
+
 // async function getParkingMarker(color: string) {
 //   const marker = await styleParkingMarker(color);
 //   return marker;
@@ -114,12 +116,13 @@ const isPointInsidePolygon = (point: [number, number], vs: [number, number][]): 
   return inside;
 };
 
-const convertCoordinatenToCoords = (Coordinaten: string | null) => {
-  if (Coordinaten===null) return;
+// Returns [lng, lat] as expected by MapLibre, or undefined when the stored value
+// is not a usable WGS84 pair (empty, malformed, or Rijksdriehoek metres).
+const convertCoordinatenToCoords = (Coordinaten: string | null | undefined): [number, number] | undefined => {
+  const latlng = parseLatLng(Coordinaten); // I.e.: 52.508011,5.473280;
+  if (latlng === undefined) return undefined;
 
-  const coords = Coordinaten.split(",").map((coord: any) => Number(coord)); // I.e.: 52.508011,5.473280;
-
-  return [coords[1], coords[0]];
+  return [latlng.lng, latlng.lat];
 }
 
 const openRoute = (Coordinaten: string | null) => {

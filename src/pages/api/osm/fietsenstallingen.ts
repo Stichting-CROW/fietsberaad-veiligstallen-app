@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
+import { parseStreetParts } from "~/utils/address";
+import { parseLatLng } from "~/utils/map/coordinates";
 import { titleToSlug } from "~/utils/slug";
+import { EXCLUDED_STALLINGTYPE_NAMES_OSM } from "~/pages/api/stalling-export-types";
 
 type OSMFeature = {
   type: "Feature";
@@ -40,30 +43,6 @@ type OSMGeoJson = {
   type: "FeatureCollection";
   name: "veiligstallen_fietsenstallingen_osm";
   features: OSMFeature[];
-};
-
-const parseCoordinates = (coordinaten: string | null): { lat: number; lon: number } | null => {
-  if (!coordinaten) return null;
-  const parts = coordinaten.split(",").map((v) => v.trim());
-  if (parts.length !== 2) return null;
-
-  const lat = Number(parts[0]);
-  const lon = Number(parts[1]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-  return { lat, lon };
-};
-
-const parseStreetParts = (location: string | null): { streetName: string; streetNumber: string } => {
-  if (!location) return { streetName: "", streetNumber: "" };
-  const trimmed = location.trim();
-  if (!trimmed) return { streetName: "", streetNumber: "" };
-  const match = trimmed.match(/^(.*?)[\s,]+(\d+[a-zA-Z0-9\-\/]*)$/);
-  if (!match) return { streetName: trimmed, streetNumber: "" };
-  return {
-    streetName: match[1]?.trim() ?? trimmed,
-    streetNumber: match[2]?.trim() ?? "",
-  };
 };
 
 const aggregateCapacityByVehicleType = (
@@ -186,7 +165,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         Coordinaten: { not: null },
         Status: "1",
         fietsenstalling_type: {
-          is: { name: { not: "fietskluizen" } },
+          is: { name: { notIn: [...EXCLUDED_STALLINGTYPE_NAMES_OSM] } },
         },
         ...(cbsCodeFilter !== undefined
           ? {
@@ -263,8 +242,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const features: OSMFeature[] = [];
 
     for (const parking of parkings) {
-      const coords = parseCoordinates(parking.Coordinaten);
-      if (!coords || !parking.ID) continue;
+      const latlng = parseLatLng(parking.Coordinaten);
+      if (latlng === undefined || !parking.ID) continue;
 
       const { streetName, streetNumber } = parseStreetParts(parking.Location);
       const sectionCapacity = aggregateCapacityByVehicleType(parking.fietsenstalling_secties);
@@ -330,7 +309,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         type: "Feature",
         geometry: {
           type: "Point",
-          coordinates: [coords.lon, coords.lat],
+          coordinates: [latlng.lng, latlng.lat],
         },
         properties,
       });

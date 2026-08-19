@@ -248,9 +248,13 @@ async function extractOne(sourceId: string, targetStallingsId: string, title: st
 
   const abonnementsvormenTree = stalling.abonnementsvorm_fietsenstalling.map((a) => ({
     SubscriptiontypeID: a.SubscriptiontypeID,
-    BikeTypeIDs: abonnementsvormFietstype
-      .filter((avft) => avft.SubscriptiontypeID === a.SubscriptiontypeID)
-      .map((avft) => avft.BikeTypeID) as number[],
+    BikeTypeIDs: [
+      ...new Set(
+        abonnementsvormFietstype
+          .filter((avft) => avft.SubscriptiontypeID === a.SubscriptiontypeID)
+          .map((avft) => avft.BikeTypeID),
+      ),
+    ] as number[],
   }));
 
   const servicesData = stalling.fietsenstallingen_services.map((s) => ({

@@ -9,13 +9,15 @@ import SectionBlock from "~/components/SectionBlock";
 import SectionBlockEdit from "~/components/SectionBlockEdit";
 import type { ParkingDetailsType, ParkingStatus } from "~/types/parking";
 import {
-  getDefaultLocation,
   createVeiligstallenOrgLink,
+  getDefaultLocation,
 } from "~/utils/parkings";
 import {
   cbsCodeFromMunicipality,
   getMunicipalityBasedOnCbsCode,
 } from "~/utils/municipality";
+import { locationsAreWithin, parseLatLng, resolveDefaultLocation } from "~/utils/map/coordinates";
+import type { CheckLocationResponse } from "~/pages/api/protected/fietsenstallingen/check-location";
 import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 
 import ParkingEditAbonnementen from "~/components/parking/ParkingEditAbonnementen";
@@ -111,9 +113,6 @@ const ParkingEdit = ({
   showAbonnementen = false,
 }: ParkingEditProps) => {
   const [selectedTab, setSelectedTab] = React.useState<string>("tab-algemeen");
-  // const [waarschuwing, setWaarschuwing] = React.useState<string>('');
-  // const [allowSave, setAllowSave] = React.useState<boolean>(true);
-  const allowSave = true;
 
   const [newSiteID, setNewSiteID] = React.useState<string | undefined>(
     undefined,
@@ -132,6 +131,14 @@ const ParkingEdit = ({
   const [newCoordinaten, setNewCoordinaten] = React.useState<
     string | undefined
   >(undefined);
+
+  const currentCoordinaten = newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
+  const [viewportDefault, setViewportDefault] = React.useState<string>(getDefaultLocation());
+  const [viewportReady, setViewportReady] = React.useState(false);
+  const allowSave =
+    parseLatLng(currentCoordinaten) !== undefined &&
+    !locationsAreWithin(currentCoordinaten, viewportDefault, 1) &&
+    !locationsAreWithin(currentCoordinaten, getDefaultLocation(), 1);
 
   // used for map recenter when coordinates are manually changed
   const [centerCoords, setCenterCoords] = React.useState<string | undefined>(
@@ -226,6 +233,36 @@ const ParkingEdit = ({
   >(undefined);
 
   const { data: session } = useSession() as { data: Session | null };
+
+  React.useEffect(() => {
+    const contactId = newSiteID ?? parkingdata.SiteID ?? session?.user?.activeContactId ?? "";
+    if (!session?.user || !contactId || contactId === "1") {
+      setViewportDefault(getDefaultLocation());
+      setViewportReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/protected/contacts/${encodeURIComponent(contactId)}/coordinaten`);
+        const result = (await response.json()) as { coordinaten?: string | null };
+        if (!cancelled) {
+          setViewportDefault(resolveDefaultLocation(result.coordinaten));
+          setViewportReady(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setViewportDefault(getDefaultLocation());
+          setViewportReady(true);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user, newSiteID, parkingdata.SiteID, session?.user?.activeContactId]);
 
   // Check user rights for field-level access control
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
@@ -374,11 +411,20 @@ const ParkingEdit = ({
     };
 
     const checkCoordinatenType = (check: checkInfo): string => {
-      if (check.value === getDefaultLocation && check.newvalue === undefined) {
+      const coordinaten = check.newvalue !== undefined ? check.newvalue : check.value;
+      if (coordinaten === "" || coordinaten === null || coordinaten === undefined) {
         return `${check.text} is verplicht`;
-      } else {
-        return "";
       }
+      if (parseLatLng(coordinaten) === undefined) {
+        return `de locatie is ongeldig (${coordinaten}). Versleep de kaart om de stalling op de juiste plek te zetten.`;
+      }
+      if (
+        locationsAreWithin(coordinaten, viewportDefault, 1) ||
+        locationsAreWithin(coordinaten, getDefaultLocation(), 1)
+      ) {
+        return "De locatie staat nog op de standaardpositie. Versleep de marker naar de echte plek van de stalling.";
+      }
+      return "";
     };
 
     const checks: checkInfo[] = [
@@ -706,6 +752,40 @@ const ParkingEdit = ({
         return;
       }
 
+      if (session !== null) {
+        const checkResponse = await fetch("/api/protected/fietsenstallingen/check-location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            standard: viewportDefault,
+            current: currentCoordinaten,
+            stallingId: parkingdata.ID,
+            distance: 15,
+          }),
+        });
+        const checkResult = (await checkResponse.json()) as CheckLocationResponse;
+        if (!checkResult.allowed) {
+          alert("De locatie staat nog op de standaardpositie. Versleep de marker naar de echte plek van de stalling.");
+          return;
+        }
+        if (checkResult.swapped) {
+          const proceedSwapped = confirm(
+            "Weet u zeker dat u deze coördinaten wilt opslaan? Breedtegraad en lengtegraad lijken te zijn omgewisseld.",
+          );
+          if (!proceedSwapped) return;
+        }
+        const nearest = checkResult.matches[0];
+        if (nearest) {
+          const extra = checkResult.matches.length > 1
+            ? ` (en ${checkResult.matches.length - 1} andere)`
+            : "";
+          const proceed = confirm(
+            `Let op: stalling ${nearest.title}${extra} bevindt zich op minder dan 15 meter van deze coordinaten. Opslaan maakt het moeilijk om deze stallingen te onderscheiden op de kaart.`,
+          );
+          if (!proceed) return;
+        }
+      }
+
       // Check if parking was changed
       const update = getUpdate();
 
@@ -781,14 +861,19 @@ const ParkingEdit = ({
   const updateCoordinatesFromForm =
     (isLat: boolean) => (e: { target: { value: string } }) => {
       try {
-        const latlng = parkingdata.Coordinaten!==null ? parkingdata.Coordinaten.split(",") : [];
+        const source =
+          newCoordinaten !== undefined ? newCoordinaten : parkingdata.Coordinaten;
+        const latlng =
+          source && source !== "" ? source.split(",").map((part) => part.trim()) : ["", ""];
+        while (latlng.length < 2) latlng.push("");
         if (isLat) {
           latlng[0] = e.target.value;
         } else {
           latlng[1] = e.target.value;
         }
-        setNewCoordinaten(latlng.join(","));
-        setCenterCoords(latlng.join(","));
+        const joined = latlng.join(",");
+        setNewCoordinaten(joined);
+        setCenterCoords(joined);
       } catch (ex: any) {
         if (ex.message) {
           console.warn(
@@ -810,7 +895,7 @@ const ParkingEdit = ({
     }
     if (coords === "" || coords === null) return "";
 
-    const latlng = coords.split(",");
+    const latlng = coords.split(",").map((part) => part.trim());
     if (isLat) {
       return latlng[0]?.toString() || "";
     } else {
@@ -1269,15 +1354,19 @@ const ParkingEdit = ({
         >
           <div className="relative">
             <NoClickOverlay />
-            <ParkingEditLocation
-              parkingCoords={
-                newCoordinaten !== undefined
-                  ? newCoordinaten
-                  : parkingdata.Coordinaten
-              }
-              centerCoords={centerCoords}
-              onPan={updateCoordinatesFromMap}
-            />
+            {viewportReady && (
+              <ParkingEditLocation
+                key={viewportDefault}
+                parkingCoords={
+                  newCoordinaten !== undefined
+                    ? newCoordinaten
+                    : parkingdata.Coordinaten
+                }
+                centerCoords={centerCoords}
+                fallbackCoords={viewportDefault}
+                onPan={updateCoordinatesFromMap}
+              />
+            )}
           </div>
           <FormHelperText className="w-full pb-2">
             <Typography className="py-2 text-center" variant="h6">
@@ -1483,10 +1572,11 @@ const ParkingEdit = ({
           <div className="mr-4 hidden sm:block">
             {parkingTitle || newTitle || "Nieuwe Stalling"}
           </div>
-          {showUpdateButtons === true && allowSave && (
+          {showUpdateButtons === true && (
             <Button
               key="b-1"
               className="mt-3 sm:mt-0"
+              disabled={!allowSave}
               onClick={(e: any) => {
                 if (e) e.preventDefault();
                 handleUpdateParking();

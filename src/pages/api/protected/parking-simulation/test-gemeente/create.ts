@@ -376,15 +376,6 @@ export default async function handle(
                   BikeparkID: stallingId,
                 },
               });
-              if (av.BikeTypeIDs.length > 0) {
-                await tx.abonnementsvorm_fietstype.createMany({
-                  data: av.BikeTypeIDs.map((bikeTypeID) => ({
-                    SubscriptiontypeID: av.SubscriptiontypeID,
-                    BikeTypeID: bikeTypeID,
-                  })),
-                  skipDuplicates: true,
-                });
-              }
             }
           }
 
