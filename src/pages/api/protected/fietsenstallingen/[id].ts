@@ -358,24 +358,8 @@ export default async function handle(
           return;
         }
 
-        const currentContactInfo = await prisma.contacts.findFirst({
-          where: {
-            ID: activeContactId
-          },
-          select: {
-            Coordinaten: true
-          }
-        });
-
-        if(!currentContactInfo || !currentContactInfo.Coordinaten) {
-          console.error("Unauthorized - no coordinaten for active contact ID", activeContactId);
-          res.status(403).json({ error: "No coordinaten for active contact ID" });
-          return;
-        }
-
         // add timestamp to the name
         const defaultRecord = getDefaultNewFietsenstalling('Test Fietsenstalling ' + new Date().toISOString());
-        defaultRecord.Coordinaten = currentContactInfo.Coordinaten;
 
         res.status(200).json({data: defaultRecord});
         return;
@@ -404,8 +388,9 @@ export default async function handle(
       try {
         const parseResult = fietsenstallingSchema.partial().safeParse(req.body);
         if (!parseResult.success) {
+          const message = parseResult.error.issues[0]?.message ?? "Unexpected/missing data error:";
           console.error("Unexpected/missing data error:", parseResult.error);
-          res.status(400).json({error: "Unexpected/missing data error:"});
+          res.status(400).json({error: message});
           return;
         }
 
@@ -573,8 +558,9 @@ export default async function handle(
         res.status(200).json({data: updatedFietsenstalling});
       } catch (e) {
         if (e instanceof z.ZodError) {
+          const message = e.issues[0]?.message ?? "Unexpected/missing data error:";
           console.error("Unexpected/missing data error:", e.errors);
-          res.status(400).json({error: "Unexpected/missing data error:"});
+          res.status(400).json({error: message});
         } else {
           console.error("Error updating fietsenstalling:", e);
           console.error("Error details:", {

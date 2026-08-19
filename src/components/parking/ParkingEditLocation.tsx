@@ -26,11 +26,13 @@ import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 function ParkingEditLocation({
   parkingCoords,
   centerCoords,
+  fallbackCoords,
   onPan,
   initialZoom = 16,
 }): React.ReactElement<{
   parkingCoords: string;
   centerCoords: string | undefined;
+  fallbackCoords?: string;
   onPan: Function<{ lat: number; lng: number }>;
 }> {
   // this is where the map instance will be stored after initialization
@@ -40,6 +42,7 @@ function ParkingEditLocation({
   // as a required parameter `container` when initializing the mapbox-gl
   // will contain `null` by default
   const mapNode = React.useRef(null);
+  const acceptUserPan = React.useRef(false);
 
   React.useEffect(() => {
     const node = mapNode.current;
@@ -52,9 +55,11 @@ function ParkingEditLocation({
     // If stateMap already exists: Stop, as the map is already initiated
     if (stateMap) return;
 
-    // Get coords from parking variable. Falls back to the centre of the country
-    // when the stalling has no usable WGS84 coordinate, so the editor still opens.
-    const center = toMapCenter(parseLatLng(centerCoords) ? centerCoords : parkingCoords);
+    acceptUserPan.current = false;
+    // Stored stalling coords if usable; otherwise the data-eigenaar / Utrecht viewport.
+    const stored = parseLatLng(centerCoords) ? centerCoords : parkingCoords;
+    const fallback = parseLatLng(fallbackCoords) ?? undefined;
+    const center = toMapCenter(stored, fallback);
 
     // otherwise, create a map instance
     const mapboxMap = new maplibregl.Map({
@@ -73,8 +78,11 @@ function ParkingEditLocation({
     });
 
     mapboxMap.on("load", () => onMapLoaded(mapboxMap));
+    mapboxMap.on("dragstart", () => {
+      acceptUserPan.current = true;
+    });
     mapboxMap.on("move", () => {
-      if (onPan) {
+      if (onPan && acceptUserPan.current) {
         const lng = mapboxMap.getCenter().lng;
         const lat = mapboxMap.getCenter().lat;
         onPan(lat, lng);
@@ -103,7 +111,7 @@ function ParkingEditLocation({
     if (!stateMap || latlng === undefined) return;
 
     stateMap.setCenter([latlng.lng, latlng.lat]);
-  }, [centerCoords]);
+  }, [centerCoords, stateMap]);
 
   // If 'parkingCoors' variable changes: Update source data
   React.useEffect(() => {
@@ -181,6 +189,8 @@ function ParkingEditLocation({
     zIndex: 1,
   };
 
+  const locationMissing = parseLatLng(parkingCoords) === undefined;
+
   return (
     <div
       ref={mapNode}
@@ -188,6 +198,14 @@ function ParkingEditLocation({
       style={{ width: "100%", height: "696px", position: "relative" }}
     >
       <div className="map-cursor" style={cursorStyle}></div>
+      {locationMissing && (
+        <div
+          className="absolute left-3 right-3 top-3 z-10 rounded-lg bg-white/95 px-3 py-2 text-sm shadow"
+          style={{ pointerEvents: "none" }}
+        >
+          Deze stalling heeft geen geldige locatie. Versleep de kaart naar de juiste plek.
+        </div>
+      )}
     </div>
   );
 }

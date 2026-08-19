@@ -1,4 +1,4 @@
-import { DEFAULT_LATLNG, parseLatLng } from "~/utils/map/coordinates";
+import { parseLatLng } from "~/utils/map/coordinates";
 
 interface GeoJsonFeature {
   type: string;
@@ -46,23 +46,27 @@ const createGeoJson = (input: GeoJsonFeature[]) => {
 };
 
 const createEditGeoJson = (Coordinaten: string) => {
-  const latlng = parseLatLng(Coordinaten) ?? DEFAULT_LATLNG; // I.e.: 52.508011,5.473280;
-
-  const features: GeoJsonFeature[] = [
-    {
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [latlng.lng, latlng.lat],
-      },
-      properties: {
-        title: "",
-        location: "",
-        plaats: "",
-        type: "",
-      },
-    },
-  ];
+  const latlng = parseLatLng(Coordinaten);
+  // No usable WGS84 pair: return an empty collection so the editor does not
+  // draw a fake stalling at the viewport fallback. The map may still open
+  // via toMapCenter (data-eigenaar pin or Utrecht).
+  const features: GeoJsonFeature[] = latlng === undefined
+    ? []
+    : [
+        {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [latlng.lng, latlng.lat],
+          },
+          properties: {
+            title: "",
+            location: "",
+            plaats: "",
+            type: "",
+          },
+        },
+      ];
 
   return {
     type: "FeatureCollection",

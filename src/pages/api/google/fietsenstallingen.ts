@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
+import { parseStreetParts } from "~/utils/address";
+import { parseLatLng } from "~/utils/map/coordinates";
 import { titleToSlug } from "~/utils/slug";
+import { ALLOWED_STALLINGTYPE_NAMES_GOOGLE } from "~/pages/api/stalling-export-types";
 
 type GooglePoiRow = {
   ID: string;
@@ -40,49 +43,10 @@ const GOOGLE_POI_HEADERS: (keyof GooglePoiRow)[] = [
   "CAPACITY_TOTAL", "CAPACITY_PER_VEHICLE_TYPE", "SERVICES", "TARIFFS", "GUARDED", "OPERATOR",
 ];
 
-const ALLOWED_STALLINGTYPE_NAMES = [
-  "Bewaakte stalling",
-  "Geautomatiseerde stalling",
-  "Stalling met toezicht",
-  "Onbewaakte stalling",
-] as const;
-
 const escapeCsvField = (value: unknown): string => {
   if (value === null || value === undefined) return "\"\"";
   const str = String(value);
   return `"${str.replace(/"/g, "\"\"")}"`;
-};
-
-const parseCoordinates = (coordinaten: string | null): { lat: string; lon: string } | null => {
-  if (!coordinaten) return null;
-  const parts = coordinaten.split(",").map((v) => v.trim());
-  if (parts.length !== 2) return null;
-
-  const latNum = Number(parts[0]);
-  const lonNum = Number(parts[1]);
-  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return null;
-  if (latNum < -90 || latNum > 90 || lonNum < -180 || lonNum > 180) return null;
-
-  return {
-    lat: latNum.toFixed(6),
-    lon: lonNum.toFixed(6),
-  };
-};
-
-const parseStreetParts = (location: string | null): { streetName: string; streetNumber: string } => {
-  if (!location) return { streetName: "", streetNumber: "" };
-  const trimmed = location.trim();
-  if (!trimmed) return { streetName: "", streetNumber: "" };
-
-  const match = trimmed.match(/^(.*?)[\s,]+(\d+[a-zA-Z0-9\-\/]*)$/);
-  if (!match) {
-    return { streetName: trimmed, streetNumber: "" };
-  }
-
-  return {
-    streetName: match[1]?.trim() ?? trimmed,
-    streetNumber: match[2]?.trim() ?? "",
-  };
 };
 
 const formatTimeRange = (open: Date | null, close: Date | null): string => {
@@ -171,18 +135,17 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const parkings = await prisma.fietsenstallingen.findMany({
       where: {
         Coordinaten: { not: null },
+        Status: "1",
         fietsenstalling_type: {
           is: {
             name: {
-              in: [...ALLOWED_STALLINGTYPE_NAMES],
+              in: [...ALLOWED_STALLINGTYPE_NAMES_GOOGLE],
             },
           },
         },
         NOT: [
           { Coordinaten: "" },
           { Title: { contains: "Systeemstalling" } },
-          { Status: "aanm" },
-          { Status: "AANM" },
         ],
       },
       select: {
@@ -263,8 +226,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     rows.push(GOOGLE_POI_HEADERS.map(escapeCsvField).join(","));
 
     for (const parking of parkings) {
-      const coords = parseCoordinates(parking.Coordinaten);
-      if (!coords || !parking.ID || !parking.Title) continue;
+      const latlng = parseLatLng(parking.Coordinaten);
+      if (latlng === undefined || !parking.ID || !parking.Title) continue;
+      const coords = {
+        lat: latlng.lat.toFixed(6),
+        lon: latlng.lng.toFixed(6),
+      };
 
       const { streetName, streetNumber } = parseStreetParts(parking.Location);
       const fullAddress = [parking.Location, `${parking.Postcode ?? ""} ${parking.Plaats ?? ""}`.trim(), "Netherlands"]
