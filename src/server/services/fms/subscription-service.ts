@@ -174,14 +174,13 @@ export async function subscribe(
     return { status: 0, message: "Subscription not found" };
   }
 
-  const bikepass = await getBikepassByPassId(
-    prisma,
-    passID,
-    bikepark.SiteID,
-    "sleutelhanger",
-    false
-  );
-  if (!bikepass?.ID) {
+  const bikepass = await prisma.accounts_pasids.findFirst({
+    where: {
+      PasID: passID,
+      SiteID: bikepark.SiteID,
+    },
+  });
+  if (!bikepass) {
     return { status: 0, message: "Pass not found for this site" };
   }
 
