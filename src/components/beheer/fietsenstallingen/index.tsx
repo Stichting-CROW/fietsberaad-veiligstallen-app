@@ -345,6 +345,15 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
         }
 
         reloadFietsenstallingen();
+        if (currentParkingId === id) {
+          setCurrentParking(undefined);
+          setCurrentParkingId(undefined);
+          const { id: _removed, ...queryWithoutId } = router.query;
+          router.push({
+            pathname: router.pathname,
+            query: queryWithoutId,
+          });
+        }
       } catch (error) {
         console.error('Error deleting parking:', error);
         alert('Er is een fout opgetreden bij het verwijderen van de stalling');

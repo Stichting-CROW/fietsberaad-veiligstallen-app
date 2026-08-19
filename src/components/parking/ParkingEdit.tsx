@@ -1546,12 +1546,12 @@ const ParkingEdit = ({
   };
 
   let parkingTitle = parkingdata.Title;
-  if (parkingdata.ID.substring(0, 8) === "VOORSTEL") {
+  if (parkingdata.ID?.substring(0, 8) === "VOORSTEL") {
     parkingTitle += " (voorstel)";
   }
 
   const isLoggedIn = session !== null;
-  const hasID = parkingdata.ID !== "";
+  const hasID = Boolean(parkingdata.ID);
 
   let opslaanTekst = "";
   if(isVoorstel) {

@@ -309,6 +309,7 @@ export default async function handle(
   
   // For POST and DELETE, require admin rights (or fietsberaad_superadmin for DELETE, e.g. parking simulation)
   const canDeleteFietsenstalling = userCanDeleteFietsenstalling(session?.user?.securityProfile);
+  const hasSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
   if (req.method === "POST" && !hasFietsenstallingenAdmin) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
@@ -339,11 +340,25 @@ export default async function handle(
     const tmpstalling = await prisma.fietsenstallingen.findFirst({
       where: {
         ID: id
-      }
+      },
+      select: { SiteID: true, Status: true },
     });
 
-    if(!tmpstalling || !tmpstalling.SiteID || !sites.includes(tmpstalling.SiteID)) {
-      console.error("Unauthorized - no access to this organization", id);
+    if (!tmpstalling) {
+      res.status(404).json({ error: "Stalling not found" });
+      return;
+    }
+
+    if (
+      !hasSuperadmin &&
+      (!tmpstalling.SiteID || !sites.includes(tmpstalling.SiteID))
+    ) {
+      console.error(
+        "Unauthorized - no access to this organization",
+        tmpstalling.SiteID,
+        "stalling",
+        id,
+      );
       res.status(403).json({ error: "No access to this organization" });
       return;
     }
