@@ -85,7 +85,7 @@ export const isFietsberaadRootAdmin = (
 ): boolean =>
     mainContactId === "1" && profile?.roleId === VSUserRoleValuesNew.RootAdmin;
 
-/** Cross-gemeente FMS permit overview (Fietsberaad superadmin features). */
+/** Cross-gemeente FMS permit overview (Fietsberaad superadmin or main-org RootAdmin). */
 export const canAccessFmsPermitsOverview = (
     profile: VSUserSecurityProfile | undefined,
     mainContactId?: string

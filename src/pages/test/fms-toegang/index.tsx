@@ -39,7 +39,7 @@ const FmsToegangOverzichtPage: React.FC = () => {
         <div className="mx-auto max-w-2xl rounded-lg border border-red-300 bg-red-50 p-6">
           <h3 className="mb-2 text-lg font-medium text-red-800">Geen toegang</h3>
           <p className="text-sm text-red-700">
-            Alleen Fietsberaad-superadmins hebben toegang tot het FMS-toegang overzicht.
+            Alleen Fietsberaad-superadmins en de RootAdmin van contact 1 hebben toegang tot het FMS-toegang overzicht.
           </p>
         </div>
       </div>
