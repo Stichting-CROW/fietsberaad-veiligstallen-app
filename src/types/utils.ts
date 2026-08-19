@@ -72,6 +72,15 @@ export const userHasRight = (profile: VSUserSecurityProfile | undefined, right: 
     return hasRight;
 }
 
+/**
+ * Removing a fietsenstalling is destructive and cascades over the whole database,
+ * so it is reserved for Fietsberaad. Gemeente-beheerders hide a stalling instead
+ * (Status "0"). Voorstellen are exempt: whoever may edit one may also withdraw it.
+ */
+export const userCanDeleteFietsenstalling = (profile: VSUserSecurityProfile | undefined): boolean =>
+    userHasRight(profile, VSSecurityTopic.fietsberaad_admin) ||
+    userHasRight(profile, VSSecurityTopic.fietsberaad_superadmin);
+
 export const userHasRole = (profile: VSUserSecurityProfile | undefined, role: VSUserRoleValuesNew): boolean => {
     if(!profile) return false;
 

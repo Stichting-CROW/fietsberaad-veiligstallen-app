@@ -8,7 +8,7 @@ import { useFietsenstallingen } from '~/hooks/useFietsenstallingen';
 import { useFietsenstallingtypen } from '~/hooks/useFietsenstallingtypen';
 import { useSession } from 'next-auth/react';
 import { Table } from '~/components/common/Table';
-import { userHasRight } from "~/types/utils";
+import { userCanDeleteFietsenstalling, userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { AdminButton } from '~/components/beheer/AdminButton';
 import { StallingsdataControleModal } from './StallingsdataControleModal';
@@ -57,7 +57,9 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
   const hasFietsenstallingenAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const canCreateNew = hasFietsenstallingenAdmin;
-  const canDelete = hasFietsenstallingenAdmin;
+  // Fietsberaad removes a stalling for good, a gemeentebeheerder only hides it
+  const canDelete = userCanDeleteFietsenstalling(session?.user?.securityProfile);
+  const canHide = hasFietsenstallingenAdmin;
 
   const [controleModalOpen, setControleModalOpen] = useState(false);
   const [lastDatakwaliteitControleAt, setLastDatakwaliteitControleAt] = useState<Date | null | undefined>(undefined);
@@ -350,6 +352,29 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
     }
   };
 
+  const handleHide = async (id: string) => {
+    const stallingName = fietsenstallingen.find(x => x.ID === id)?.Title || '';
+    const message = `Stalling ${stallingName} verbergen?\n\nDeze stalling wordt verborgen. De gegevens worden bewaard. Wilt u de stalling daadwerkelijk verwijderen, neem dan contact op met de fietsberaad beheerder.`;
+    if (confirm(message)) {
+      try {
+        const response = await fetch(`/api/protected/fietsenstallingen/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Status: "0" }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to hide parking');
+        }
+
+        reloadFietsenstallingen();
+      } catch (error) {
+        console.error('Error hiding parking:', error);
+        alert('Er is een fout opgetreden bij het verbergen van de stalling');
+      }
+    }
+  };
+
   const handleClose = (confirmClose = false) => {
     if (confirmClose && (confirm('Wil je het bewerkformulier verlaten?') === false)) {
       return;
@@ -601,9 +626,11 @@ const FietsenstallingenComponent: React.FC<FietsenstallingenComponentProps> = ({
                     >
                       ✏️
                     </button>
-                    {canDelete && (
+                    {(canDelete || canHide) && (
                       <button
-                        onClick={() => handleDelete(parking.ID)}
+                        onClick={() => canDelete ? handleDelete(parking.ID) : handleHide(parking.ID)}
+                        disabled={!canDelete && parking.Status === "0"}
+                        title={canDelete ? "Stalling verwijderen" : "Stalling verbergen"}
                         className="text-red-500 mx-1 disabled:opacity-40"
                       >
                         🗑️

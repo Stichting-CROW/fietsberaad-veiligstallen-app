@@ -7,7 +7,7 @@ import { generateID, validateUserSession } from "~/utils/server/database-tools";
 import { fietsenstallingSchema, getDefaultNewFietsenstalling } from "~/types/fietsenstallingen";
 import { fietsenstallingCreateSchema } from "~/types/fietsenstallingen";
 import { type ParkingDetailsType, selectParkingDetailsType } from "~/types/parking";
-import { userHasRight } from "~/types/utils";
+import { userCanDeleteFietsenstalling, userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 // TODO: convert these types to the types in the types/parking.tsx file
 import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
@@ -308,12 +308,12 @@ export default async function handle(
   const hasFietsenstallingenBeperkt = userHasRight(session?.user?.securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   
   // For POST and DELETE, require admin rights (or fietsberaad_superadmin for DELETE, e.g. parking simulation)
-  const hasSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  const canDeleteFietsenstalling = userCanDeleteFietsenstalling(session?.user?.securityProfile);
   if (req.method === "POST" && !hasFietsenstallingenAdmin) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
   }
-  if (req.method === "DELETE" && !hasFietsenstallingenAdmin && !hasSuperadmin) {
+  if (req.method === "DELETE" && !hasFietsenstallingenAdmin && !canDeleteFietsenstalling) {
     res.status(403).json({ error: "Access denied - admin rights required for this operation" });
     return;
   }
@@ -345,6 +345,16 @@ export default async function handle(
     if(!tmpstalling || !tmpstalling.SiteID || !sites.includes(tmpstalling.SiteID)) {
       console.error("Unauthorized - no access to this organization", id);
       res.status(403).json({ error: "No access to this organization" });
+      return;
+    }
+
+    // Only Fietsberaad removes an established stalling; a gemeentebeheerder hides it.
+    // Withdrawing an own voorstel stays allowed, otherwise abandoned drafts pile up.
+    const isVoorstel = tmpstalling.Status === "aanm" || tmpstalling.Status === "new";
+    if (req.method === "DELETE" && !isVoorstel && !canDeleteFietsenstalling) {
+      res.status(403).json({
+        error: "Alleen de fietsberaad beheerder kan een stalling verwijderen. Zet de status op verborgen om de stalling onzichtbaar te maken.",
+      });
       return;
     }
   }
