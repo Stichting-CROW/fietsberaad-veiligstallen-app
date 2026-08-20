@@ -84,7 +84,7 @@ export const createBezettingExport = async ({
   }
 
   const { timeShiftInMinutes } = await getGemeenteExportContext(gemeenteID);
-  const filename = resolveCsvExportFilename("bezetting", { jaar, stallingsID });
+  const filename = `${jaar}_${stallingsID}_bezetting.csv`;
 
   // CF aborts without writing a file when the stalling cannot be found.
   if (!(await stallingExists(stallingsID))) {

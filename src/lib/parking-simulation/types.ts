@@ -42,8 +42,6 @@ export interface TariffRate {
 export interface SimulationSession {
   id: string;
   siteID: string;
-  apiUsername?: string | null;
-  apiPasswordEncrypted?: string | null;
   baseUrl?: string | null;
   defaultBiketypeID: number;
   defaultIdtype: number;
