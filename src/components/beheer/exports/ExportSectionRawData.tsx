@@ -40,7 +40,10 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
                 reportType,
                 bikeparkIDs: validBikeparkIDs,
                 startDT: firstDate,
-                endDT: lastDate
+                endDT: lastDate,
+                // Ruwe Data CSV comes from live transacties_view; hide months
+                // that only still exist in the archive.
+                ...(gemeenteID ? { gemeenteID, useLiveTransacties: true } : {}),
               }),
             });
     
@@ -63,7 +66,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
         };
     
         fetchReportData();
-  }, [reportType, bikeparks]);
+  }, [reportType, bikeparks, gemeenteID, firstDate, lastDate]);
 
   const getMonthName = (month: number): string => {
       return new Date(2000, month - 1, 1).toLocaleString('nl-NL', { month: 'short' });
@@ -134,6 +137,11 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
           Alle Transacties (ruwe data)
       </h2>
       {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
+      {bikeparkData.every(bp => bp.monthsWithData.length === 0) && (
+        <div className="text-left text-gray-500 mt-2 mb-4">
+          Geen ruwe transactiedata meer beschikbaar voor export (data is gearchiveerd).
+        </div>
+      )}
       <ul className="bikepark-list">
           {bikeparkData
               .filter(bp => bp.monthsWithData.length > 0)

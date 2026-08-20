@@ -4,6 +4,8 @@ import {
   interpolateSQL
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
+import { getGemeenteExportContext } from "~/backend/services/reports/csvExportLookups";
+import { prisma } from "~/server/db";
 import moment from 'moment';
 
 export type AvailableDataDetailedResult = {
@@ -159,3 +161,50 @@ export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[],
     }
   }
 }
+
+/**
+ * Months that still exist in the live `transacties_view` table for a gemeente,
+ * using the same DayBeginsAt shift and filters as the CSV exports. The export
+ * page uses this so year/month buttons only appear when a download will produce
+ * rows (archived years that only exist in transacties_archief are hidden).
+ */
+export const getLiveTransactiesExportAvailability = async (
+  gemeenteID: string,
+  bikeparkIDs: string[],
+  options?: { excludeSync?: boolean }
+): Promise<AvailableDataDetailedResult[]> => {
+  if (bikeparkIDs.length === 0) {
+    return [];
+  }
+
+  const { zipID, timeShiftInMinutes } = await getGemeenteExportContext(gemeenteID);
+  if (!zipID) {
+    return [];
+  }
+
+  const shiftedDate = `DATE(DATE_ADD(Date_checkout, INTERVAL ${-timeShiftInMinutes} MINUTE))`;
+  const placeholders = bikeparkIDs.map(() => "?").join(",");
+  const syncFilter = options?.excludeSync
+    ? "AND Type_checkin != 'sync' AND Type_checkout != 'sync'"
+    : "";
+
+  const sql = `
+    SELECT
+      FietsenstallingID AS locationID,
+      DATE_FORMAT(${shiftedDate}, '%Y-%m') AS yearmonth,
+      COUNT(*) AS total
+    FROM transacties_view
+    WHERE zipID = ?
+    AND FietsenstallingID IN (${placeholders})
+    AND Date_checkout IS NOT NULL
+    ${syncFilter}
+    GROUP BY locationID, yearmonth
+    ORDER BY locationID, yearmonth
+  `;
+
+  return prisma.$queryRawUnsafe<AvailableDataDetailedResult[]>(
+    sql,
+    zipID,
+    ...bikeparkIDs
+  );
+};

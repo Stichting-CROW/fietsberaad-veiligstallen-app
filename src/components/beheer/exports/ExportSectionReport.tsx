@@ -56,7 +56,12 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
               reportType,
               bikeparkIDs: validBikeparkIDs,
               startDT: firstDate,
-              endDT: lastDate
+              endDT: lastDate,
+              // Afgeronde Transacties CSV comes from live transacties_view; hide
+              // years that only still exist in the archive.
+              ...(reportType === "transacties_voltooid" && gemeenteID
+                ? { gemeenteID, useLiveTransacties: true }
+                : {}),
             }),
           });
   
@@ -81,7 +86,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
       if(showSectionReport) {
         fetchReportData();
       }
-  }, [reportType, bikeparks, counter]);
+  }, [reportType, bikeparks, counter, gemeenteID, firstDate, lastDate]);
 
   const downloadYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
     if (csvExportType === undefined) return;
@@ -190,6 +195,11 @@ return (
   <>
     <h2 className="text-lg font-semibold text-gray-900">{ exportTitle }</h2>
       {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
+      {reportType === "transacties_voltooid" && allYears.length === 0 && (
+        <div className="text-left text-gray-500 mt-2 mb-4">
+          Geen afgeronde transacties meer beschikbaar voor export (data is gearchiveerd).
+        </div>
+      )}
       <ul className="bikepark-list">
           {/* All parkings combined entry */}
           {showAllBikeparks && allYears.length > 0 && (

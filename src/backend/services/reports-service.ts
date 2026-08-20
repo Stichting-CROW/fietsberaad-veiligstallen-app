@@ -8,7 +8,8 @@ import {
   type AvailableDataDetailedResult,
   type AvailableDataPerStallingResult,
   getSQLDetailed as getAvailableDataSQLDetailed,
-  getSQLPerBikepark as getAvailableDataSQLPerBikepark
+  getSQLPerBikepark as getAvailableDataSQLPerBikepark,
+  getLiveTransactiesExportAvailability,
 } from "~/backend/services/reports/availableData";
 import { prisma } from "~/server/db";
 
@@ -86,8 +87,33 @@ const ReportService = {
     }
   },
 
-  getAvailableDataDetailed: async (reportType: ReportType, possibleBikeparkIDs: string[], startDT: Date | undefined, endDT: Date | undefined) => {
+  getAvailableDataDetailed: async (
+    reportType: ReportType,
+    possibleBikeparkIDs: string[],
+    startDT: Date | undefined,
+    endDT: Date | undefined,
+    options?: { gemeenteID?: string; useLiveTransacties?: boolean }
+  ) => {
     try {
+      if (options?.useLiveTransacties) {
+        if (!options.gemeenteID) {
+          console.error("getAvailableDataDetailed: gemeenteID is required for live transacties availability");
+          return false;
+        }
+
+        const data = await getLiveTransactiesExportAvailability(
+          options.gemeenteID,
+          possibleBikeparkIDs,
+          { excludeSync: reportType === "transacties_voltooid" }
+        );
+
+        return data.map((d) => ({
+          locationID: d.locationID,
+          yearmonth: d.yearmonth,
+          count: d.total.toString(),
+        }));
+      }
+
       const sql = getAvailableDataSQLDetailed(reportType, possibleBikeparkIDs, startDT, endDT);
       if (!sql) {
         console.error("No result from getAvailableDataSQLDetailed");

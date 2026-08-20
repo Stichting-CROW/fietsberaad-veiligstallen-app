@@ -44,8 +44,11 @@ const AvailableDataParamsSchema = z.object({
   bikeparkIDs: z.array(z.string()),
   startDT: dateSchema.optional(),
   endDT: dateSchema.optional(),
-  // allDates: z.boolean().optional(),
-  // allBikeparks: z.boolean().optional(),
+  gemeenteID: z.string().optional(),
+  // When true, availability is taken from live transacties_view (CSV export source)
+  // instead of transacties_archief. Used by the export page for Afgeronde Transacties
+  // and Ruwe Data so empty-download years/months are not shown as buttons.
+  useLiveTransacties: z.boolean().optional(),
 });
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -161,12 +164,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             });
           }
 
-          const { reportType, bikeparkIDs, startDT, endDT } = parseResult.data;
+          const { reportType, bikeparkIDs, startDT, endDT, gemeenteID, useLiveTransacties } = parseResult.data;
           const data = await ReportService.getAvailableDataDetailed(
             reportType as ReportType,
             bikeparkIDs,
             startDT ? new Date(startDT) : undefined,
-            endDT ? new Date(endDT) : undefined
+            endDT ? new Date(endDT) : undefined,
+            { gemeenteID, useLiveTransacties }
           );
           return res.json(data);
         }
