@@ -1,0 +1,61 @@
+/* Swagger docs: full page height, no viewport scroll trap (incl. print). */
+
+html.swagger-docs-page,
+html.swagger-docs-page body,
+html.swagger-docs-page #__next,
+html.swagger-docs-page #__next > main {
+  height: auto !important;
+  min-height: 100%;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.swagger-docs-container {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.swagger-docs-container .swagger-ui,
+.swagger-docs-container .swagger-ui .wrapper,
+.swagger-docs-container .swagger-ui section {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.swagger-docs-container .swagger-ui .opblock.is-open .opblock-body {
+  display: block !important;
+}
+
+.swagger-docs-container .swagger-ui section.models.is-open .models-control {
+  display: block !important;
+}
+
+@media print {
+  html.swagger-docs-page,
+  html.swagger-docs-page body,
+  html.swagger-docs-page #__next,
+  html.swagger-docs-page #__next > main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .swagger-docs-container,
+  .swagger-docs-container .swagger-ui,
+  .swagger-docs-container .swagger-ui .wrapper {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .swagger-docs-container .swagger-ui .opblock-body,
+  .swagger-docs-container .swagger-ui .model-box,
+  .swagger-docs-container .swagger-ui section.models {
+    display: block !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .swagger-docs-container .swagger-ui .opblock {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

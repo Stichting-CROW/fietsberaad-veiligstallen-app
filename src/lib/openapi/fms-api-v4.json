@@ -1,0 +1,1755 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FMS REST API v4",
+    "description": "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |\n| `dataprovider.type2` | Afgeronde transacties + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: het synchroniseren van check-ins/check-outs vereist\n  `operator` of `dataprovider.type1`; bezettingsdata (`occupation`) vereist\n  `operator` of `dataprovider.type2`.\n\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out-events (`transactions`) en `completedtransactions` zijn niet beschikbaar op v4-paden; gebruik v3 voor bestaande integraties.\n",
+    "version": "4.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/fms",
+      "description": "Next.js API"
+    }
+  ],
+  "security": [
+    {
+      "basicAuth": []
+    }
+  ],
+  "paths": {
+    "/v4/servertime": {
+      "get": {
+        "summary": "Server tijd (V4 aux)",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ISO 8601 timestamp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/biketypes": {
+      "get": {
+        "summary": "Alle fietstypen (V4 aux)",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van fietstypen (id, name, singular)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "singular": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/paymenttypes": {
+      "get": {
+        "summary": "Betalingstypen (V4 aux)",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van betalingstypen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "paymenttypeid": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes": {
+      "get": {
+        "summary": "Lijst van citycodes (gemeenten)",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van citycodes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CityCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}": {
+      "get": {
+        "summary": "Gemeente met locaties",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9933"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gemeente inclusief locaties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CityWithLocations"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Niet gevonden"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}": {
+      "get": {
+        "summary": "Eén locatie",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Locatie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Niet gevonden"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections": {
+      "get": {
+        "summary": "Sectoren op locatie",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van sectoren",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}": {
+      "get": {
+        "summary": "Eén sector",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/subscriptiontypes": {
+      "get": {
+        "summary": "Abonnementsvormen op locatie",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van abonnementsvormen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}/balance": {
+      "get": {
+        "summary": "Saldo voor één ID-middel (operator)",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saldo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V3BalanceEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/balances": {
+      "get": {
+        "summary": "Saldi in gemeente (operator)",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van saldi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/V3BalanceEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/subscriptions": {
+      "get": {
+        "summary": "Abonnementen op locatie (operator)",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van abonnementen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/V3SubscriptionEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Abonnement toevoegen (operator)",
+        "description": "Vereist dat ENABLE_WRITE_API aanstaat, naast Basic Auth met operator-permit.",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subscription": {
+                    "$ref": "#/components/schemas/V3SubscriptionWrite"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultaat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/bikeupdates": {
+      "get": {
+        "summary": "Fietsmutaties sinds tijdstip",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mutaties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V3BikeUpdatesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/managedtransactions": {
+      "post": {
+        "summary": "Beheerde transactie(s) (bikepark-niveau)",
+        "description": "Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).\nBij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden\neerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.\n",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "managedtransaction"
+                    ],
+                    "properties": {
+                      "managedtransaction": {
+                        "$ref": "#/components/schemas/V3ManagedTransaction"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "managedtransactions"
+                    ],
+                    "properties": {
+                      "managedtransactions": {
+                        "type": "array",
+                        "maxItems": 50,
+                        "items": {
+                          "$ref": "#/components/schemas/V3ManagedTransaction"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "$ref": "#/components/schemas/V3ManagedTransaction"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}": {
+      "post": {
+        "summary": "Tijdelijke pas koppelen aan definitieve pas (koppelpas)",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "3=tijdelijk, 4=tmp_sleutelhanger"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newidcodes": {
+                    "type": "object",
+                    "properties": {
+                      "idcode": {
+                        "type": "string"
+                      },
+                      "idtype": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/managedtransactions": {
+      "post": {
+        "summary": "Beheerde transactie(s) (sector)",
+        "description": "Zelfde contract als bikepark-niveau `managedtransactions`. Default `sectionid` = sector uit URL;\nper item overschrijfbaar via `sectionid` / `sectionid_checkin` in het payload.\n",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "managedtransaction"
+                    ],
+                    "properties": {
+                      "managedtransaction": {
+                        "$ref": "#/components/schemas/V3ManagedTransaction"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "managedtransactions"
+                    ],
+                    "properties": {
+                      "managedtransactions": {
+                        "type": "array",
+                        "maxItems": 50,
+                        "items": {
+                          "$ref": "#/components/schemas/V3ManagedTransaction"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "$ref": "#/components/schemas/V3ManagedTransaction"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation": {
+      "post": {
+        "summary": "Sector synchroniseren en/of bezetting doorgeven",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/V3OccupationData"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}": {
+      "get": {
+        "summary": "Eén plek",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plek",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Niet gevonden"
+          }
+        }
+      },
+      "put": {
+        "summary": "Plek bijwerken (url, status, credentials)",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "properties": {
+                    "$ref": "#/components/schemas/V3PlaceProperties"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Plek-log (updatePost)",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "properties": {
+                    "$ref": "#/components/schemas/V3LogProperties"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/logs": {
+      "post": {
+        "summary": "Plek-log schrijven (fietskluizen)",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "properties": {
+                    "$ref": "#/components/schemas/V3LogProperties"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/actions": {
+      "post": {
+        "summary": "Plek-actie schrijven (fietskluizen)",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "properties": {
+                    "$ref": "#/components/schemas/V3LogProperties"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/subscriptions": {
+      "post": {
+        "summary": "Abonnement op plek",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subscription": {
+                    "$ref": "#/components/schemas/V3SubscriptionWrite"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations": {
+      "get": {
+        "summary": "Locaties in gemeente",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van locaties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocationSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locationscsv": {
+      "get": {
+        "summary": "Locaties in gemeente als CSV-regels",
+        "description": "Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door \";\"\n(ColdFusion getLocationsCSV). Object- en array-velden worden overgeslagen.\n",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "citycode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Komma-gescheiden veldselectie (zelfde semantiek als locations)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van CSV-regels (één per locatie)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places": {
+      "get": {
+        "summary": "Plekken in sector",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van plekken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/idcodes/{idtype}/{idcode}": {
+      "get": {
+        "summary": "Mag ID-middel deze plek gebruiken (operator)",
+        "description": "Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken\n(ColdFusion isAllowedToUse). Vereist operator Basic Auth.\n",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "0=sleutelhanger, 1=ovchip, 2=cijfercode, 3=tijdelijk"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultaat van de toegangscontrole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V3IsAllowedToUse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized of onvoldoende rechten"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "HTTP Basic Auth (UrlName + Password uit contacts)"
+      }
+    },
+    "parameters": {
+      "V4Citycode": {
+        "name": "citycode",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "V4Locationid": {
+        "name": "locationid",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "V4Sectionid": {
+        "name": "sectionid",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "V4Placeid": {
+        "name": "placeid",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "BikeType": {
+        "type": "object",
+        "properties": {
+          "bikeTypeID": {
+            "type": "integer",
+            "description": "1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden"
+          },
+          "name": {
+            "type": "string"
+          },
+          "naamenkelvoud": {
+            "type": "string"
+          }
+        }
+      },
+      "PaymentType": {
+        "type": "object",
+        "properties": {
+          "paymentTypeID": {
+            "type": "integer",
+            "description": "1=betaald, 2=kwijtschelding"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ClientType": {
+        "type": "object",
+        "properties": {
+          "clientTypeID": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "V2BikeTypeLegacy": {
+        "type": "object",
+        "description": "Legacy v2-vorm van een fietstype (hoofdletter-keys, zoals getJsonBikeTypes).",
+        "properties": {
+          "BIKETYPEID": {
+            "type": "integer"
+          },
+          "NAME": {
+            "type": "string"
+          }
+        }
+      },
+      "PlaceSummary": {
+        "type": "object",
+        "description": "ColdFusion BaseRestService.getPlace (publieke velden).",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "datelaststatusupdate": {
+            "type": "string",
+            "description": "Alleen aanwezig als er een statusupdate-datum is."
+          },
+          "statuscode": {
+            "type": "integer",
+            "description": "status % 10 — 0=vrij, 1=bezet, 2=abonnement, 3=gereserveerd, 4=buiten werking"
+          }
+        }
+      },
+      "V3IsAllowedToUse": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "messagecode": {
+            "type": "string",
+            "description": "OK, BLOCKED, RESERVED, PARKED_ELSEWHERE, INVALID_ID"
+          },
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "saldo": {
+            "type": "number"
+          }
+        }
+      },
+      "V2BikeTypeInSubscription": {
+        "type": "object",
+        "properties": {
+          "bikeTypeID": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "V2SubscriptionType": {
+        "type": "object",
+        "description": "ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes)",
+        "properties": {
+          "subscriptionTypeID": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "durationInMonth": {
+            "type": "integer",
+            "description": "Duur in maanden"
+          },
+          "bikeTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BikeTypeInSubscription"
+            }
+          }
+        }
+      },
+      "Result": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Ok"
+          },
+          "status": {
+            "type": "integer",
+            "example": 1
+          },
+          "id": {
+            "type": "integer"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Wachtrij-IDs bij batch managedtransactions"
+          },
+          "subscriptionid": {
+            "type": "integer"
+          }
+        }
+      },
+      "V3ManagedTransaction": {
+        "type": "object",
+        "required": [
+          "externaltransactionid",
+          "idcode",
+          "checkindate",
+          "checkintype"
+        ],
+        "properties": {
+          "externaltransactionid": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer",
+            "description": "0=sleutelhanger, 1=ovchip, 2=barcodebike"
+          },
+          "checkindate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checkintype": {
+            "type": "string",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
+          },
+          "checkoutdate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checkouttype": {
+            "type": "string",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
+          },
+          "stallingsduur": {
+            "type": "integer"
+          },
+          "stallingskosten": {
+            "type": "number"
+          },
+          "sectionid": {
+            "type": "string"
+          },
+          "sectionid_checkin": {
+            "type": "string"
+          },
+          "sectionid_out": {
+            "type": "string"
+          },
+          "placeid": {
+            "type": "integer"
+          },
+          "externalplaceid": {
+            "type": "string"
+          },
+          "bikeid_in": {
+            "type": "string"
+          },
+          "bikeid_out": {
+            "type": "string"
+          },
+          "biketypeid": {
+            "type": "integer"
+          },
+          "clienttypeid": {
+            "type": "integer"
+          },
+          "tariefstaffels": {
+            "type": "string"
+          },
+          "reserveringsduur": {
+            "type": "integer"
+          },
+          "passuuid": {
+            "type": "string"
+          }
+        }
+      },
+      "V3SubscriptionWrite": {
+        "type": "object",
+        "required": [
+          "subscriptiontypeid",
+          "idcode"
+        ],
+        "properties": {
+          "subscriptiontypeid": {
+            "type": "integer"
+          },
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "startdate": {
+            "type": "string"
+          },
+          "expirationdate": {
+            "type": "string"
+          },
+          "cost": {
+            "type": "number"
+          }
+        }
+      },
+      "V3PlaceProperties": {
+        "type": "object",
+        "properties": {
+          "urlwebservice": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "statuscode": {
+            "type": "integer"
+          },
+          "transactiondate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cost": {
+            "type": "number"
+          },
+          "paymenttypeid": {
+            "type": "integer"
+          }
+        }
+      },
+      "V3LogProperties": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "idcode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "actionid": {
+            "type": "integer"
+          }
+        }
+      },
+      "V3OccupationData": {
+        "type": "object",
+        "properties": {
+          "transactiondate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bikes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "idcode": {
+                  "type": "string"
+                },
+                "idtype": {
+                  "type": "integer"
+                },
+                "bikeid": {
+                  "type": "string"
+                },
+                "transactiondate": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "occupation": {
+            "type": "integer"
+          },
+          "checkins": {
+            "type": "integer"
+          },
+          "checkouts": {
+            "type": "integer"
+          },
+          "intervalinminutes": {
+            "type": "integer"
+          }
+        }
+      },
+      "V3BalanceEntry": {
+        "type": "object",
+        "properties": {
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "balance": {
+            "type": "number"
+          }
+        }
+      },
+      "V3SubscriptionEntry": {
+        "type": "object",
+        "properties": {
+          "idcode": {
+            "type": "string"
+          },
+          "idtype": {
+            "type": "integer"
+          },
+          "subscriptiontypeid": {
+            "type": "integer"
+          },
+          "startdate": {
+            "type": "string"
+          },
+          "expirationdate": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "placeid": {
+            "type": "integer"
+          }
+        }
+      },
+      "V3BikeUpdatesResponse": {
+        "type": "object",
+        "properties": {
+          "citycode": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "CityCode": {
+        "type": "object",
+        "properties": {
+          "citycode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "LocationSummary": {
+        "type": "object",
+        "properties": {
+          "locationid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CityWithLocations": {
+        "type": "object",
+        "properties": {
+          "citycode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocationSummary"
+            }
+          }
+        }
+      }
+    }
+  }
+}
