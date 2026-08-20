@@ -123,9 +123,9 @@ const FooterNav = ({ onStallingAanmelden, children }: {
 
       <FooterNavItem
         url="https://github.com/Stichting-CROW/fietsberaad-veiligstallen-app/blob/main/RELEASES.md#app-updates-veiligstallen"
-        aria-label="Bekijk release notes - v2026-04-08"
+        aria-label="Bekijk release notes - v2026-08-20"
       >
-        <small className="text-xs text-gray-600">v2026-04-08</small>
+        <small className="text-xs text-gray-600">v2026-08-20</small>
       </FooterNavItem>
 
     </div>
