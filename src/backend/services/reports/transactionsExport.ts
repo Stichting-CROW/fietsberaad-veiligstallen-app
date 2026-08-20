@@ -13,10 +13,10 @@ import {
 /**
  * Port of reports_csv.cfc transacties() and ruweData().
  *
- * Both read from the transacties_view view (not transacties_archief, which the
- * charts use) and apply the gemeente specific day-start offset. All date and
- * number formatting happens in MySQL so no value passes through a JS Date,
- * which keeps the output free of timezone drift.
+ * ColdFusion queried `transacties_view`, which is a 1:1 projection of the live
+ * `transacties` table. On some environments that view has been replaced by a
+ * stub (`SELECT 1 AS ...`), so we query `transacties` directly with the same
+ * column aliases the view used. Charts still use `transacties_archief`.
  */
 
 export type CsvExportResult = {
@@ -120,6 +120,26 @@ type TransactiesRow = {
   checkout_Weekday: number | null;
 };
 
+const TRANSACTIES_FROM = `
+  (
+    SELECT
+      ZipID AS zipID
+      , PasID AS pasID
+      , FietsenstallingID
+      , SectieID
+      , Date_checkin
+      , Date_checkout
+      , Stallingsduur
+      , ClientTypeID AS Clienttype
+      , Stallingskosten
+      , BikeTypeID
+      , ExploitantID AS exploitantID
+      , Type_checkin
+      , Type_checkout
+    FROM transacties
+  ) AS transacties_view
+`;
+
 export const createTransactiesExport = async ({
   gemeenteID,
   stallingsID,
@@ -141,20 +161,20 @@ export const createTransactiesExport = async ({
       FietsenstallingID
       ${perStalling ? ", SectieID" : ""}
       , BikeTypeID
-      , CAST(count(*) AS CHAR) AS totalTransactions
+      , CAST(COUNT(*) AS CHAR) AS totalTransactions
       , CAST(SUM(Clienttype = 1) AS CHAR) AS totalAbonnementen_nee
       , CAST(SUM(Clienttype = 2) AS CHAR) AS totalAbonnementen_ja
       , CAST(SUM(Stallingskosten) AS CHAR) AS totalInkomsten
       , ${shiftedDate} AS checkout_Date
-      , DATE_FORMAT(${shiftedDate}, '%d-%m-%y') AS checkout_Date_formatted
-      , DATE_FORMAT(${weekFirstDay}, '%d-%m-%Y') AS week_first_day
-      , DATE_FORMAT(DATE_ADD(${weekFirstDay}, INTERVAL 6 DAY), '%d-%m-%Y') AS week_last_day
-      , YEAR(${shifted}) AS checkout_Year
-      , QUARTER(${shifted}) AS checkout_Quarter
-      , MONTH(${shifted}) AS checkout_Month
-      , WEEK(${shifted}, 1) AS checkout_Week
-      , DAYOFWEEK(${shifted}) AS checkout_Weekday
-    FROM transacties_view
+      , ANY_VALUE(DATE_FORMAT(${shiftedDate}, '%d-%m-%y')) AS checkout_Date_formatted
+      , ANY_VALUE(DATE_FORMAT(${weekFirstDay}, '%d-%m-%Y')) AS week_first_day
+      , ANY_VALUE(DATE_FORMAT(DATE_ADD(${weekFirstDay}, INTERVAL 6 DAY), '%d-%m-%Y')) AS week_last_day
+      , ANY_VALUE(YEAR(${shifted})) AS checkout_Year
+      , ANY_VALUE(QUARTER(${shifted})) AS checkout_Quarter
+      , ANY_VALUE(MONTH(${shifted})) AS checkout_Month
+      , ANY_VALUE(WEEK(${shifted}, 1)) AS checkout_Week
+      , ANY_VALUE(DAYOFWEEK(${shifted})) AS checkout_Weekday
+    FROM ${TRANSACTIES_FROM}
     WHERE 0 = 0
     AND Type_checkin != 'sync' AND Type_checkout != 'sync'
     AND zipID = ?
@@ -163,12 +183,12 @@ export const createTransactiesExport = async ({
     AND Date_checkout <= ${endDate}
     AND Date_checkout IS NOT NULL
     GROUP BY
-      checkout_Date
+      ${shiftedDate}
       , FietsenstallingID
       ${perStalling ? ", SectieID" : ""}
       , BikeTypeID
     ORDER BY
-      Date_checkout
+      ${shiftedDate}
       , FietsenstallingID
       ${perStalling ? ", SectieID" : ""}
       , BikeTypeID
@@ -262,10 +282,10 @@ export const createRuweDataExport = async ({
     SELECT
       FietsenstallingID
       , SectieID
-      , type_checkin
-      , type_checkout
+      , Type_checkin AS type_checkin
+      , Type_checkout AS type_checkout
       , CAST(Stallingsduur AS CHAR) AS Stallingsduur
-      , CAST(stallingskosten AS CHAR) AS stallingskosten
+      , CAST(Stallingskosten AS CHAR) AS stallingskosten
       , Clienttype
       , BikeTypeID
       , DATE_FORMAT(DATE(${shiftedIn}), '%d-%m-%y') AS checkin_Date_formatted
@@ -279,7 +299,7 @@ export const createRuweDataExport = async ({
       , HOUR(Date_checkout) AS checkout_Hour
       , DAYOFWEEK(Date_checkout) AS checkout_Weekday
       , DAYOFWEEK(${shiftedOut}) AS corrected_checkout_Weekday
-    FROM transacties_view
+    FROM ${TRANSACTIES_FROM}
     WHERE 0 = 0
     AND zipID = ?
     ${perStalling ? "AND FietsenstallingID = ?" : ""}
