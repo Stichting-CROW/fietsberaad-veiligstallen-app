@@ -2,8 +2,10 @@ import { prisma } from "~/server/db";
 import { assembleCfCsv } from "~/backend/services/reports/csvExportFormat";
 import {
   CsvExportLookups,
+  getDatabaseNow,
   getGemeenteExportContext,
 } from "~/backend/services/reports/csvExportLookups";
+import { resolveCsvExportFilename } from "~/backend/services/reports/csvExportFilename";
 import { type CsvExportResult } from "~/backend/services/reports/transactionsExport";
 
 /**
@@ -79,13 +81,6 @@ const quarterStart = (jaar: number, quarter: number): string => {
 /** CF getLastDayOfQuarter() returns the first day of the following quarter. */
 const quarterEnd = (jaar: number, quarter: number): string =>
   quarter === 4 ? quarterStart(jaar + 1, 1) : quarterStart(jaar, quarter + 1);
-
-const getDatabaseNow = async (): Promise<string> => {
-  const rows = await prisma.$queryRaw<{ now: string }[]>`
-    SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS now
-  `;
-  return rows[0]?.now ?? "";
-};
 
 export const createStallingsduurExport = async ({
   gemeenteID,
@@ -172,7 +167,7 @@ export const createStallingsduurExport = async ({
   }
 
   return {
-    filename: `${jaar}_stallingsduur.csv`,
+    filename: resolveCsvExportFilename("stallingsduur", { jaar }),
     csv: assembleCfCsv(HEADERS, rows, "append"),
   };
 };

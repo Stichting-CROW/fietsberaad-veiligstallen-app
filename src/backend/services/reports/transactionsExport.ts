@@ -11,6 +11,7 @@ import {
   CsvExportLookups,
   getGemeenteExportContext,
 } from "~/backend/services/reports/csvExportLookups";
+import { resolveCsvExportFilename } from "~/backend/services/reports/csvExportFilename";
 
 /**
  * Port of reports_csv.cfc transacties() and ruweData().
@@ -245,9 +246,7 @@ export const createTransactiesExport = async ({
     : TRANSACTIES_HEADERS_ALLE_STALLINGEN;
 
   return {
-    filename: perStalling
-      ? `${jaar}_${stallingsID!}_transacties.csv`
-      : `${jaar}_alle_stallingen_transacties.csv`,
+    filename: resolveCsvExportFilename("transacties", { jaar, stallingsID }),
     csv: assembleCfCsv(headers, rows, "append"),
   };
 };
@@ -368,9 +367,7 @@ export const createRuweDataExport = async ({
   }
 
   return {
-    filename: perStalling
-      ? `${jaar}_${maandPadded}_${stallingsID!}_ruwedata.csv`
-      : `${jaar}_${maandPadded}_alle_stallingen_ruwedata.csv`,
+    filename: resolveCsvExportFilename("ruwedata", { jaar, stallingsID, maand }),
     csv: assembleCfCsv(RUWEDATA_HEADERS, rows, "write"),
   };
 };

@@ -9,6 +9,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import {
+  clearReportFileCacheForDateRange,
+  expireOldReportFileCache,
+} from "~/backend/services/reports/csvExportCache";
 
 export interface CacheUpdateLogEntry {
   date: Date;
@@ -223,6 +227,18 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     logEntry.success = logEntry.data.Transaction.success && 
                        logEntry.data.Bezetting.success && 
                        logEntry.data.Stallingsduur.success;
+
+    // Drop CSV files whose reported period overlaps the refreshed range, then
+    // sweep unused downloads older than ≈ 3 months.
+    try {
+      const cleared = await clearReportFileCacheForDateRange(params.startDate, params.endDate);
+      const expired = await expireOldReportFileCache();
+      console.log(
+        `*** Report file cache: cleared ${cleared.deleted} overlapping, expired ${expired.deleted} old`
+      );
+    } catch (error) {
+      console.error("*** Report file cache cleanup error:", error);
+    }
     
     logEntry.summaryText = formatLogEntry(logEntry, params);
     console.log("*** Log entry:", logEntry.summaryText);

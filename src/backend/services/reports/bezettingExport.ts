@@ -8,6 +8,7 @@ import {
   CsvExportLookups,
   getGemeenteExportContext,
 } from "~/backend/services/reports/csvExportLookups";
+import { resolveCsvExportFilename } from "~/backend/services/reports/csvExportFilename";
 import { type CsvExportResult } from "~/backend/services/reports/transactionsExport";
 
 /**
@@ -83,7 +84,7 @@ export const createBezettingExport = async ({
   }
 
   const { timeShiftInMinutes } = await getGemeenteExportContext(gemeenteID);
-  const filename = `${jaar}_${stallingsID}_bezetting.csv`;
+  const filename = resolveCsvExportFilename("bezetting", { jaar, stallingsID });
 
   // CF aborts without writing a file when the stalling cannot be found.
   if (!(await stallingExists(stallingsID))) {
