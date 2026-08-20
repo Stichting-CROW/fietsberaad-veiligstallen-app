@@ -44,8 +44,6 @@ const AvailableDataParamsSchema = z.object({
   bikeparkIDs: z.array(z.string()),
   startDT: dateSchema.optional(),
   endDT: dateSchema.optional(),
-  // allDates: z.boolean().optional(),
-  // allBikeparks: z.boolean().optional(),
 });
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {

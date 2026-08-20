@@ -1,38 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { type ReportType } from "../reports/ReportsFilter";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
-import type { ReportComponentProps, BikeparkData } from "./index";
-import { convertToBikeparkData, buttonbase, libase } from "./index";
-import moment from "moment";
+import type { ReportComponentProps, BikeparkData, CsvExportType } from "./index";
+import {
+  convertToBikeparkData,
+  downloadCsvExport,
+  buttonbase,
+  libase,
+  csvDownloadKey,
+  CsvDownloadSpinner,
+} from "./index";
 
 interface ExportSectionReportProps extends ReportComponentProps {
   reportType: ReportType
 }
 
-/** Per-stalling CSVs on static.veiligstallen.nl use title before 2023, StallingsID from 2023 on. */
-function getPerStallingCsvNamePart(bikepark: BikeparkData, year: number): string {
-  return year < 2023
-    ? bikepark.bikeparkTitle.replace(/ /g, "_")
-    : bikepark.bikeparkID;
-}
-
 const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   reportType,
   gemeenteID,
-  gemeenteName,
   firstDate,
   lastDate,
   bikeparks,
 }) => {
   const [errorState, setErrorState] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [counter, setCounter] = useState(0);
 
-  // section report is not always available in the coldfusion fms: bezetting does not have a report
-  const showSectionReport = reportType === "transacties_voltooid" || reportType === "stallingsduur";
+  const csvExportType: CsvExportType | undefined =
+    reportType === "transacties_voltooid"
+      ? "transacties"
+      : reportType === "stallingsduur"
+        ? "stallingsduur"
+        : reportType === "bezetting"
+          ? "bezetting"
+          : undefined;
+
+  const showSectionReport = csvExportType !== undefined;
 
   const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
   
@@ -56,7 +64,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
               reportType,
               bikeparkIDs: validBikeparkIDs,
               startDT: firstDate,
-              endDT: lastDate
+              endDT: lastDate,
             }),
           });
   
@@ -81,68 +89,53 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
       if(showSectionReport) {
         fetchReportData();
       }
-  }, [reportType, bikeparks, counter]);
+  }, [reportType, bikeparks, counter, firstDate, lastDate]);
 
-  const downloadYearForReportType = (reportType: ReportType, gemeenteID: string, gemeenteName: string, bikepark: BikeparkData | undefined, year: number) => {
-    const timestamp = moment().format("YYYYMMDDHHmmss"); 
-    const link = document.createElement("a");
-    link.target = "_blank";
+  const downloadYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
+    if (csvExportType === undefined || downloadingKey !== null) return;
 
-    // const test = ""
-
-    switch(reportType) {
-      case "transacties_voltooid":
-        if(undefined === bikepark) {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_alle_stallingen_transacties.csv?${timestamp}`;
-          link.download = `${gemeenteName}-alle-stallingen-${year}.xlsx`;
-        } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_transacties.csv?${timestamp}`;
-          link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-${year}.xlsx`;
-        }
-        break;
-      case "stallingsduur":
-        if(undefined === bikepark) {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_stallingsduur.csv?${timestamp}`;
-          link.download = `${gemeenteName}-alle-stallingen-stallingsduur-${year}.xlsx`;
-        } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_stallingsduur.csv?${timestamp}`;
-          link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-stallingsduur-${year}.xlsx`;
-        }
-        break;
-      case "bezetting":
-        if(undefined === bikepark) {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${year}_bezetting.csv?${timestamp}`;
-          link.download = `${gemeenteName}-alle-stallingen-bezetting-${year}.xlsx`;
-        } else {
-          link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${getPerStallingCsvNamePart(bikepark, year)}_bezetting.csv?${timestamp}`;
-          link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-bezetting-${year}.xlsx`;
-        }
-        break;
+    const key = csvDownloadKey(bikepark?.bikeparkID, year);
+    try {
+      setDownloadError("");
+      setDownloadingKey(key);
+      await downloadCsvExport({
+        exportType: csvExportType,
+        gemeenteID,
+        stallingsID: bikepark?.bikeparkID,
+        jaar: year,
+      });
+    } catch (error) {
+      console.error(error);
+      setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
     }
+  };
 
-    // console.log("old: ", test);
-    // console.log("new: ", link.href);
-    // console.log("same: ", test === link.href);
-
-    link.click();
-  }
-
-  const renderYearButtonsForReportType = (reportType: ReportType, gemeenteID: string | undefined, bikepark: BikeparkData | undefined, years: number[]) => {
+  const renderYearButtons = (gemeenteID: string | undefined, bikepark: BikeparkData | undefined, years: number[]) => {
       if(undefined === gemeenteID) {
         return null;
       }
 
       return (
           <div className="year-buttons flex gap-1 flex-wrap">
-              {years.map(year => (
-                  <button 
-                      key={year} 
-                      className={`year-button ${buttonbase}`}
-                      onClick={() => {downloadYearForReportType(reportType, gemeenteID, gemeenteName || "", bikepark, year)}}
-                  >
-                      {year}
-                  </button>
-              ))}
+              {years.map(year => {
+                  const key = csvDownloadKey(bikepark?.bikeparkID, year);
+                  const isDownloading = downloadingKey === key;
+                  return (
+                      <button 
+                          key={year} 
+                          type="button"
+                          className={`year-button ${buttonbase}`}
+                          disabled={downloadingKey !== null}
+                          aria-busy={isDownloading}
+                          onClick={() => {void downloadYear(gemeenteID, bikepark, year)}}
+                      >
+                          {isDownloading && <CsvDownloadSpinner />}
+                          {year}
+                      </button>
+                  );
+              })}
           </div>
       );
   };
@@ -176,9 +169,9 @@ switch(reportType) {
     showIndividualBikeparks = false;
     break;
   case "bezetting":
-    exportTitle = "Bezettingsdata";
+    exportTitle = "Procentuele bezetting";
     showAllBikeparks = false;
-    showIndividualBikeparks = false;
+    showIndividualBikeparks = true;
     break;
   default:
     exportTitle = "";
@@ -216,12 +209,13 @@ if(!showAllBikeparks && !showIndividualBikeparks) {
 return (
   <>
     <h2 className="text-lg font-semibold text-gray-900">{ exportTitle }</h2>
+      {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
       <ul className="bikepark-list">
           {/* All parkings combined entry */}
           {showAllBikeparks && allYears.length > 0 && (
               <li className="bikepark-item">
                   <div className={`bikepark-name ${libase}`}>
-                      Alle stallingen: {renderYearButtonsForReportType(reportType, gemeenteID, undefined, allYears)}
+                      Alle stallingen: {renderYearButtons(gemeenteID, undefined, allYears)}
                   </div>
                   
               </li>
@@ -230,16 +224,13 @@ return (
           {/* Individual parking entries */}
           {showIndividualBikeparks && bikeparkData
               .filter(bp => bp.monthsWithData.length > 0)
-              .map(bp => {
-                  const bikepark = bikeparks.find(park => park.id === bp.bikeparkID);
-                  return (
-                      <li key={bp.bikeparkID} className="bikepark-item">
-                          <div className={`bikepark-name ${libase}`}>
-                          {bp.bikeparkTitle}: {renderYearButtonsForReportType(reportType, gemeenteID, bp, getYearsWithDataForBikepark(bp))}
-                          </div>
-                      </li>
-                  );
-              })
+              .map(bp => (
+                  <li key={bp.bikeparkID} className="bikepark-item">
+                      <div className={`bikepark-name ${libase}`}>
+                      {bp.bikeparkTitle}: {renderYearButtons(gemeenteID, bp, getYearsWithDataForBikepark(bp))}
+                      </div>
+                  </li>
+              ))
           }
       </ul>
     </>
