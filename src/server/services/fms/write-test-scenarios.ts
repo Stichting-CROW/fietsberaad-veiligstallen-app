@@ -8,7 +8,7 @@
  *
  * SCOPE & SAFETY
  * - All writes target the shadow new_* tables only — production tables are never touched.
- * - Stallingskosten come from API payloads (no FMS tariff / afboeking in Next.js — see docs/nextjs-queue-processor-scope.md).
+ * - Stallingskosten come from API payloads (no FMS tariff / afboeking in Next.js; intentional).
  * - All synthetic passIDs are namespaced `WTEST_<runId>_<suffix>`, so seed/teardown can
  *   delete exactly this run's rows by prefix without affecting any other new_* data.
  * - The runner additionally guards that the chosen bikepark belongs to the testgemeente

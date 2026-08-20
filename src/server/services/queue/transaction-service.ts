@@ -2,7 +2,7 @@
  * Transaction (putTransaction) logic for queue processor.
  * Mirrors ColdFusion TransactionGateway.putTransaction for In/Uit only.
  *
- * Out of scope (see docs/nextjs-queue-processor-scope.md):
+ * Out of scope (intentional):
  * - FMS tariff calculation (BerekentStallingskosten / tariefregels)
  * - afboeking (interim periodic charges)
  */
@@ -311,7 +311,7 @@ export async function putTransaction(
 
 /**
  * Close an open transactie referenced by wachtrij row `transactionID` (reservation/system checkout).
- * Not used for afboeking — see docs/nextjs-queue-processor-scope.md.
+ * Not used for afboeking (intentional: no FMS tariff calculation).
  */
 export async function closeTransactionById(
   tx: Prisma,

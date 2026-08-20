@@ -1,7 +1,7 @@
 /**
  * Queue processor for new_wachtrij_* tables.
  * Mirrors ColdFusion processTransactions2.cfm (In/Uit, pasids, betalingen, sync, managed).
- * Does not implement FMS tariff calculation or afboeking — see docs/nextjs-queue-processor-scope.md.
+ * Does not implement FMS tariff calculation or afboeking (intentional).
  * Processing order: pasids (50) → transacties (50) → managed (50) → betalingen (200) → sync (1).
  */
 
@@ -250,7 +250,7 @@ async function processTransacties(
       if (transactionID !== 0) {
         if (typeNorm === "afboeking") {
           throw new Error(
-            "Afboeking wordt niet ondersteund door de Next.js processor (geen FMS-tariefberekening; zie docs/nextjs-queue-processor-scope.md)"
+            "Afboeking wordt niet ondersteund door de Next.js processor (geen FMS-tariefberekening)"
           );
         }
         await closeTransactionById(tx, {

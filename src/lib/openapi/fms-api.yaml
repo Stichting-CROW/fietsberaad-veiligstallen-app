@@ -1144,7 +1144,8 @@ paths:
     post:
       summary: Beheerde transactie(s) (bikepark-niveau)
       description: |
-        Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).
+        Enkel record via `managedtransaction`, een los object met `externaltransactionid`,
+        of batch via `managedtransactions` (array, max 50).
         Bij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden
         eerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.
       tags: [V3 Write]
@@ -1173,6 +1174,7 @@ paths:
                   maxItems: 50
                   items:
                     $ref: '#/components/schemas/V3ManagedTransaction'
+                - $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
         '200':
           content:
@@ -1297,6 +1299,7 @@ paths:
                   maxItems: 50
                   items:
                     $ref: '#/components/schemas/V3ManagedTransaction'
+                - $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
         '200':
           content:
