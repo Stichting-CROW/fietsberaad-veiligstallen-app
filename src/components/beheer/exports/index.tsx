@@ -24,8 +24,18 @@ export interface ReportComponentProps {
   bikeparks: ReportBikepark[];
 }
 
-export const buttonbase = "px-2 py-1 bg-white border border-gray-300 rounded hover:bg-gray-200 transition-colors duration-150 text-xs font-medium text-gray-700 flex items-center ml-1";
+export const buttonbase = "px-2 py-1 bg-white border border-gray-300 rounded hover:bg-gray-200 transition-colors duration-150 text-xs font-medium text-gray-700 flex items-center ml-1 disabled:opacity-60 disabled:cursor-wait disabled:hover:bg-white";
 export const libase="text-base font-medium text-gray-800 mb-2 flex flex-row"
+
+export const csvDownloadKey = (stallingsID: string | undefined, jaar: number, maand?: number): string =>
+  [stallingsID ?? "alle", String(jaar), maand === undefined ? "" : String(maand)].join("|");
+
+export const CsvDownloadSpinner: React.FC = () => (
+  <span
+    className="inline-block h-3 w-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-1"
+    aria-hidden="true"
+  />
+);
 
 export type CsvExportType = "transacties" | "ruwedata" | "stallingsduur" | "bezetting";
 

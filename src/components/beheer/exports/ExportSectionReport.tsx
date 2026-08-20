@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import { type ReportType } from "../reports/ReportsFilter";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import type { ReportComponentProps, BikeparkData, CsvExportType } from "./index";
-import { convertToBikeparkData, downloadCsvExport, buttonbase, libase } from "./index";
+import {
+  convertToBikeparkData,
+  downloadCsvExport,
+  buttonbase,
+  libase,
+  csvDownloadKey,
+  CsvDownloadSpinner,
+} from "./index";
 
 interface ExportSectionReportProps extends ReportComponentProps {
   reportType: ReportType
@@ -17,6 +24,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
 }) => {
   const [errorState, setErrorState] = useState("");
   const [downloadError, setDownloadError] = useState("");
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
 
@@ -89,10 +97,12 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   }, [reportType, bikeparks, counter, gemeenteID, firstDate, lastDate]);
 
   const downloadYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
-    if (csvExportType === undefined) return;
+    if (csvExportType === undefined || downloadingKey !== null) return;
 
+    const key = csvDownloadKey(bikepark?.bikeparkID, year);
     try {
       setDownloadError("");
+      setDownloadingKey(key);
       await downloadCsvExport({
         exportType: csvExportType,
         gemeenteID,
@@ -102,6 +112,8 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
     } catch (error) {
       console.error(error);
       setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
     }
   };
 
@@ -112,15 +124,23 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
 
       return (
           <div className="year-buttons flex gap-1 flex-wrap">
-              {years.map(year => (
-                  <button 
-                      key={year} 
-                      className={`year-button ${buttonbase}`}
-                      onClick={() => {void downloadYear(gemeenteID, bikepark, year)}}
-                  >
-                      {year}
-                  </button>
-              ))}
+              {years.map(year => {
+                  const key = csvDownloadKey(bikepark?.bikeparkID, year);
+                  const isDownloading = downloadingKey === key;
+                  return (
+                      <button 
+                          key={year} 
+                          type="button"
+                          className={`year-button ${buttonbase}`}
+                          disabled={downloadingKey !== null}
+                          aria-busy={isDownloading}
+                          onClick={() => {void downloadYear(gemeenteID, bikepark, year)}}
+                      >
+                          {isDownloading && <CsvDownloadSpinner />}
+                          {year}
+                      </button>
+                  );
+              })}
           </div>
       );
   };

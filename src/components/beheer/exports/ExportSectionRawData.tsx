@@ -2,7 +2,13 @@ import React, { useState, useEffect } from "react";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
-import { convertToBikeparkData, downloadCsvExport, buttonbase } from "./index";
+import {
+  convertToBikeparkData,
+  downloadCsvExport,
+  buttonbase,
+  csvDownloadKey,
+  CsvDownloadSpinner,
+} from "./index";
 
 const ExportComponent: React.FC<ReportComponentProps> = ({
   gemeenteID,
@@ -12,6 +18,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
 }) => {
   const [errorState, setErrorState] = useState("");
   const [downloadError, setDownloadError] = useState("");
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
 
   const reportType = "transacties_voltooid";
@@ -79,27 +86,37 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
 
     return (
           <div className="month-buttons flex gap-1 ml-2">
-              {availableMonths.map(month => (
-                  <button
-                      key={`${year}-${month}`}
-                      className={`month-button ${buttonbase}`}                               
-                      onClick={() => {void downloadRawTransactionsForMonth(gemeenteID, bikepark, year, month)}}
-                  >
-                      {getMonthName(month)}
-                  </button>
-              ))}
+              {availableMonths.map(month => {
+                  const key = csvDownloadKey(bikepark?.bikeparkID, year, month);
+                  const isDownloading = downloadingKey === key;
+                  return (
+                      <button
+                          key={`${year}-${month}`}
+                          type="button"
+                          className={`month-button ${buttonbase}`}
+                          disabled={downloadingKey !== null}
+                          aria-busy={isDownloading}
+                          onClick={() => {void downloadRawTransactionsForMonth(gemeenteID, bikepark, year, month)}}
+                      >
+                          {isDownloading && <CsvDownloadSpinner />}
+                          {getMonthName(month)}
+                      </button>
+                  );
+              })}
           </div>
       );
   };
 
   const downloadRawTransactionsForMonth = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number, month: number) => {
-    if(undefined === bikepark) {
+    if(undefined === bikepark || downloadingKey !== null) {
       // deze export is alleen per stalling beschikbaar
       return;
     }
 
+    const key = csvDownloadKey(bikepark.bikeparkID, year, month);
     try {
       setDownloadError("");
+      setDownloadingKey(key);
       await downloadCsvExport({
         exportType: "ruwedata",
         gemeenteID,
@@ -110,6 +127,8 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     } catch (error) {
       console.error(error);
       setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
     }
   }
 
