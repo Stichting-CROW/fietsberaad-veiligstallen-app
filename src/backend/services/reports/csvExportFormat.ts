@@ -101,6 +101,41 @@ export const dutchPercentageOneDecimal = (
 };
 
 /**
+ * ColdFusion receives MySQL DECIMAL columns as doubles, so QueryToCsv() writes
+ * them without trailing zeros: 0.00 becomes "0", 15.00 becomes "15" and 26.60
+ * becomes "26.6". Takes the decimal string MySQL returns to avoid the rounding
+ * that parsing through a float first would introduce.
+ */
+export const cfDecimal = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined || value === "") return "";
+
+  const text = String(value);
+  if (!/^-?\d+(\.\d+)?$/.test(text)) return text;
+  if (!text.includes(".")) return text;
+
+  const trimmed = text.replace(/0+$/, "").replace(/\.$/, "");
+  return trimmed === "" || trimmed === "-" ? "0" : trimmed;
+};
+
+/**
+ * The archive stores the check-in/check-out type as a lowercase enum, while the
+ * free-text column of `transacties` that ColdFusion read held "User" and
+ * "Controle" capitalised for all but a few thousand of its millions of rows.
+ * Restoring that spelling keeps the exports consistent with the reports the
+ * gemeenten have been downloading; the exact original casing can no longer be
+ * recovered, because the archive normalised it.
+ */
+const LEGACY_TRANSACTION_TYPES: Record<string, string> = {
+  user: "User",
+  controle: "Controle",
+};
+
+export const cfTransactionType = (value: string | null | undefined): string => {
+  if (!value) return "";
+  return LEGACY_TRANSACTION_TYPES[value] ?? value;
+};
+
+/**
  * QueryToCsv() writes empty values for null and stringifies everything else.
  * Note that it does not escape embedded quotes; that behaviour is kept so the
  * output stays identical to the ColdFusion files.

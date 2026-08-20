@@ -1,6 +1,8 @@
 import { prisma } from "~/server/db";
 import {
   assembleCfCsv,
+  cfDecimal,
+  cfTransactionType,
   dutchMonthName,
   dutchWeekdayName,
   twoDigits,
@@ -13,10 +15,13 @@ import {
 /**
  * Port of reports_csv.cfc transacties() and ruweData().
  *
- * ColdFusion queried `transacties_view`, which is a 1:1 projection of the live
- * `transacties` table. On some environments that view has been replaced by a
- * stub (`SELECT 1 AS ...`), so we query `transacties` directly with the same
- * column aliases the view used. Charts still use `transacties_archief`.
+ * ColdFusion queried `transacties_view`, a 1:1 projection of the live
+ * `transacties` table. That table only holds a rolling window of roughly the
+ * last 18 months, so reporting on an earlier year silently returned a partial
+ * file. Every completed transaction is also present in `transacties_archief`,
+ * which reaches back to 2015 and which the chart reports already use, so both
+ * exports read the archive and alias its columns to the names the ColdFusion
+ * query used.
  */
 
 export type CsvExportResult = {
@@ -120,23 +125,32 @@ type TransactiesRow = {
   checkout_Weekday: number | null;
 };
 
+/**
+ * `transacties_archief` has no stored parking duration, so it is derived the
+ * same way the stallingsduur report derives it. That fills in the rows where
+ * `transacties.Stallingsduur` was null, and it deviates by an hour for stays
+ * spanning a daylight saving transition, because the stored value counted
+ * elapsed time while this counts the difference between two wall clocks.
+ *
+ * MySQL merges this derived table into the outer query, so the index and the
+ * partition pruning on `checkoutdate` stay effective.
+ */
 const TRANSACTIES_FROM = `
   (
     SELECT
-      ZipID AS zipID
-      , PasID AS pasID
-      , FietsenstallingID
-      , SectieID
-      , Date_checkin
-      , Date_checkout
-      , Stallingsduur
-      , ClientTypeID AS Clienttype
-      , Stallingskosten
-      , BikeTypeID
-      , ExploitantID AS exploitantID
-      , Type_checkin
-      , Type_checkout
-    FROM transacties
+      citycode AS zipID
+      , locationid AS FietsenstallingID
+      , sectionid AS SectieID
+      , checkindate AS Date_checkin
+      , checkoutdate AS Date_checkout
+      , TIMESTAMPDIFF(MINUTE, checkindate, checkoutdate) AS Stallingsduur
+      , clienttypeid AS Clienttype
+      , price AS Stallingskosten
+      , biketypeid AS BikeTypeID
+      , exploitantid AS exploitantID
+      , checkintype AS Type_checkin
+      , checkouttype AS Type_checkout
+    FROM transacties_archief
   ) AS transacties_view
 `;
 
@@ -220,7 +234,7 @@ export const createTransactiesExport = async ({
       record.totalTransactions,
       record.totalAbonnementen_nee,
       record.totalAbonnementen_ja,
-      record.totalInkomsten
+      cfDecimal(record.totalInkomsten)
     );
 
     rows.push(values);
@@ -345,11 +359,11 @@ export const createRuweDataExport = async ({
       dutchWeekdayName(record.checkout_Weekday),
       dutchWeekdayName(record.corrected_checkout_Weekday),
       record.checkout_Hour,
-      record.stallingskosten,
+      cfDecimal(record.stallingskosten),
       await lookups.getBikeTypeName(record.BikeTypeID),
       abonnement,
-      record.type_checkin,
-      record.type_checkout,
+      cfTransactionType(record.type_checkin),
+      cfTransactionType(record.type_checkout),
     ]);
   }
 
