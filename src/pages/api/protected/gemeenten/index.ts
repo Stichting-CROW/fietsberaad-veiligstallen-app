@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { type VSContactGemeente, type VSContactGemeenteInLijst, gemeenteSelect, gemeenteLijstSelect } from "~/types/contacts";
+import { type VSContactGemeente, type VSContactGemeenteInLijst, type VSContactGemeenteContactpersoon, gemeenteSelect, gemeenteLijstSelect } from "~/types/contacts";
 import { getServerSession } from "next-auth";
 import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { validateUserSession } from "~/utils/server/database-tools";
@@ -40,6 +40,7 @@ export default async function handle(
 
       if(compact) {
         const data: VSContactGemeenteInLijst[] = [];
+        const gemeenteIds = gemeenten.map(g => g.ID);
 
         // Get all SiteIDs that have users in a single query
         const sitesWithUsers = await prisma.security_users.findMany({
@@ -47,7 +48,7 @@ export default async function handle(
             user_contact_roles: {
               some: {
                 ContactID: {
-                  in: gemeenten.map(g => g.ID)
+                  in: gemeenteIds
                 }
               }
             }
@@ -68,6 +69,34 @@ export default async function handle(
           )
         );
 
+        // Contactpersonen (IsContact) per data-eigenaar
+        const contactPersonsSites = await prisma.security_users_sites.findMany({
+          where: {
+            SiteID: { in: gemeenteIds },
+            IsContact: true,
+          },
+          select: {
+            SiteID: true,
+            security_users: {
+              select: {
+                UserID: true,
+                UserName: true,
+                DisplayName: true,
+              },
+            },
+          },
+        });
+        const contactpersoonBySiteId = new Map<string, VSContactGemeenteContactpersoon>();
+        for (const row of contactPersonsSites) {
+          const user = row.security_users;
+          if (!user?.UserName) continue;
+          contactpersoonBySiteId.set(row.SiteID, {
+            UserID: user.UserID,
+            UserName: user.UserName,
+            DisplayName: user.DisplayName,
+          });
+        }
+
         for(const gemeente of gemeenten) {
           const hasUsers = contactIdsWithUsers.has(gemeente.ID);
           const hasStallingen = gemeente.fietsenstallingen_fietsenstallingen_SiteIDTocontacts.length > 0;
@@ -81,6 +110,7 @@ export default async function handle(
             Status: gemeente.Status,
             hasStallingen,
             hasUsers,
+            contactpersoon: contactpersoonBySiteId.get(gemeente.ID) ?? null,
             isManagingContacts: gemeente.isManagingContacts,
             isManagedByContacts: gemeente.isManagedByContacts
           })
