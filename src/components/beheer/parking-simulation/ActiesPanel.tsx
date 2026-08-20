@@ -353,7 +353,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
 
   const handleCheckIn = async () => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in, koppel een dataleverancier via FMS rechten, of vul credentials in bij Instellingen.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     if (!firstSectionId || !selectedBicycleId || !currentLocationId) {
@@ -437,7 +437,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
 
   const handleCheckOut = async (bicycleId: string) => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in, koppel een dataleverancier via FMS rechten, of vul credentials in bij Instellingen.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bicycleId);
@@ -491,7 +491,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
 
   const handleAddSaldo = async () => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in, koppel een dataleverancier via FMS rechten, of vul credentials in bij Instellingen.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const passID = saldoPassID.trim() || (freePasids[0]?.pasID ?? "");
@@ -538,7 +538,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
 
   const handleLinkBike = async () => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in, koppel een dataleverancier via FMS rechten, of vul credentials in bij Instellingen.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const bike = state?.bicycles?.find((b) => b.id === linkBikeId);
@@ -588,7 +588,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       <h4 className="font-medium mb-2">Acties</h4>
       {!credentialsLoading && !credentials && (
         <p className="text-sm text-amber-700 mb-2">
-          FMS API-credentials ontbreken. Stel FMS_TEST_USER/FMS_TEST_PASS in, koppel een dataleverancier via FMS rechten, of vul UrlName/wachtwoord in bij Instellingen.
+          FMS API-credentials ontbreken. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).
         </p>
       )}
       {currentLocationId && layout && normalizedSections.length === 0 && (

@@ -75,25 +75,28 @@ const SettingsTab: React.FC = () => {
 
   const loadCredentials = async () => {
     try {
+      const localUsername =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiUsername") ?? "" : "";
+      const localPassword =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiPassword") ?? "" : "";
+      const localBaseUrl =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-baseUrl") ?? "" : "";
+
+      setApiUsername(localUsername);
+      setApiPassword(localPassword);
+
       const res = await fetch("/api/protected/parking-simulation/config");
       const data = await res.json();
       const session = data.session;
-      const localUsername = typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiUsername") ?? "" : "";
-      const localPassword = typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiPassword") ?? "" : "";
-      const localBaseUrl = typeof window !== "undefined" ? localStorage.getItem("parking-sim-baseUrl") ?? "" : "";
 
       if (session) {
         setBaseUrl(localBaseUrl || (session.baseUrl ?? ""));
         setProcessQueueBaseUrl(session.processQueueBaseUrl ?? "https://remote.veiligstallenontwikkel.nl");
         setUseLocalProcessor(session.useLocalProcessor ?? false);
-        setApiUsername(localUsername || session.apiUsername || "");
-        setApiPassword(localPassword || session.apiPassword || "");
       } else {
         setBaseUrl(localBaseUrl);
         setProcessQueueBaseUrl("https://remote.veiligstallenontwikkel.nl");
         setUseLocalProcessor(false);
-        setApiUsername(localUsername);
-        setApiPassword(localPassword);
       }
     } catch {
       // ignore
@@ -180,8 +183,6 @@ const SettingsTab: React.FC = () => {
           baseUrl: baseUrl || null,
           processQueueBaseUrl: processQueueBaseUrl || null,
           useLocalProcessor,
-          apiUsername: apiUsername || null,
-          apiPasswordEncrypted: apiPassword || null,
         }),
       });
     } catch (e) {

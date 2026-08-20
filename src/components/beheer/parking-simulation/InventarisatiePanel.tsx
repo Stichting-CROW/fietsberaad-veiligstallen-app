@@ -141,7 +141,7 @@ export const InventarisatiePanel: React.FC<Props> = ({
 
   const finishInventory = async () => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials — configureer in Instellingen of via FMS_TEST_*.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     setLoading(true);

@@ -42,7 +42,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
 
   const handleAddSubscription = async () => {
     if (!credentials) {
-      setMsg("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
+      setMsg("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const subscriptiontypeID = parseInt(addSubTypeID, 10);
@@ -90,7 +90,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
 
   const handleSubscribe = async () => {
     if (!credentials) {
-      setMsg("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
+      setMsg("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const subscriptionID = parseInt(subSubscriptionID, 10);

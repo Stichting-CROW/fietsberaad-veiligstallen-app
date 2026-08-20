@@ -309,7 +309,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
 
   const handleSyncExecute = async () => {
     if (!credentials) {
-      setSyncLog(["Fout: Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen."]);
+      setSyncLog(["Fout: Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser)."]);
       return;
     }
     setSyncListModalOpen(false);
@@ -466,7 +466,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
               : "Onbekend"}
         </p>
         <p className="text-xs text-gray-500">
-          FMS API: {credentials ? "credentials geconfigureerd" : "geen credentials — FMS_TEST_* env, FMS rechten, of Instellingen"}
+          FMS API: {credentials ? "credentials geconfigureerd" : "geen credentials — vul in bij Instellingen (browser)"}
         </p>
       </div>
 
