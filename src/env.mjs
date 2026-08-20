@@ -18,6 +18,7 @@ const server = z.object({
   SMTP_FROM: z.string().min(1).optional(),
   SMTP_REPLY_TO: z.string().email().optional(),
   NSCONNECTOR_SUBSCRIPTION_KEY: z.string().optional(),
+  /** FMS API compare / write tests (not used by parkeersimulatie) */
   FMS_TEST_USER: z.string().min(1).optional(),
   FMS_TEST_PASS: z.string().min(1).optional(),
   /** FMS v2/v3 mutations: set true / 1 / yes on acceptance or local; omit on production */

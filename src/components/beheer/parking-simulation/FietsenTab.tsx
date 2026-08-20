@@ -82,7 +82,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
 
   const handleCheckOut = async (bicycleId: string) => {
     if (!credentials) {
-      setMessage("Geen FMS API-credentials. Stel FMS_TEST_USER/FMS_TEST_PASS in of configureer in Instellingen.");
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bicycleId);
