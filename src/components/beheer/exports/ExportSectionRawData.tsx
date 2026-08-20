@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { type ReportType } from "../reports/ReportsFilter";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
-import moment from "moment";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
-import { convertToBikeparkData, buttonbase } from "./index";
+import {
+  convertToBikeparkData,
+  downloadCsvExport,
+  buttonbase,
+  csvDownloadKey,
+  CsvDownloadSpinner,
+} from "./index";
 
 const ExportComponent: React.FC<ReportComponentProps> = ({
   gemeenteID,
-  gemeenteName,
   firstDate,
   lastDate,
   bikeparks,
 }) => {
   const [errorState, setErrorState] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
 
   const reportType = "transacties_voltooid";
@@ -42,7 +47,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
                 reportType,
                 bikeparkIDs: validBikeparkIDs,
                 startDT: firstDate,
-                endDT: lastDate
+                endDT: lastDate,
               }),
             });
     
@@ -65,61 +70,63 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
         };
     
         fetchReportData();
-  }, [reportType, bikeparks]);
+  }, [reportType, bikeparks, firstDate, lastDate]);
 
   const getMonthName = (month: number): string => {
       return new Date(2000, month - 1, 1).toLocaleString('nl-NL', { month: 'short' });
   };
 
-  const renderRawTransactionDataMonthButtons = (reportType: ReportType, gemeenteID: string | undefined, gemeenteName: string | undefined, bikepark: BikeparkData | undefined, year: number, availableMonths: number[]) => {
+  const renderRawTransactionDataMonthButtons = (gemeenteID: string | undefined, bikepark: BikeparkData | undefined, year: number, availableMonths: number[]) => {
     if(undefined === gemeenteID) {
       return null;
     }
 
     return (
           <div className="month-buttons flex gap-1 ml-2">
-              {availableMonths.map(month => (
-                  <button
-                      key={`${year}-${month}`}
-                      className={`month-button ${buttonbase}`}                               
-                      onClick={() => {downloadRawTransactionsForMonth(gemeenteID, gemeenteName || "", bikepark, year, month)}}
-                  >
-                      {getMonthName(month)}
-                  </button>
-              ))}
+              {availableMonths.map(month => {
+                  const key = csvDownloadKey(bikepark?.bikeparkID, year, month);
+                  const isDownloading = downloadingKey === key;
+                  return (
+                      <button
+                          key={`${year}-${month}`}
+                          type="button"
+                          className={`month-button ${buttonbase}`}
+                          disabled={downloadingKey !== null}
+                          aria-busy={isDownloading}
+                          onClick={() => {void downloadRawTransactionsForMonth(gemeenteID, bikepark, year, month)}}
+                      >
+                          {isDownloading && <CsvDownloadSpinner />}
+                          {getMonthName(month)}
+                      </button>
+                  );
+              })}
           </div>
       );
   };
 
-  const downloadRawTransactionsForMonth = (gemeenteID: string, gemeenteName: string, bikepark: BikeparkData | undefined, year: number, month: number) => {
-    if(undefined === bikepark) {
+  const downloadRawTransactionsForMonth = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number, month: number) => {
+    if(undefined === bikepark || downloadingKey !== null) {
       // deze export is alleen per stalling beschikbaar
       return;
     }
-    
-    const timestamp = moment().format("YYYYMMDDHHmmss"); 
-    const link = document.createElement("a");
-    // link.target = "_blank";
 
-    // const test = "";
-    if(undefined === bikepark) {
-      throw new Error("Maandrapportage voor alle stallingen is niet beschikbaar");
-    } 
-    
-    if(year<2023) {
-      link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${String(month).padStart(2, '0')}_${bikepark.bikeparkTitle.replace(/ /g, "_")}_ruwedata.csv?${timestamp}`;
-    } else {
-      // apparantly the link format changed in 2023
-      link.href = `https://static.veiligstallen.nl/reports/${gemeenteID}/${bikepark.bikeparkID}/${year}_${String(month).padStart(2, '0')}_${bikepark.bikeparkID}_ruwedata.csv?${timestamp}`;
+    const key = csvDownloadKey(bikepark.bikeparkID, year, month);
+    try {
+      setDownloadError("");
+      setDownloadingKey(key);
+      await downloadCsvExport({
+        exportType: "ruwedata",
+        gemeenteID,
+        stallingsID: bikepark.bikeparkID,
+        jaar: year,
+        maand: month,
+      });
+    } catch (error) {
+      console.error(error);
+      setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
     }
-
-    link.download = `${gemeenteName}-${bikepark.bikeparkTitle}-${year}-${month}.xlsx`;
-
-    // console.log("old: ", test);
-    // console.log("new: ", link.href);    
-    // console.log("same: ", test === link.href);
-
-    link.click();
   }
 
   if(undefined === gemeenteID || gemeenteID === "") {
@@ -145,6 +152,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
       <h2 className="text-lg font-semibold text-gray-900">
           Alle Transacties (ruwe data)
       </h2>
+      {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
       <ul className="bikepark-list">
           {bikeparkData
               .filter(bp => bp.monthsWithData.length > 0)
@@ -174,7 +182,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
                                               onClick={() => {/* TODO: Handle year download */}}
                                           >
                                               {year}
-                                              {renderRawTransactionDataMonthButtons(reportType, gemeenteID, gemeenteName || "", bp, Number(year), months.sort((a, b) => a - b))}
+                                              {renderRawTransactionDataMonthButtons(gemeenteID, bp, Number(year), months.sort((a, b) => a - b))}
                                               </div>
                                       </li>
                                   ))}

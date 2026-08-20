@@ -4,6 +4,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import nine3030 from "../../mapStyles/nine3030";
 import { createEditGeoJson } from "~/utils/map/geojson";
+import { parseLatLng, toMapCenter } from "~/utils/map/coordinates";
 
 interface GemeenteMapEditorProps {
   coordinaten: string;
@@ -31,18 +32,8 @@ function GemeenteMapEditor({
     if (typeof window === "undefined" || node === null) return;
     if (stateMap) return;
 
-    // Parse coordinates
-    let ccoords: [number, number];
-    if (coordinaten && coordinaten.includes(",")) {
-      const coords = coordinaten.split(",").map((coord: any) => Number(coord));
-      if (coords[0] && coords[1]) {
-        ccoords = [coords[1], coords[0]]; // [lng, lat] for mapbox
-      } else {
-        ccoords = [5.2913, 52.1326]; // Default center of NL
-      }
-    } else {
-      ccoords = [5.2913, 52.1326]; // Default center of NL
-    }
+    // Parse coordinates, falling back to the centre of NL when unusable
+    const ccoords = toMapCenter(coordinaten); // [lng, lat] for mapbox
 
     // Create map instance
     const mapboxMap = new maplibregl.Map({
@@ -91,27 +82,26 @@ function GemeenteMapEditor({
 
   // Update map center when coordinaten prop changes
   React.useEffect(() => {
-    if (!stateMap || !coordinaten || !coordinaten.includes(",")) return;
-    
-    const coords = coordinaten.split(",").map((coord: any) => Number(coord));
-    if (coords[0] && coords[1]) {
-      try {
-        const currentCenter = stateMap.getCenter();
-        const newCenter: [number, number] = [coords[1], coords[0]]; // [lng, lat]
-        
-        // Only update if coordinates actually changed
-        if (Math.abs(currentCenter.lng - newCenter[0]) > 0.0001 || 
-            Math.abs(currentCenter.lat - newCenter[1]) > 0.0001) {
-          isUpdatingFromProps.current = true;
-          stateMap.setCenter(newCenter);
-          // Reset flag after a short delay to allow moveend event to process
-          setTimeout(() => {
-            isUpdatingFromProps.current = false;
-          }, 100);
-        }
-      } catch (e) {
-        console.warn("invalid coordinates @", coordinaten);
-      }
+    if (!stateMap) return;
+
+    const latlng = parseLatLng(coordinaten);
+    if (latlng === undefined) {
+      if (coordinaten) console.warn("invalid coordinates @", coordinaten);
+      return;
+    }
+
+    const currentCenter = stateMap.getCenter();
+    const newCenter: [number, number] = [latlng.lng, latlng.lat]; // [lng, lat]
+
+    // Only update if coordinates actually changed
+    if (Math.abs(currentCenter.lng - newCenter[0]) > 0.0001 ||
+        Math.abs(currentCenter.lat - newCenter[1]) > 0.0001) {
+      isUpdatingFromProps.current = true;
+      stateMap.setCenter(newCenter);
+      // Reset flag after a short delay to allow moveend event to process
+      setTimeout(() => {
+        isUpdatingFromProps.current = false;
+      }, 100);
     }
   }, [coordinaten, stateMap]);
 

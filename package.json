@@ -24,6 +24,7 @@
     "stop-db-local": "docker stop veiligstallen-mysql",
     "stop-db": "cd scripts && bash close-ssh-tunnel.sh && echo 'SSH tunnel stopped'",
     "remove-db": "docker stop veiligstallen-mysql && docker rm veiligstallen-mysql",
+    "compare-csv-export": "npx --yes tsx scripts/compare-csv-export.ts",
     "deploy": "cd scripts && bash deploy.sh",
     "docker-build": "bash scripts/build-docker-local.sh",
     "docker-run": "docker rm -f veiligstallen-app && docker run -p 3000:3000 --network=host --name veiligstallen-app nextjs-docker"

@@ -8,6 +8,11 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { handleApiError } from "~/utils/formatPrismaError";
+import {
+  clearAllReportFileCache,
+  expireOldReportFileCache,
+  getReportFileCacheStatus,
+} from "~/backend/services/reports/csvExportCache";
 const dateSchema = z.string().datetime();
 
 const UserStatusParamsSchema = z.object({
@@ -39,13 +44,17 @@ const CacheParamsSchema = z.object({
   }),
 });
 
+const ReportFileCacheParamsSchema = z.object({
+  databaseParams: z.object({
+    action: z.enum(["status", "clear", "expire"]),
+  }),
+});
+
 const AvailableDataParamsSchema = z.object({
   reportType: z.enum(reportTypeValues),
   bikeparkIDs: z.array(z.string()),
   startDT: dateSchema.optional(),
   endDT: dateSchema.optional(),
-  // allDates: z.boolean().optional(),
-  // allBikeparks: z.boolean().optional(),
 });
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -150,6 +159,61 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
               : await DatabaseService.manageStallingsduurCache(params);
 
           return res.json(result);
+        }
+
+        case "reportfilecache": {
+          if (!hasDatabase) {
+            console.error("Access denied - insufficient permissions for database operations");
+            res.status(403).json({ error: "Access denied - insufficient permissions" });
+            return;
+          }
+
+          const parseResult = ReportFileCacheParamsSchema.safeParse(req.body);
+          if (!parseResult.success) {
+            return res.status(400).json({
+              error: "Invalid parameters",
+              details: parseResult.error.errors,
+            });
+          }
+
+          const { action } = parseResult.data.databaseParams;
+
+          if (action === "status") {
+            const status = await getReportFileCacheStatus();
+            return res.json({
+              success: status.status !== "error",
+              message:
+                status.status === "missing"
+                  ? "Geen gecachte CSV-bestanden"
+                  : status.status === "error"
+                    ? "Kon cachestatus niet lezen"
+                    : `${status.fileCount} bestand(en) in cache`,
+              status,
+            });
+          }
+
+          if (action === "expire") {
+            const { deleted, errors } = await expireOldReportFileCache();
+            const status = await getReportFileCacheStatus();
+            return res.json({
+              success: errors === 0,
+              message: `${deleted} verouderde bestand(en) verwijderd` + (errors ? ` (${errors} fouten)` : ""),
+              deleted,
+              errors,
+              status,
+            });
+          }
+
+          // clear
+          const { deleted, errors } = await clearAllReportFileCache();
+          const status = await getReportFileCacheStatus();
+          return res.json({
+            success: errors === 0,
+            message: `${deleted} bestand(en) verwijderd` + (errors ? ` (${errors} fouten)` : ""),
+            deleted,
+            errors,
+            status,
+          });
         }
 
         case "availableDataDetailed": {

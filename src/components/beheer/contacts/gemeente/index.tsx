@@ -153,6 +153,12 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
     return selected.sort().map(e => <>{e}<br/></>);
   };
 
+  const getContactpersoonNaam = (contact: VSContactGemeenteInLijst) => {
+    const contactpersoon = contact.contactpersoon;
+    if (!contactpersoon) return '';
+    return contactpersoon.DisplayName?.trim() || contactpersoon.UserName;
+  };
+
   const handleSort = (header: string) => {
     if (sortColumn === header) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -181,6 +187,10 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
         case 'Naam':
           aValue = a.CompanyName || '';
           bValue = b.CompanyName || '';
+          break;
+        case 'Contactpersoon':
+          aValue = getContactpersoonNaam(a);
+          bValue = getContactpersoonNaam(b);
           break;
         default:
           aValue = a.CompanyName || '';
@@ -252,6 +262,21 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
               header: 'Naam',
               accessor: 'CompanyName'
             },
+            {
+              header: 'Contactpersoon',
+              accessor: (contact: VSContactGemeenteInLijst) => {
+                const naam = getContactpersoonNaam(contact);
+                if (!naam || !contact.contactpersoon) return null;
+                return (
+                  <a
+                    href={`/beheer/usersgebruikersbeheerfietsberaad/${contact.contactpersoon.UserID}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {naam}
+                  </a>
+                );
+              }
+            },
             // TODO: Re-enable when needed
             // ...(hasFietsberaadSuperadmin ? [{
             //   header: "Beheert", 
@@ -315,7 +340,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
           ]}
           data={getSortedData()}
           className="mt-4"
-          sortableColumns={["Naam"]}
+          sortableColumns={["Naam", "Contactpersoon"]}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSort={handleSort}

@@ -67,6 +67,12 @@ export interface VSContactExploitant {
     //   }
   }
 
+  export type VSContactGemeenteContactpersoon = {
+    UserID: string;
+    UserName: string;
+    DisplayName: string | null;
+  };
+
   export type VSContactGemeenteInLijst = Pick<contacts, 
   "ID" | 
   "CompanyName" |
@@ -77,6 +83,7 @@ export interface VSContactExploitant {
   > & {
     hasStallingen: boolean;
     hasUsers: boolean;
+    contactpersoon: VSContactGemeenteContactpersoon | null;
     isManagingContacts?: {
       ID: number;
       childSiteID: string;

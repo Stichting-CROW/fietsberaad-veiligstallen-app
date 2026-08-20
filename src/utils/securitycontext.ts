@@ -166,8 +166,9 @@ export const getRoleRights = (
     currentTopics[VSSecurityTopic.instellingen_fietsenstallingen_beperkt] = isEditor? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.abonnementsvormen_beheerrecht] = isAdmin ? allowCRUD : (isViewer ? allowRead : allowNone)
     if(isFietsberaad) {
-        currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isRootAdmin ? allowCRUD : allowNone
-        // FAQ only for fietsberaad editors
+        // Align with LeftMenuFietsberaad (Website beheer) and fietsberaad_admin:
+        // Fietsberaad Admin+ can manage general pages; Editor+ can manage FAQ.
+        currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isAdmin ? allowCRUD : allowNone
         currentTopics[VSSecurityTopic.instellingen_site_content_faq] = isEditor ? allowCRUD : allowNone
     } else {
         currentTopics[VSSecurityTopic.instellingen_site_content_pages] = isEditor? allowReadUpdate : allowNone

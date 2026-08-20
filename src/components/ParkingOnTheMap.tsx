@@ -18,6 +18,7 @@ import { type AppState } from "~/store/store";
 // import { getActiveMunicipality } from "~/utils/map/active_municipality";
 // import { mapMoveEndEvents } from "~/utils/map/parkingsFilteringBasedOnExtent";
 import { createGeoJson } from "~/utils/map/geojson";
+import { parseLatLng } from "~/utils/map/coordinates";
 // import { parkingTypes } from "~/utils/parkings";
 
 // Import the mapbox-gl styles so that the map is displayed correctly
@@ -77,12 +78,9 @@ function ParkingOnTheMap({ parking }) {
     if (stateMap) return;
 
     // Get coords from parking variable
-    const coords = parking.Coordinaten
-      ? parking.Coordinaten.split(",").map((coord: any) => Number(coord))
-      : null; // I.e.: 52.508011,5.473280;
-
-    if (coords === null || (coords[0] < -90 || coords[0] > 90 || coords[1] < -180 || coords[1] > 180)) {
-      console.warn("invalid coordinates for parking", parking.Title, coords);
+    const latlng = parseLatLng(parking.Coordinaten); // I.e.: 52.508011,5.473280;
+    if (latlng === undefined) {
+      console.warn("invalid coordinates for parking", parking.Title, parking.Coordinaten);
       return;
     }
 
@@ -92,7 +90,7 @@ function ParkingOnTheMap({ parking }) {
       accessToken: process ? process.env.NEXT_PUBLIC_MAPBOX_TOKEN : "",
       // style: "maplibre://styles/mapbox/streets-v11",
       style: nine3030,
-      center: coords ? [coords[1], coords[0]] : [52.508011, 5.47328],
+      center: [latlng.lng, latlng.lat],
       zoom: 16,
       // Disable map rotation
       dragRotate: false,

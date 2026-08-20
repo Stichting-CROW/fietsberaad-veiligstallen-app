@@ -6,6 +6,7 @@ import {
   FiHelpCircle,
   FiHome,
   FiMapPin,
+  FiServer,
   FiSettings,
   FiUsers,
 } from 'react-icons/fi';
@@ -19,6 +20,7 @@ interface LeftMenuGemeenteProps {
   activecomponent: VSMenuTopic | undefined;
   onSelect: (component: VSMenuTopic) => void;
   hasAbonnementenModule: boolean;
+  hasFmsModule: boolean;
 }
 
 import { LeftMenuItem } from './LeftMenuCommon';
@@ -28,6 +30,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   activecomponent,
   onSelect,
   hasAbonnementenModule,
+  hasFmsModule,
 }) => {
   const router = useRouter();
   const isOnReportPage = router.pathname.startsWith('/beheer/report');
@@ -42,6 +45,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasInstellingenFietsenstallingenAdmin = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_admin);
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
+  const hasFmsServices = userHasRight(securityProfile, VSSecurityTopic.fmsservices);
 
   const handleReportClick = () => {
     router.push('/beheer/report/afgeronde-transacties');
@@ -106,6 +110,16 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
             activecomponent={activecomponent}
             onSelect={onSelect}
             icon={FiFileText}
+          />
+        )}
+
+        {hasFmsServices && hasFmsModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.ApisGekoppeldeLocaties}
+            title={'Toegang FMS-service'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiServer}
           />
         )}
 

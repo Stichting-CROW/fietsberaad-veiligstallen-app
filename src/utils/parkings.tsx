@@ -5,6 +5,7 @@ import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
 import type { VSContactGemeente } from "~/types/contacts";
 import { titleToSlug } from "~/utils/slug";
+import { getFallbackLocation } from "~/utils/map/coordinates";
 
 export const findParkingIndex = (parkings: fietsenstallingen[], parkingId: string) => {
   let index = 0,
@@ -43,8 +44,11 @@ export const getParkingDetails = async (stallingId: string): Promise<ParkingDeta
     }
     
     const json = await response.json();
-    // Protected API returns {data: ...}, extract the data
-    return json.data || json;
+    const data = json.data !== undefined ? json.data : json;
+    if (data === null || typeof data !== "object" || !("ID" in data) || !data.ID) {
+      return null;
+    }
+    return data as ParkingDetailsType;
   } catch (error: any) {
     console.error(`getParkingDetails - error for ID "${stallingId}":`, error.message);
     return null;
@@ -77,9 +81,7 @@ export const generateRandomId = (prefix = '') => {
 }
 
 
-export const getDefaultLocation = (): string => {
-  return '52.09066,5.121317'
-}
+export const getDefaultLocation = (): string => getFallbackLocation();
 
 const determineNewStatus = (session: Session | null): "1" | "aanm" => {
   if (session === null || !session.user || !session.user.securityProfile) { // TODO: check if this is correct, used OrgUserID before
@@ -167,7 +169,7 @@ export const getNewStallingDefaultRecord = async (
     Dicht_zo: new Date(0),
     Openingstijden: "",
     Capacity: 0,
-    Coordinaten: latlong ? latlong.join(',') : getDefaultLocation(),
+    Coordinaten: latlong ? latlong.join(',') : null,
     FMS: false,
     Beheerder: "",
     BeheerderContact: "",
