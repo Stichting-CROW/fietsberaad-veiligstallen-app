@@ -63,6 +63,9 @@ mysql-db/persist-db/
 #uploads
 /public/uploads*
 
+# on-demand CSV export gzip cache (local development)
+.cache/
+
 #checkpoints
 /data/checkpoints*
 /data/ns

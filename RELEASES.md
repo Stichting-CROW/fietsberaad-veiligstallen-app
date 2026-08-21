@@ -1,5 +1,45 @@
 # App updates VeiligStallen
 
+## VeiligStallen 2026-08-20
+
+**Features**
+
+- Create reporting API "Ruwe transactiedata" and occupation APIs (#223)
+- Feature/api managed transactions (#222)
+- Add new FMS API endpoints for bike types and places
+- feat(BeheerExport): Use new Node endpoints instead of ColdFusion; loading state and hide years without data
+- feat: Toon in 'Data-eigenaren' tabel een 'Contactpersoon' kolom
+- feat: improve stalling coordinates, exports, and abonnementen dedupe
+- feat(ArticleEdit): If saving form fails, keep form fields visible
+- feat(pages): Click anywhere on a pages list row to go to 'edit page'
+- feat(fms-api-compare): Add reporting API comparison tool
+- Add button for navigating to FMS schrijf-tests page
+- feat: Send from vstnoreply@mailing.veiligstallen.nl but reply to info@
+
+**Bug Fixes**
+
+- fix(BeheerExport): Merge transactions and transaction_archief; use transactions table instead of view; cache CSV files for 3 months
+- Hotfix: Recent exports for individual parkings not working
+- fix: P1 blockers for acc→main (subscribe, reporting auth, sim credentials) (#230)
+- fix: Fietsberaad-only stalling delete, hide for gemeenten, and delete UX fixes (#228)
+- fix: Add missing FMS module support and enhance LeftMenuGemeente (#226)
+- fix: handle stallingen with invalid RD coordinates
+- fix: Show that fietsberaad super admins have 'Beheer website' rights
+- Hotfix: Fix 1 hour offset bug in "open until X" message
+- Fix:(sections) wrong key field used when creating sections (#209)
+
+**Improvements**
+
+- perf: Optimize Ruwe data API for getting 'overlap' transactions
+- Enhance API documentation and client migration details
+- docs: Enhance FMS API documentation with authentication details and access rights (#220)
+- docs: clarify who can access the FMS permits overview
+
+**Technical**
+
+- add LOGINTOKEN_SIGNER_PRIVATE_KEY in prod and acc deploy yamls
+- Fix stale comment on FMS v2 target=new write gate
+
 ## VeiligStallen 2026-05-27
 
 **Features**

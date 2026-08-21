@@ -88,9 +88,13 @@ export async function validateFmsAuth(
 
   if (permits.length === 0) return { ok: false, status: 401 };
 
-  const permitSet = new Set(
-    permits.flatMap((p) => expandPermitString(p.permit))
-  );
+  const permitSet = new Set<string>();
+  for (const p of permits) {
+    if (!p.permit) continue;
+    for (const part of p.permit.split(",").map((s) => s.trim()).filter(Boolean)) {
+      permitSet.add(part);
+    }
+  }
   if (bikeparkID) {
     const hasAccess = permits.some(
       (p) => p.bikeparkID === bikeparkID || p.bikeparkID === null

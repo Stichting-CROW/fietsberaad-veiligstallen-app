@@ -102,3 +102,15 @@ export const getGemeenteExportContext = async (
     timeShiftInMinutes: Number(row.timeShiftInMinutes ?? 0),
   };
 };
+
+/**
+ * MySQL server time as `YYYY-MM-DD HH:MM:SS`. Used instead of the Node clock
+ * so period-settling checks stay in sync with the database timezone (and with
+ * the stallingsduur export's "quarter fully passed" filter).
+ */
+export const getDatabaseNow = async (): Promise<string> => {
+  const rows = await prisma.$queryRaw<{ now: string }[]>`
+    SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS now
+  `;
+  return rows[0]?.now ?? "";
+};
