@@ -4,6 +4,7 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentials";
+import { rewriteSameHostUrlToLoopback } from "~/server/utils/same-host-loopback";
 
 /**
  * Proxy for FMS API comparison. Fetches old and new API from the backend to avoid CORS.
@@ -60,6 +61,8 @@ export default async function handle(
     return null;
   };
 
+  const newFetchUrl = rewriteSameHostUrlToLoopback(newUrl, req.headers);
+
   const [oldResult, newResult] = await Promise.all([
       (async () => {
         const start = performance.now();
@@ -86,7 +89,7 @@ export default async function handle(
       (async () => {
         const start = performance.now();
         try {
-          const r = await fetch(newUrl, { headers });
+          const r = await fetch(newFetchUrl, { headers });
           const text = await r.text();
           if (!r.ok) {
             const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;

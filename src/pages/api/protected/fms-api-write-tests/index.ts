@@ -9,6 +9,7 @@ import {
   listApiWriteScenarios,
   runApiWriteTests,
 } from "~/server/services/fms/api-write-test-runner";
+import { rewriteSameHostBaseToLoopback } from "~/server/utils/same-host-loopback";
 
 /**
  * Tier B — HTTP ingress FMS write tests.
@@ -51,10 +52,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       (req.headers["x-forwarded-proto"] as string) ||
       (req.headers["x-forwarded-ssl"] === "on" ? "https" : "http");
     const host = (req.headers.host as string) || `localhost:${process.env.PORT ?? 3000}`;
-    const baseUrl =
+    const baseUrlRaw =
       typeof req.body?.baseUrl === "string" && req.body.baseUrl
         ? req.body.baseUrl
         : `${protocol}://${host}`;
+    const baseUrl = rewriteSameHostBaseToLoopback(baseUrlRaw, req.headers);
 
     try {
       const result = await runApiWriteTests(baseUrl, scenarioId, suite);
