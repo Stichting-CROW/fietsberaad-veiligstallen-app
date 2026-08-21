@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FMS REST API v4",
-    "description": "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |\n| `dataprovider.type2` | `managedtransactions` + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions` en fietskluizen-writes geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n",
+    "description": "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |\n| `dataprovider.type2` | `managedtransactions` + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions` en fietskluizen-writes geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n\n## Next.js vs ColdFusion\n\nNext.js serveert alleen v4 (`/api/fms/v4/...`). Er zijn geen `/api/fms/v2` of `/api/fms/v3` routes. Catalogus-aux (`/v4/biketypes`, `/v4/paymenttypes`, `/v4/servertime`) volgt het V3-contract (`/rest/v3/...` op ColdFusion), niet V2 (`/REST/v1/getBikeTypes` enz.). V2 `getJsonClientTypes` en `getJsonBikes` hebben V4-stubs (`/v4/clienttypes`, `…/locations/{id}/bikes`). `getJsonBikeType/{id}` is `GET /v4/biketypes` gefilterd op `id`.\n\n## Migratie\n\n- [V2 → V4](/test/fms-api-docs-migrate-v2)\n- [V3 → V4](/test/fms-api-docs-migrate-v3)\n",
     "version": "4.0.0"
   },
   "servers": [
@@ -48,7 +48,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Array van fietstypen (id, name, singular)",
+            "description": "Array van fietstypen (id, name, singular). Legacy-pair is ColdFusion /rest/v3/biketypes, niet V2 /REST/v1/getBikeTypes. Eén type ophalen door te filteren op id (geen aparte /biketypes/{id}; dat was alleen V2 getJsonBikeType).\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -98,6 +98,39 @@
                         "type": "string"
                       },
                       "description": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/clienttypes": {
+      "get": {
+        "summary": "Klanttypen (V4 aux)",
+        "description": "Catalogus van klanttypen (`id`, `name`). V2 `getJsonClientTypes` had\ngeen V3-twin; ColdFusion `/rest/v3/clienttypes` bestaat niet, dus geen\nparity-compare.\n",
+        "tags": [
+          "V4"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Array van klanttypen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
                         "type": "string"
                       }
                     }
@@ -666,6 +699,49 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/bikes": {
+      "get": {
+        "summary": "Geregistreerde fietsen (barcoderegister)",
+        "description": "V2 `getJsonBikes` had geen V3 GET. Geeft `{barcode, biketypeid}` voor de\ngemeente van de stalling. Vereist operator Basic Auth.\n",
+        "tags": [
+          "V4 Protected"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array van fietsen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "barcode": {
+                        "type": "string"
+                      },
+                      "biketypeid": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
           }
         }
       }

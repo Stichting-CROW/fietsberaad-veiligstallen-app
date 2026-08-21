@@ -5,6 +5,13 @@ import "swagger-ui-react/swagger-ui.css";
 
 const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
 
+const FMS_DOCS_NAV = [
+  { href: "/test/fms-api-docs-v4", label: "V4 referentie" },
+  { href: "/test/fms-api-docs-migrate-v2", label: "Migratie V2 → V4" },
+  { href: "/test/fms-api-docs-migrate-v3", label: "Migratie V3 → V4" },
+  { href: "/test/fms-api-docs", label: "V2 + V3 (ColdFusion)" },
+] as const;
+
 type FmsSwaggerDocsProps = {
   specUrl: string;
 };
@@ -38,6 +45,13 @@ const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
 
   return (
     <div className="swagger-docs-container">
+      <nav className="px-4 py-3 border-b bg-white flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {FMS_DOCS_NAV.map((item) => (
+          <a key={item.href} href={item.href} className="text-blue-700 hover:underline">
+            {item.label}
+          </a>
+        ))}
+      </nav>
       <SwaggerUI
         spec={spec}
         docExpansion="none"

@@ -185,6 +185,20 @@ const TestIndexPage: React.FC = () => {
           >
             FMS API v4 documentatie (Swagger)
           </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-migrate-v2')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS migratie V2 → V4 (Swagger)
+          </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-migrate-v3')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS migratie V3 → V4 (Swagger)
+          </Button>
           
         </div>
       </div>

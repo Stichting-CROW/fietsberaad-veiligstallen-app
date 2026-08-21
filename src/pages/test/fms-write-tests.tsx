@@ -39,11 +39,11 @@ type RunResponse = {
   failed?: number;
 };
 
-type Tier = "A" | "B";
+type Tier = "A" | "B" | "C";
 
 const TIER_META: Record<
   Tier,
-  { title: string; intro: string; listUrl: string; runUrl: string; aiHint: string }
+  { title: string; intro: string; listUrl: string; runUrl: string; aiHint: string; body?: Record<string, string> }
 > = {
   A: {
     title: "Tier A — queue processor golden tests",
@@ -60,6 +60,16 @@ const TIER_META: Record<
     listUrl: "/api/protected/fms-api-write-tests",
     runUrl: "/api/protected/fms-api-write-tests",
     aiHint: "Scenario roept HTTP FMS-endpoints aan en controleert wachtrij- of DB-side-effect.",
+  },
+  C: {
+    title: "Write sequences — teststalling",
+    intro:
+      "Multi-step HTTP sequences on the teststalling (testgemeente 9933): bike visit, inventory sync, sync-only, Lumiguide, saldo, and 410 negatives. Example flows were derived from Utrecht Vredenburg CF wachtrij patterns, mapped to v4 twins. POST v4 → new_wachtrij_* / new_bezettingsdata_tmp → processQueues → production tables. Prefix WTEST_API_. Requires ENABLE_WRITE_API=true.",
+    listUrl: "/api/protected/fms-api-write-tests?suite=sequences",
+    runUrl: "/api/protected/fms-api-write-tests",
+    body: { suite: "sequences" },
+    aiHint:
+      "Write sequence on teststalling: HTTP FMS write → queue row → processQueues / Lumiguide rollup → production table. Investigate write service, processor, or occupation rollup.",
   },
 };
 
@@ -98,7 +108,10 @@ const FmsWriteTestsPage: React.FC = () => {
       const resp = await fetch(TIER_META[tier].runUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(scenarioId ? { scenarioId } : {}),
+        body: JSON.stringify({
+          ...(TIER_META[tier].body ?? {}),
+          ...(scenarioId ? { scenarioId } : {}),
+        }),
       });
       const data = (await resp.json()) as RunResponse;
       if (!resp.ok || !data.ok) {
@@ -157,7 +170,7 @@ const FmsWriteTestsPage: React.FC = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-2">FMS schrijf-tests</h1>
 
       <div className="flex gap-2 mb-4">
-        {(["A", "B"] as Tier[]).map((t) => (
+        {(["A", "B", "C"] as Tier[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -168,7 +181,7 @@ const FmsWriteTestsPage: React.FC = () => {
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            Tier {t}
+            {t === "C" ? "Sequences" : `Tier ${t}`}
           </button>
         ))}
       </div>

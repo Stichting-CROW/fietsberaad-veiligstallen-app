@@ -16,6 +16,10 @@ import {
   type ApiWriteScenario,
 } from "./api-write-test-scenarios";
 import {
+  SEQUENCE_WRITE_SCENARIOS,
+  getSequenceWriteScenarioById,
+} from "./write-sequence-scenarios";
+import {
   assertLockerPlaceConfigured,
   describeLockerPlaceProblem,
   inspectTestgemeenteLockerPlace,
@@ -24,6 +28,23 @@ import {
   TESTGEMEENTE_LOCKER_SECTION_ID,
   type TestgemeenteLockerPlaceStatus,
 } from "./testgemeente-locker-place";
+
+export type WriteTestSuite = "api" | "sequences";
+
+const SEQUENCE_SUITE: ApiWriteScenario[] = [
+  ...SEQUENCE_WRITE_SCENARIOS,
+  ...API_WRITE_SCENARIOS.filter(
+    (s) => s.id === "api-v4-legacy-transactions-gone" || s.id === "api-v4-locker-writes-gone"
+  ),
+];
+
+function scenariosForSuite(suite: WriteTestSuite): ApiWriteScenario[] {
+  return suite === "sequences" ? SEQUENCE_SUITE : API_WRITE_SCENARIOS;
+}
+
+function findScenario(id: string): ApiWriteScenario | undefined {
+  return getSequenceWriteScenarioById(id) ?? getApiWriteScenarioById(id);
+}
 
 export type ApiScenarioRunResult = {
   id: string;
@@ -167,7 +188,8 @@ export async function getApiWriteTestPreflight(): Promise<{
 
 export async function runApiWriteTests(
   baseUrl: string,
-  scenarioId?: string
+  scenarioId?: string,
+  suite: WriteTestSuite = "api"
 ): Promise<RunApiWriteTestsResult> {
   const scope = await resolveTestgemeenteScope();
   const authHeader = (await buildTestFmsAuthHeader()) ?? "";
@@ -175,11 +197,11 @@ export async function runApiWriteTests(
 
   const scenarios = scenarioId
     ? (() => {
-        const s = getApiWriteScenarioById(scenarioId);
+        const s = findScenario(scenarioId);
         if (!s) throw new Error(`Onbekend scenario: ${scenarioId}`);
         return [s];
       })()
-    : API_WRITE_SCENARIOS;
+    : scenariosForSuite(suite);
 
   const results: ApiScenarioRunResult[] = [];
   for (const scenario of scenarios) {
@@ -195,10 +217,10 @@ export async function runApiWriteTests(
   };
 }
 
-export function listApiWriteScenarios(): Array<
-  Pick<ApiWriteScenario, "id" | "label" | "description" | "writeMethods">
-> {
-  return API_WRITE_SCENARIOS.map((s) => ({
+export function listApiWriteScenarios(
+  suite: WriteTestSuite = "api"
+): Array<Pick<ApiWriteScenario, "id" | "label" | "description" | "writeMethods">> {
+  return scenariosForSuite(suite).map((s) => ({
     id: s.id,
     label: s.label,
     description: s.description,

@@ -432,6 +432,8 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
         checkindate: ctx.baseTime.toISOString(),
         checkoutdate: checkout.toISOString(),
         checkouttype: "user",
+        stallingsduur: 30,
+        stallingskosten: 0,
       });
     },
     assert: [

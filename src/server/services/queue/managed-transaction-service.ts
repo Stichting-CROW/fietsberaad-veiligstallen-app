@@ -6,6 +6,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
+import { getBikepassByPassId } from "./account-service";
 import { passtype2integer } from "../fms/fms-idtypes";
 
 type Prisma = Omit<
@@ -88,11 +89,32 @@ export function validateManagedTransaction(managed: ManagedTransactionInput): vo
   }
 }
 
+/** Fill stallingsduur / stallingskosten when a client sends checkout without them. */
+export function applyManagedCheckoutDefaults(managed: ManagedTransactionInput): ManagedTransactionInput {
+  const next = { ...managed };
+  const hasCheckout = next.checkoutdate != null && String(next.checkoutdate).trim() !== "";
+  if (!hasCheckout) return next;
+  if (next.checkouttype == null || String(next.checkouttype).trim() === "") {
+    next.checkouttype = "user";
+  }
+  if (next.stallingsduur == null && next.checkindate) {
+    const checkin = parseDate(next.checkindate);
+    const checkout = parseDate(next.checkoutdate);
+    next.stallingsduur = Math.max(0, Math.floor((checkout.getTime() - checkin.getTime()) / 60000));
+  }
+  if (next.stallingskosten == null) {
+    next.stallingskosten = 0;
+  }
+  return next;
+}
+
 export async function putManagedTransaction(
   tx: Prisma,
   input: PutManagedTransactionInput
 ): Promise<{ transactionID: number; created: boolean }> {
-  validateManagedTransaction(input.managed);
+  const managed = applyManagedCheckoutDefaults(input.managed);
+  validateManagedTransaction(managed);
+  input = { ...input, managed };
 
   const bikepark = await getBikeparkByExternalID(input.bikeparkID);
   if (!bikepark) {
@@ -166,9 +188,60 @@ export async function putManagedTransaction(
       where: { ID: existing.ID },
       data: rowData,
     });
+    await syncParkedStateFromManaged(tx, {
+      bikepark,
+      stallingsID: input.bikeparkID,
+      sectionID: sectionId,
+      passID: input.managed.idcode.trim(),
+      idtype: input.managed.idtype ?? 0,
+      parked: !hasCheckout,
+    });
     return { transactionID: existing.ID, created: false };
   }
 
   const created = await transactiesModel.create({ data: rowData });
+  await syncParkedStateFromManaged(tx, {
+    bikepark,
+    stallingsID: input.bikeparkID,
+    sectionID: sectionId,
+    passID: input.managed.idcode.trim(),
+    idtype: input.managed.idtype ?? 0,
+    parked: !hasCheckout,
+  });
   return { transactionID: created.ID, created: true };
+}
+
+function pastypeFromIdtype(idtype: number): string {
+  if (idtype === 1) return "ovchip";
+  if (idtype === 2) return "barcodebike";
+  return "sleutelhanger";
+}
+
+/** Keep accounts_pasids parked flags in sync so occupation sync can see managed visits. */
+async function syncParkedStateFromManaged(
+  tx: Prisma,
+  input: {
+    bikepark: { SiteID: string | null };
+    stallingsID: string;
+    sectionID: string;
+    passID: string;
+    idtype: number;
+    parked: boolean;
+  }
+): Promise<void> {
+  if (!input.bikepark.SiteID) return;
+  const bikepass = await getBikepassByPassId(
+    tx,
+    input.passID,
+    input.bikepark.SiteID,
+    pastypeFromIdtype(input.idtype)
+  );
+  await tx.accounts_pasids.update({
+    where: { ID: bikepass.ID },
+    data: {
+      huidigeFietsenstallingId: input.parked ? input.stallingsID : null,
+      huidigeSectieId: input.parked ? input.sectionID : null,
+      dateModified: new Date(),
+    },
+  });
 }

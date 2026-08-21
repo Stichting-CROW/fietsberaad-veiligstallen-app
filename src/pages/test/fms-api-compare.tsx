@@ -12,6 +12,8 @@ import {
   prepareForCompare,
   responsesMatch,
   normalizeSectionBiketypesOrderDeep,
+  isLegacyNotFoundResponse,
+  isLegacyUnusableOldApiError,
 } from "~/server/utils/fms-compare";
 
 /** Returns { oldOnly, newOnly } with only differing paths. Uses deep-object-diff: diff(a,b) = values from b that differ from a. */
@@ -37,16 +39,17 @@ function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOn
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // Endpoints aligned with ColdFusion REST (remote/REST/FMSService.cfc) and V3 (fms_service.cfc).
-// Old V2: REST/v1/ uses getBikeTypes, getPaymentTypes, getClientTypes, getServerTime (not getJson*).
-// v2 getJsonBikeType/{id}: implemented in the new API, but omitted here because the old CF API
-// has no REST equivalent to diff against (getJsonBikeTypes already validates the bike-type data 1:1).
+// Next.js is v4-only. Catalog aux (servertime / biketypes / paymenttypes) follows the V3
+// contract (`/rest/v3/...`), not V2 `/REST/v1/getBikeTypes` (BIKETYPEID/NAME).
+// v2 getJsonBikeType/{id}: use GET /v4/biketypes and filter on id (no single-id V3/V4 stub).
+// v2 getJsonClientTypes / getJsonBikes: V4 stubs exist but CF has no same-contract twin
+// (`/rest/v3/clienttypes` and `/rest/v3/bikes` 404). Omitted from parity compare.
 // v3 isAllowedToUse: implemented, but operator-protected and dependent on live pass state, so it is
 // not a deterministic parity read and is excluded from the automatic comparison suite.
 const ENDPOINTS: { id: string; label: string; path: string; params: string[]; oldPath?: string }[] = [
-  { id: "v2-getServerTime", label: "V2 getServerTime", path: "/v2/getServerTime", params: [], oldPath: "/REST/v1/getServerTime" },
-  { id: "v2-getJsonBikeTypes", label: "V2 getJsonBikeTypes", path: "/v2/getJsonBikeTypes", params: [], oldPath: "/REST/v1/getBikeTypes" },
-  { id: "v2-getJsonPaymentTypes", label: "V2 getJsonPaymentTypes", path: "/v2/getJsonPaymentTypes", params: [], oldPath: "/REST/v1/getPaymentTypes" },
-  { id: "v2-getJsonClientTypes", label: "V2 getJsonClientTypes", path: "/v2/getJsonClientTypes", params: [], oldPath: "/REST/v1/getClientTypes" },
+  { id: "v3-servertime", label: "V3 servertime", path: "/rest/v3/servertime", params: [], oldPath: "/rest/v3/servertime" },
+  { id: "v3-biketypes", label: "V3 biketypes", path: "/rest/v3/biketypes", params: [], oldPath: "/rest/v3/biketypes" },
+  { id: "v3-paymenttypes", label: "V3 paymenttypes", path: "/rest/v3/paymenttypes", params: [], oldPath: "/rest/v3/paymenttypes" },
   {
     id: "v2-getJsonSubscriptionTypes",
     label: "V2 getJsonSubscriptionTypes/{bikeparkID}",
@@ -60,13 +63,6 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
     path: "/v2/getJsonSectors",
     params: ["bikeparkID"],
     oldPath: "/v2/REST/getJsonSectors",
-  },
-  {
-    id: "v2-getJsonBikes",
-    label: "V2 getJsonBikes/{bikeparkID}",
-    path: "/v2/getJsonBikes",
-    params: ["bikeparkID"],
-    oldPath: "/v2/REST/getJsonBikes",
   },
   {
     id: "v2-getJsonBikeUpdates",
@@ -110,8 +106,12 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   },
 ];
 
+const V3_AUX_ENDPOINTS = new Set(["v3-servertime", "v3-biketypes", "v3-paymenttypes"]);
 const GLOBAL_ENDPOINTS = ENDPOINTS.filter(
-  (e) => (e.id.startsWith("v2-") && !e.params.includes("bikeparkID")) || e.id === "v3-citycodes"
+  (e) =>
+    (e.id.startsWith("v2-") && !e.params.includes("bikeparkID")) ||
+    e.id === "v3-citycodes" ||
+    V3_AUX_ENDPOINTS.has(e.id)
 ) as EndpointDef[];
 const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e)) as EndpointDef[];
 
@@ -133,6 +133,26 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
 function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
   if (!citycode || /^\d+$/.test(citycode)) return false;
   return ENDPOINTS_OLD_API_FAILS_NON_NUMERIC.includes(endpointId);
+}
+
+const TESTGEMEENTE_CITYCODE = "9933";
+const OPERATOR_LOCATION_ENDPOINTS = new Set([
+  "v3-balances",
+  "v3-subscriptions",
+  "v3-bikeupdates",
+  "v3-balance",
+  "v2-getJsonBikeUpdates",
+  "v2-getJsonSubscriptors",
+]);
+
+/** Operator reads: testgemeente credentials only. Other cities 401 on both sides. */
+function isSkippedOperatorEndpoint(citycode: string, endpointId: string, hasAuth: boolean): boolean {
+  if (!OPERATOR_LOCATION_ENDPOINTS.has(endpointId)) return false;
+  return !hasAuth || citycode !== TESTGEMEENTE_CITYCODE;
+}
+
+function shouldSkipUnusableOldApi(oldError?: string): boolean {
+  return isLegacyUnusableOldApiError(oldError);
 }
 
 function buildFullDatasetTestId(
@@ -263,17 +283,40 @@ function hasRequiredParams(endpoint: (typeof ENDPOINTS)[0], params: Record<strin
   return endpoint.params.every((p) => (params[p] ?? "").trim().length > 0);
 }
 
+/** Scalar location fields only. CF locationscsv 500s when `fields` includes openinghours (including `*`). */
+const LOCATIONS_CSV_FIELDS = [
+  "location.name",
+  "location.lat",
+  "location.long",
+  "location.exploitantname",
+  "location.exploitantcontact",
+  "location.address",
+  "location.postalcode",
+  "location.city",
+  "location.locationtype",
+  "location.station",
+  "location.occupation",
+  "location.capacity",
+].join(",");
+
 function appendV3QueryParams(url: string, depth: string, endpointId: string): string {
   if (!url) return url; // Avoid returning "?depth=3" when url is empty (causes fetch to fail in Node)
   if (!endpointId.startsWith("v3-")) return url;
-  const protectedReads = new Set([
+  const skipQuery = new Set([
     "v3-balances",
     "v3-subscriptions",
     "v3-bikeupdates",
     "v3-balance",
+    "v3-servertime",
+    "v3-biketypes",
+    "v3-paymenttypes",
+    "v3-citycodes",
   ]);
-  if (protectedReads.has(endpointId)) return url;
+  if (skipQuery.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
+  if (endpointId === "v3-locationscsv") {
+    return `${url}${sep}fields=${encodeURIComponent(LOCATIONS_CSV_FIELDS)}`;
+  }
   let out = `${url}${sep}depth=${encodeURIComponent(depth)}&fields=${encodeURIComponent("*")}`;
   return out;
 }
@@ -306,6 +349,36 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     } else url = "";
   } else if (endpoint.id === "v3-citycodes") {
     url = `${oldApiBase}/rest/v3/citycodes`;
+  } else if (
+    endpoint.id === "v2-getJsonSubscriptionTypes" ||
+    endpoint.id === "v2-getJsonSectors" ||
+    endpoint.id === "v2-getJsonBikeUpdates" ||
+    endpoint.id === "v2-getJsonSubscriptors" ||
+    endpoint.id === "v2-getLockerInfo"
+  ) {
+    const citycode = paramValues.citycode;
+    const locationid = paramValues.bikeparkID || paramValues.locationid;
+    if (!citycode || !locationid) url = "";
+    else if (endpoint.id === "v2-getJsonSubscriptionTypes") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+    } else if (endpoint.id === "v2-getJsonSectors") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections`;
+    }     else if (endpoint.id === "v2-getJsonBikeUpdates") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
+      if (paramValues.fromDate) {
+        url += `?from=${encodeURIComponent(paramValues.fromDate)}`;
+      }
+    } else if (endpoint.id === "v2-getJsonSubscriptors") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
+    } else if (
+      endpoint.id === "v2-getLockerInfo" &&
+      paramValues.sectionid &&
+      paramValues.placeid
+    ) {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections/${paramValues.sectionid}/places/${paramValues.placeid}`;
+    } else {
+      url = "";
+    }
   } else {
     const path = "oldPath" in endpoint && endpoint.oldPath ? endpoint.oldPath : endpoint.path;
     url = `${oldApiBase}${path}`;
@@ -335,10 +408,7 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
   if (endpoint.id.startsWith("v2-")) {
     const citycode = paramValues.citycode;
     const locationid = paramValues.bikeparkID || paramValues.locationid;
-    if (endpoint.id === "v2-getServerTime") url = `${baseNew}/api/fms/v4/servertime`;
-    else if (endpoint.id === "v2-getJsonBikeTypes") url = `${baseNew}/api/fms/v4/biketypes`;
-    else if (endpoint.id === "v2-getJsonPaymentTypes") url = `${baseNew}/api/fms/v4/paymenttypes`;
-    else if (!citycode || !locationid) url = "";
+    if (!citycode || !locationid) url = "";
     else if (endpoint.id === "v2-getJsonSubscriptionTypes") {
       url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/subscriptiontypes`;
     } else if (endpoint.id === "v2-getJsonSectors") {
@@ -357,11 +427,13 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     ) {
       url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/sections/${paramValues.sectionid}/places/${paramValues.placeid}`;
     } else {
-      // No v4 twin (e.g. getJsonClientTypes, getJsonBikes).
       url = "";
     }
   } else if (endpoint.id.startsWith("v3-")) {
-    if (endpoint.id === "v3-citycodes") url = v4CitycodesBase(baseNew);
+    if (endpoint.id === "v3-servertime") url = `${baseNew}/api/fms/v4/servertime`;
+    else if (endpoint.id === "v3-biketypes") url = `${baseNew}/api/fms/v4/biketypes`;
+    else if (endpoint.id === "v3-paymenttypes") url = `${baseNew}/api/fms/v4/paymenttypes`;
+    else if (endpoint.id === "v3-citycodes") url = v4CitycodesBase(baseNew);
     else if (!paramValues.citycode) url = v4CitycodesBase(baseNew);
     else {
       let p = v4CitycodesBase(baseNew, paramValues.citycode);
@@ -782,10 +854,19 @@ const FmsApiComparePage: React.FC = () => {
     }
 
     const citycode = params.citycode ?? "";
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const endpoint of endpoints) {
       if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
         setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
         setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(citycode, endpoint.id, hasAuth)) {
+        setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setRowError((e) => ({
+          ...e,
+          [endpoint.id]: "Overgeslagen (operator-endpoint, alleen testgemeente met FMS-auth)",
+        }));
         continue;
       }
       setRowStatus((s) => ({ ...s, [endpoint.id]: "loading" }));
@@ -808,6 +889,11 @@ const FmsApiComparePage: React.FC = () => {
         const { oldError, newError } = data as { oldError?: string; newError?: string };
         const hasFetchError = !!oldError || !!newError;
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (oude API weigert of faalt)" }));
+          continue;
+        }
         if (!res.ok) {
           const parts: string[] = [];
           if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -855,6 +941,11 @@ const FmsApiComparePage: React.FC = () => {
           oldDurationSeconds?: number;
           newDurationSeconds?: number;
         };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (stalling niet op oude API)" }));
+          continue;
+        }
         if (oldDurationSeconds != null && newDurationSeconds != null) {
           setRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
         }
@@ -1027,10 +1118,20 @@ const FmsApiComparePage: React.FC = () => {
     }
 
     const citycode = params.citycode ?? "";
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const endpoint of LOCATION_ENDPOINTS) {
       if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
         setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
         setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(citycode, endpoint.id, hasAuth)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setAutoCompareRowError((e) => ({
+          ...e,
+          [endpoint.id]: "Overgeslagen (operator-endpoint, alleen testgemeente met FMS-auth)",
+        }));
         updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
         continue;
       }
@@ -1057,6 +1158,12 @@ const FmsApiComparePage: React.FC = () => {
         const parts = [oldError && `Oude API: ${oldError}`, newError && `Nieuwe API: ${newError}`].filter(Boolean);
         const errMsg = parts.join("; ");
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (oude API weigert of faalt)" }));
+          updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+          continue;
+        }
         if (!res.ok) {
           setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
           setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: parts.length > 0 ? errMsg : data.message ?? "Request failed" }));
@@ -1099,6 +1206,12 @@ const FmsApiComparePage: React.FC = () => {
           oldDurationSeconds?: number;
           newDurationSeconds?: number;
         };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (stalling niet op oude API)" }));
+          updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+          continue;
+        }
         if (oldDurationSeconds != null && newDurationSeconds != null) {
           setAutoCompareRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
         }
@@ -1138,10 +1251,15 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const row of failedRows) {
       const endpoint = ENDPOINTS.find((e) => e.id === row.endpointId);
       if (!endpoint) continue;
       if (isSkippedForNonNumericCitycode(row.citycode, row.endpointId)) {
+        updateRowStatusByTestId(row.testId, "skipped");
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(row.citycode, row.endpointId, hasAuth)) {
         updateRowStatusByTestId(row.testId, "skipped");
         continue;
       }
@@ -1173,6 +1291,10 @@ const FmsApiComparePage: React.FC = () => {
           .filter(Boolean)
           .join("; ");
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          updateRowStatusByTestId(row.testId, "skipped");
+          continue;
+        }
         if (!res.ok) {
           updateRowStatusByTestId(row.testId, "error", errMsg);
           continue;
@@ -1183,6 +1305,10 @@ const FmsApiComparePage: React.FC = () => {
         }
 
         const { oldResult: oldRes, newResult: newRes } = data as { oldResult: string; newResult: string };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          updateRowStatusByTestId(row.testId, "skipped");
+          continue;
+        }
         const citycode = row.citycode ?? "";
         const { status } = getCompareStatus(row.endpointId, oldRes, newRes, citycode, {
           allowDynamicDiffs,
@@ -1250,6 +1376,12 @@ const FmsApiComparePage: React.FC = () => {
       const { oldError, newError } = data as { oldError?: string; newError?: string };
       const hasFetchError = !!oldError || !!newError;
 
+      if (shouldSkipUnusableOldApi(oldError)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (oude API weigert of faalt)" }));
+        updateFullDatasetRowStatus(endpointId, "skipped");
+        return;
+      }
       if (!res.ok) {
         const parts: string[] = [];
         if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -1298,6 +1430,12 @@ const FmsApiComparePage: React.FC = () => {
         oldDurationSeconds?: number;
         newDurationSeconds?: number;
       };
+      if (isLegacyNotFoundResponse(oldRes)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (stalling niet op oude API)" }));
+        updateFullDatasetRowStatus(endpointId, "skipped");
+        return;
+      }
       if (oldDurationSeconds != null && newDurationSeconds != null) {
         setAutoCompareRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
       }
@@ -1462,6 +1600,12 @@ const FmsApiComparePage: React.FC = () => {
       const { oldError, newError } = data as { oldError?: string; newError?: string };
       const hasFetchError = !!oldError || !!newError;
 
+      if (shouldSkipUnusableOldApi(oldError)) {
+        setRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (oude API weigert of faalt)" }));
+        setRowExpanded((x) => ({ ...x, [endpointId]: false }));
+        return;
+      }
       if (!res.ok) {
         const parts: string[] = [];
         if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -1510,6 +1654,11 @@ const FmsApiComparePage: React.FC = () => {
         oldDurationSeconds?: number;
         newDurationSeconds?: number;
       };
+      if (isLegacyNotFoundResponse(oldRes)) {
+        setRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (stalling niet op oude API)" }));
+        return;
+      }
       if (oldDurationSeconds != null && newDurationSeconds != null) {
         setRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
       }
@@ -1742,8 +1891,8 @@ const FmsApiComparePage: React.FC = () => {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nieuwe API url (basis) –{" "}
-            <Link href="/test/fms-api-docs" className="text-blue-600 hover:underline">
-              Swagger docs
+            <Link href="/test/fms-api-docs-v4" className="text-blue-600 hover:underline">
+              Swagger docs v4
             </Link>
           </label>
           <input

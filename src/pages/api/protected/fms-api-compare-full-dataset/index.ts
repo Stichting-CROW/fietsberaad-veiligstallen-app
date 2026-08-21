@@ -7,7 +7,7 @@ import { env } from "~/env.mjs";
 import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentials";
 import { prisma } from "~/server/db";
 import { getFullDatasetIds } from "~/server/services/fms/fms-v3-service";
-import { responsesMatch, prepareForCompare } from "~/server/utils/fms-compare";
+import { responsesMatch, prepareForCompare, isLegacyNotFoundResponse, isLegacyUnusableOldApiError } from "~/server/utils/fms-compare";
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 
@@ -83,13 +83,16 @@ async function fetchWithAuth(
 
 function appendDepthParam(url: string, depth: string, endpointId: string): string {
   if (endpointId.startsWith("v2-")) return url;
-  const protectedReads = new Set([
+  const skipQuery = new Set([
     "v3-balances",
     "v3-subscriptions",
     "v3-bikeupdates",
     "v3-balance",
+    "v3-biketypes",
+    "v3-paymenttypes",
+    "v3-servertime",
   ]);
-  if (protectedReads.has(endpointId)) return url;
+  if (skipQuery.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}depth=${encodeURIComponent(depth)}&fields=${encodeURIComponent("*")}`;
 }
@@ -100,17 +103,18 @@ function buildOldUrlV2Protected(
   sectionid: string | undefined,
   placeid: string | undefined,
   fromDate: string,
-  oldBase: string
+  oldBase: string,
+  citycode: string = TESTGEMEENTE_CITYCODE
 ): string {
   const base = oldBase.replace(/\/$/, "");
-  if (endpointId === "v2-getJsonSectors") return `${base}/v2/REST/getJsonSectors/${bikeparkID}`;
-  if (endpointId === "v2-getJsonBikes") return `${base}/v2/REST/getJsonBikes/${bikeparkID}`;
+  const loc = `${base}/rest/v3/citycodes/${citycode}/locations/${bikeparkID}`;
+  if (endpointId === "v2-getJsonSectors") return `${loc}/sections`;
   if (endpointId === "v2-getJsonBikeUpdates") {
-    return `${base}/v2/REST/getJsonBikeUpdates/${bikeparkID}?fromDate=${encodeURIComponent(fromDate)}`;
+    return `${loc}/bikeupdates?from=${encodeURIComponent(fromDate)}`;
   }
-  if (endpointId === "v2-getJsonSubscriptors") return `${base}/v2/REST/getJsonSubscriptors/${bikeparkID}`;
+  if (endpointId === "v2-getJsonSubscriptors") return `${loc}/subscriptions`;
   if (endpointId === "v2-getLockerInfo" && sectionid && placeid) {
-    return `${base}/v2/REST/getLockerInfo/${bikeparkID}/${sectionid}/${placeid}`;
+    return `${loc}/sections/${sectionid}/places/${placeid}`;
   }
   return "";
 }
@@ -147,7 +151,9 @@ function buildOldUrl(
 ): string {
   const base = oldBase.replace(/\/$/, "");
   let url: string;
-  if (endpointId === "v3-citycode") url = `${base}/rest/v3/citycodes/${citycode}`;
+  if (endpointId === "v3-biketypes") url = `${base}/rest/v3/biketypes`;
+  else if (endpointId === "v3-paymenttypes") url = `${base}/rest/v3/paymenttypes`;
+  else if (endpointId === "v3-citycode") url = `${base}/rest/v3/citycodes/${citycode}`;
   else if (endpointId === "v3-locations") url = `${base}/rest/v3/citycodes/${citycode}/locations`;
   else if (endpointId === "v3-location" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}`;
   else if (endpointId === "v3-sections" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections`;
@@ -157,7 +163,6 @@ function buildOldUrl(
   else if (endpointId === "v3-balances" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/balances`;
   else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
   else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/rest/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
-  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) url = `${base}/v2/REST/getJsonSubscriptionTypes/${locationid}`;
   else return "";
   return appendDepthParam(url, depth, endpointId);
 }
@@ -172,7 +177,9 @@ function buildNewUrl(
 ): string {
   const base = newBase.replace(/\/$/, "");
   let url: string;
-  if (endpointId === "v3-citycode") url = `${base}/api/fms/v4/citycodes/${citycode}`;
+  if (endpointId === "v3-biketypes") url = `${base}/api/fms/v4/biketypes`;
+  else if (endpointId === "v3-paymenttypes") url = `${base}/api/fms/v4/paymenttypes`;
+  else if (endpointId === "v3-citycode") url = `${base}/api/fms/v4/citycodes/${citycode}`;
   else if (endpointId === "v3-locations") url = `${base}/api/fms/v4/citycodes/${citycode}/locations`;
   else if (endpointId === "v3-location" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}`;
   else if (endpointId === "v3-sections" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/sections`;
@@ -182,14 +189,13 @@ function buildNewUrl(
   else if (endpointId === "v3-balances" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/balances`;
   else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/subscriptions`;
   else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
-  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) {
-    url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
-  }
   else return "";
   return appendDepthParam(url, depth, endpointId);
 }
 
 const ENDPOINT_LABELS: Record<string, string> = {
+  "v3-biketypes": "V3 biketypes",
+  "v3-paymenttypes": "V3 paymenttypes",
   "v3-citycode": "V3 citycodes/{citycode}",
   "v3-locations": "V3 citycodes/{citycode}/locations",
   "v3-location": "V3 locations/{locationid}",
@@ -200,9 +206,7 @@ const ENDPOINT_LABELS: Record<string, string> = {
   "v3-balances": "V3 locations/{locationid}/balances",
   "v3-subscriptions": "V3 locations/{locationid}/subscriptions",
   "v3-bikeupdates": "V3 locations/{locationid}/bikeupdates",
-  "v2-getJsonSubscriptionTypes": "V2 getJsonSubscriptionTypes/{bikeparkID}",
   "v2-getJsonSectors": "V2 getJsonSectors/{bikeparkID}",
-  "v2-getJsonBikes": "V2 getJsonBikes/{bikeparkID}",
   "v2-getJsonBikeUpdates": "V2 getJsonBikeUpdates/{bikeparkID}",
   "v2-getJsonSubscriptors": "V2 getJsonSubscriptors/{bikeparkID}",
   "v2-getLockerInfo": "V2 getLockerInfo/{bikeparkID}/{sectionID}/{placeID}",
@@ -306,6 +310,38 @@ export default async function handle(
     const scope = sectionid ? `${citycode}/${locationid}/${sectionid}` : locationid ? `${citycode}/${locationid}` : citycode;
     console.log(`[FMS full-dataset ${testIndex}] ${label} ${scope}`);
 
+    if (!oldRes.error && isLegacyNotFoundResponse(oldRes.text)) {
+      results.push({
+        testId,
+        type,
+        citycode,
+        locationid,
+        sectionid,
+        locationtype,
+        endpointId,
+        endpointLabel: label,
+        status: "skipped",
+      });
+      console.log(`  -> skipped (old API: stall not found)`);
+      return;
+    }
+
+    if (isLegacyUnusableOldApiError(oldRes.error)) {
+      results.push({
+        testId,
+        type,
+        citycode,
+        locationid,
+        sectionid,
+        locationtype,
+        endpointId,
+        endpointLabel: label,
+        status: "skipped",
+      });
+      console.log(`  -> skipped (old API: ${oldRes.error})`);
+      return;
+    }
+
     if (oldRes.error || newRes.error) {
       const err = [oldRes.error, newRes.error].filter(Boolean).join("; ");
       console.log(`  -> error: ${err}`);
@@ -385,6 +421,35 @@ export default async function handle(
     testIndex++;
     console.log(`[FMS full-dataset ${testIndex}] ${label} ${bikeparkID}`);
 
+    if (!oldRes.error && isLegacyNotFoundResponse(oldRes.text)) {
+      results.push({
+        testId,
+        type: "location",
+        citycode: TESTGEMEENTE_CITYCODE,
+        locationid: bikeparkID,
+        sectionid,
+        endpointId,
+        endpointLabel: label,
+        status: "skipped",
+      });
+      return;
+    }
+
+    if (isLegacyUnusableOldApiError(oldRes.error)) {
+      results.push({
+        testId,
+        type: "location",
+        citycode: TESTGEMEENTE_CITYCODE,
+        locationid: bikeparkID,
+        sectionid,
+        endpointId,
+        endpointLabel: label,
+        status: "skipped",
+      });
+      console.log(`  -> skipped (old API: ${oldRes.error})`);
+      return;
+    }
+
     if (oldRes.error || newRes.error) {
       const err = [oldRes.error, newRes.error].filter(Boolean).join("; ");
       results.push({
@@ -429,6 +494,10 @@ export default async function handle(
     const { cities, locations, sections } = await getFullDatasetIds(citycodeFilter ? { citycode: citycodeFilter } : undefined);
     console.log(`[FMS full-dataset] Starting: ${cities.length} cities, ${locations.length} locations, ${sections.length} sections`);
 
+    // Catalog aux follows the V3 contract (not V2 REST/v1). Run once, not per city.
+    await runTest("v3-biketypes", "city", "catalog");
+    await runTest("v3-paymenttypes", "city", "catalog");
+
     for (const { citycode } of cities) {
       await runTest("v3-citycode", "city", citycode);
       await runTest("v3-locations", "city", citycode);
@@ -438,10 +507,12 @@ export default async function handle(
         await runTest("v3-location", "location", citycode, locationid, undefined, locationtype);
         await runTest("v3-sections", "location", citycode, locationid, undefined, locationtype);
         await runTest("v3-subscriptiontypes", "location", citycode, locationid, undefined, locationtype);
-        await runTest("v3-balances", "location", citycode, locationid, undefined, locationtype);
-        await runTest("v3-subscriptions", "location", citycode, locationid, undefined, locationtype);
-        await runTest("v3-bikeupdates", "location", citycode, locationid, undefined, locationtype);
-        await runTest("v2-getJsonSubscriptionTypes", "location", citycode, locationid, undefined, locationtype);
+        // Operator reads: testgemeente credentials only. Other cities 401 on both sides.
+        if (headers.Authorization && citycode === TESTGEMEENTE_CITYCODE) {
+          await runTest("v3-balances", "location", citycode, locationid, undefined, locationtype);
+          await runTest("v3-subscriptions", "location", citycode, locationid, undefined, locationtype);
+          await runTest("v3-bikeupdates", "location", citycode, locationid, undefined, locationtype);
+        }
 
         const locSections = sections.filter((s) => s.citycode === citycode && s.locationid === locationid);
         for (const { sectionid, locationtype: secLocationtype } of locSections) {

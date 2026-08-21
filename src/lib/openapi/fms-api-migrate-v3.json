@@ -1,0 +1,31 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FMS migratie V3 → V4",
+    "description": "Migratiepad van **ColdFusion V3** (`/rest/v3/...`) naar **Next.js V4**\n(`/api/fms/v4/...`).\n\nNext.js heeft geen `/api/fms/v3`. Het V4-contract is het V3-contract\n(zelfde JSON, andere prefix). Bestaande stallingen blijven op ColdFusion\ntot ze overgaan. Test/simulatie (testgemeente) is v4-only.\n\n- [V4 API-referentie](/test/fms-api-docs-v4)\n- [Migratie V2 → V4](/test/fms-api-docs-migrate-v2)\n- [V2 + V3 (ColdFusion)](/test/fms-api-docs)\n\n## Host en pad\n\nVervang prefix `/rest/v3` door `/api/fms/v4`. Resource-paden blijven gelijk.\n\n| V3 (ColdFusion) | V4 (Next.js) |\n| --- | --- |\n| `https://remote.veiligstallen.nl/rest/v3/…` | `{next-host}/api/fms/v4/…` |\n| Auth: HTTP Basic + `permit` | hetzelfde |\n| `depth`, `fields` op catalogus-reads | hetzelfde |\n\n## Catalogus-aux\n\n| V3 | V4 |\n| --- | --- |\n| `GET /rest/v3/servertime` | `GET /api/fms/v4/servertime` |\n| `GET /rest/v3/biketypes` | `GET /api/fms/v4/biketypes` |\n| `GET /rest/v3/paymenttypes` | `GET /api/fms/v4/paymenttypes` |\n\n## Citycodes / locaties (1:1)\n\n| V3 | V4 |\n| --- | --- |\n| `GET /rest/v3/citycodes` | `GET /api/fms/v4/citycodes` |\n| `GET /rest/v3/citycodes/{citycode}` | `GET /api/fms/v4/citycodes/{citycode}` |\n| `GET …/locations` | `GET …/locations` |\n| `GET …/locationscsv` | `GET …/locationscsv` |\n| `GET …/locations/{locationid}` | zelfde pad onder `/api/fms/v4` |\n| `GET …/sections`, `…/sections/{sectionid}` | zelfde |\n| `GET …/places`, `…/places/{placeid}` | zelfde |\n| `GET …/subscriptiontypes` | zelfde |\n| `GET …/balances` | zelfde (operator) |\n| `GET …/idcodes/{idtype}/{idcode}/balance` | zelfde (operator) |\n| `GET …/subscriptions` | zelfde (operator) |\n| `GET …/bikeupdates?from=` | zelfde (`from`, operator / type1) |\n| `GET …/places/{placeid}/idcodes/{idtype}/{idcode}` | `isAllowedToUse` (operator) |\n\n## Writes die blijven\n\n| V3 | V4 |\n| --- | --- |\n| `POST …/managedtransactions` | zelfde pad onder `/api/fms/v4` |\n| `POST …/sections/{sectionid}/occupation` | zelfde (`data.occupation` en/of `data.bikes`) |\n| `POST …/subscriptions` | addSubscription |\n| `POST …/subscriptions/{subscriptionid}` | subscribe (pas koppelen) |\n| `POST …/idcodes/{idtype}/{idcode}` | koppelpas |\n| `POST …/idcodes/{idtype}/{idcode}/balance` | saldo |\n| `POST …/idcodes/{idtype}/{idcode}/bike` | fiets registreren |\n\n## Writes die 410 geven (niet overzetten)\n\nBlijven op ColdFusion V3. Niet opnieuw bouwen op Next.js.\n\n| V3 | V4 |\n| --- | --- |\n| `POST …/transactions` (In/Uit) | **410** — gebruik `managedtransactions` |\n| `POST …/completedtransactions` | **410** — gebruik `managedtransactions` |\n| `PUT`/`POST …/places/{placeid}` | **410** — fietskluizen uitgefaseerd |\n| `POST …/places/{placeid}/logs` | **410** |\n| `POST …/places/{placeid}/actions` | **410** |\n| `POST …/places/{placeid}/subscriptions` | **410** |\n\nPlek-**reads** (`GET …/places`, `GET …/places/{id}`, `isAllowedToUse`) blijven.\n\n## Nieuw in V4 (niet in V3)\n\n| V4 | Toelichting |\n| --- | --- |\n| `GET /api/fms/v4/clienttypes` | klanttypen-catalogus (was alleen V2) |\n| `GET …/locations/{locationid}/bikes` | barcoderegister (was alleen V2 `getJsonBikes`) |\n\n## Niet beide hosts\n\nEen stalling is óf ColdFusion V3 óf Next.js V4. Dual-write\ndupliceert `transacties` / `bezettingsdata`.\n",
+    "version": "4.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/fms",
+      "description": "Next.js V4"
+    }
+  ],
+  "paths": {
+    "/v4": {
+      "get": {
+        "tags": [
+          "Migratie"
+        ],
+        "summary": "Try-it-out staat op de V4-referentie",
+        "description": "Deze pagina is alleen het migratiepad. Endpoints uitproberen:\n[V4 API-referentie](/test/fms-api-docs-v4).\n",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Zie /test/fms-api-docs-v4"
+          }
+        }
+      }
+    }
+  }
+}

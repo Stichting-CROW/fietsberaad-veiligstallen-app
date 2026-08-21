@@ -23,10 +23,19 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(403).json({ message: "Geen rechten" });
   }
 
+  const suite =
+    req.method === "GET"
+      ? req.query.suite === "sequences"
+        ? "sequences"
+        : "api"
+      : req.body?.suite === "sequences"
+        ? "sequences"
+        : "api";
+
   if (req.method === "GET") {
     const preflight = await getApiWriteTestPreflight();
     return res.status(200).json({
-      scenarios: listApiWriteScenarios(),
+      scenarios: listApiWriteScenarios(suite),
       lockerPlace: preflight.lockerPlace,
       lockerConfigurationWarning: preflight.lockerConfigurationWarning,
     });
@@ -48,8 +57,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         : `${protocol}://${host}`;
 
     try {
-      const result = await runApiWriteTests(baseUrl, scenarioId);
-      return res.status(200).json({ ok: true, tier: "B", ...result });
+      const result = await runApiWriteTests(baseUrl, scenarioId, suite);
+      return res.status(200).json({ ok: true, tier: suite === "sequences" ? "C" : "B", ...result });
     } catch (e) {
       if (e instanceof ScopeError) {
         return res.status(400).json({ ok: false, message: e.message });

@@ -33,6 +33,7 @@ export type ApiWriteTestContext = {
   /** Set during scenarios that create subscriptions etc. */
   createdSubscriptionID?: number;
   createdBezettingTmpId?: number;
+  createdSyncId?: number;
   previousLockerUrl?: string | null;
   legacyGoneStatus?: { transactions: number; completed: number };
   lockerGoneStatus?: { updatePlace: number; logs: number; actions: number };
@@ -74,7 +75,7 @@ export async function fmsHttp(
   return { ok: res.ok, status: res.status, body: parsed };
 }
 
-function v4LocationPath(ctx: ApiWriteTestContext, extra = ""): string {
+export function v4LocationPath(ctx: ApiWriteTestContext, extra = ""): string {
   return `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}${extra}`;
 }
 
@@ -178,18 +179,27 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
           },
         },
       );
-      if (!res.ok) throw new Error(`occupation sync failed: ${JSON.stringify(res.body)}`);
+      if (!res.ok || Number(res.body.status) !== 1) {
+        throw new Error(`occupation sync failed: ${JSON.stringify(res.body)}`);
+      }
+      const syncId = Number(res.body.id);
+      ctx.createdSyncId = Number.isFinite(syncId) && syncId > 0 ? syncId : undefined;
     },
     assert: async (ctx) => {
-      const row = await prisma.new_wachtrij_sync.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, transactionDate: { gte: ctx.baseTime } },
-        orderBy: { ID: "desc" },
-      });
+      const row = ctx.createdSyncId
+        ? await prisma.new_wachtrij_sync.findUnique({ where: { ID: ctx.createdSyncId } })
+        : await prisma.new_wachtrij_sync.findFirst({
+            where: {
+              bikeparkID: ctx.bikeparkID,
+              transactionDate: { gte: new Date(ctx.baseTime.getTime() - 2000) },
+            },
+            orderBy: { ID: "desc" },
+          });
       return [
         {
           label: "new_wachtrij_sync row",
           ok: !!row,
-          expected: "sync row after baseTime",
+          expected: ctx.createdSyncId ? `id=${ctx.createdSyncId}` : "sync row",
           actual: row ? `id=${row.ID}` : "geen rij",
         },
       ];

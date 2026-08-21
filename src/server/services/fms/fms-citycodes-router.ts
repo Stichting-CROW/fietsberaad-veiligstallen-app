@@ -7,6 +7,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import * as v3Service from "~/server/services/fms/fms-v3-service";
 import * as v3Protected from "~/server/services/fms/fms-v3-protected-reads";
 import * as v3Write from "~/server/services/fms/fms-v3-write-service";
+import { getBikes } from "~/server/services/fms/fms-read-service";
 import {
   hasAnyPermit,
   parseBasicAuth,
@@ -92,12 +93,13 @@ async function handleGet(
   const sectionid = path[4];
   const subPath3 = path[5];
 
-  const fields = parseFieldsQuery(req.query.fields);
+  // ColdFusion: omitted `fields` is the default full set (same as `*`), not "locationid only".
+  const fields = parseFieldsQuery(req.query.fields) ?? "*";
   const depth = Math.min(3, Math.max(0, parseInt((req.query.depth as string) ?? "3", 10) || 3));
   const options = { fields, depth };
 
   if (!citycode) {
-    const cities = await v3Service.getCities(options);
+    const cities = await v3Service.getCities();
     res.status(200).json(cities);
     return;
   }
@@ -127,6 +129,19 @@ async function handleGet(
       const from = parseFromQuery(req.query.from);
       res.status(200).json(
         await v3Protected.getBikeUpdatesV3(citycode, locationid, from)
+      );
+      return;
+    }
+
+    // GET …/bikes — V2 getJsonBikes (barcoderegister). No V3 twin.
+    if (subPath2 === "bikes") {
+      if (!(await requireV3Auth(req, res, locationid, "operator"))) return;
+      await v3Protected.assertLocationInCity(locationid, citycode);
+      const bikes = await getBikes(locationid);
+      res.status(200).json(
+        [...bikes]
+          .sort((a, b) => a.barcode.localeCompare(b.barcode))
+          .map((b) => ({ barcode: b.barcode, biketypeid: b.biketypeID }))
       );
       return;
     }

@@ -14,7 +14,11 @@ import {
   addSaldoToWachtrij,
   addSyncToWachtrij,
 } from "./wachtrij-service";
-import { validateManagedTransaction, type ManagedTransactionInput } from "../queue/managed-transaction-service";
+import {
+  applyManagedCheckoutDefaults,
+  validateManagedTransaction,
+  type ManagedTransactionInput,
+} from "../queue/managed-transaction-service";
 import { assertLocationInCity } from "./fms-v3-protected-reads";
 import { passtype2integer, passtype2string } from "./fms-idtypes";
 import { logFmsCall } from "./webservice-log";
@@ -201,7 +205,7 @@ export async function uploadManagedTransactionsV3(
   }[] = [];
 
   for (const raw of deduped) {
-    const managed = mapV3ManagedTransaction(raw);
+    const managed = applyManagedCheckoutDefaults(mapV3ManagedTransaction(raw));
     validateManagedTransaction(managed);
     const sectionid = String(managed.sectionid_checkin ?? raw.sectionid ?? defaultSectionid);
     prepared.push({ raw, managed, sectionid });
@@ -230,7 +234,7 @@ export async function uploadManagedTransactionV3(
   sectionid: string,
   managedRaw: Record<string, unknown>
 ): Promise<FmsOkResult> {
-  const managed = mapV3ManagedTransaction(managedRaw);
+  const managed = applyManagedCheckoutDefaults(mapV3ManagedTransaction(managedRaw));
   validateManagedTransaction(managed);
 
   const result = await addManagedTransactionToWachtrij(
@@ -318,10 +322,11 @@ export async function addSubscriptionV3(
   const subscriptiontypeID = Number(
     subscription.subscriptiontypeid ?? subscription.subscriptionTypeID ?? 0
   );
-  const idcode = String(subscription.idcode ?? "");
-  if (!subscriptiontypeID || !idcode) {
-    return errorResult("subscriptiontypeid and idcode required");
+  if (!subscriptiontypeID) {
+    return errorResult("subscriptiontypeid required");
   }
+  const rawIdcode = subscription.idcode != null ? String(subscription.idcode).trim() : "";
+  const idcode = rawIdcode.length > 0 ? rawIdcode : undefined;
 
   const result = await addSubscription(locationid, {
     subscriptiontypeID,
@@ -369,7 +374,11 @@ export async function subscribeV3(
   if (!subscriptionid || !idcode) {
     return errorResult("subscriptionid and idcode required");
   }
-  const result = await subscribe(locationid, { subscriptionID: subscriptionid, passID: idcode });
+  const result = await subscribe(locationid, {
+    subscriptionID: subscriptionid,
+    passID: idcode,
+    idtype: body.idtype != null ? Number(body.idtype) : undefined,
+  });
   void logFmsCall("subscribe", locationid, `subscription=${subscriptionid} passID=${idcode}`);
   return { message: result.message, status: result.status };
 }
