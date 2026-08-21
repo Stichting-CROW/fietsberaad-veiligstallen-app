@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
+import { uploadManagedTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
+import {
+  buildManagedCheckIn,
+  buildManagedCheckOut,
+  citycodeFromLocationId,
+  generateExternalTransactionId,
+} from "~/lib/parking-simulation/managed-transaction";
 import { formatStallingLabel } from "~/lib/parking-simulation/types";
 import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 
@@ -12,8 +18,17 @@ type OccupationEntry = {
   locationid: string;
   sectionid: string;
   passID?: string | null;
+  externalTransactionID?: string | null;
+  checkInDate?: string | null;
+  createdAt?: string | null;
   bicycle?: Bicycle;
 };
+
+function fmsWriteErrorHint(message: string): string {
+  return /rechten|unauthorized|401/i.test(message)
+    ? " Controleer Instellingen: dataprovider heeft type2 nodig voor managed transactions."
+    : "";
+}
 type PasidEntry = {
   id: string;
   pasID: string;
@@ -212,10 +227,16 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     const btIds = [...new Set((state.bicycles ?? []).map((b) => b.biketypeID ?? 1))];
     if (btIds.length === 0) return;
     const firstBiketypeId = btIds[0];
-    setSelectedBiketypeId((prev) => (btIds.includes(prev) ? prev : (firstBiketypeId ?? "")));
+    setSelectedBiketypeId((prev) =>
+      typeof prev === "number" && btIds.includes(prev) ? prev : (firstBiketypeId ?? "")
+    );
     if (actieType === "in") {
+      const activeBiketypeId =
+        typeof selectedBiketypeId === "number" && btIds.includes(selectedBiketypeId)
+          ? selectedBiketypeId
+          : firstBiketypeId;
       const freeOfType = free.filter(
-        (b) => (b.biketypeID ?? 1) === (btIds.includes(selectedBiketypeId) ? selectedBiketypeId : firstBiketypeId)
+        (b) => (b.biketypeID ?? 1) === activeBiketypeId
       );
       const firstFree = freeOfType[0];
       setSelectedBicycleId((prev) => (free.some((b) => b.id === prev) ? prev : (firstFree?.id ?? "")));
@@ -384,15 +405,20 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const tx = {
-        type: "in" as const,
-        transactionDate: simulationTime,
-        passID,
-        idtype: 0,
-        barcodeBike: bike.barcode,
-        bikeid: bike.barcode,
-      };
-      const res = await uploadTransaction(credentials, currentLocationId, spot.sectionid, tx);
+      const externalTransactionID = generateExternalTransactionId();
+      const res = await uploadManagedTransaction(
+        credentials,
+        citycodeFromLocationId(currentLocationId),
+        currentLocationId,
+        spot.sectionid,
+        buildManagedCheckIn({
+          externaltransactionid: externalTransactionID,
+          idcode: passID,
+          checkindate: simulationTime,
+          barcode: bike.barcode,
+          biketypeid: bike.biketypeID ?? 1,
+        })
+      );
       if (res.status === 1) {
         const parkRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -404,6 +430,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
             sectionid: spot.sectionid,
             checkedIn: true,
             passID,
+            externalTransactionID,
+            checkInDate: simulationTime,
           }),
         });
         const parkData = await parkRes.json();
@@ -423,10 +451,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         }
       } else {
         const msg = res.message ?? "onbekend";
-        const hint = /unauthorized|401/i.test(String(msg))
-          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
-          : "";
-        setMessage("Fout: " + msg + hint);
+        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
       }
     } catch (e) {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
@@ -452,15 +477,21 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const tx = {
-        type: "out" as const,
-        transactionDate: simulationTime,
-        passID,
-        idtype: 0,
-        barcodeBike: bike.barcode,
-        bikeid: bike.barcode,
-      };
-      const res = await uploadTransaction(credentials, occ.locationid, occ.sectionid, tx);
+      const checkindate = occ.checkInDate ?? occ.createdAt ?? simulationTime;
+      const res = await uploadManagedTransaction(
+        credentials,
+        citycodeFromLocationId(occ.locationid),
+        occ.locationid,
+        occ.sectionid,
+        buildManagedCheckOut({
+          externaltransactionid: occ.externalTransactionID?.trim() || generateExternalTransactionId(),
+          idcode: passID,
+          checkindate,
+          checkoutdate: simulationTime,
+          barcode: bike.barcode,
+          biketypeid: bike.biketypeID ?? 1,
+        })
+      );
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -477,10 +508,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         }
       } else {
         const msg = res.message ?? "onbekend";
-        const hint = /unauthorized|401/i.test(String(msg))
-          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
-          : "";
-        setMessage("Fout: " + msg + hint);
+        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
       }
     } catch (e) {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
@@ -633,7 +661,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         <div>
           <label className="block text-sm text-gray-600 mb-1">Fiets type</label>
           <select
-            value={biketypeIdsWithBikes.includes(selectedBiketypeId) ? selectedBiketypeId : ""}
+            value={typeof selectedBiketypeId === "number" && biketypeIdsWithBikes.includes(selectedBiketypeId) ? selectedBiketypeId : ""}
             onChange={(e) => {
               setSelectedBiketypeId(e.target.value === "" ? "" : Number(e.target.value));
               setSelectedBicycleId("");

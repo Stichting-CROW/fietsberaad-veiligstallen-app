@@ -36,11 +36,10 @@ export async function getBikepassByPassId(
   prisma: Prisma,
   passID: string,
   siteID: string,
-  pastype: string,
-  useNewTables: boolean
+  pastype: string
 ): Promise<BikepassInfo> {
-  const pasidsModel = useNewTables ? prisma.new_accounts_pasids : prisma.accounts_pasids;
-  const accountsModel = useNewTables ? prisma.new_accounts : prisma.accounts;
+  const pasidsModel = prisma.accounts_pasids;
+  const accountsModel = prisma.accounts;
 
   const existing = await pasidsModel.findFirst({
     where: { SiteID: siteID, PasID: passID, Pastype: pastype },
@@ -102,12 +101,11 @@ export async function addSaldoObject(
   transactionDate: Date,
   paymentTypeID: number,
   bikeparkID: string,
-  siteID: string,
-  useNewTables: boolean
+  siteID: string
 ): Promise<void> {
-  const pasidsModel = useNewTables ? prisma.new_accounts_pasids : prisma.accounts_pasids;
-  const accountsModel = useNewTables ? prisma.new_accounts : prisma.accounts;
-  const ftModel = useNewTables ? prisma.new_financialtransactions : prisma.financialtransactions;
+  const pasidsModel = prisma.accounts_pasids;
+  const accountsModel = prisma.accounts;
+  const ftModel = prisma.financialtransactions;
 
   const bikepass = await pasidsModel.findFirst({
     where: { PasID: passID },

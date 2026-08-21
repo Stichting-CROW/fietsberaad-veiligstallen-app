@@ -1,9 +1,9 @@
 /**
- * V3 aux: GET /api/fms/v3/paymenttypes
- * ColdFusion BaseRestService.getPaymenttypes → [{ paymenttypeid, name, description }]
+ * V4 aux: GET /api/fms/v4/clienttypes
+ * V2 getJsonClientTypes / REST/v1/getClientTypes had no V3 catalog; this is the V4 stub.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPaymentTypes } from "~/server/services/fms/fms-service";
+import { getClientTypes } from "~/server/services/fms/fms-service";
 
 function setCors(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -20,12 +20,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     res.status(405).json({ message: "Method not allowed", status: 0 });
     return;
   }
-  const types = await getPaymentTypes();
+  const types = await getClientTypes();
   res.status(200).json(
     types.map((t) => ({
-      paymenttypeid: t.paymentTypeID,
+      id: t.clientTypeID,
       name: t.name,
-      description: t.description,
     }))
   );
 }

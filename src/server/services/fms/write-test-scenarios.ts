@@ -1,35 +1,29 @@
 /**
  * Write-side test scenarios (Tier A — behavioral golden tests).
+ * Current path: docs/analyse-api/fms-write-paths.md.
  *
  * Each scenario seeds a deterministic start state, performs an FMS write through the
- * shadow input queues (new_wachtrij_*) via the wachtrij service with `useNewTables: true`,
- * runs the Next.js queue processor (processQueues), and asserts the resulting state in the
- * shadow output tables (new_transacties / new_accounts / new_accounts_pasids / ...).
+ * Next.js input queues (new_wachtrij_*), runs processQueues, and asserts the resulting
+ * state in production tables (transacties / accounts / accounts_pasids / ...).
  *
  * SCOPE & SAFETY
- * - All writes target the shadow new_* tables only — production tables are never touched.
+ * - Writes go through new_wachtrij_* and then production output, scoped to testgemeente.
+ * - Stallingskosten come from API payloads (no FMS tariff / afboeking in Next.js; intentional).
  * - All synthetic passIDs are namespaced `WTEST_<runId>_<suffix>`, so seed/teardown can
- *   delete exactly this run's rows by prefix without affecting any other new_* data.
+ *   delete exactly this run's rows by prefix.
  * - The runner additionally guards that the chosen bikepark belongs to the testgemeente
  *   organization (assertTestgemeenteScope) before any write happens.
  *
- * COVERAGE NOTE
- * Only the v2 write methods that route through wachtrij-service honour the new_* target
- * (saveJsonBike, uploadJsonTransaction, addJsonSaldo, syncSector). The v3 write service and
- * the remaining v2 writes (addSubscription/subscribe/updateLocker/reportOccupationData) write
- * straight to production and ignore the target flag, so they cannot be Tier-A tested until a
- * new_*-aware path is added — see TODO in this file's accompanying runner.
- *
  * Assertions deliberately avoid `fietsenstalling_sectie.Bezetting` and `fietsenstalling_plek.status`,
- * which are not yet ported for the new_* path (parity prerequisites p1/p4).
+ * which are not yet ported (parity prerequisites p1/p4).
  */
 
 import { prisma } from "~/server/db";
 import {
   addBikeToWachtrij,
+  addManagedTransactionToWachtrij,
   addSaldoToWachtrij,
   addSyncToWachtrij,
-  addTransactionToWachtrij,
 } from "./wachtrij-service";
 
 /** Prefix for all synthetic passIDs created by the write tests. */
@@ -80,7 +74,7 @@ export type WriteScenario = {
   writeMethods: string[];
   /** Optional deterministic seed run before steps/act. */
   seed?: (ctx: WriteTestContext) => Promise<void>;
-  /** Performs the write(s) under test (always with `useNewTables: true`). */
+  /** Performs the write(s) under test (new_wachtrij_* → production). */
   act?: (ctx: WriteTestContext) => Promise<void>;
   /** Multi-phase flows: each step runs, then the queue processor (optional per step). */
   steps?: WriteScenarioStep[];
@@ -94,7 +88,7 @@ export type WriteScenario = {
 // Assertion helpers
 // ---------------------------------------------------------------------------
 
-type WachtrijQueueWithPassID = "pasids" | "transacties" | "betalingen";
+type WachtrijQueueWithPassID = "pasids" | "betalingen";
 
 async function countQueue(
   queue: WachtrijQueueWithPassID,
@@ -103,11 +97,44 @@ async function countQueue(
   switch (queue) {
     case "pasids":
       return prisma.new_wachtrij_pasids.count({ where });
-    case "transacties":
-      return prisma.new_wachtrij_transacties.count({ where });
     case "betalingen":
       return prisma.new_wachtrij_betalingen.count({ where });
   }
+}
+
+function managedExtId(ctx: WriteTestContext, suffix: string): string {
+  return `${ctx.passPrefix}mt_${suffix}`;
+}
+
+async function enqueueManaged(
+  ctx: WriteTestContext,
+  suffix: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  await addManagedTransactionToWachtrij(ctx.bikeparkID, ctx.sectionID, {
+    externaltransactionid: managedExtId(ctx, suffix),
+    idcode: ctx.pass(suffix),
+    idtype: 0,
+    checkintype: "user",
+    sectionid: ctx.sectionID,
+    ...fields,
+  });
+}
+
+function expectManagedQueueProcessed(): Assertion {
+  return async (ctx) => {
+    const where = { externalTransactionID: { startsWith: ctx.passPrefix } };
+    const total = await prisma.new_wachtrij_managed_transacties.count({ where });
+    const done = await prisma.new_wachtrij_managed_transacties.count({
+      where: { ...where, processed: PROCESSED_SUCCESS },
+    });
+    return {
+      label: "new_wachtrij_managed_transacties: alle rijen verwerkt",
+      ok: total > 0 && done === total,
+      expected: "alle (>0) synthetische rijen processed=1",
+      actual: `${done}/${total} verwerkt`,
+    };
+  };
 }
 
 /** Every synthetic row in the given input queue must have been processed successfully. */
@@ -151,11 +178,11 @@ function expectSyncProcessed(): Assertion {
   };
 }
 
-/** Exactly one open (Date_checkout null) new_transacties row for the synthetic pass. */
+/** Exactly one open (Date_checkout null) transacties row for the synthetic pass. */
 function expectOpenTransactie(passSuffix: string): Assertion {
   return async (ctx) => {
     const passID = ctx.pass(passSuffix);
-    const open = await prisma.new_transacties.count({
+    const open = await prisma.transacties.count({
       where: { PasID: passID, Date_checkout: null },
     });
     return {
@@ -167,14 +194,14 @@ function expectOpenTransactie(passSuffix: string): Assertion {
   };
 }
 
-/** At least one closed (Date_checkout set) new_transacties row for the synthetic pass and no open ones. */
+/** At least one closed (Date_checkout set) transacties row for the synthetic pass and no open ones. */
 function expectClosedTransactie(passSuffix: string): Assertion {
   return async (ctx) => {
     const passID = ctx.pass(passSuffix);
-    const closed = await prisma.new_transacties.count({
+    const closed = await prisma.transacties.count({
       where: { PasID: passID, Date_checkout: { not: null } },
     });
-    const open = await prisma.new_transacties.count({
+    const open = await prisma.transacties.count({
       where: { PasID: passID, Date_checkout: null },
     });
     return {
@@ -186,11 +213,11 @@ function expectClosedTransactie(passSuffix: string): Assertion {
   };
 }
 
-/** Total new_transacties rows for the synthetic pass equals `expected`. */
+/** Total transacties rows for the synthetic pass equals `expected`. */
 function expectTransactieCount(passSuffix: string, expected: number): Assertion {
   return async (ctx) => {
     const passID = ctx.pass(passSuffix);
-    const count = await prisma.new_transacties.count({ where: { PasID: passID } });
+    const count = await prisma.transacties.count({ where: { PasID: passID } });
     return {
       label: `Aantal transacties voor ${passSuffix}`,
       ok: count === expected,
@@ -201,12 +228,12 @@ function expectTransactieCount(passSuffix: string, expected: number): Assertion 
 }
 
 async function saldoForPass(passID: string): Promise<number | null> {
-  const pasid = await prisma.new_accounts_pasids.findFirst({
+  const pasid = await prisma.accounts_pasids.findFirst({
     where: { PasID: passID },
     select: { AccountID: true },
   });
   if (!pasid?.AccountID) return null;
-  const acc = await prisma.new_accounts.findUnique({
+  const acc = await prisma.accounts.findUnique({
     where: { ID: pasid.AccountID },
     select: { saldo: true },
   });
@@ -233,7 +260,7 @@ function expectPasidBarcode(passSuffix: string, barcode: (ctx: WriteTestContext)
   return async (ctx) => {
     const passID = ctx.pass(passSuffix);
     const expected = barcode(ctx);
-    const pasid = await prisma.new_accounts_pasids.findFirst({
+    const pasid = await prisma.accounts_pasids.findFirst({
       where: { PasID: passID },
       select: { barcodeFiets: true },
     });
@@ -269,7 +296,6 @@ async function addSyncBikes(
         transactiondate: when.toISOString(),
       })),
     },
-    NEW_TARGET
   );
   ctx.syncQueueIds.push(id);
 }
@@ -282,13 +308,12 @@ async function addEmptySync(ctx: WriteTestContext, when: Date): Promise<void> {
       transactionDate: when.toISOString(),
       bikes: [],
     },
-    NEW_TARGET
   );
   ctx.syncQueueIds.push(id);
 }
 
 async function latestTransactie(passID: string) {
-  return prisma.new_transacties.findFirst({
+  return prisma.transacties.findFirst({
     where: { PasID: passID },
     orderBy: { Date_checkin: "desc" },
     select: {
@@ -300,7 +325,7 @@ async function latestTransactie(passID: string) {
 }
 
 async function isParkedInSection(ctx: WriteTestContext, passID: string): Promise<boolean> {
-  const pasid = await prisma.new_accounts_pasids.findFirst({
+  const pasid = await prisma.accounts_pasids.findFirst({
     where: { PasID: passID },
     select: { huidigeFietsenstallingId: true, huidigeSectieId: true },
   });
@@ -364,15 +389,13 @@ function expectSyncRowCount(expected: number): Assertion {
 // Scenario registry (first batch)
 // ---------------------------------------------------------------------------
 
-const NEW_TARGET = { useNewTables: true } as const;
-
 export const WRITE_SCENARIOS: WriteScenario[] = [
   {
     id: "save-bike",
-    label: "Fiets/pas registreren (saveJsonBike)",
+    label: "Fiets/pas registreren (queue pasids)",
     description:
       "Voegt een pas met barcode toe via de pasids-wachtrij en controleert dat na verwerking de bikepass bestaat met de juiste barcode.",
-    writeMethods: ["v2 saveJsonBike"],
+    writeMethods: ["queue pasids"],
     act: async (ctx) => {
       await addBikeToWachtrij(
         ctx.bikeparkID,
@@ -382,75 +405,49 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
           biketypeID: 1,
           transactionDate: ctx.baseTime.toISOString(),
         },
-        NEW_TARGET
       );
     },
     assert: [expectQueueProcessed("pasids"), expectPasidBarcode("bike", bikeBarcode)],
   },
   {
     id: "checkin",
-    label: "Check-in (uploadJsonTransaction In)",
+    label: "Check-in (managedtransactions-wachtrij)",
     description:
-      "Boekt een check-in via de transacties-wachtrij en controleert dat er precies één open transactie ontstaat.",
-    writeMethods: ["v2 uploadJsonTransaction"],
+      "Boekt een check-in via de managed-transacties-wachtrij en controleert dat er precies één open transactie ontstaat.",
+    writeMethods: ["queue managedtransactions"],
     act: async (ctx) => {
-      await addTransactionToWachtrij(
-        ctx.bikeparkID,
-        ctx.sectionID,
-        {
-          type: "in",
-          transactionDate: ctx.baseTime.toISOString(),
-          passID: ctx.pass("ci"),
-          idtype: 0,
-        },
-        undefined,
-        undefined,
-        undefined,
-        NEW_TARGET
-      );
+      await enqueueManaged(ctx, "ci", { checkindate: ctx.baseTime.toISOString() });
     },
-    assert: [expectQueueProcessed("transacties"), expectOpenTransactie("ci")],
+    assert: [expectManagedQueueProcessed(), expectOpenTransactie("ci")],
   },
   {
     id: "checkin-checkout",
-    label: "Check-in + check-out (uploadJsonTransaction In/Out)",
+    label: "Check-in + check-out (managedtransactions-wachtrij)",
     description:
-      "Boekt een check-in gevolgd door een check-out voor dezelfde pas en controleert dat de transactie wordt afgesloten (Date_checkout gezet, geen open transactie).",
-    writeMethods: ["v2 uploadJsonTransaction"],
+      "Boekt één managed transactie met check-in en check-out (zelfde externaltransactionid) en controleert dat de transactie wordt afgesloten.",
+    writeMethods: ["queue managedtransactions"],
     act: async (ctx) => {
-      const checkin = ctx.baseTime;
       const checkout = new Date(ctx.baseTime.getTime() + 30 * 60 * 1000);
-      await addTransactionToWachtrij(
-        ctx.bikeparkID,
-        ctx.sectionID,
-        { type: "in", transactionDate: checkin.toISOString(), passID: ctx.pass("co"), idtype: 0 },
-        undefined,
-        undefined,
-        undefined,
-        NEW_TARGET
-      );
-      await addTransactionToWachtrij(
-        ctx.bikeparkID,
-        ctx.sectionID,
-        { type: "out", transactionDate: checkout.toISOString(), passID: ctx.pass("co"), idtype: 0 },
-        undefined,
-        undefined,
-        undefined,
-        NEW_TARGET
-      );
+      await enqueueManaged(ctx, "co", {
+        checkindate: ctx.baseTime.toISOString(),
+        checkoutdate: checkout.toISOString(),
+        checkouttype: "user",
+        stallingsduur: 30,
+        stallingskosten: 0,
+      });
     },
     assert: [
-      expectQueueProcessed("transacties"),
+      expectManagedQueueProcessed(),
       expectClosedTransactie("co"),
       expectTransactieCount("co", 1),
     ],
   },
   {
     id: "saldo",
-    label: "Saldo opwaarderen (addJsonSaldo)",
+    label: "Saldo opwaarderen (queue betalingen)",
     description:
       "Registreert eerst een pas en voegt daarna €10,00 saldo toe via de betalingen-wachtrij. Controleert dat het accountsaldo €10,00 is.",
-    writeMethods: ["v2 saveJsonBike", "v2 addJsonSaldo"],
+    writeMethods: ["queue pasids", "queue betalingen"],
     act: async (ctx) => {
       await addBikeToWachtrij(
         ctx.bikeparkID,
@@ -460,7 +457,6 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
           biketypeID: 1,
           transactionDate: ctx.baseTime.toISOString(),
         },
-        NEW_TARGET
       );
       await addSaldoToWachtrij(
         ctx.bikeparkID,
@@ -470,7 +466,6 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
           paymentTypeID: 1,
           amount: 10,
         },
-        NEW_TARGET
       );
     },
     assert: [
@@ -480,97 +475,22 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     ],
   },
   {
-    id: "payment-at-checkin",
-    label: "Betaling bij check-in (uploadJsonTransaction + betaling)",
-    description:
-      "Boekt een check-in met een betaling (price=5). De transactie-wachtrij voegt automatisch een betalingsrij toe. Controleert open transactie én saldo €5,00.",
-    writeMethods: ["v2 uploadJsonTransaction (met betaling)"],
-    act: async (ctx) => {
-      await addTransactionToWachtrij(
-        ctx.bikeparkID,
-        ctx.sectionID,
-        {
-          type: "in",
-          transactionDate: ctx.baseTime.toISOString(),
-          passID: ctx.pass("pay"),
-          idtype: 0,
-          price: 5,
-          amountpaid: 5,
-          paymenttypeid: 1,
-        },
-        undefined,
-        undefined,
-        undefined,
-        NEW_TARGET
-      );
-    },
-    assert: [
-      expectQueueProcessed("transacties"),
-      expectQueueProcessed("betalingen"),
-      expectOpenTransactie("pay"),
-      expectSaldo("pay", 5),
-    ],
-  },
-  {
     id: "sync",
-    label: "Sector synchronisatie (syncSector)",
+    label: "Sector synchronisatie (queue sync)",
     description:
       "Stuurt een sync voor de sectie met één aanwezige fiets en controleert dat de sync-wachtrij verwerkt is.",
-    writeMethods: ["v2 syncSector"],
+    writeMethods: ["queue sync"],
     act: async (ctx) => {
       await addSyncBikes(ctx, ctx.baseTime, ["sync"]);
     },
     assert: [expectSyncProcessed()],
   },
   {
-    id: "sync-then-checkout",
-    label: "Sync-plaatsing zonder check-in, daarna normaal uitchecken",
-    description:
-      "Inventarisatie/sync plaatst een fiets (Type_checkin=sync) zonder voorafgaande check-in; daarna sluit een normale check-out de transactie af.",
-    writeMethods: ["v2 syncSector", "v2 uploadJsonTransaction"],
-    steps: [
-      {
-        run: async (ctx) => {
-          await addSyncBikes(ctx, minutesAfter(ctx, 0), ["inv"]);
-        },
-        processRuns: 1,
-      },
-      {
-        run: async (ctx) => {
-          await addTransactionToWachtrij(
-            ctx.bikeparkID,
-            ctx.sectionID,
-            {
-              type: "out",
-              transactionDate: minutesAfter(ctx, 5).toISOString(),
-              passID: ctx.pass("inv"),
-              idtype: 0,
-            },
-            undefined,
-            undefined,
-            undefined,
-            NEW_TARGET
-          );
-        },
-        processRuns: 1,
-      },
-    ],
-    assert: [
-      expectSyncProcessed(),
-      expectQueueProcessed("transacties"),
-      expectClosedTransactie("inv"),
-      expectTransactieCount("inv", 1),
-      expectTypeCheckin("inv", "sync"),
-      expectTypeCheckout("inv", "user"),
-      expectParked("inv", false),
-    ],
-  },
-  {
     id: "sync-rescan-present",
     label: "Sync-plaatsing zonder check-in, opnieuw gescand bij inventarisatie",
     description:
       "Eerste sync plaatst de fiets; een tweede inventarisatie met dezelfde pas in de scanlijst laat één open sync-transactie staan.",
-    writeMethods: ["v2 syncSector"],
+    writeMethods: ["queue sync"],
     steps: [
       {
         run: async (ctx) => {
@@ -598,25 +518,12 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     id: "checkin-taken-sync-absent",
     label: "Normale check-in, fiets weg zonder check-out, niet in inventarisatie",
     description:
-      "Na een normale check-in verdwijnt de fiets zonder check-out; een lege inventarisatie sluit de transactie via sync-checkout af.",
-    writeMethods: ["v2 uploadJsonTransaction", "v2 syncSector"],
+      "Na een managed check-in verdwijnt de fiets zonder check-out; een lege inventarisatie sluit de transactie via sync-checkout af.",
+    writeMethods: ["queue managedtransactions", "queue sync"],
     steps: [
       {
         run: async (ctx) => {
-          await addTransactionToWachtrij(
-            ctx.bikeparkID,
-            ctx.sectionID,
-            {
-              type: "in",
-              transactionDate: minutesAfter(ctx, 0).toISOString(),
-              passID: ctx.pass("gone"),
-              idtype: 0,
-            },
-            undefined,
-            undefined,
-            undefined,
-            NEW_TARGET
-          );
+          await enqueueManaged(ctx, "gone", { checkindate: minutesAfter(ctx, 0).toISOString() });
         },
         processRuns: 1,
       },
@@ -628,7 +535,7 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       },
     ],
     assert: [
-      expectQueueProcessed("transacties"),
+      expectManagedQueueProcessed(),
       expectSyncProcessed(),
       expectClosedTransactie("gone"),
       expectTransactieCount("gone", 1),
@@ -641,25 +548,12 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     id: "sync-inventory-ok",
     label: "Inventarisatie klopt (check-in + scan aanwezig)",
     description:
-      "Na normale check-in bevestigt een inventarisatie met de pas in de scanlijst dat alles klopt: open transactie blijft, fiets blijft geparkeerd.",
-    writeMethods: ["v2 uploadJsonTransaction", "v2 syncSector"],
+      "Na een managed check-in bevestigt een inventarisatie met de pas in de scanlijst dat alles klopt: open transactie blijft, fiets blijft geparkeerd.",
+    writeMethods: ["queue managedtransactions", "queue sync"],
     steps: [
       {
         run: async (ctx) => {
-          await addTransactionToWachtrij(
-            ctx.bikeparkID,
-            ctx.sectionID,
-            {
-              type: "in",
-              transactionDate: minutesAfter(ctx, 0).toISOString(),
-              passID: ctx.pass("ok"),
-              idtype: 0,
-            },
-            undefined,
-            undefined,
-            undefined,
-            NEW_TARGET
-          );
+          await enqueueManaged(ctx, "ok", { checkindate: minutesAfter(ctx, 0).toISOString() });
         },
         processRuns: 1,
       },
@@ -671,7 +565,7 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       },
     ],
     assert: [
-      expectQueueProcessed("transacties"),
+      expectManagedQueueProcessed(),
       expectSyncProcessed(),
       expectOpenTransactie("ok"),
       expectTransactieCount("ok", 1),

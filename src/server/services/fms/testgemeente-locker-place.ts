@@ -4,13 +4,8 @@ export const TESTGEMEENTE_LOCKER_BIKEPARK_ID = "9933_003";
 export const TESTGEMEENTE_LOCKER_SECTION_ID = "9933_003_1";
 
 /** Tier B scenarios that need at least one fietsenstalling_plek on 9933_003_1. */
-export const LOCKER_API_SCENARIO_IDS = new Set([
-  "api-v2-updateLocker",
-  "api-v2-setUrlWebserviceForLocker",
-  "api-v3-updatePlace",
-  "api-v3-place-log",
-  "api-v3-place-action",
-]);
+/** No Tier B scenario requires a configured locker plek (v4 locker writes are 410). */
+export const LOCKER_API_SCENARIO_IDS = new Set<string>();
 
 export type TestgemeenteLockerPlaceStatus = {
   bikeparkID: string;

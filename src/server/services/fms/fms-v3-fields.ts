@@ -299,7 +299,3 @@ export function filterSectionForApi(
   return out;
 }
 
-/** Whether citycodes aggregate should use minimal location shape (locationid only). */
-export function useMinimalCitycodesLocationShape(fields: FieldsParam): boolean {
-  return !fieldsWantsAll(fields) && (fields == null || fields.trim() === "");
-}

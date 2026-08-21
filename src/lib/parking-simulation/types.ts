@@ -67,6 +67,9 @@ export interface SimulationOccupation {
   placeId?: number | null;
   checkedIn: boolean;
   passID?: string | null;
+  externalTransactionID?: string | null;
+  checkInDate?: string | null;
+  createdAt?: string | null;
   bicycle?: SimulationBicycle;
 }
 
@@ -75,7 +78,7 @@ export function formatSimulationPass(passID: string | null | undefined): string 
   return passID?.trim() ? passID : "—";
 }
 
-/** idcode for syncSector / inventarisatie scan when pass may be unknown. */
+/** idcode for v4 occupation / inventarisatie scan when pass may be unknown. */
 export function syncIdcodeForBike(passID: string | null | undefined, barcode: string): string {
   return passID?.trim() || barcode;
 }

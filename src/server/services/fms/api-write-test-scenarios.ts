@@ -1,10 +1,11 @@
 /**
  * Tier B — HTTP ingress write tests.
- * Calls real /api/fms/v2 and /api/fms/v3 routes; asserts queue rows or direct DB effects on testgemeente.
+ * Calls real /api/fms/v4 routes; asserts queue rows or direct DB effects on testgemeente.
  */
 
 import { prisma } from "~/server/db";
-import { assertLockerPlaceConfigured } from "./testgemeente-locker-place";
+import { processQueues } from "~/server/services/queue/processor";
+import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
 
 export const API_SYNTHETIC_PREFIX = "WTEST_API_";
 
@@ -32,7 +33,10 @@ export type ApiWriteTestContext = {
   /** Set during scenarios that create subscriptions etc. */
   createdSubscriptionID?: number;
   createdBezettingTmpId?: number;
+  createdSyncId?: number;
   previousLockerUrl?: string | null;
+  legacyGoneStatus?: { transactions: number; completed: number };
+  lockerGoneStatus?: { updatePlace: number; logs: number; actions: number };
 };
 
 export type FmsHttpResult = {
@@ -71,14 +75,12 @@ export async function fmsHttp(
   return { ok: res.ok, status: res.status, body: parsed };
 }
 
-function assertHttpOk(label: string, res: FmsHttpResult): AssertionResult {
-  const status = Number(res.body.status ?? (res.ok ? 1 : 0));
-  return {
-    label,
-    ok: res.ok && status === 1,
-    expected: "HTTP 200, status=1",
-    actual: `HTTP ${res.status}, status=${String(res.body.status ?? "?")}, message=${String(res.body.message ?? "")}`,
-  };
+export function v4LocationPath(ctx: ApiWriteTestContext, extra = ""): string {
+  return `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}${extra}`;
+}
+
+function v4LockerPlacePath(ctx: ApiWriteTestContext, extra = ""): string {
+  return `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.lockerBikeparkID}/sections/${ctx.lockerSectionID}/places/${ctx.lockerPlaceID}${extra}`;
 }
 
 export type ApiWriteScenario = {
@@ -93,19 +95,18 @@ export type ApiWriteScenario = {
 
 export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
   {
-    id: "api-v2-saveJsonBike",
-    label: "HTTP saveJsonBike → new_wachtrij_pasids",
-    description: "POST /api/fms/v2/saveJsonBike/{bikepark}?target=new en controleer wachtrijrij.",
-    writeMethods: ["v2 saveJsonBike"],
+    id: "api-v4-save-bike",
+    label: "HTTP V4 bike → new_wachtrij_pasids",
+    description: "POST v4 …/idcodes/{idtype}/{idcode}/bike en controleer wachtrijrij.",
+    writeMethods: ["v4 saveBike"],
     act: async (ctx) => {
       const res = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v2/saveJsonBike/${ctx.bikeparkID}`,
-        { barcode: `BC_${ctx.runId}`, passID: ctx.pass("bike"), biketypeID: 1 },
-        { target: "new" }
+        v4LocationPath(ctx, `/idcodes/0/${encodeURIComponent(ctx.pass("bike"))}/bike`),
+        { bikeid: `BC_${ctx.runId}`, biketypeid: 1 }
       );
-      if (!res.ok) throw new Error(`saveJsonBike failed: ${JSON.stringify(res.body)}`);
+      if (!res.ok) throw new Error(`saveBike failed: ${JSON.stringify(res.body)}`);
     },
     assert: async (ctx) => {
       const row = await prisma.new_wachtrij_pasids.findFirst({
@@ -126,62 +127,22 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
   },
   {
-    id: "api-v2-uploadJsonTransaction",
-    label: "HTTP uploadJsonTransaction → new_wachtrij_transacties",
-    description: "POST check-in via HTTP met target=new.",
-    writeMethods: ["v2 uploadJsonTransaction"],
+    id: "api-v4-add-saldo",
+    label: "HTTP V4 balance → new_wachtrij_betalingen",
+    description: "POST v4 …/idcodes/{idtype}/{idcode}/balance.",
+    writeMethods: ["v4 addSaldo"],
     act: async (ctx) => {
       const res = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v2/uploadJsonTransaction/${ctx.bikeparkID}/${ctx.sectionID}`,
+        v4LocationPath(ctx, `/idcodes/0/${encodeURIComponent(ctx.pass("saldo"))}/balance`),
         {
-          type: "in",
-          transactionDate: ctx.baseTime.toISOString(),
-          passID: ctx.pass("tx"),
-          idtype: 0,
-        },
-        { target: "new" }
-      );
-      if (!res.ok) throw new Error(`uploadJsonTransaction failed: ${JSON.stringify(res.body)}`);
-    },
-    assert: async (ctx) => {
-      const row = await prisma.new_wachtrij_transacties.findFirst({
-        where: { passID: ctx.pass("tx") },
-        orderBy: { ID: "desc" },
-      });
-      return [
-        {
-          label: "new_wachtrij_transacties row",
-          ok: !!row,
-          expected: `passID=${ctx.pass("tx")}`,
-          actual: row ? `id=${row.ID}` : "geen rij",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      await prisma.new_wachtrij_transacties.deleteMany({ where: { passID: { startsWith: ctx.passPrefix } } });
-    },
-  },
-  {
-    id: "api-v2-addJsonSaldo",
-    label: "HTTP addJsonSaldo → new_wachtrij_betalingen",
-    description: "POST saldo-opwaardering via HTTP met target=new.",
-    writeMethods: ["v2 addJsonSaldo"],
-    act: async (ctx) => {
-      const res = await fmsHttp(
-        ctx,
-        "POST",
-        `/api/fms/v2/addJsonSaldo/${ctx.bikeparkID}`,
-        {
-          passID: ctx.pass("saldo"),
-          transactionDate: ctx.baseTime.toISOString(),
-          paymentTypeID: 1,
           amount: 5,
+          paymenttypeid: 1,
+          transactiondate: ctx.baseTime.toISOString(),
         },
-        { target: "new" }
       );
-      if (!res.ok) throw new Error(`addJsonSaldo failed: ${JSON.stringify(res.body)}`);
+      if (!res.ok) throw new Error(`addSaldo failed: ${JSON.stringify(res.body)}`);
     },
     assert: async (ctx) => {
       const row = await prisma.new_wachtrij_betalingen.findFirst({
@@ -202,33 +163,43 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
   },
   {
-    id: "api-v2-syncSector",
-    label: "HTTP syncSector → new_wachtrij_sync",
-    description: "POST sector-sync via HTTP met target=new.",
-    writeMethods: ["v2 syncSector"],
+    id: "api-v4-section-sync",
+    label: "HTTP V4 occupation sync → new_wachtrij_sync",
+    description: "POST v4 …/occupation met data.bikes.",
+    writeMethods: ["v4 occupationAndSync"],
     act: async (ctx) => {
       const res = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v2/syncSector/${ctx.bikeparkID}/${ctx.sectionID}`,
+        v4LocationPath(ctx, `/sections/${ctx.sectionID}/occupation`),
         {
-          transactionDate: ctx.baseTime.toISOString(),
-          bikes: [{ idcode: ctx.pass("sync"), idtype: 0, transactiondate: ctx.baseTime.toISOString() }],
+          data: {
+            transactiondate: ctx.baseTime.toISOString(),
+            bikes: [{ idcode: ctx.pass("sync"), idtype: 0, transactiondate: ctx.baseTime.toISOString() }],
+          },
         },
-        { target: "new" }
       );
-      if (!res.ok) throw new Error(`syncSector failed: ${JSON.stringify(res.body)}`);
+      if (!res.ok || Number(res.body.status) !== 1) {
+        throw new Error(`occupation sync failed: ${JSON.stringify(res.body)}`);
+      }
+      const syncId = Number(res.body.id);
+      ctx.createdSyncId = Number.isFinite(syncId) && syncId > 0 ? syncId : undefined;
     },
     assert: async (ctx) => {
-      const row = await prisma.new_wachtrij_sync.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, transactionDate: { gte: ctx.baseTime } },
-        orderBy: { ID: "desc" },
-      });
+      const row = ctx.createdSyncId
+        ? await prisma.new_wachtrij_sync.findUnique({ where: { ID: ctx.createdSyncId } })
+        : await prisma.new_wachtrij_sync.findFirst({
+            where: {
+              bikeparkID: ctx.bikeparkID,
+              transactionDate: { gte: new Date(ctx.baseTime.getTime() - 2000) },
+            },
+            orderBy: { ID: "desc" },
+          });
       return [
         {
           label: "new_wachtrij_sync row",
           ok: !!row,
-          expected: "sync row after baseTime",
+          expected: ctx.createdSyncId ? `id=${ctx.createdSyncId}` : "sync row",
           actual: row ? `id=${row.ID}` : "geen rij",
         },
       ];
@@ -240,22 +211,24 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
   },
   {
-    id: "api-v2-addSubscription",
-    label: "HTTP addSubscription → abonnementen",
-    description: "POST abonnement op testgemeente stalling.",
-    writeMethods: ["v2 addSubscription"],
+    id: "api-v4-location-subscription",
+    label: "HTTP V4 location subscription → abonnementen",
+    description: "POST v4 …/subscriptions.",
+    writeMethods: ["v4 addSubscription"],
     act: async (ctx) => {
-      const res = await fmsHttp(ctx, "POST", `/api/fms/v2/addSubscription/${ctx.bikeparkID}`, {
-        subscriptiontypeID: ctx.subscriptionTypeID,
-        passID: ctx.pass("sub"),
-        amount: 0,
-        paymentTypeID: 1,
-        transactionDate: ctx.baseTime.toISOString(),
+      const res = await fmsHttp(ctx, "POST", v4LocationPath(ctx, "/subscriptions"), {
+        subscription: {
+          subscriptiontypeid: ctx.subscriptionTypeID,
+          idcode: ctx.pass("sub"),
+          idtype: 0,
+          startdate: ctx.baseTime.toISOString(),
+          cost: 0,
+        },
       });
       if (!res.ok || Number(res.body.status) !== 1) {
         throw new Error(`addSubscription failed: ${JSON.stringify(res.body)}`);
       }
-      ctx.createdSubscriptionID = Number(res.body.id);
+      ctx.createdSubscriptionID = Number(res.body.subscriptionid ?? res.body.id);
     },
     assert: async (ctx) => {
       const row = ctx.createdSubscriptionID
@@ -279,25 +252,28 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
   },
   {
-    id: "api-v2-subscribe",
-    label: "HTTP subscribe → abonnement koppelen",
-    description: "Maakt abonnement aan zonder pas, koppelt daarna via subscribe.",
-    writeMethods: ["v2 addSubscription", "v2 subscribe"],
+    id: "api-v4-subscribe",
+    label: "HTTP V4 subscribe → abonnement koppelen",
+    description: "Maakt abonnement aan zonder pas, koppelt daarna via POST …/subscriptions/{id}.",
+    writeMethods: ["v4 addSubscription", "v4 subscribe"],
     act: async (ctx) => {
-      const create = await fmsHttp(ctx, "POST", `/api/fms/v2/addSubscription/${ctx.bikeparkID}`, {
-        subscriptiontypeID: ctx.subscriptionTypeID,
-        amount: 0,
-        paymentTypeID: 1,
-        transactionDate: ctx.baseTime.toISOString(),
+      const create = await fmsHttp(ctx, "POST", v4LocationPath(ctx, "/subscriptions"), {
+        subscription: {
+          subscriptiontypeid: ctx.subscriptionTypeID,
+          startdate: ctx.baseTime.toISOString(),
+          cost: 0,
+        },
       });
       if (!create.ok || Number(create.body.status) !== 1) {
         throw new Error(`addSubscription failed: ${JSON.stringify(create.body)}`);
       }
-      ctx.createdSubscriptionID = Number(create.body.id);
-      const sub = await fmsHttp(ctx, "POST", `/api/fms/v2/subscribe/${ctx.bikeparkID}`, {
-        subscriptionID: ctx.createdSubscriptionID,
-        passID: ctx.pass("link"),
-      });
+      ctx.createdSubscriptionID = Number(create.body.subscriptionid ?? create.body.id);
+      const sub = await fmsHttp(
+        ctx,
+        "POST",
+        v4LocationPath(ctx, `/subscriptions/${ctx.createdSubscriptionID}`),
+        { idcode: ctx.pass("link"), idtype: 0 }
+      );
       if (!sub.ok || Number(sub.body.status) !== 1) {
         throw new Error(`subscribe failed: ${JSON.stringify(sub.body)}`);
       }
@@ -347,373 +323,241 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
   },
   {
-    id: "api-v2-reportOccupationData",
-    label: "HTTP reportOccupationData → bezettingsdata_tmp",
-    description: "POST bezettingsdata voor testgemeente sectie.",
-    writeMethods: ["v2 reportOccupationData"],
+    id: "api-v4-locker-writes-gone",
+    label: "HTTP V4 locker writes → 410",
+    description: "PUT/POST v4 plek (updatePlace), logs en actions moeten 410 geven — fietskluizen zijn uit v4.",
+    writeMethods: ["v4 410"],
     act: async (ctx) => {
-      const res = await fmsHttp(
-        ctx,
-        "POST",
-        `/api/fms/v2/reportOccupationData/${ctx.bikeparkID}/${ctx.sectionID}`,
-        { occupation: 42, timestamp: ctx.baseTime.toISOString(), source: `WTEST_${ctx.runId}` }
-      );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`reportOccupationData failed: ${JSON.stringify(res.body)}`);
-      }
-      ctx.createdBezettingTmpId = Number(res.body.id);
+      const placePath = v4LockerPlacePath({ ...ctx, lockerPlaceID: ctx.lockerPlaceID || "1" });
+      const updatePlace = await fmsHttp(ctx, "PUT", placePath, { properties: { name: "gone" } });
+      const logs = await fmsHttp(ctx, "POST", `${placePath}/logs`, { properties: { type: "info" } });
+      const actions = await fmsHttp(ctx, "POST", `${placePath}/actions`, { properties: { action: "test" } });
+      ctx.lockerGoneStatus = {
+        updatePlace: updatePlace.status,
+        logs: logs.status,
+        actions: actions.status,
+      };
     },
-    assert: async (ctx) => {
-      const row = ctx.createdBezettingTmpId
-        ? await prisma.bezettingsdata_tmp.findFirst({ where: { ID: ctx.createdBezettingTmpId } })
-        : null;
-      return [
-        {
-          label: "bezettingsdata_tmp row",
-          ok: !!row && row.occupation === 42,
-          expected: "occupation=42",
-          actual: row ? `occupation=${row.occupation}` : "geen rij",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      if (ctx.createdBezettingTmpId) {
-        await prisma.bezettingsdata_tmp.delete({ where: { ID: ctx.createdBezettingTmpId } }).catch(() => undefined);
-      }
-    },
+    assert: async (ctx) => [
+      {
+        label: "updatePlace 410",
+        ok: ctx.lockerGoneStatus?.updatePlace === 410,
+        expected: "410",
+        actual: String(ctx.lockerGoneStatus?.updatePlace ?? "?"),
+      },
+      {
+        label: "place logs 410",
+        ok: ctx.lockerGoneStatus?.logs === 410,
+        expected: "410",
+        actual: String(ctx.lockerGoneStatus?.logs ?? "?"),
+      },
+      {
+        label: "place actions 410",
+        ok: ctx.lockerGoneStatus?.actions === 410,
+        expected: "410",
+        actual: String(ctx.lockerGoneStatus?.actions ?? "?"),
+      },
+    ],
+    teardown: async () => undefined,
   },
   {
-    id: "api-v2-updateLocker",
-    label: "HTTP updateLocker (9933_003 fietskluizen)",
-    description: "POST kluisstatus via V2 op fietskluizen-stalling.",
-    writeMethods: ["v2 updateLocker"],
+    id: "api-v4-managedtransactions",
+    label: "HTTP V4 managedtransaction → transacties",
+    description: "POST v4 sector managedtransaction, processQueues, controleer transacties upsert.",
+    writeMethods: ["v4 managedtransactions"],
     act: async (ctx) => {
-      assertLockerPlaceConfigured(ctx.lockerPlaceID);
       const res = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v2/updateLocker/${ctx.lockerBikeparkID}/${ctx.lockerSectionID}/${ctx.lockerPlaceID}`,
-        { statuscode: 0, transactionDate: ctx.baseTime.toISOString(), typeCheck: "user" }
-      );
-      if (!res.ok) throw new Error(`updateLocker failed: ${JSON.stringify(res.body)}`);
-    },
-    assert: async (ctx) => {
-      const res = await fmsHttp(
-        ctx,
-        "GET",
-        `/api/fms/v2/getLockerInfo/${ctx.lockerBikeparkID}/${ctx.lockerSectionID}/${ctx.lockerPlaceID}`
-      );
-      return [assertHttpOk("getLockerInfo after update", res)];
-    },
-    teardown: async () => {
-      /* status reset not required for smoke test */
-    },
-  },
-  {
-    id: "api-v2-setUrlWebserviceForLocker",
-    label: "HTTP setUrlWebserviceForLocker (9933_003)",
-    description: "POST callback-URL op kluisplek; herstelt oude waarde na test.",
-    writeMethods: ["v2 setUrlWebserviceForLocker"],
-    act: async (ctx) => {
-      assertLockerPlaceConfigured(ctx.lockerPlaceID);
-      const place = await prisma.fietsenstalling_plek.findFirst({
-        where: { id: BigInt(ctx.lockerPlaceID) },
-        select: { urlwebservice: true },
-      });
-      ctx.previousLockerUrl = place?.urlwebservice ?? null;
-      const testUrl = `https://wtest.example/${ctx.runId}`;
-      const res = await fmsHttp(
-        ctx,
-        "POST",
-        `/api/fms/v2/setUrlWebserviceForLocker/${ctx.lockerBikeparkID}/${ctx.lockerSectionID}/${ctx.lockerPlaceID}`,
-        { url: testUrl }
-      );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`setUrlWebserviceForLocker failed: ${JSON.stringify(res.body)}`);
-      }
-    },
-    assert: async (ctx) => {
-      const place = await prisma.fietsenstalling_plek.findFirst({
-        where: { id: BigInt(ctx.lockerPlaceID) },
-        select: { urlwebservice: true },
-      });
-      const expected = `https://wtest.example/${ctx.runId}`;
-      return [
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/managedtransactions`,
         {
-          label: "urlwebservice updated",
-          ok: place?.urlwebservice === expected,
-          expected,
-          actual: place?.urlwebservice ?? "null",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      if (ctx.lockerPlaceID) {
-        await prisma.fietsenstalling_plek.update({
-          where: { id: BigInt(ctx.lockerPlaceID) },
-          data: { urlwebservice: ctx.previousLockerUrl },
-        }).catch(() => undefined);
-      }
-    },
-  },
-  {
-    id: "api-v3-section-transaction",
-    label: "HTTP V3 section transaction → wachtrij_transacties",
-    description: "POST V3 sector-transactie (productie-wachtrij op testgemeente).",
-    writeMethods: ["v3 uploadTransaction"],
-    act: async (ctx) => {
-      const res = await fmsHttp(
-        ctx,
-        "POST",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/transactions`,
-        {
-          transaction: {
-            idcode: ctx.pass("v3tx"),
+          managedtransaction: {
+            externaltransactionid: `WTEST_API_${ctx.runId}_mt`,
+            idcode: ctx.pass("mt"),
             idtype: 0,
-            transactiondate: ctx.baseTime.toISOString(),
-            type: "in",
-            typecheck: "user",
+            checkindate: ctx.baseTime.toISOString(),
+            checkintype: "user",
+            sectionid: ctx.sectionID,
           },
         }
       );
       if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`V3 transaction failed: ${JSON.stringify(res.body)}`);
+        throw new Error(`V4 managedtransaction failed: ${JSON.stringify(res.body)}`);
       }
+      await processQueues();
     },
     assert: async (ctx) => {
-      const row = await prisma.wachtrij_transacties.findFirst({
-        where: { passID: ctx.pass("v3tx") },
+      const extId = `WTEST_API_${ctx.runId}_mt`;
+      const queue = await prisma.new_wachtrij_managed_transacties.findFirst({
+        where: { externalTransactionID: extId },
         orderBy: { ID: "desc" },
+      });
+      const tx = await prisma.transacties.findFirst({
+        where: { ExternalTransactionID: extId },
       });
       return [
         {
-          label: "wachtrij_transacties row",
-          ok: !!row,
-          expected: ctx.pass("v3tx"),
-          actual: row ? `id=${row.ID}` : "geen rij",
+          label: "new_wachtrij_managed_transacties processed",
+          ok: queue?.processed === 1,
+          expected: "processed=1",
+          actual: queue ? `processed=${queue.processed}` : "geen rij",
+        },
+        {
+          label: "transacties upsert",
+          ok: !!tx && tx.PasID === ctx.pass("mt"),
+          expected: ctx.pass("mt"),
+          actual: tx ? `PasID=${tx.PasID}` : "geen rij",
         },
       ];
     },
     teardown: async (ctx) => {
-      await prisma.wachtrij_transacties.deleteMany({ where: { passID: { startsWith: ctx.passPrefix } } });
+      const extId = `WTEST_API_${ctx.runId}_mt`;
+      await prisma.transacties.deleteMany({ where: { ExternalTransactionID: extId } });
+      await prisma.new_wachtrij_managed_transacties.deleteMany({ where: { externalTransactionID: extId } });
     },
   },
   {
-    id: "api-v3-section-occupation",
-    label: "HTTP V3 section occupation/sync",
-    description: "POST V3 occupation endpoint.",
-    writeMethods: ["v3 occupationAndSync"],
+    id: "api-v4-managedtransactions-batch",
+    label: "HTTP V4 managedtransactions batch → transacties",
+    description: "POST v4 batch (2 items), processQueues, beide ExternalTransactionID in transacties.",
+    writeMethods: ["v4 managedtransactions"],
     act: async (ctx) => {
       const res = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/occupation`,
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/managedtransactions`,
+        {
+          managedtransactions: [
+            {
+              externaltransactionid: `WTEST_API_${ctx.runId}_mtb1`,
+              idcode: ctx.pass("mtb1"),
+              idtype: 0,
+              checkindate: ctx.baseTime.toISOString(),
+              checkintype: "user",
+              sectionid: ctx.sectionID,
+            },
+            {
+              externaltransactionid: `WTEST_API_${ctx.runId}_mtb2`,
+              idcode: ctx.pass("mtb2"),
+              idtype: 0,
+              checkindate: ctx.baseTime.toISOString(),
+              checkintype: "user",
+              sectionid: ctx.sectionID,
+            },
+          ],
+        }
+      );
+      if (!res.ok || Number(res.body.status) !== 1) {
+        throw new Error(`V4 managedtransactions batch failed: ${JSON.stringify(res.body)}`);
+      }
+      await processQueues();
+    },
+    assert: async (ctx) => {
+      const ids = [`WTEST_API_${ctx.runId}_mtb1`, `WTEST_API_${ctx.runId}_mtb2`];
+      const rows = await prisma.transacties.findMany({
+        where: { ExternalTransactionID: { in: ids } },
+      });
+      return [
+        {
+          label: "batch transacties",
+          ok: rows.length === 2,
+          expected: "2 rijen",
+          actual: `${rows.length} rijen`,
+        },
+      ];
+    },
+    teardown: async (ctx) => {
+      const ids = [`WTEST_API_${ctx.runId}_mtb1`, `WTEST_API_${ctx.runId}_mtb2`];
+      await prisma.transacties.deleteMany({ where: { ExternalTransactionID: { in: ids } } });
+      await prisma.new_wachtrij_managed_transacties.deleteMany({
+        where: { externalTransactionID: { in: ids } },
+      });
+    },
+  },
+  {
+    id: "api-v4-section-occupation",
+    label: "HTTP V4 occupation → bezettingsdata",
+    description: "POST v4 occupation, Lumiguide-rollup naar bezettingsdata.",
+    writeMethods: ["v4 occupationAndSync"],
+    act: async (ctx) => {
+      const res = await fmsHttp(
+        ctx,
+        "POST",
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/occupation`,
         {
           data: {
             transactiondate: ctx.baseTime.toISOString(),
-            occupation: 3,
+            occupation: 7,
             checkins: 0,
             checkouts: 0,
             intervalinminutes: 15,
+            source: `WTEST_${ctx.runId}`,
           },
         }
       );
       if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`V3 occupation failed: ${JSON.stringify(res.body)}`);
+        throw new Error(`V4 occupation failed: ${JSON.stringify(res.body)}`);
       }
-      ctx.createdBezettingTmpId = Number(res.body.id);
+      await processLumiguidePath([ctx.bikeparkID]);
     },
     assert: async (ctx) => {
-      const row = ctx.createdBezettingTmpId
-        ? await prisma.bezettingsdata_tmp.findFirst({ where: { ID: ctx.createdBezettingTmpId } })
-        : null;
+      const row = await prisma.bezettingsdata.findFirst({
+        where: { bikeparkID: ctx.bikeparkID, sectionID: ctx.sectionID, source: `WTEST_${ctx.runId}` },
+        orderBy: { ID: "desc" },
+      });
       return [
         {
-          label: "bezettingsdata_tmp row",
-          ok: !!row && row.occupation === 3,
-          expected: "occupation=3",
+          label: "bezettingsdata row",
+          ok: !!row && row.occupation === 7,
+          expected: "occupation=7",
           actual: row ? `occupation=${row.occupation}` : "geen rij",
         },
       ];
     },
     teardown: async (ctx) => {
-      if (ctx.createdBezettingTmpId) {
-        await prisma.bezettingsdata_tmp.delete({ where: { ID: ctx.createdBezettingTmpId } }).catch(() => undefined);
-      }
+      await prisma.bezettingsdata.deleteMany({
+        where: { bikeparkID: ctx.bikeparkID, source: `WTEST_${ctx.runId}` },
+      });
+      await prisma.new_bezettingsdata_tmp.deleteMany({
+        where: { bikeparkID: ctx.bikeparkID, source: `WTEST_${ctx.runId}` },
+      });
     },
   },
   {
-    id: "api-v3-location-subscription",
-    label: "HTTP V3 location subscription",
-    description: "POST abonnement via V3 location endpoint.",
-    writeMethods: ["v3 addSubscription"],
+    id: "api-v4-legacy-transactions-gone",
+    label: "HTTP V4 legacy transactions → 410",
+    description: "POST v4 …/transactions en …/completedtransactions moeten 410 geven.",
+    writeMethods: ["v4 410"],
     act: async (ctx) => {
-      const res = await fmsHttp(
+      const tx = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/subscriptions`,
-        {
-          subscription: {
-            subscriptiontypeid: ctx.subscriptionTypeID,
-            idcode: ctx.pass("v3sub"),
-            idtype: 0,
-            startdate: ctx.baseTime.toISOString(),
-            cost: 0,
-          },
-        }
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/sections/${ctx.sectionID}/transactions`,
+        { transaction: { idcode: ctx.pass("gone"), type: "in" } }
       );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`V3 subscription failed: ${JSON.stringify(res.body)}`);
-      }
-      ctx.createdSubscriptionID = Number(res.body.subscriptionid ?? res.body.id);
-    },
-    assert: async (ctx) => {
-      const row = ctx.createdSubscriptionID
-        ? await prisma.abonnementen.findFirst({ where: { ID: ctx.createdSubscriptionID } })
-        : null;
-      return [
-        {
-          label: "abonnementen row",
-          ok: !!row,
-          expected: String(ctx.createdSubscriptionID),
-          actual: row ? String(row.ID) : "geen rij",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      if (ctx.createdSubscriptionID) {
-        await prisma.financialtransactions.deleteMany({ where: { subscriptionID: ctx.createdSubscriptionID } });
-        await prisma.abonnementen.delete({ where: { ID: ctx.createdSubscriptionID } }).catch(() => undefined);
-      }
-      await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: ctx.passPrefix } } });
-    },
-  },
-  {
-    id: "api-v3-updatePlace",
-    label: "HTTP V3 updatePlace (fietskluizen)",
-    description: "PUT plek-eigenschappen op 9933_003.",
-    writeMethods: ["v3 updatePlace"],
-    act: async (ctx) => {
-      assertLockerPlaceConfigured(ctx.lockerPlaceID);
-      const res = await fmsHttp(
-        ctx,
-        "PUT",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.lockerBikeparkID}/sections/${ctx.lockerSectionID}/places/${ctx.lockerPlaceID}`,
-        { properties: { name: `WTEST_${ctx.runId}` } }
-      );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`updatePlace failed: ${JSON.stringify(res.body)}`);
-      }
-    },
-    assert: async (ctx) => {
-      const place = await prisma.fietsenstalling_plek.findFirst({
-        where: { id: BigInt(ctx.lockerPlaceID) },
-        select: { titel: true },
-      });
-      return [
-        {
-          label: "plek titel",
-          ok: place?.titel === `WTEST_${ctx.runId}`,
-          expected: `WTEST_${ctx.runId}`,
-          actual: place?.titel ?? "null",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      if (ctx.lockerPlaceID) {
-        await prisma.fietsenstalling_plek.update({
-          where: { id: BigInt(ctx.lockerPlaceID) },
-          data: { titel: null },
-        }).catch(() => undefined);
-      }
-    },
-  },
-  {
-    id: "api-v3-place-log",
-    label: "HTTP V3 place log (fietskluizen)",
-    description: "POST …/places/{id}/logs.",
-    writeMethods: ["v3 log"],
-    act: async (ctx) => {
-      assertLockerPlaceConfigured(ctx.lockerPlaceID);
-      const res = await fmsHttp(
+      const completed = await fmsHttp(
         ctx,
         "POST",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.lockerBikeparkID}/sections/${ctx.lockerSectionID}/places/${ctx.lockerPlaceID}/logs`,
-        {
-          properties: {
-            type: "info",
-            description: `WTEST_${ctx.runId}`,
-            timestamp: ctx.baseTime.toISOString(),
-          },
-        }
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/completedtransactions`,
+        { completedtransaction: { idcode: ctx.pass("gone") } }
       );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`place log failed: ${JSON.stringify(res.body)}`);
-      }
+      ctx.legacyGoneStatus = { transactions: tx.status, completed: completed.status };
     },
-    assert: async (ctx) => {
-      const row = await prisma.fmsservicelog.findFirst({
-        where: { StallingsID: ctx.lockerBikeparkID, Omschrijving: `WTEST_${ctx.runId}` },
-        orderBy: { ID: "desc" },
-      });
-      return [
-        {
-          label: "fmsservicelog row",
-          ok: !!row,
-          expected: `WTEST_${ctx.runId}`,
-          actual: row ? `id=${row.ID}` : "geen rij",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      await prisma.fmsservicelog.deleteMany({
-        where: { Omschrijving: { startsWith: "WTEST_" }, StallingsID: ctx.lockerBikeparkID },
-      });
-    },
-  },
-  {
-    id: "api-v3-place-action",
-    label: "HTTP V3 place action (fietskluizen)",
-    description: "POST …/places/{id}/actions.",
-    writeMethods: ["v3 action"],
-    act: async (ctx) => {
-      assertLockerPlaceConfigured(ctx.lockerPlaceID);
-      const res = await fmsHttp(
-        ctx,
-        "POST",
-        `/api/fms/v3/citycodes/${ctx.citycode}/locations/${ctx.lockerBikeparkID}/sections/${ctx.lockerSectionID}/places/${ctx.lockerPlaceID}/actions`,
-        {
-          properties: {
-            action: "test",
-            type: "info",
-            description: `WTEST_ACT_${ctx.runId}`,
-            timestamp: ctx.baseTime.toISOString(),
-          },
-        }
-      );
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`place action failed: ${JSON.stringify(res.body)}`);
-      }
-    },
-    assert: async (ctx) => {
-      const row = await prisma.fmsservicelog.findFirst({
-        where: { StallingsID: ctx.lockerBikeparkID, Omschrijving: `WTEST_ACT_${ctx.runId}` },
-        orderBy: { ID: "desc" },
-      });
-      return [
-        {
-          label: "fmsservicelog action row",
-          ok: !!row,
-          expected: `WTEST_ACT_${ctx.runId}`,
-          actual: row ? `id=${row.ID}` : "geen rij",
-        },
-      ];
-    },
-    teardown: async (ctx) => {
-      await prisma.fmsservicelog.deleteMany({
-        where: { Omschrijving: { startsWith: "WTEST_ACT_" }, StallingsID: ctx.lockerBikeparkID },
-      });
-    },
+    assert: async (ctx) => [
+      {
+        label: "section transactions 410",
+        ok: ctx.legacyGoneStatus?.transactions === 410,
+        expected: "410",
+        actual: String(ctx.legacyGoneStatus?.transactions ?? "?"),
+      },
+      {
+        label: "completedtransactions 410",
+        ok: ctx.legacyGoneStatus?.completed === 410,
+        expected: "410",
+        actual: String(ctx.legacyGoneStatus?.completed ?? "?"),
+      },
+    ],
+    teardown: async () => undefined,
   },
 ];
 

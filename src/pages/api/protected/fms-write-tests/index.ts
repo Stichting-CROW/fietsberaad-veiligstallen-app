@@ -10,8 +10,8 @@ import { listWriteScenarios, runWriteTests, ScopeError } from "~/server/services
  * - GET: list available scenarios.
  * - POST { scenarioId? }: run one scenario, or all when omitted. Returns per-scenario results.
  *
- * All writes are confined to the testgemeente organization and the shadow new_* tables; each
- * run cleans up the synthetic rows it creates. Fietsberaad superadmin only.
+ * All writes are confined to the testgemeente organization (new_wachtrij_* → production);
+ * each run cleans up the synthetic rows it creates. Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);

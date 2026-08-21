@@ -16,8 +16,6 @@ const SettingsTab: React.FC = () => {
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [processQueueBaseUrl, setProcessQueueBaseUrl] = useState("https://remote.veiligstallenontwikkel.nl");
-  const [useLocalProcessor, setUseLocalProcessor] = useState(false);
   const [bootstrapMessage, setBootstrapMessage] = useState<string | null>(null);
   const [testGemeenteStatus, setTestGemeenteStatus] = useState<{ exists: boolean; id: string | null } | null>(null);
   const [testStallings, setTestStallings] = useState<TestStalling[]>([]);
@@ -91,12 +89,8 @@ const SettingsTab: React.FC = () => {
 
       if (session) {
         setBaseUrl(localBaseUrl || (session.baseUrl ?? ""));
-        setProcessQueueBaseUrl(session.processQueueBaseUrl ?? "https://remote.veiligstallenontwikkel.nl");
-        setUseLocalProcessor(session.useLocalProcessor ?? false);
       } else {
         setBaseUrl(localBaseUrl);
-        setProcessQueueBaseUrl("https://remote.veiligstallenontwikkel.nl");
-        setUseLocalProcessor(false);
       }
     } catch {
       // ignore
@@ -181,8 +175,6 @@ const SettingsTab: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: baseUrl || null,
-          processQueueBaseUrl: processQueueBaseUrl || null,
-          useLocalProcessor,
         }),
       });
     } catch (e) {
@@ -529,39 +521,9 @@ const SettingsTab: React.FC = () => {
               placeholder="Leeg = huidige origin"
             />
           </div>
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useLocalProcessor}
-                onChange={(e) => setUseLocalProcessor(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                NextJS processor + new_* tabellen (i.p.v. ColdFusion processor + standaard tabellen)
-              </span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1">
-              Bij aan: Gebruik nieuwe implementatie (NextJS) in plaats van ColdFusion.
-            </p>
-            {!useLocalProcessor && (
-              <p className="text-xs text-amber-600 mt-1">
-                Let op: Remote ColdFusion gebruikt een andere database. Transacties blijven dan vaak op "wachtend" staan. Zet aan voor lokale ontwikkeling.
-              </p>
-            )}
-          </div>
-          {!useLocalProcessor && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Process queue URL (motorblok)</label>
-              <input
-                type="text"
-                value={processQueueBaseUrl}
-                onChange={(e) => setProcessQueueBaseUrl(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-                placeholder="https://remote.veiligstallenontwikkel.nl"
-              />
-            </div>
-          )}
+          <p className="text-xs text-gray-500">
+            Process gebruikt altijd Next.js: new_wachtrij_pasids / managed_transacties / betalingen / sync en new_bezettingsdata_tmp naar productietabellen. Check-in/out is managedtransactions. ColdFusion-wachtrijen kun je in het stalling-paneel bekijken (niet verwerken). Bestaande stallingen blijven op CF v2/v3 — niet beide hosts voor dezelfde stalling.
+          </p>
           <div className="flex flex-wrap gap-2 items-center">
             <Button onClick={saveToStorage}>
               Opslaan

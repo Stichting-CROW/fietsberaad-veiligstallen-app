@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 
 type FmsTablesStatus = {
   tablesExist: boolean;
-  triggersExist: boolean;
+  leftoverTriggersExist: boolean;
+  leftoverOutputTablesExist: boolean;
   tableCounts?: Record<string, number>;
 };
 
@@ -39,7 +40,7 @@ const DataApiComponent: React.FC = () => {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.manualSql && (action === "drop" || action === "create-triggers" || action === "create")) {
+        if (data.manualSql && action === "drop") {
           setManualSql(data.manualSql);
           setError(data.error);
           void fetchFmsStatus();
@@ -48,7 +49,7 @@ const DataApiComponent: React.FC = () => {
         }
         throw new Error(data.error || res.statusText);
       }
-      if (data.manualSql && (action === "create-tables" || action === "create")) {
+      if (data.manualSql) {
         setManualSql(data.manualSql);
       }
       await fetchFmsStatus();
@@ -95,18 +96,22 @@ const DataApiComponent: React.FC = () => {
       )}
 
       <div className="bg-gray-200 border-2 border-gray-400 p-4 rounded mb-4">
-        <h2 className="text-xl font-semibold mb-3">FMS test tabellen (new_*) en triggers</h2>
+        <h2 className="text-xl font-semibold mb-3">FMS input queues (new_wachtrij_*)</h2>
         <div>
           {fmsStatus && (
             <table className="table-auto">
               <tbody>
                 <tr>
-                  <td className="font-semibold">Test tabellen:</td>
+                  <td className="font-semibold">Input queues:</td>
                   <td className="pl-2">{fmsStatus.tablesExist ? "Aanwezig" : "Niet aanwezig"}</td>
                 </tr>
                 <tr>
-                  <td className="font-semibold">Triggers:</td>
-                  <td className="pl-2">{fmsStatus.triggersExist ? "Aanwezig" : "Niet aanwezig"}</td>
+                  <td className="font-semibold">Legacy output / triggers:</td>
+                  <td className="pl-2">
+                    {fmsStatus.leftoverOutputTablesExist || fmsStatus.leftoverTriggersExist
+                      ? "Nog aanwezig — drop via SQL"
+                      : "Niet aanwezig"}
+                  </td>
                 </tr>
                 {fmsStatus.tableCounts && (
                   <tr>
@@ -130,21 +135,17 @@ const DataApiComponent: React.FC = () => {
             disabled={loading || fmsStatus?.tablesExist}
             className="p-2 rounded-md bg-blue-500 hover:bg-blue-700 disabled:bg-gray-400 text-white"
           >
-            Maak test tabellen
-          </button>
-          <button
-            onClick={() => handleFmsAction("create-triggers")}
-            disabled={loading || !fmsStatus?.tablesExist || fmsStatus?.triggersExist}
-            className="p-2 rounded-md bg-blue-500 hover:bg-blue-700 disabled:bg-gray-400 text-white"
-          >
-            Maak triggers
+            Maak input queues
           </button>
           <button
             onClick={() => handleFmsAction("drop")}
-            disabled={loading || !fmsStatus?.tablesExist}
+            disabled={
+              loading ||
+              !(fmsStatus?.leftoverOutputTablesExist || fmsStatus?.leftoverTriggersExist)
+            }
             className="p-2 rounded-md bg-red-500 hover:bg-red-700 disabled:bg-gray-400 text-white"
           >
-            Verwijder test tabellen
+            Verwijder legacy output / triggers
           </button>
         </div>
       </div>

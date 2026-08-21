@@ -1,5 +1,30 @@
 /** Shared comparison logic for FMS API old vs new. */
 
+/** ColdFusion 401 (no operator rights) or CF V2 500 — not a V4 contract failure. */
+export function isLegacyUnusableOldApiError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  if (/HTTP 401\b/i.test(error) || /Niet voldoende rechten/i.test(error)) return true;
+  return /HTTP 500\b/i.test(error) && /Oeps, er ging iets mis/i.test(error);
+}
+
+/** ColdFusion often returns HTTP 200 with `{ message, status: 0 }` when a stall is not published. */
+export function isLegacyNotFoundResponse(text: string): boolean {
+  try {
+    const obj = JSON.parse(text) as unknown;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+    const rec = obj as Record<string, unknown>;
+    return (
+      rec.status === 0 &&
+      typeof rec.message === "string" &&
+      rec.message.length > 0 &&
+      !("citycode" in rec) &&
+      !("locationid" in rec)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export type DynamicDiffOptions = {
   allowDynamicDiffs?: boolean;
   maxverschil?: number;
@@ -140,6 +165,54 @@ export function normalizeSectionBiketypesOrderDeep(obj: unknown): unknown {
   return out;
 }
 
+/** Live locker timestamps; ignore for places / embedded section places. */
+/** City / locations list: compare locations by locationid, not array index. */
+function sortLocationsByLocationid(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    const items = obj.map(sortLocationsByLocationid);
+    if (items.length > 0 && items.every((x) => x && typeof x === "object" && !Array.isArray(x) && "locationid" in (x as object))) {
+      return [...items].sort((a, b) =>
+        String((a as { locationid?: string }).locationid ?? "").localeCompare(
+          String((b as { locationid?: string }).locationid ?? ""),
+          undefined,
+          { numeric: true }
+        )
+      );
+    }
+    return items;
+  }
+  const rec = obj as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    out[k] = k === "locations" && Array.isArray(v) ? sortLocationsByLocationid(v) : sortLocationsByLocationid(v);
+  }
+  return out;
+}
+
+function stripDateLastStatusUpdate(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(stripDateLastStatusUpdate);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (k === "datelaststatusupdate") continue;
+    out[k] = stripDateLastStatusUpdate(v);
+  }
+  return out;
+}
+
+/** `openinghours.opennow` depends on request time; ignore for compare. */
+function stripOpenNow(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(stripOpenNow);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (k === "opennow") continue;
+    out[k] = stripOpenNow(v);
+  }
+  return out;
+}
+
 function normalizePriceForCompare(obj: unknown): unknown {
   if (obj === null || typeof obj !== "object") return obj;
   if (Array.isArray(obj)) return obj.map(normalizePriceForCompare);
@@ -188,7 +261,7 @@ export function normalizeV2SubscriptionTypesForCompare(obj: unknown): unknown {
 }
 
 export function responsesMatch(endpointId: string, oldRes: string, newRes: string): boolean {
-  if (endpointId === "v2-getServerTime") {
+  if (endpointId === "v2-getServerTime" || endpointId === "v3-servertime") {
     try {
       const toMs = (s: string): number => {
         let v: string | number = s.trim();
@@ -260,11 +333,31 @@ export function responsesMatch(endpointId: string, oldRes: string, newRes: strin
       return false;
     }
   }
+  if (
+    endpointId === "v3-citycode" ||
+    endpointId === "v3-locations" ||
+    endpointId === "v3-citycodes"
+  ) {
+    try {
+      const oldData = stripOpenNow(sortLocationsByLocationid(JSON.parse(oldRes)));
+      const newData = stripOpenNow(sortLocationsByLocationid(JSON.parse(newRes)));
+      return (
+        canonicalJson(normalizeSectionBiketypesOrderDeep(oldData)) ===
+        canonicalJson(normalizeSectionBiketypesOrderDeep(newData))
+      );
+    } catch {
+      return false;
+    }
+  }
   try {
     const a = JSON.parse(oldRes);
     const b = JSON.parse(newRes);
+    const placeEndpoints = new Set(["v3-places", "v3-place", "v3-section", "v3-sections"]);
+    const left = stripOpenNow(placeEndpoints.has(endpointId) ? stripDateLastStatusUpdate(a) : a);
+    const right = stripOpenNow(placeEndpoints.has(endpointId) ? stripDateLastStatusUpdate(b) : b);
     return (
-      canonicalJson(normalizeSectionBiketypesOrderDeep(a)) === canonicalJson(normalizeSectionBiketypesOrderDeep(b))
+      canonicalJson(normalizeSectionBiketypesOrderDeep(left)) ===
+      canonicalJson(normalizeSectionBiketypesOrderDeep(right))
     );
   } catch {
     return oldRes.trim() === newRes.trim();

@@ -8,7 +8,8 @@ import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 
 /**
- * GET config, PATCH to update (simulationTimeOffsetSeconds, baseUrl, processQueueBaseUrl, useLocalProcessor).
+ * GET config, PATCH to update (simulationTimeOffsetSeconds, baseUrl).
+ * processQueueBaseUrl / useLocalProcessor columns remain unused (Process is always Next.js).
  * FMS UrlName/wachtwoord live in browser localStorage only (Instellingen tab).
  * Reads/writes parkingsimulation_simulation_config. Fietsberaad superadmin only.
  */

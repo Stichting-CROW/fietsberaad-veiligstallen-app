@@ -1,3 +1,5 @@
+> **Historical porting notes (local only).** Current write path: `docs/analyse-api/fms-write-paths.md`. This file is not the leading plan.
+
 # Documentation of Coldfusion API services #
 
 **Related plans:** [API_PORTING_PLAN.md](API_PORTING_PLAN.md) – FMS REST porting and queue processing. Cursor plan "FMS API Next.js Migration" – Next.js port of V1/V2/V3 with duplicate tables, Data\|API page, test gemeente.

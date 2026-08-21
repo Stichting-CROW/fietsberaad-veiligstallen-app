@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction } from "~/lib/parking-simulation/fms-api-write-client";
+import { uploadManagedTransaction } from "~/lib/parking-simulation/fms-api-write-client";
+import {
+  buildManagedCheckOut,
+  citycodeFromLocationId,
+  generateExternalTransactionId,
+} from "~/lib/parking-simulation/managed-transaction";
 import { formatStallingLabel } from "~/lib/parking-simulation/types";
 import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 import { ActiesPanel, type Stalling } from "./ActiesPanel";
@@ -15,6 +20,9 @@ type OccupationEntry = {
   locationid: string;
   sectionid: string;
   passID?: string | null;
+  externalTransactionID?: string | null;
+  checkInDate?: string | null;
+  createdAt?: string | null;
   bicycle?: Bicycle;
 };
 
@@ -97,15 +105,21 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const tx = {
-        type: "out" as const,
-        transactionDate: simulationTime,
-        passID,
-        idtype: 0,
-        barcodeBike: bike.barcode,
-        bikeid: bike.barcode,
-      };
-      const res = await uploadTransaction(credentials, occ.locationid, occ.sectionid, tx);
+      const checkindate = occ.checkInDate ?? occ.createdAt ?? simulationTime;
+      const res = await uploadManagedTransaction(
+        credentials,
+        citycodeFromLocationId(occ.locationid),
+        occ.locationid,
+        occ.sectionid,
+        buildManagedCheckOut({
+          externaltransactionid: occ.externalTransactionID?.trim() || generateExternalTransactionId(),
+          idcode: passID,
+          checkindate,
+          checkoutdate: simulationTime,
+          barcode: bike.barcode,
+          biketypeid: bike.biketypeID ?? 1,
+        })
+      );
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -121,8 +135,8 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
         }
       } else {
         const msg = res.message ?? "onbekend";
-        const hint = /unauthorized|401/i.test(String(msg))
-          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
+        const hint = /rechten|unauthorized|401/i.test(String(msg))
+          ? " Controleer Instellingen: dataprovider heeft type2 nodig voor managed transactions."
           : "";
         setMessage("Fout: " + msg + hint);
       }

@@ -16,6 +16,7 @@ import "@fontsource/roboto/700.css";
 import "~/styles/globals.css";
 
 import "~/styles/components/AppHeader.css";
+import "~/styles/swagger-docs.css";
 
 import moment from "moment";
 moment.locale("nl");

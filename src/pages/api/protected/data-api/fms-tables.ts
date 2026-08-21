@@ -5,21 +5,23 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 import { formatPrismaErrorCompact, logPrismaError } from "~/utils/formatPrismaError";
-import { readFileSync } from "fs";
-import { join } from "path";
 import { createNewFmsTables } from "~/backend/services/database/NewFmsTableActions";
 
 const FMS_TABLES = [
-  "new_wachtrij_transacties",
   "new_wachtrij_pasids",
   "new_wachtrij_betalingen",
   "new_wachtrij_sync",
+  "new_wachtrij_managed_transacties",
+  "new_bezettingsdata_tmp",
+];
+
+const LEFTOVER_OUTPUT_TABLES = [
+  "new_wachtrij_transacties",
   "new_transacties",
   "new_transacties_archief",
   "new_accounts",
   "new_accounts_pasids",
   "new_financialtransactions",
-  "new_bezettingsdata_tmp",
   "new_bezettingsdata",
 ];
 
@@ -36,22 +38,16 @@ function getDropSql(): string {
   const triggerDrops = TRIGGER_NAMES.map(
     (n) => `DROP TRIGGER IF EXISTS \`${n}\`;`
   ).join("\n");
-  const tableDrops = FMS_TABLES.map(
+  const leftoverDrops = LEFTOVER_OUTPUT_TABLES.map(
     (t) => `DROP TABLE IF EXISTS \`${t}\`;`
   ).join("\n");
-  return `-- Eerst triggers verwijderen\n${triggerDrops}\n\n-- Daarna tabellen\n${tableDrops}`;
-}
-
-function getCreateTriggersSql(): string {
-  return readFileSync(
-    join(process.cwd(), "src/server/sql/fms-mirror-triggers.sql"),
-    "utf-8"
-  );
+  return `-- Legacy mirror triggers + output shadows\n${triggerDrops}\n\n${leftoverDrops}`;
 }
 
 export type FmsTablesStatus = {
   tablesExist: boolean;
-  triggersExist: boolean;
+  leftoverTriggersExist: boolean;
+  leftoverOutputTablesExist: boolean;
   tableCounts?: Record<string, number>;
 };
 
@@ -65,14 +61,22 @@ async function checkTablesExist(): Promise<boolean> {
   return Number(count) === FMS_TABLES.length;
 }
 
-async function checkTriggersExist(): Promise<boolean> {
+async function leftoverTriggersExist(): Promise<boolean> {
   const result = await prisma.$queryRawUnsafe<{ count: number }[]>(
     `SELECT COUNT(*) as count FROM information_schema.triggers 
      WHERE trigger_schema = DATABASE() 
      AND trigger_name IN (${TRIGGER_NAMES.map((t) => `'${t}'`).join(",")})`
   );
-  const count = result?.[0]?.count ?? 0;
-  return Number(count) === TRIGGER_NAMES.length;
+  return Number(result?.[0]?.count ?? 0) > 0;
+}
+
+async function leftoverOutputTablesExist(): Promise<boolean> {
+  const result = await prisma.$queryRawUnsafe<{ count: number }[]>(
+    `SELECT COUNT(*) as count FROM information_schema.tables 
+     WHERE table_schema = DATABASE() 
+     AND table_name IN (${LEFTOVER_OUTPUT_TABLES.map((t) => `'${t}'`).join(",")})`
+  );
+  return Number(result?.[0]?.count ?? 0) > 0;
 }
 
 async function getTableCounts(): Promise<Record<string, number>> {
@@ -111,11 +115,13 @@ export default async function handle(
   try {
     if (req.method === "GET") {
       const tablesExist = await checkTablesExist();
-      const triggersExist = tablesExist ? await checkTriggersExist() : false;
+      const leftoverTriggers = await leftoverTriggersExist();
+      const leftoverOutput = await leftoverOutputTablesExist();
       const tableCounts = tablesExist ? await getTableCounts() : undefined;
       const status: FmsTablesStatus = {
         tablesExist,
-        triggersExist,
+        leftoverTriggersExist: leftoverTriggers,
+        leftoverOutputTablesExist: leftoverOutput,
         tableCounts,
       };
       return res.status(200).json(status);
@@ -125,57 +131,18 @@ export default async function handle(
       const body = req.body as { action?: string };
       const action = body?.action;
 
-      if (action === "create") {
-        const tablesExist = await checkTablesExist();
-        if (!tablesExist) {
-          await createTables();
-        }
-        const triggersExist = await checkTriggersExist();
-        if (!triggersExist) {
-          return res.status(400).json({
-            success: false,
-            error:
-              "Triggers aanmaken via API wordt niet ondersteund (MySQL beperking). Voer de SQL handmatig uit via een MySQL-client.",
-            manualSql: getCreateTriggersSql(),
-          });
-        }
-        return res.status(200).json({
-          success: true,
-          message: "Test tabellen en triggers aangemaakt",
-        });
-      }
-
-      if (action === "create-tables") {
+      if (action === "create" || action === "create-tables") {
         const tablesExist = await checkTablesExist();
         if (tablesExist) {
-          const triggersExist = await checkTriggersExist();
           return res.status(200).json({
             success: true,
-            message: "Test tabellen bestaan al",
-            manualSql: triggersExist ? undefined : getCreateTriggersSql(),
+            message: "Input queues bestaan al",
           });
         }
         await createTables();
         return res.status(200).json({
           success: true,
-          message: "Test tabellen aangemaakt. Voer de SQL hieronder uit om de triggers aan te maken (wachtrij_* → new_wachtrij_*):",
-          manualSql: getCreateTriggersSql(),
-        });
-      }
-
-      if (action === "create-triggers") {
-        const tablesExist = await checkTablesExist();
-        if (!tablesExist) {
-          return res.status(400).json({
-            success: false,
-            error: "Maak eerst de test tabellen aan",
-          });
-        }
-        return res.status(400).json({
-          success: false,
-          error:
-            "Triggers aanmaken via API wordt niet ondersteund (MySQL beperking). Voer de SQL handmatig uit via een MySQL-client.",
-          manualSql: getCreateTriggersSql(),
+          message: "Input queues (new_wachtrij_*) aangemaakt",
         });
       }
 

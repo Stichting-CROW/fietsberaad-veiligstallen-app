@@ -39,8 +39,6 @@ export default async function handler(
       const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
       const bikeparkID = req.query.bikeparkID as string | undefined;
       const transactionDateFrom = req.query.transactionDateFrom as string | undefined;
-      const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
-
       // Validate pageSize
       const validPageSizes = [25, 100, 1000, 10000];
       const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 25;
@@ -57,61 +55,34 @@ export default async function handler(
         if (!isNaN(from.getTime())) where.transactionDate = { gte: from };
       }
 
-      // Perform count and page fetch in parallel (summary removed)
-      const [total, records] = useNewTables
-        ? await Promise.all([
-            prisma.new_wachtrij_transacties.count({ where }),
-            prisma.new_wachtrij_transacties.findMany({
-              where,
-              select: {
-                ID: true,
-                bikeparkID: true,
-                sectionID: true,
-                placeID: true,
-                passID: true,
-                passtype: true,
-                type: true,
-                transaction: true,
-                transactionDate: true,
-                processed: true,
-                processDate: true,
-                error: true,
-                dateCreated: true,
-              },
-              orderBy: { [orderByField]: sortOrder },
-              skip: (page - 1) * finalPageSize,
-              take: finalPageSize,
-            }),
-          ])
-        : await Promise.all([
-            prisma.wachtrij_transacties.count({ where }),
-            prisma.wachtrij_transacties.findMany({
-              where,
-              select: {
-                ID: true,
-                bikeparkID: true,
-                sectionID: true,
-                placeID: true,
-                passID: true,
-                passtype: true,
-                type: true,
-                transaction: true,
-                transactionDate: true,
-                processed: true,
-                processDate: true,
-                error: true,
-                dateCreated: true,
-              },
-              orderBy: { [orderByField]: sortOrder },
-              skip: (page - 1) * finalPageSize,
-              take: finalPageSize,
-            }),
-          ]);
+      const [total, records] = await Promise.all([
+        prisma.wachtrij_transacties.count({ where }),
+        prisma.wachtrij_transacties.findMany({
+          where,
+          select: {
+            ID: true,
+            bikeparkID: true,
+            sectionID: true,
+            placeID: true,
+            passID: true,
+            passtype: true,
+            type: true,
+            transaction: true,
+            transactionDate: true,
+            processed: true,
+            processDate: true,
+            error: true,
+            dateCreated: true,
+          },
+          orderBy: { [orderByField]: sortOrder },
+          skip: (page - 1) * finalPageSize,
+          take: finalPageSize,
+        }),
+      ]);
 
       const totalPages = Math.ceil(total / finalPageSize);
 
-      // new_wachtrij_transacties has processed as Int (0,9,8,1,2); normalize for response compatibility
-      // Extract bikeid from transaction JSON (barcodeBike or bikeid, case-insensitive)
+      // CF leftover viewer. Extract bikeid from transaction JSON.
       const normalizedRecords = records.map((r) => {
         const rec = r as { processed?: number | boolean; transaction?: string } & Record<string, unknown>;
         let bikeid: string | null = null;

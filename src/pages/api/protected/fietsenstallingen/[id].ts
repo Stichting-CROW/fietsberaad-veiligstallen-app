@@ -614,7 +614,7 @@ export default async function handle(
         // Check if new_* tables exist (they may not in environments without FMS simulation setup)
         const newTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
           `SELECT COUNT(*) as count FROM information_schema.tables 
-           WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_transacties'`
+           WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_managed_transacties'`
         ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
 
         const parkingsimulationTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
@@ -670,17 +670,17 @@ export default async function handle(
               await tx.wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
               await tx.wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
               if (newTablesExist) {
-                await tx.new_wachtrij_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
                 await tx.new_wachtrij_pasids.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
                 await tx.new_wachtrij_betalingen.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
                 await tx.new_wachtrij_sync.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
-                await tx.new_transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
-                await tx.new_financialtransactions.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
-                // Clear parked state so pasids don't retain stale time-related info (avoids negative Stallingsduur)
-                await tx.new_accounts_pasids.updateMany({
-                  where: { huidigeFietsenstallingId: stalling.StallingsID },
-                  data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
-                });
+                await tx.new_wachtrij_managed_transacties.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                const newBezetTmpExist = await tx.$queryRawUnsafe<{ count: bigint }[]>(
+                  `SELECT COUNT(*) as count FROM information_schema.tables
+                   WHERE table_schema = DATABASE() AND table_name = 'new_bezettingsdata_tmp'`
+                ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
+                if (newBezetTmpExist) {
+                  await tx.new_bezettingsdata_tmp.deleteMany({ where: { bikeparkID: stalling.StallingsID } });
+                }
               }
               await tx.accounts_pasids.updateMany({
                 where: { huidigeFietsenstallingId: stalling.StallingsID },
@@ -694,9 +694,6 @@ export default async function handle(
               }
             }
             await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
-            if (newTablesExist) {
-              await tx.new_transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
-            }
             await tx.fietsenstallingen.delete({
               where: { ID: stalling.ID },
             });

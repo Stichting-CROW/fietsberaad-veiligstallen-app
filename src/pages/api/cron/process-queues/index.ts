@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { processQueues } from "~/server/services/queue/processor";
 
 /**
- * GET: Trigger the Next.js queue processor (new_wachtrij_* → new_*).
+ * GET: Trigger the Next.js queue processor (new_wachtrij_* / new_bezettingsdata_tmp → production tables).
  * Secured via CRON_SECRET: Authorization: Bearer <CRON_SECRET>.
  * For use by Vercel Cron or external schedulers.
  */
@@ -26,9 +26,10 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       ok: true,
       result: {
         pasids: result.pasids,
-        transacties: result.transacties,
+        managedTransacties: result.managedTransacties,
         betalingen: result.betalingen,
         sync: result.sync,
+        occupation: result.occupation,
       },
     });
   } catch (e) {

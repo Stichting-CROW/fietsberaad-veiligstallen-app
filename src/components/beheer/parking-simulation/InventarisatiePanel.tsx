@@ -170,7 +170,7 @@ export const InventarisatiePanel: React.FC<Props> = ({
           transactiondate: transactionDate,
         }));
         lines.push(
-          `syncSector ${locationid}/${sectionid}: ${bikes.length} gescande fiets(en) → wachtrij_sync`
+          `v4 occupation ${locationid}/${sectionid}: ${bikes.length} gescande fiets(en) → new_wachtrij_sync`
         );
         const res = await syncSector(credentials, locationid, sectionid, {
           bikes,
@@ -247,7 +247,7 @@ export const InventarisatiePanel: React.FC<Props> = ({
           <p>
             Pas eerst de bezetting aan via <strong>Acties</strong> hierboven. Start daarna de inventarisatie:
             een momentopname van alle fietsen in deze stalling. Scan fietsen; bij afronden volgt{" "}
-            <strong>syncSector</strong> → <code className="text-xs bg-gray-100 px-1">wachtrij_sync</code>.
+            <strong>POST …/occupation</strong> (v4) → <code className="text-xs bg-gray-100 px-1">new_wachtrij_sync</code>.
           </p>
         </div>
 
