@@ -8,6 +8,7 @@ import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentia
 import { prisma } from "~/server/db";
 import { getFullDatasetIds } from "~/server/services/fms/fms-v3-service";
 import { responsesMatch, prepareForCompare, isLegacyNotFoundResponse, isLegacyUnusableOldApiError } from "~/server/utils/fms-compare";
+import { rewriteSameHostBaseToLoopback } from "~/server/utils/same-host-loopback";
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 
@@ -258,7 +259,8 @@ export default async function handle(
   const oldBase = typeof oldApiUrl === "string" && oldApiUrl ? oldApiUrl : OLD_API_BASE;
   const protocol = (req.headers["x-forwarded-proto"] as string) || (req.headers["x-forwarded-ssl"] === "on" ? "https" : "http");
   const host = (req.headers["host"] as string) || `localhost:${process.env.PORT ?? 3000}`;
-  const newBase = typeof newApiUrl === "string" && newApiUrl ? newApiUrl : `${protocol}://${host}`;
+  const newBaseRaw = typeof newApiUrl === "string" && newApiUrl ? newApiUrl : `${protocol}://${host}`;
+  const newBase = rewriteSameHostBaseToLoopback(newBaseRaw, req.headers);
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (useApiCredentials) {
