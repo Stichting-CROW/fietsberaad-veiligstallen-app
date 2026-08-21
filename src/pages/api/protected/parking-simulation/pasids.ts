@@ -7,7 +7,7 @@ import { prisma } from "~/server/db";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
 /**
- * GET: List pasids for the test site (new_accounts_pasids).
+ * GET: List pasids for the test site (accounts_pasids).
  * Ordered by Pastype, PasID, BikeTypeID, barcodeFiets.
  * Fietsberaad superadmin only.
  */
@@ -33,7 +33,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(200).json({ data: [] });
   }
 
-  const pasids = await prisma.new_accounts_pasids.findMany({
+  const pasids = await prisma.accounts_pasids.findMany({
     where: { SiteID: contact.ID },
     orderBy: [{ Pastype: "asc" }, { PasID: "asc" }, { BikeTypeID: "asc" }, { barcodeFiets: "asc" }],
     select: {

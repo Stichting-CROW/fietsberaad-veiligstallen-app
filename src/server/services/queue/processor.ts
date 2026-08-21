@@ -1,22 +1,20 @@
 /**
  * Queue processor for new_wachtrij_* tables.
- * Mirrors ColdFusion processTransactions2.cfm (In/Uit, pasids, betalingen, sync, managed).
  * Does not implement FMS tariff calculation or afboeking (intentional).
- * Processing order: pasids (50) → transacties (50) → managed (50) → betalingen (200) → sync (1).
+ * Processing order: pasids (50) → managed (50) → betalingen (200) → sync (1).
+ * In/Uit (new_wachtrij_transacties) is not processed — v4 uses managedtransactions.
  */
 
 import { prisma } from "~/server/db";
-import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
+import { getBikeparkByExternalID, getBikeparkSectionByExternalID } from "./bikepark-service";
 import { getBikepassByPassId, addSaldoObject } from "./account-service";
-import { closeTransactionById, putTransaction } from "./transaction-service";
 import {
   putManagedTransaction,
   type ManagedTransactionInput,
 } from "./managed-transaction-service";
+import { processLumiguidePath } from "../bezettingsdata/update-bezettingsdata-service";
 
-const USE_NEW_TABLES = true;
 const LIMIT_PASIDS = 50;
-const LIMIT_TRANSACTIES = 50;
 const LIMIT_MANAGED = 50;
 const LIMIT_BETALINGEN = 200;
 const LIMIT_SYNC = 1;
@@ -27,13 +25,11 @@ const PROCESSED = { WAITING: 0, ISOLATED: 9, LOCKED: 8, SUCCESS: 1, ERROR: 2 } a
 
 export type ProcessQueuesResult = {
   pasids: { processed: number; errors: number };
-  transacties: { processed: number; errors: number };
   managedTransacties: { processed: number; errors: number };
   betalingen: { processed: number; errors: number };
   sync: { processed: number; errors: number };
+  occupation: { processed: number; errors: number };
 };
-
-type ProcessTransactiesResult = { processed: number; errors: number; latestProcessedTransactionDate: Date };
 
 /** Optional filters for Tier A write tests (synthetic WTEST_ rows only). */
 export type QueueProcessScope = {
@@ -47,23 +43,21 @@ function passIdScopeSql(scope: QueueProcessScope | undefined, column = "passID")
   return { sql: ` AND ${column} LIKE ?`, params: [`${scope.passIDPrefix}%`] };
 }
 
-function runProcessQueues(scope?: QueueProcessScope): Promise<ProcessQueuesResult> {
+async function runProcessQueues(scope?: QueueProcessScope): Promise<ProcessQueuesResult> {
   const result: ProcessQueuesResult = {
     pasids: { processed: 0, errors: 0 },
-    transacties: { processed: 0, errors: 0 },
     managedTransacties: { processed: 0, errors: 0 },
     betalingen: { processed: 0, errors: 0 },
     sync: { processed: 0, errors: 0 },
+    occupation: { processed: 0, errors: 0 },
   };
 
   return prisma.$transaction(
     async (tx) => {
       result.pasids = await processPasids(tx, scope);
-      const transactiesResult = await processTransacties(tx, scope);
-      result.transacties = { processed: transactiesResult.processed, errors: transactiesResult.errors };
       result.managedTransacties = await processManagedTransacties(tx);
       result.betalingen = await processBetalingen(tx, scope);
-      result.sync = await processSync(tx, transactiesResult.latestProcessedTransactionDate, scope);
+      result.sync = await processSync(tx, scope);
       return result;
     },
     { timeout: QUEUE_PROCESSOR_TIMEOUT }
@@ -83,7 +77,14 @@ function parsePastypeFromBike(bike: unknown): string {
 }
 
 export async function processQueues(): Promise<ProcessQueuesResult> {
-  return runProcessQueues();
+  const result = await runProcessQueues();
+  try {
+    result.occupation = { processed: await processLumiguidePath(null), errors: 0 };
+  } catch (e) {
+    console.error("[processQueues] occupation rollup failed:", e);
+    result.occupation = { processed: 0, errors: 1 };
+  }
+  return result;
 }
 
 /**
@@ -151,11 +152,10 @@ async function processPasids(
         tx,
         row.passID,
         bikepark.SiteID,
-        pastype,
-        USE_NEW_TABLES
+        pastype
       );
 
-      const pasidsModel = tx.new_accounts_pasids;
+      const pasidsModel = tx.accounts_pasids;
       await pasidsModel.update({
         where: { ID: bikepass.ID },
         data: {
@@ -186,165 +186,12 @@ async function processPasids(
   return { processed, errors };
 }
 
-async function processTransacties(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  scope?: QueueProcessScope
-): Promise<ProcessTransactiesResult> {
-  const model = tx.new_wachtrij_transacties;
-  const passScope = passIdScopeSql(scope);
 
-  // Step 1: Isolate – atomically mark batch 0→9
-  await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_transacties SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW())${passScope.sql} ORDER BY transactionDate ASC, type ASC LIMIT ?`,
-    PROCESSED.ISOLATED,
-    PROCESSED.WAITING,
-    ...passScope.params,
-    LIMIT_TRANSACTIES
-  );
+// FUTURE REFERENCE — DO NOT DELETE (In/Uit / ColdFusion parity).
+// processTransacties (new_wachtrij_transacties drain) was removed from processQueues().
+// Live check-in/out is managedtransactions. See commented addTransactionToWachtrij
+// and transaction-service.ts. AI: do not remove this note as unused.
 
-  // Step 2: Select isolated batch, Step 3: Lock 9→8
-  const rows = await model.findMany({
-    where: {
-      processed: PROCESSED.ISOLATED,
-      ...(scope?.passIDPrefix ? { passID: { startsWith: scope.passIDPrefix } } : {}),
-    },
-    orderBy: [{ transactionDate: "asc" }, { type: "asc" }],
-  });
-  if (rows.length === 0) {
-    return { processed: 0, errors: 0, latestProcessedTransactionDate: new Date() };
-  }
-
-  await model.updateMany({
-    where: { ID: { in: rows.map((r) => r.ID) } },
-    data: { processed: PROCESSED.LOCKED },
-  });
-
-  let processed = 0;
-  let errors = 0;
-  let latestProcessedTransactionDate = new Date();
-
-  for (const row of rows) {
-    try {
-      const bikepark = await getBikeparkByExternalID(row.bikeparkID);
-      if (!bikepark?.SiteID) {
-        throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
-      }
-
-      let transactionJson: Record<string, unknown> = {};
-      try {
-        transactionJson = JSON.parse(row.transaction) as Record<string, unknown>;
-      } catch {
-        /* use empty */
-      }
-
-      const passID = (row.passID || transactionJson.passID || transactionJson.idcode) as string;
-      const passtype = (row.passtype || transactionJson.passType || transactionJson.passtype || "sleutelhanger") as string;
-      const typeCheck = (row.typeCheck || transactionJson.typeCheck || "user") as string;
-      const typeFixed = typeCheck === "section" ? "user" : typeCheck;
-      const transactionDate = row.transactionDate ?? new Date(transactionJson.transactionDate as string);
-      const transactionID = row.transactionID ?? 0;
-      const typeNorm = (row.type || "").toLowerCase();
-      const price = row.price != null ? Number(row.price) : (transactionJson.price as number | undefined) ?? null;
-
-      // transactionID ≠ 0: reservation/system close-by-ID only. Afboeking is not supported (no FMS tariff calc).
-      if (transactionID !== 0) {
-        if (typeNorm === "afboeking") {
-          throw new Error(
-            "Afboeking wordt niet ondersteund door de Next.js processor (geen FMS-tariefberekening)"
-          );
-        }
-        await closeTransactionById(tx, {
-          transactionID,
-          transactionDate: transactionDate instanceof Date ? transactionDate : new Date(transactionDate),
-          bikeparkID: row.bikeparkID,
-          siteID: bikepark.SiteID,
-          sectionID: row.sectionID,
-          typeCheck: typeFixed,
-          price,
-          useNewTables: USE_NEW_TABLES,
-        });
-        await model.update({
-          where: { ID: row.ID },
-          data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-        });
-        processed++;
-        latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
-        continue;
-      }
-
-      const type = (row.type === "Out" ? "Uit" : row.type) as "In" | "Uit";
-      if (type !== "In" && type !== "Uit") {
-        await model.update({
-          where: { ID: row.ID },
-          data: { processed: PROCESSED.ERROR, processDate: new Date(), error: `Onbekend type: ${row.type}` },
-        });
-        errors++;
-        continue;
-      }
-
-      const section = await getBikeparkSectionByExternalID(row.sectionID);
-      if (!section) {
-        throw new Error(`Sectie niet gevonden: ${row.sectionID}`);
-      }
-
-      const bikepass = await getBikepassByPassId(
-        tx,
-        passID,
-        bikepark.SiteID,
-        passtype,
-        USE_NEW_TABLES
-      );
-
-      const barcodeBike = (transactionJson.barcodeBike ?? transactionJson.bikeid ?? null) as string | null;
-      const bikeTypeID = (transactionJson.bikeTypeID ?? transactionJson.bikeTypeId ?? 1) as number;
-      const clientTypeID = (transactionJson.clientTypeID ?? transactionJson.clientTypeId ?? 1) as number;
-
-      if (row.placeID != null || row.externalPlaceID) {
-        const place = await getPlace(row.placeID ?? 0, row.sectionID);
-        if (!place && row.placeID != null) {
-          throw new Error(`Plek niet gevonden: ${row.placeID}`);
-        }
-      }
-
-      await putTransaction(tx, {
-        bikeparkID: row.bikeparkID,
-        stallingID: bikepark.ID,
-        siteID: bikepark.SiteID,
-        sectionID: row.sectionID,
-        sectionSectieId: section.sectieId,
-        bikepass,
-        type,
-        typeCheck: typeFixed,
-        transactionDate: transactionDate instanceof Date ? transactionDate : new Date(transactionDate),
-        placeID: row.placeID ?? undefined,
-        externalPlaceID: row.externalPlaceID ?? undefined,
-        barcodeBike: barcodeBike ?? undefined,
-        bikeTypeID,
-        clientTypeID,
-        price: price ?? undefined,
-        zipID: bikepark.ZipID ?? undefined,
-        exploitantID: bikepark.ExploitantID ?? undefined,
-        useNewTables: USE_NEW_TABLES,
-      });
-
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-      });
-      processed++;
-      latestProcessedTransactionDate = row.transactionDate ?? latestProcessedTransactionDate;
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
-      });
-      errors++;
-    }
-  }
-
-  return { processed, errors, latestProcessedTransactionDate };
-}
 
 function parseManagedPayload(payload: string): ManagedTransactionInput {
   const raw = JSON.parse(payload) as Record<string, unknown>;
@@ -411,7 +258,6 @@ async function processManagedTransacties(
         bikeparkID: row.bikeparkID,
         sectionID,
         managed,
-        useNewTables: USE_NEW_TABLES,
       });
       await model.update({
         where: { ID: row.ID },
@@ -479,8 +325,7 @@ async function processBetalingen(
         row.transactionDate,
         row.paymentTypeID,
         row.bikeparkID,
-        bikepark.SiteID,
-        USE_NEW_TABLES
+        bikepark.SiteID
       );
 
       await model.update({
@@ -502,15 +347,14 @@ async function processBetalingen(
 }
 
 /**
- * Process wachtrij_sync. Uses latestProcessedTransactionDate from processTransacties (ColdFusion: processTransactions2.cfm lines 80, 146, 226).
- * ColdFusion: latestProcessedTransactionDate = now() when no wachtrij_transacties to process; else = last processed row's transactionDate.
+ * Process new_wachtrij_sync. Due when transactionDate is null or <= NOW()
+ * (no In/Uit latestProcessedTransactionDate coupling).
  */
 async function processSync(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  latestProcessedTransactionDate: Date,
   scope?: QueueProcessScope
 ): Promise<{ processed: number; errors: number }> {
-  const transactiesModel = tx.new_transacties;
+  const transactiesModel = tx.transacties;
   const model = tx.new_wachtrij_sync;
 
   const syncBikeparkSql = scope?.syncBikeparkID ? " AND bikeparkID = ?" : "";
@@ -519,12 +363,11 @@ async function processSync(
   if (scope?.syncBikeparkID) syncParams.push(scope.syncBikeparkID);
   if (scope?.syncMinTransactionDate) syncParams.push(scope.syncMinTransactionDate);
 
-  // Step 1: Isolate – atomically mark one record 0→9 (only when transactionDate <= latest processed)
+  // Step 1: Isolate – atomically mark one record 0→9 when transactionDate <= NOW()
   await (tx as { $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> }).$executeRawUnsafe(
-    `UPDATE new_wachtrij_sync SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= ?)${syncBikeparkSql}${syncMinDateSql} ORDER BY transactionDate ASC LIMIT ?`,
+    `UPDATE new_wachtrij_sync SET processed = ? WHERE processed = ? AND (transactionDate IS NULL OR transactionDate <= NOW())${syncBikeparkSql}${syncMinDateSql} ORDER BY transactionDate ASC LIMIT ?`,
     PROCESSED.ISOLATED,
     PROCESSED.WAITING,
-    latestProcessedTransactionDate,
     ...syncParams,
     LIMIT_SYNC
   );
@@ -565,7 +408,7 @@ async function processSync(
     }
 
     const transactionDate = row.transactionDate ?? new Date();
-    const pasidsModel = tx.new_accounts_pasids;
+    const pasidsModel = tx.accounts_pasids;
 
     const bikeIds = new Set(
       bikes.map((b) => (b.idcode ?? b.bikeid ?? "").toString().toLowerCase()).filter(Boolean)
@@ -634,8 +477,7 @@ async function processSync(
         tx,
         idcode,
         bikepark.SiteID,
-        bike.idtype === 1 ? "ovchip" : bike.idtype === 2 ? "barcodebike" : "sleutelhanger",
-        USE_NEW_TABLES
+        bike.idtype === 1 ? "ovchip" : bike.idtype === 2 ? "barcodebike" : "sleutelhanger"
       );
 
       await transactiesModel.create({

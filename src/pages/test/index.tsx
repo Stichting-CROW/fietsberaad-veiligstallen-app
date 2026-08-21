@@ -162,25 +162,11 @@ const TestIndexPage: React.FC = () => {
                 FMS API vergelijking
               </Button>
               <Button
-                onClick={() => handleNavigate('/test/reporting-compare')}
-                className="py-6 px-8 text-center w-full"
-                style={{ backgroundColor: '#3B82F6' }}
-              >
-                Rapportage vergelijking
-              </Button>
-              <Button
-                onClick={() => handleNavigate('/test/replay-archive')}
-                className="py-6 px-8 text-center w-full"
-                style={{ backgroundColor: '#3B82F6' }}
-              >
-                Wachtrij replay (new_*)
-              </Button>
-              <Button
                 onClick={() => handleNavigate('/test/fms-write-tests')}
                 className="py-6 px-8 text-center w-full"
                 style={{ backgroundColor: '#3B82F6' }}
               >
-                FMS schrijf-tests (new_*)
+                FMS schrijf-tests
               </Button>
             </>
           )}
@@ -190,7 +176,14 @@ const TestIndexPage: React.FC = () => {
             className="py-6 px-8 text-center w-full"
             style={{ backgroundColor: '#3B82F6' }}
           >
-            FMS API documentatie (Swagger)
+            FMS API documentatie v2 + v3 (ColdFusion, Swagger)
+          </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-v4')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS API v4 documentatie (Swagger)
           </Button>
           
         </div>

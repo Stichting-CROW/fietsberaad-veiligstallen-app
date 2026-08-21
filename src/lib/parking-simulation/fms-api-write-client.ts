@@ -1,16 +1,20 @@
 /**
- * Client for FMS REST v2 API write calls.
- * Used by simulation; credentials from session/settings.
- * Always pass transactionDate from simulation clock.
+ * FMS v4 write client for parking simulation.
+ * Always pass transactionDate / checkindate from the simulation clock.
  *
- * Writes are authorized purely by Basic Auth (operator/dataprovider permit) plus the ENABLE_WRITE_API kill switch; there is no Next-Auth session requirement. `credentials: "include"` is kept only so any session cookie is forwarded harmlessly.
+ * Writes use Basic Auth (operator / dataprovider.type2) plus ENABLE_WRITE_API.
+ * `credentials: "include"` only forwards a session cookie harmlessly.
  */
+
+import { citycodeFromLocationId } from "~/lib/parking-simulation/managed-transaction";
 
 export interface FmsCredentials {
   username: string;
   password: string;
   baseUrl?: string;
 }
+
+export type FmsWriteResult = { id?: number; ids?: number[]; message?: string; status?: number };
 
 function getBaseUrl(override?: string | null): string {
   if (override) return override;
@@ -28,25 +32,16 @@ function buildUrl(baseUrl: string, path: string): string {
   return `${base}${p}`;
 }
 
-export async function uploadTransaction(
+function v4Location(citycode: string, locationid: string, suffix = ""): string {
+  return `/api/fms/v4/citycodes/${encodeURIComponent(citycode)}/locations/${encodeURIComponent(locationid)}${suffix}`;
+}
+
+async function fmsPost(
   creds: FmsCredentials,
-  bikeparkID: string,
-  sectionID: string,
-  tx: {
-    type: "in" | "out" | "In" | "Out";
-    transactionDate: string;
-    passID?: string;
-    idcode?: string;
-    idtype?: number;
-    barcodeBike?: string;
-    bikeid?: string;
-    price?: number;
-    placeID?: number;
-    typeCheck?: string;
-    [key: string]: unknown;
-  }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/uploadJsonTransaction/${bikeparkID}/${sectionID}`);
+  path: string,
+  body: unknown
+): Promise<FmsWriteResult> {
+  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), path);
   const res = await fetch(url, {
     credentials: "include",
     method: "POST",
@@ -54,36 +49,54 @@ export async function uploadTransaction(
       "Content-Type": "application/json",
       Authorization: basicAuth(creds.username, creds.password),
     },
-    body: JSON.stringify(tx),
+    body: JSON.stringify(body),
   });
-  return res.json();
+  const json = (await res.json().catch(() => ({}))) as FmsWriteResult & { subscriptionid?: number };
+  if (!res.ok) {
+    return { status: 0, message: json.message ?? res.statusText };
+  }
+  return { ...json, id: json.id ?? json.subscriptionid };
+}
+
+export async function uploadManagedTransaction(
+  creds: FmsCredentials,
+  citycode: string,
+  locationid: string,
+  sectionid: string,
+  managed: Record<string, unknown>
+): Promise<FmsWriteResult> {
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/sections/${encodeURIComponent(sectionid)}/managedtransactions`),
+    { managedtransaction: managed }
+  );
 }
 
 export async function syncSector(
   creds: FmsCredentials,
-  bikeparkID: string,
-  sectionID: string,
+  locationid: string,
+  sectionid: string,
   payload: {
     bikes: Array<{ idcode?: string; bikeid?: string; idtype?: number; transactiondate?: string }>;
     transactionDate: string;
   }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/syncSector/${bikeparkID}/${sectionID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
+): Promise<FmsWriteResult> {
+  const citycode = citycodeFromLocationId(locationid);
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/sections/${encodeURIComponent(sectionid)}/occupation`),
+    {
+      data: {
+        bikes: payload.bikes,
+        transactiondate: payload.transactionDate,
+      },
+    }
+  );
 }
 
 export async function addSaldo(
   creds: FmsCredentials,
-  bikeparkID: string,
+  locationid: string,
   payload: {
     passID?: string;
     idcode?: string;
@@ -92,23 +105,24 @@ export async function addSaldo(
     amount: number;
     paymentTypeID?: number;
   }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addJsonSaldo/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
+): Promise<FmsWriteResult> {
+  const idcode = payload.idcode ?? payload.passID ?? "";
+  const idtype = payload.idtype ?? 0;
+  const citycode = citycodeFromLocationId(locationid);
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/idcodes/${idtype}/${encodeURIComponent(idcode)}/balance`),
+    {
+      amount: payload.amount,
+      paymenttypeid: payload.paymentTypeID ?? 1,
+      transactiondate: payload.transactionDate,
+    }
+  );
 }
 
 export async function saveBike(
   creds: FmsCredentials,
-  bikeparkID: string,
+  locationid: string,
   payload: {
     barcode: string;
     passID: string;
@@ -116,164 +130,23 @@ export async function saveBike(
     RFIDBike?: string;
     biketypeID?: number;
   }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/saveJsonBike/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
+): Promise<FmsWriteResult> {
+  const citycode = citycodeFromLocationId(locationid);
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/idcodes/0/${encodeURIComponent(payload.passID)}/bike`),
+    {
+      bikeid: payload.barcode,
+      RFID: payload.RFID,
+      RFIDBike: payload.RFIDBike,
+      biketypeid: payload.biketypeID,
+    }
+  );
 }
-
-export async function reportOccupationData(
-  creds: FmsCredentials,
-  bikeparkID: string,
-  sectionID: string,
-  payload: {
-    occupation: number;
-    timestamp?: string | Date;
-    capacity?: number;
-    checkins?: number;
-    checkouts?: number;
-    open?: boolean;
-    interval?: number;
-    source?: string;
-    rawData?: string;
-  }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/reportOccupationData/${bikeparkID}/${sectionID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
-}
-
-// ─── Bulk write methods ─────────────────────────────────────────────────────
-
-export async function uploadTransactions(
-  creds: FmsCredentials,
-  bikeparkID: string,
-  sectionID: string,
-  txs: Array<{
-    type: "in" | "out" | "In" | "Out";
-    transactionDate: string;
-    passID?: string;
-    idcode?: string;
-    idtype?: number;
-    barcodeBike?: string;
-    bikeid?: string;
-    price?: number;
-    placeID?: number;
-    externalPlaceID?: string;
-    typeCheck?: string;
-    [key: string]: unknown;
-  }>
-): Promise<{ ids?: number[]; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/uploadJsonTransactions/${bikeparkID}/${sectionID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(txs),
-  });
-  return res.json();
-}
-
-export async function addSaldos(
-  creds: FmsCredentials,
-  bikeparkID: string,
-  saldos: Array<{
-    passID?: string;
-    idcode?: string;
-    idtype?: number;
-    transactionDate: string;
-    amount: number;
-    paymentTypeID?: number;
-  }>
-): Promise<{ ids?: number[]; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addJsonSaldos/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(saldos),
-  });
-  return res.json();
-}
-
-export async function saveBikes(
-  creds: FmsCredentials,
-  bikeparkID: string,
-  bikes: Array<{
-    barcode: string;
-    passID: string;
-    RFID?: string;
-    RFIDBike?: string;
-    biketypeID?: number;
-  }>
-): Promise<{ ids?: number[]; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/saveJsonBikes/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(bikes),
-  });
-  return res.json();
-}
-
-export async function updateLocker(
-  creds: FmsCredentials,
-  bikeparkID: string,
-  sectionID: string,
-  placeID: string,
-  payload: {
-    statuscode: number;
-    transactionDate?: string;
-    transactionExpiryDate?: string;
-    cost?: number;
-    paymentTypeID?: number;
-    typeCheck?: string;
-  }
-): Promise<{ message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/updateLocker/${bikeparkID}/${sectionID}/${placeID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
-}
-
-// ─── Subscription methods ────────────────────────────────────────────────────
 
 export async function addSubscription(
   creds: FmsCredentials,
-  bikeparkID: string,
+  locationid: string,
   payload: {
     subscriptiontypeID: number;
     passID?: string;
@@ -284,34 +157,29 @@ export async function addSubscription(
     afloopdatum?: string;
     transactionDate?: string;
   }
-): Promise<{ id?: number; message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/addSubscription/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
+): Promise<FmsWriteResult> {
+  const citycode = citycodeFromLocationId(locationid);
+  return fmsPost(creds, v4Location(citycode, locationid, "/subscriptions"), {
+    subscription: {
+      subscriptiontypeid: payload.subscriptiontypeID,
+      idcode: payload.passID,
+      cost: payload.amount ?? 0,
+      startdate: payload.ingangsdatum ?? payload.transactionDate,
+      expirationdate: payload.afloopdatum,
+      idtype: 0,
     },
-    body: JSON.stringify(payload),
   });
-  return res.json();
 }
 
 export async function subscribe(
   creds: FmsCredentials,
-  bikeparkID: string,
+  locationid: string,
   payload: { subscriptionID: number; passID: string }
-): Promise<{ message?: string; status?: number }> {
-  const url = buildUrl(creds.baseUrl ?? getBaseUrl(), `/api/fms/v2/subscribe/${bikeparkID}`);
-  const res = await fetch(url, {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: basicAuth(creds.username, creds.password),
-    },
-    body: JSON.stringify(payload),
-  });
-  return res.json();
+): Promise<FmsWriteResult> {
+  const citycode = citycodeFromLocationId(locationid);
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/subscriptions/${payload.subscriptionID}`),
+    { idcode: payload.passID }
+  );
 }

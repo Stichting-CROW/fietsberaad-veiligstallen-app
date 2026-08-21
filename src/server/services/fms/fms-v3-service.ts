@@ -1095,12 +1095,10 @@ export async function getLocations(
 /**
  * StallingsID (locationid) is globally unique. Prisma schema: @unique(map: "idxstallingsid") on fietsenstallingen.
  * DB enforces uniqueness; lookups use locationid only (no citycode).
- * When useNewTables: occupancy from new_transacties (open records) instead of Bezetting.
  */
 export async function getLocation(
   locationid: string,
   depth = 2,
-  useNewTables = false,
   fields?: FieldsParam
 ): Promise<ColdFusionLocation | null> {
   const stalling = await prisma.fietsenstallingen.findFirst({
@@ -1158,43 +1156,7 @@ export async function getLocation(
   });
   if (!stalling?.StallingsID) return null;
   const sections = await getSections(locationid, depth);
-  let ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
-  if (useNewTables && stalling.ID) {
-    const openCounts = await prisma.new_transacties.groupBy({
-      by: ["SectieID"],
-      where: {
-        FietsenstallingID: stalling.ID,
-        Date_checkout: null,
-      },
-      _count: { ID: true },
-    });
-    const bySection = new Map<string, number>();
-    let totalOccupied = 0;
-    for (const r of openCounts) {
-      if (r.SectieID) {
-        bySection.set(r.SectieID, r._count.ID);
-        totalOccupied += r._count.ID;
-      }
-    }
-    const capacityForFree = ocf.includeCapacity ? ocf.capacity : ocf.free + ocf.occupied;
-    const free = Math.max(0, capacityForFree - totalOccupied);
-    ocf = { occupied: totalOccupied, capacity: ocf.capacity, free, includeCapacity: ocf.includeCapacity };
-    const loc = buildColdFusionLocation(
-      stalling as LocationRow,
-      sections as ColdFusionSection[],
-      ocf,
-      depth >= 2
-    );
-    if (loc.sections) {
-      for (const s of loc.sections) {
-        const occ = s.sectionid ? bySection.get(s.sectionid) : undefined;
-        if (occ != null) s.occupation = occ;
-      }
-    }
-    loc.occupied = totalOccupied;
-    loc.free = free;
-    return filterLocation(loc, fields, depth);
-  }
+  const ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
   const built = buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],

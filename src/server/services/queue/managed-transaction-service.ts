@@ -43,7 +43,6 @@ export type PutManagedTransactionInput = {
   bikeparkID: string;
   sectionID: string;
   managed: ManagedTransactionInput;
-  useNewTables: boolean;
 };
 
 function parseDate(val: string | Date | null | undefined): Date {
@@ -121,7 +120,7 @@ export async function putManagedTransaction(
     }
   }
 
-  const transactiesModel = input.useNewTables ? tx.new_transacties : tx.transacties;
+  const transactiesModel = tx.transacties;
   const externalTransactionID = input.managed.externaltransactionid.trim();
   const checkindate = parseDate(input.managed.checkindate);
   const hasCheckout =

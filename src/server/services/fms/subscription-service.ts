@@ -74,8 +74,7 @@ export async function addSubscription(
       prisma,
       input.passID,
       bikepark.SiteID,
-      pastype,
-      false
+      pastype
     );
     accountID = bikepass.AccountID ?? undefined;
     bikepassID = bikepass.ID;

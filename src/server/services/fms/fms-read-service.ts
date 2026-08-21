@@ -129,8 +129,7 @@ export async function getBikes(bikeparkID: string): Promise<BikeOutput[]> {
  */
 export async function getBikeUpdates(
   bikeparkID: string,
-  fromDate: Date,
-  useNewTables = false
+  fromDate: Date
 ): Promise<BikeUpdateOutput[]> {
   const bikepark = await getBikeparkByExternalID(bikeparkID);
   if (!bikepark?.ZipID || !bikepark?.SiteID) return [];
@@ -141,10 +140,7 @@ export async function getBikeUpdates(
 
   const zipPrefix = bikepark.ZipID + "%";
 
-  const transactiesModel = useNewTables ? prisma.new_transacties : prisma.transacties;
-  const accountsPasidsModel = useNewTables ? prisma.new_accounts_pasids : prisma.accounts_pasids;
-
-  const rows = await transactiesModel.findMany({
+  const rows = await prisma.transacties.findMany({
     where: {
       dateModified: { gte: from },
       FietsenstallingID: { startsWith: zipPrefix },
@@ -156,7 +152,7 @@ export async function getBikeUpdates(
 
   const pasIds = [...new Set(rows.map((r) => r.PasID))];
   const [pasids, gemeenteAccountIds] = await Promise.all([
-    accountsPasidsModel.findMany({
+    prisma.accounts_pasids.findMany({
       where: { PasID: { in: pasIds }, SiteID: bikepark.SiteID },
       select: { PasID: true, AccountID: true, RFID: true, RFIDBike: true, barcodeFiets: true },
     }),

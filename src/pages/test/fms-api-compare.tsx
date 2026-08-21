@@ -325,29 +325,46 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
   return appendV3QueryParams(url, paramValues.depth ?? "3", endpoint.id);
 }
 
+function v4CitycodesBase(baseNew: string, citycode?: string): string {
+  const root = `${baseNew}/api/fms/v4/citycodes`;
+  return citycode ? `${root}/${citycode}` : root;
+}
+
 function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, baseNew: string): string {
-  const base = "/api/fms";
   let url: string;
   if (endpoint.id.startsWith("v2-")) {
-    const method = endpoint.path.split("/").pop() ?? "";
-    url = `${baseNew}${base}/v2/${method}`;
-    if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
-      url += `/${paramValues.bikeparkID}`;
-    }
-    if (endpoint.params.includes("sectionid") && paramValues.sectionid) {
-      url += `/${paramValues.sectionid}`;
-    }
-    if (endpoint.params.includes("placeid") && paramValues.placeid) {
-      url += `/${paramValues.placeid}`;
-    }
-    if (endpoint.id === "v2-getJsonBikeUpdates" && paramValues.fromDate) {
-      url += `${url.includes("?") ? "&" : "?"}fromDate=${encodeURIComponent(paramValues.fromDate)}`;
+    const citycode = paramValues.citycode;
+    const locationid = paramValues.bikeparkID || paramValues.locationid;
+    if (endpoint.id === "v2-getServerTime") url = `${baseNew}/api/fms/v4/servertime`;
+    else if (endpoint.id === "v2-getJsonBikeTypes") url = `${baseNew}/api/fms/v4/biketypes`;
+    else if (endpoint.id === "v2-getJsonPaymentTypes") url = `${baseNew}/api/fms/v4/paymenttypes`;
+    else if (!citycode || !locationid) url = "";
+    else if (endpoint.id === "v2-getJsonSubscriptionTypes") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/subscriptiontypes`;
+    } else if (endpoint.id === "v2-getJsonSectors") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/sections`;
+    } else if (endpoint.id === "v2-getJsonBikeUpdates") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/bikeupdates`;
+      if (paramValues.fromDate) {
+        url += `?from=${encodeURIComponent(paramValues.fromDate)}`;
+      }
+    } else if (endpoint.id === "v2-getJsonSubscriptors") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/subscriptions`;
+    } else if (
+      endpoint.id === "v2-getLockerInfo" &&
+      paramValues.sectionid &&
+      paramValues.placeid
+    ) {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/sections/${paramValues.sectionid}/places/${paramValues.placeid}`;
+    } else {
+      // No v4 twin (e.g. getJsonClientTypes, getJsonBikes).
+      url = "";
     }
   } else if (endpoint.id.startsWith("v3-")) {
-    if (endpoint.id === "v3-citycodes") url = `${baseNew}${base}/v3/citycodes`;
-    else if (!paramValues.citycode) url = `${baseNew}${base}/v3/citycodes`;
+    if (endpoint.id === "v3-citycodes") url = v4CitycodesBase(baseNew);
+    else if (!paramValues.citycode) url = v4CitycodesBase(baseNew);
     else {
-      let p = `${baseNew}${base}/v3/citycodes/${paramValues.citycode}`;
+      let p = v4CitycodesBase(baseNew, paramValues.citycode);
       if (endpoint.id === "v3-citycode") url = p;
       else if (endpoint.id === "v3-locations") url = `${p}/locations`;
       else if (endpoint.id === "v3-locationscsv") url = `${p}/locationscsv`;
@@ -2637,8 +2654,8 @@ const FmsApiComparePage: React.FC = () => {
                   dynamisch: opnieuw testen na korte tijd geeft vaak identieke resultaten zodra caches verlopen.
                 </p>
                 <p>
-                  Zie <code className="bg-gray-100 px-1 rounded">docs/analyse-motorblok/API_PORTING_PLAN.md</code> §14
-                  voor meer details.
+                  Zie <code className="bg-gray-100 px-1 rounded">docs/analyse-api/fms-write-paths.md</code> voor het
+                  huidige write-pad (v4 Next.js vs v2/v3 ColdFusion).
                 </p>
               </div>
             </section>

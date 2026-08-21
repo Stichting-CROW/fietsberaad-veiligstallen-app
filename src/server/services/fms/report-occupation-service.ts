@@ -1,10 +1,10 @@
 /**
  * reportOccupationData / reportJsonOccupationData service.
- * Writes Lumiguide (or external) occupation data to bezettingsdata_tmp and fietsenstalling_sectie.Bezetting.
- * For testgemeente, a DB trigger mirrors bezettingsdata_tmp → new_bezettingsdata_tmp.
- * updateTableBezettingsdata (or update-bezettingsdata) later copies tmp → bezettingsdata.
+ * Writes Lumiguide (or external) occupation data to new_bezettingsdata_tmp
+ * (Next.js input queue) and fietsenstalling_sectie.Bezetting.
+ * ColdFusion keeps bezettingsdata_tmp. Next.js rollup copies new_* → bezettingsdata.
  *
- * Column definitions: docs/analyse-motorblok/QUEUE_PROCESSOR_PORTING_PLAN.md Appendix L.
+ * Write path: docs/analyse-api/fms-write-paths.md.
  */
 
 import { prisma } from "~/server/db";
@@ -32,8 +32,7 @@ function roundToIntervalStart(ts: Date, intervalMinutes: number): Date {
 }
 
 /**
- * Report occupation data for a section. Writes to bezettingsdata_tmp and fietsenstalling_sectie.Bezetting.
- * For testgemeente stallings, a trigger mirrors to new_bezettingsdata_tmp.
+ * Report occupation data for a section. Writes to new_bezettingsdata_tmp and fietsenstalling_sectie.Bezetting.
  */
 export async function reportOccupationData(
   bikeparkID: string,
@@ -82,7 +81,7 @@ export async function reportOccupationData(
     rawData: payload.rawData ? payload.rawData.substring(0, 65535) : undefined,
   };
 
-  const tmpRow = await prisma.bezettingsdata_tmp.upsert({
+  const tmpRow = await prisma.new_bezettingsdata_tmp.upsert({
     where: {
       timestamp_interval_source_bikeparkID_sectionID: {
         timestamp,

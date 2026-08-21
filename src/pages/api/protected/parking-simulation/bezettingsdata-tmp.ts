@@ -53,27 +53,21 @@ export default async function handler(
     const pageSize = Math.min(parseInt((req.query.pageSize as string)) || 100, 500);
     const bikeparkID = req.query.bikeparkID as string | undefined;
     const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
-
     const where = bikeparkID ? { bikeparkID } : {};
-
+    const query = {
+      where,
+      orderBy: { dateModified: "desc" as const },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    };
     const [total, records] = useNewTables
       ? await Promise.all([
           prisma.new_bezettingsdata_tmp.count({ where }),
-          prisma.new_bezettingsdata_tmp.findMany({
-            where,
-            orderBy: { dateModified: "desc" },
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-          }),
+          prisma.new_bezettingsdata_tmp.findMany(query),
         ])
       : await Promise.all([
           prisma.bezettingsdata_tmp.count({ where }),
-          prisma.bezettingsdata_tmp.findMany({
-            where,
-            orderBy: { dateModified: "desc" },
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-          }),
+          prisma.bezettingsdata_tmp.findMany(query),
         ]);
 
     const data = records.map((r) => ({

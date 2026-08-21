@@ -34,16 +34,6 @@ type RunResponse = {
   message?: string;
   tier?: string;
   scope?: { siteID: string; bikeparkID: string; sectionID: string; stallingLabel: string };
-  lockerPlace?: {
-    bikeparkID: string;
-    sectionID: string;
-    stallingExists: boolean;
-    sectionExists: boolean;
-    plekCount: number;
-    placeID: string;
-    ready: boolean;
-  };
-  lockerConfigurationWarning?: string | null;
   results?: ScenarioRunResult[];
   passed?: number;
   failed?: number;
@@ -58,15 +48,15 @@ const TIER_META: Record<
   A: {
     title: "Tier A — queue processor golden tests",
     intro:
-      "Gedragstests via wachtrij-service (useNewTables) → processQueues → new_* tabellen. Prefix WTEST_. Productietabellen worden niet aangeraakt.",
+      "Gedragstests via wachtrij-service (new_wachtrij_*) → processQueues → productietabellen (testgemeente). Prefix WTEST_.",
     listUrl: "/api/protected/fms-write-tests",
     runUrl: "/api/protected/fms-write-tests",
-    aiHint: "Scenario speelt af via wachtrij-service (useNewTables) → processQueues → new_* tabellen.",
+    aiHint: "Scenario speelt af via wachtrij-service (new_wachtrij_*) → processQueues → productietabellen.",
   },
   B: {
     title: "Tier B — HTTP ingress write tests",
     intro:
-      "Roept echte /api/fms/v2 en /api/fms/v3 routes aan met Basic Auth (FMS_TEST_*). Wachtrij-methodes gebruiken ?target=new; overige writes op testgemeente (9933_003 voor fietskluizen). Prefix WTEST_API_. Vereist ENABLE_WRITE_API=true.",
+      "Roept echte /api/fms/v4 routes aan met Basic Auth (FMS_TEST_*). Writes gaan naar new_wachtrij_* / new_bezettingsdata_tmp en daarna productietabellen (testgemeente). Prefix WTEST_API_. Vereist ENABLE_WRITE_API=true.",
     listUrl: "/api/protected/fms-api-write-tests",
     runUrl: "/api/protected/fms-api-write-tests",
     aiHint: "Scenario roept HTTP FMS-endpoints aan en controleert wachtrij- of DB-side-effect.",
@@ -86,8 +76,6 @@ const FmsWriteTestsPage: React.FC = () => {
   const [scope, setScope] = useState<RunResponse["scope"] | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lockerWarning, setLockerWarning] = useState<string | null>(null);
-  const [lockerPlace, setLockerPlace] = useState<RunResponse["lockerPlace"] | null>(null);
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -95,16 +83,10 @@ const FmsWriteTestsPage: React.FC = () => {
     setResults({});
     setScope(null);
     setError(null);
-    setLockerWarning(null);
-    setLockerPlace(null);
     fetch(TIER_META[tier].listUrl)
       .then((r) => r.json())
       .then((d: RunResponse & { scenarios?: ScenarioInfo[] }) => {
         setScenarios(d.scenarios ?? []);
-        if (tier === "B") {
-          setLockerWarning(d.lockerConfigurationWarning ?? null);
-          setLockerPlace(d.lockerPlace ?? null);
-        }
       })
       .catch(() => setError("Kon scenario's niet laden"));
   }, [hasAccess, tier]);
@@ -124,10 +106,6 @@ const FmsWriteTestsPage: React.FC = () => {
         return;
       }
       if (data.scope) setScope(data.scope);
-      if (data.lockerPlace) setLockerPlace(data.lockerPlace);
-      if (data.lockerConfigurationWarning !== undefined) {
-        setLockerWarning(data.lockerConfigurationWarning);
-      }
       setResults((prev) => {
         const next = { ...prev };
         for (const r of data.results ?? []) next[r.id] = r;
@@ -202,19 +180,6 @@ const FmsWriteTestsPage: React.FC = () => {
         <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-4 text-sm text-gray-700">
           Scope: stalling <strong>{scope.stallingLabel}</strong> (bikeparkID{" "}
           <code>{scope.bikeparkID}</code>, sectie <code>{scope.sectionID}</code>)
-        </div>
-      )}
-
-      {lockerWarning && tier === "B" && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded p-3 mb-4 text-sm">
-          <strong>Kluistests (9933_003):</strong> {lockerWarning}
-          {lockerPlace && (
-            <div className="mt-2 text-xs text-amber-800">
-              Status: stalling {lockerPlace.stallingExists ? "aanwezig" : "ontbreekt"}, sectie{" "}
-              {lockerPlace.sectionExists ? "aanwezig" : "ontbreekt"}, kluisplekken:{" "}
-              {lockerPlace.plekCount}
-            </div>
-          )}
         </div>
       )}
 

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FMS REST API v4",
-    "description": "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |\n| `dataprovider.type2` | Afgeronde transacties + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: het synchroniseren van check-ins/check-outs vereist\n  `operator` of `dataprovider.type1`; bezettingsdata (`occupation`) vereist\n  `operator` of `dataprovider.type2`.\n\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out-events (`transactions`) en `completedtransactions` zijn niet beschikbaar op v4-paden; gebruik v3 voor bestaande integraties.\n",
+    "description": "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |\n| `dataprovider.type2` | `managedtransactions` + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions` en fietskluizen-writes geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n",
     "version": "4.0.0"
   },
   "servers": [
@@ -339,6 +339,72 @@
       }
     },
     "/v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}/balance": {
+      "post": {
+        "summary": "Saldo opwaarderen",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number"
+                  },
+                  "paymenttypeid": {
+                    "type": "integer"
+                  },
+                  "transactiondate": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "In wachtrij gezet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "summary": "Saldo voor één ID-middel (operator)",
         "tags": [
@@ -460,8 +526,8 @@
         }
       },
       "post": {
-        "summary": "Abonnement toevoegen (operator)",
-        "description": "Vereist dat ENABLE_WRITE_API aanstaat, naast Basic Auth met operator-permit.",
+        "summary": "Abonnement toevoegen",
+        "description": "Vereist ENABLE_WRITE_API en Basic Auth (operator of dataprovider.type2).",
         "tags": [
           "V4 Write"
         ],
@@ -482,6 +548,62 @@
                 "properties": {
                   "subscription": {
                     "$ref": "#/components/schemas/V3SubscriptionWrite"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultaat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/subscriptions/{subscriptionid}": {
+      "post": {
+        "summary": "Pas koppelen aan bestaand abonnement",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "subscriptionid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "idcode"
+                ],
+                "properties": {
+                  "idcode": {
+                    "type": "string"
+                  },
+                  "idtype": {
+                    "type": "integer"
                   }
                 }
               }
@@ -544,6 +666,102 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/completedtransactions": {
+      "post": {
+        "summary": "Verwijderd in v4 — gebruik managedtransactions",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Niet beschikbaar op v4. Gebruik managedtransactions, of v3 voor legacy."
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/transactions": {
+      "post": {
+        "summary": "Verwijderd in v4 — gebruik managedtransactions",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Niet beschikbaar op v4. Gebruik managedtransactions, of v3 voor legacy."
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/completedtransactions": {
+      "post": {
+        "summary": "Verwijderd in v4 — gebruik managedtransactions",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Niet beschikbaar op v4. Gebruik managedtransactions, of v3 voor legacy."
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/transactions": {
+      "post": {
+        "summary": "Verwijderd in v4 — gebruik managedtransactions",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Placeid"
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "Niet beschikbaar op v4. Gebruik managedtransactions, of v3 voor legacy."
           }
         }
       }
@@ -666,6 +884,69 @@
                         "type": "integer"
                       }
                     }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}/bike": {
+      "post": {
+        "summary": "Fiets koppelen aan pas",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "bikeid"
+                ],
+                "properties": {
+                  "bikeid": {
+                    "type": "string"
+                  },
+                  "biketypeid": {
+                    "type": "integer"
                   }
                 }
               }
@@ -841,7 +1122,7 @@
         }
       },
       "put": {
-        "summary": "Plek bijwerken (url, status, credentials)",
+        "summary": "Verwijderd in v4 — fietskluizen (updatePlace / updateLocker)",
         "tags": [
           "V4 Write"
         ],
@@ -859,34 +1140,14 @@
             "$ref": "#/components/parameters/V4Placeid"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "properties": {
-                    "$ref": "#/components/schemas/V3PlaceProperties"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
+          "410": {
+            "description": "Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host."
           }
         }
       },
       "post": {
-        "summary": "Plek-log (updatePost)",
+        "summary": "Verwijderd in v4 — fietskluizen (updatePost)",
         "tags": [
           "V4 Write"
         ],
@@ -904,36 +1165,16 @@
             "$ref": "#/components/parameters/V4Placeid"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "properties": {
-                    "$ref": "#/components/schemas/V3LogProperties"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
+          "410": {
+            "description": "Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host."
           }
         }
       }
     },
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/logs": {
       "post": {
-        "summary": "Plek-log schrijven (fietskluizen)",
+        "summary": "Verwijderd in v4 — fietskluizen (logs)",
         "tags": [
           "V4 Write"
         ],
@@ -951,36 +1192,16 @@
             "$ref": "#/components/parameters/V4Placeid"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "properties": {
-                    "$ref": "#/components/schemas/V3LogProperties"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
+          "410": {
+            "description": "Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host."
           }
         }
       }
     },
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/actions": {
       "post": {
-        "summary": "Plek-actie schrijven (fietskluizen)",
+        "summary": "Verwijderd in v4 — fietskluizen (actions)",
         "tags": [
           "V4 Write"
         ],
@@ -998,36 +1219,16 @@
             "$ref": "#/components/parameters/V4Placeid"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "properties": {
-                    "$ref": "#/components/schemas/V3LogProperties"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
+          "410": {
+            "description": "Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host."
           }
         }
       }
     },
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/subscriptions": {
       "post": {
-        "summary": "Abonnement op plek",
+        "summary": "Verwijderd in v4 — abonnement op kluisplek",
         "tags": [
           "V4 Write"
         ],
@@ -1045,29 +1246,9 @@
             "$ref": "#/components/parameters/V4Placeid"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "subscription": {
-                    "$ref": "#/components/schemas/V3SubscriptionWrite"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
+          "410": {
+            "description": "Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host."
           }
         }
       }

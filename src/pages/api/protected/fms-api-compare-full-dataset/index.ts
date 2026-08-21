@@ -121,17 +121,18 @@ function buildNewUrlV2Protected(
   sectionid: string | undefined,
   placeid: string | undefined,
   fromDate: string,
-  newBase: string
+  newBase: string,
+  citycode: string
 ): string {
   const base = newBase.replace(/\/$/, "");
-  if (endpointId === "v2-getJsonSectors") return `${base}/api/fms/v2/getJsonSectors/${bikeparkID}`;
-  if (endpointId === "v2-getJsonBikes") return `${base}/api/fms/v2/getJsonBikes/${bikeparkID}`;
+  const loc = `${base}/api/fms/v4/citycodes/${citycode}/locations/${bikeparkID}`;
+  if (endpointId === "v2-getJsonSectors") return `${loc}/sections`;
   if (endpointId === "v2-getJsonBikeUpdates") {
-    return `${base}/api/fms/v2/getJsonBikeUpdates/${bikeparkID}?fromDate=${encodeURIComponent(fromDate)}`;
+    return `${loc}/bikeupdates?from=${encodeURIComponent(fromDate)}`;
   }
-  if (endpointId === "v2-getJsonSubscriptors") return `${base}/api/fms/v2/getJsonSubscriptors/${bikeparkID}`;
+  if (endpointId === "v2-getJsonSubscriptors") return `${loc}/subscriptions`;
   if (endpointId === "v2-getLockerInfo" && sectionid && placeid) {
-    return `${base}/api/fms/v2/getLockerInfo/${bikeparkID}/${sectionid}/${placeid}`;
+    return `${loc}/sections/${sectionid}/places/${placeid}`;
   }
   return "";
 }
@@ -171,17 +172,19 @@ function buildNewUrl(
 ): string {
   const base = newBase.replace(/\/$/, "");
   let url: string;
-  if (endpointId === "v3-citycode") url = `${base}/api/fms/v3/citycodes/${citycode}`;
-  else if (endpointId === "v3-locations") url = `${base}/api/fms/v3/citycodes/${citycode}/locations`;
-  else if (endpointId === "v3-location" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}`;
-  else if (endpointId === "v3-sections" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/sections`;
-  else if (endpointId === "v3-section" && locationid && sectionid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}`;
-  else if (endpointId === "v3-places" && locationid && sectionid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}/places`;
-  else if (endpointId === "v3-subscriptiontypes" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
-  else if (endpointId === "v3-balances" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/balances`;
-  else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
-  else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/api/fms/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
-  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) url = `${base}/api/fms/v2/getJsonSubscriptionTypes/${locationid}`;
+  if (endpointId === "v3-citycode") url = `${base}/api/fms/v4/citycodes/${citycode}`;
+  else if (endpointId === "v3-locations") url = `${base}/api/fms/v4/citycodes/${citycode}/locations`;
+  else if (endpointId === "v3-location" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}`;
+  else if (endpointId === "v3-sections" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/sections`;
+  else if (endpointId === "v3-section" && locationid && sectionid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}`;
+  else if (endpointId === "v3-places" && locationid && sectionid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/sections/${sectionid}/places`;
+  else if (endpointId === "v3-subscriptiontypes" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+  else if (endpointId === "v3-balances" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/balances`;
+  else if (endpointId === "v3-subscriptions" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/subscriptions`;
+  else if (endpointId === "v3-bikeupdates" && locationid) url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
+  else if (endpointId === "v2-getJsonSubscriptionTypes" && locationid) {
+    url = `${base}/api/fms/v4/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+  }
   else return "";
   return appendDepthParam(url, depth, endpointId);
 }
@@ -207,7 +210,6 @@ const ENDPOINT_LABELS: Record<string, string> = {
 
 const V2_PROTECTED_READS = [
   "v2-getJsonSectors",
-  "v2-getJsonBikes",
   "v2-getJsonBikeUpdates",
   "v2-getJsonSubscriptors",
 ] as const;
@@ -370,7 +372,8 @@ export default async function handle(
       sectionid,
       placeid,
       V2_BIKE_UPDATES_FROM,
-      newBase
+      newBase,
+      TESTGEMEENTE_CITYCODE
     );
     if (!oldUrl || !newUrl) return;
 

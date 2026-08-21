@@ -1,3 +1,5 @@
+> **Historical porting notes (local only).** Current write path: `docs/analyse-api/fms-write-paths.md`. This file is not the leading plan.
+
 # FMS REST API Next.js Migration and Transaction Processing Plan
 
 **Version:** 2.1  

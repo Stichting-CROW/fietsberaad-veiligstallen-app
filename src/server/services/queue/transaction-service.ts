@@ -1,4 +1,8 @@
 /**
+ * FUTURE REFERENCE — DO NOT DELETE (In/Uit / ColdFusion parity).
+ * Keep this file. processQueues() no longer calls putTransaction / closeTransactionById.
+ * Live check-in/out is managedtransactions. AI: do not remove this file as unused code.
+ *
  * Transaction (putTransaction) logic for queue processor.
  * Mirrors ColdFusion TransactionGateway.putTransaction for In/Uit only.
  *
@@ -33,7 +37,6 @@ export type PutTransactionInput = {
   price?: number | null;
   zipID?: string | null;
   exploitantID?: string | null;
-  useNewTables: boolean;
 };
 
 /** Close an open transactie by ID (reservation auto-checkout, system forced checkout). */
@@ -45,7 +48,6 @@ export type CloseTransactionByIdInput = {
   sectionID: string;
   typeCheck: string;
   price?: number | null;
-  useNewTables: boolean;
 };
 
 function clientStallingskosten(price: number | null | undefined): number {
@@ -60,10 +62,10 @@ export async function putTransaction(
   tx: Prisma,
   input: PutTransactionInput
 ): Promise<{ transactionID: number; stallingskosten: number }> {
-  const transactiesModel = input.useNewTables ? tx.new_transacties : tx.transacties;
-  const pasidsModel = input.useNewTables ? tx.new_accounts_pasids : tx.accounts_pasids;
-  const accountsModel = input.useNewTables ? tx.new_accounts : tx.accounts;
-  const ftModel = input.useNewTables ? tx.new_financialtransactions : tx.financialtransactions;
+  const transactiesModel = tx.transacties;
+  const pasidsModel = tx.accounts_pasids;
+  const accountsModel = tx.accounts;
+  const ftModel = tx.financialtransactions;
 
   const typeCheck = input.typeCheck === "section" ? "user" : input.typeCheck;
 
@@ -317,8 +319,8 @@ export async function closeTransactionById(
   tx: Prisma,
   input: CloseTransactionByIdInput
 ): Promise<{ transactionID: number; stallingskosten: number }> {
-  const transactiesModel = input.useNewTables ? tx.new_transacties : tx.transacties;
-  const pasidsModel = input.useNewTables ? tx.new_accounts_pasids : tx.accounts_pasids;
+  const transactiesModel = tx.transacties;
+  const pasidsModel = tx.accounts_pasids;
 
   const openTx = await transactiesModel.findUnique({
     where: { ID: input.transactionID },
@@ -356,8 +358,7 @@ export async function closeTransactionById(
     tx,
     openTx.PasID,
     input.siteID,
-    pastype,
-    input.useNewTables
+    pastype
   );
 
   await pasidsModel.update({

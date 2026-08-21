@@ -18,6 +18,7 @@ export interface TransactieRecord {
   Type_checkin: string | null;
   Type_checkout: string | null;
   Stallingskosten: number | null;
+  ExternalTransactionID: string | null;
   dateCreated: string;
 }
 
@@ -68,8 +69,6 @@ export default async function handler(
     const bikeparkID = req.query.bikeparkID as string | undefined;
     const FietsenstallingID = req.query.FietsenstallingID as string | undefined;
     const dateCheckinFrom = req.query.dateCheckinFrom as string | undefined;
-    const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
-
     const validPageSizes = [25, 100, 1000, 10000];
     const finalPageSize = validPageSizes.includes(pageSize) ? pageSize : 25;
 
@@ -96,32 +95,7 @@ export default async function handler(
       if (!isNaN(from.getTime())) where.Date_checkin = { gte: from };
     }
 
-    const [total, records] = useNewTables
-      ? await Promise.all([
-          prisma.new_transacties.count({ where }),
-          prisma.new_transacties.findMany({
-            where,
-            select: {
-              ID: true,
-              FietsenstallingID: true,
-              SectieID: true,
-              PasID: true,
-              BarcodeFiets_in: true,
-              BarcodeFiets_uit: true,
-              Date_checkin: true,
-              Date_checkout: true,
-              Stallingsduur: true,
-              Type_checkin: true,
-              Type_checkout: true,
-              Stallingskosten: true,
-              dateCreated: true,
-            },
-            orderBy: { dateCreated: "desc" },
-            skip: (page - 1) * finalPageSize,
-            take: finalPageSize,
-          }),
-        ])
-      : await Promise.all([
+    const [total, records] = await Promise.all([
           prisma.transacties.count({ where }),
           prisma.transacties.findMany({
             where,
@@ -138,6 +112,7 @@ export default async function handler(
               Type_checkin: true,
               Type_checkout: true,
               Stallingskosten: true,
+              ExternalTransactionID: true,
               dateCreated: true,
             },
             orderBy: { dateCreated: "desc" },
@@ -162,6 +137,7 @@ export default async function handler(
         Type_checkin: r.Type_checkin,
         Type_checkout: r.Type_checkout,
         Stallingskosten: r.Stallingskosten != null ? Number(r.Stallingskosten) : null,
+        ExternalTransactionID: r.ExternalTransactionID,
         dateCreated: r.dateCreated.toISOString(),
       })),
       pagination: {

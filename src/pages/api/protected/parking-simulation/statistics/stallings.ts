@@ -8,11 +8,10 @@ import { resolveExistingTableNames } from "~/server/utils/mysql-schema-tables";
 
 /** Optional mirror tables used by parking simulation / FMS test queue (may be absent locally). */
 const NEW_STATS_UNION_TABLES = [
-  "new_wachtrij_transacties",
   "new_wachtrij_pasids",
   "new_wachtrij_betalingen",
   "new_wachtrij_sync",
-  "new_bezettingsdata_tmp",
+  "new_wachtrij_managed_transacties",
 ] as const;
 
 export type StallingListItem = {

@@ -131,7 +131,7 @@ const AbonnementenTab: React.FC<Props> = ({ stallings, onMessage }) => {
     <div className="bg-white border rounded-lg p-6 space-y-8">
       <h3 className="text-lg font-bold">Abonnementen</h3>
       <p className="text-sm text-gray-600">
-        Voeg abonnementen toe en koppel sleutelhangers. Gebruik getJsonSubscriptors of de database om bestaande abonnement-IDs te vinden.
+        Voeg abonnementen toe en koppel sleutelhangers via FMS v4. Gebruik de database om bestaande abonnement-IDs te vinden.
       </p>
 
       <div>

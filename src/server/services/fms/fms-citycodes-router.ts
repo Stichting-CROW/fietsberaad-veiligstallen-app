@@ -1,5 +1,7 @@
 /**
- * V3 citycodes API. Routes: /v3/citycodes, /v3/citycodes/{citycode}, /v3/citycodes/{citycode}/locations, etc.
+ * Shared citycodes REST router used by Next.js FMS v4
+ * (`/api/fms/v4/citycodes/...`). Legacy In/Uit and completedtransaction writes
+ * are blocked with 410 in the v4 page handler before this router runs.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as v3Service from "~/server/services/fms/fms-v3-service";
@@ -193,7 +195,7 @@ async function handleGet(
       return;
     }
 
-    const location = await v3Service.getLocation(locationid, depth, false, fields);
+    const location = await v3Service.getLocation(locationid, depth, fields);
     if (!location) {
       res.status(404).json({ message: "Location not found" });
       return;
@@ -248,9 +250,24 @@ async function handleWrite(
     // POST …/locations/{id}/subscriptions
     if (path[3] === "subscriptions" && !path[4]) {
       if (method !== "POST") return methodNotAllowed(res, method);
-      if (!(await requireV3Auth(req, res, locationid, "operator"))) return;
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
       const subscription = (body.subscription ?? body) as Record<string, unknown>;
       const result = await v3Write.addSubscriptionV3(citycode, locationid, subscription);
+      res.status(200).json(result);
+      return;
+    }
+
+    // POST …/locations/{id}/subscriptions/{subscriptionid} (koppel pas)
+    if (path[3] === "subscriptions" && path[4] && !path[5]) {
+      if (method !== "POST") return methodNotAllowed(res, method);
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      const subscriptionid = parseInt(path[4], 10);
+      if (Number.isNaN(subscriptionid)) {
+        res.status(400).json({ message: "Invalid subscriptionid", status: 0 });
+        return;
+      }
+      const payload = (body.subscription ?? body) as Record<string, unknown>;
+      const result = await v3Write.subscribeV3(citycode, locationid, subscriptionid, payload);
       res.status(200).json(result);
       return;
     }
@@ -278,8 +295,38 @@ async function handleWrite(
       return;
     }
 
+    // POST …/locations/{id}/idcodes/{idtype}/{idcode}/balance
+    if (path[3] === "idcodes" && path[4] != null && path[5] != null && path[6] === "balance" && !path[7]) {
+      if (method !== "POST") return methodNotAllowed(res, method);
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      const idtype = parseInt(path[4], 10);
+      if (Number.isNaN(idtype)) {
+        res.status(400).json({ message: "Invalid idtype", status: 0 });
+        return;
+      }
+      const payload = (body.balance ?? body) as Record<string, unknown>;
+      const result = await v3Write.addSaldoV3(citycode, locationid, idtype, path[5], payload);
+      res.status(200).json(result);
+      return;
+    }
+
+    // POST …/locations/{id}/idcodes/{idtype}/{idcode}/bike
+    if (path[3] === "idcodes" && path[4] != null && path[5] != null && path[6] === "bike" && !path[7]) {
+      if (method !== "POST") return methodNotAllowed(res, method);
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      const idtype = parseInt(path[4], 10);
+      if (Number.isNaN(idtype)) {
+        res.status(400).json({ message: "Invalid idtype", status: 0 });
+        return;
+      }
+      const payload = (body.bike ?? body) as Record<string, unknown>;
+      const result = await v3Write.saveBikeV3(citycode, locationid, idtype, path[5], payload);
+      res.status(200).json(result);
+      return;
+    }
+
     // POST …/locations/{id}/idcodes/{idtype}/{idcode} (koppelpas)
-    if (path[3] === "idcodes" && path[4] != null && path[5] != null) {
+    if (path[3] === "idcodes" && path[4] != null && path[5] != null && !path[6]) {
       if (method !== "POST") return methodNotAllowed(res, method);
       if (!(await requireV3Auth(req, res, locationid, "operator"))) return;
       const idtype = parseInt(path[4], 10);
@@ -311,7 +358,7 @@ async function handleWrite(
         return;
       }
       if (data.bikes != null) {
-        if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1"))) return;
+        if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1,dataprovider.type2"))) return;
       }
       if (data.occupation != null) {
         if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
@@ -321,19 +368,15 @@ async function handleWrite(
       return;
     }
 
-    // POST …/sections/{sec}/transactions
-    if (path[5] === "transactions" && !path[6]) {
-      if (method !== "POST") return methodNotAllowed(res, method);
-      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1"))) return;
-      const transaction = (body.transaction ?? body) as Record<string, unknown>;
-      const result = await v3Write.uploadTransactionV3(
-        locationid,
-        sectionid,
-        transaction
-      );
-      res.status(200).json(result);
-      return;
-    }
+    // KEEP FOR REFERENCE — In/Uit HTTP is 410 on v4 (see v4/citycodes handler).
+    // if (path[5] === "transactions" && !path[6]) {
+    //   if (method !== "POST") return methodNotAllowed(res, method);
+    //   if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1"))) return;
+    //   const transaction = (body.transaction ?? body) as Record<string, unknown>;
+    //   const result = await v3Write.uploadTransactionV3(locationid, sectionid, transaction);
+    //   res.status(200).json(result);
+    //   return;
+    // }
 
     // POST …/sections/{sec}/managedtransactions (single or batch)
     if (path[5] === "managedtransactions" && !path[6]) {
@@ -396,21 +439,19 @@ async function handleWrite(
       return;
     }
 
-    // POST …/places/{place}/transactions
-    if (path[7] === "transactions") {
-      if (method !== "POST") return methodNotAllowed(res, method);
-      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1"))) return;
-      const transaction = (body.transaction ?? body) as Record<string, unknown>;
-      const placeIdNum = parseInt(placeid, 10);
-      const result = await v3Write.uploadTransactionV3(
-        locationid,
-        sectionid,
-        transaction,
-        Number.isNaN(placeIdNum) ? undefined : placeIdNum
-      );
-      res.status(200).json(result);
-      return;
-    }
+    // KEEP FOR REFERENCE — In/Uit HTTP is 410 on v4 (see v4/citycodes handler).
+    // if (path[7] === "transactions") {
+    //   if (method !== "POST") return methodNotAllowed(res, method);
+    //   if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1"))) return;
+    //   const transaction = (body.transaction ?? body) as Record<string, unknown>;
+    //   const placeIdNum = parseInt(placeid, 10);
+    //   const result = await v3Write.uploadTransactionV3(
+    //     locationid, sectionid, transaction,
+    //     Number.isNaN(placeIdNum) ? undefined : placeIdNum
+    //   );
+    //   res.status(200).json(result);
+    //   return;
+    // }
 
     // POST …/places/{place}/logs
     if (path[7] === "logs") {
@@ -487,7 +528,7 @@ async function handleWrite(
     res.status(404).json({ message: "Not found" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal error";
-    console.error("FMS v3 write error:", err);
+    console.error("FMS citycodes write error:", err);
     res.status(400).json({ message, status: 0 });
   }
 }
@@ -518,7 +559,7 @@ export default async function handle(
 
     res.status(405).json({ message: "Method not allowed", status: 0 });
   } catch (error) {
-    console.error("FMS v3 error:", error);
+    console.error("FMS citycodes error:", error);
     res.status(500).json({
       message: error instanceof Error ? error.message : "Internal error",
     });

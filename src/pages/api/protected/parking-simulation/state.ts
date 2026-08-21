@@ -14,7 +14,7 @@ const SOURCE_FMS = "FMS";
 /**
  * Report Lumiguide occupation for a section when simulation changes assignment state.
  * Only for stallings with BronBezettingsdata != 'FMS'.
- * Writes to bezettingsdata_tmp; trigger mirrors to new_bezettingsdata_tmp for testgemeente.
+ * Writes to new_bezettingsdata_tmp.
  */
 async function reportLumiguideOccupationIfNeeded(
   simulationConfigId: string,
@@ -81,7 +81,18 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   if (req.method === "POST") {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-    const { action, bicycleId, locationid, sectionid, targetLocationid, targetSectionid, checkedIn, passID } = body;
+    const {
+      action,
+      bicycleId,
+      locationid,
+      sectionid,
+      targetLocationid,
+      targetSectionid,
+      checkedIn,
+      passID,
+      externalTransactionID,
+      checkInDate,
+    } = body;
 
     if (!bicycleId) {
       return res.status(400).json({ message: "bicycleId required" });
@@ -142,6 +153,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             sectionid: sec,
             checkedIn: checkedIn ?? false,
             passID: passID ?? null,
+            externalTransactionID: typeof externalTransactionID === "string" ? externalTransactionID : null,
+            checkInDate: typeof checkInDate === "string" && checkInDate.trim() !== "" ? new Date(checkInDate) : null,
           },
         });
       });
@@ -199,7 +212,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     .map((a) => a.bicycle!.barcode);
   const pasidsByBarcode = new Map<string, string>();
   if (checkedInBarcodes.length > 0) {
-    const pasids = await prisma.new_accounts_pasids.findMany({
+    const pasids = await prisma.accounts_pasids.findMany({
       where: { SiteID: siteID, barcodeFiets: { in: checkedInBarcodes } },
       select: { PasID: true, barcodeFiets: true },
     });
@@ -224,6 +237,9 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       sectionid: a.sectionid,
       checkedIn: a.checkedIn,
       passID: a.checkedIn ? (a.passID ?? (a.bicycle?.barcode ? pasidsByBarcode.get(a.bicycle.barcode) ?? null : null)) : null,
+      externalTransactionID: a.externalTransactionID,
+      checkInDate: a.checkInDate?.toISOString() ?? null,
+      createdAt: a.createdAt.toISOString(),
       bicycle: a.bicycle,
     })),
   });

@@ -3,6 +3,7 @@ info:
   title: FMS REST API
   description: |
     Fietsenstallingen Management Service REST API (V2 en V3).
+    Beheerde transacties voor nieuwe integraties staan op **v4** (`/api/fms/v4/...`, zie `/test/fms-api-docs-v4`).
 
     ## Toegang (authenticatie)
 

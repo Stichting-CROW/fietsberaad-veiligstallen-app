@@ -5,14 +5,14 @@
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
 import { getBikepassByPassId } from "../queue/account-service";
-import { addSubscription } from "./subscription-service";
+import { addSubscription, subscribe } from "./subscription-service";
 import { updateLocker } from "./fms-locker-service";
 import { reportOccupationData } from "./report-occupation-service";
 import {
+  addBikeToWachtrij,
   addManagedTransactionToWachtrij,
+  addSaldoToWachtrij,
   addSyncToWachtrij,
-  addTransactionToWachtrij,
-  type TransactionInput,
 } from "./wachtrij-service";
 import { validateManagedTransaction, type ManagedTransactionInput } from "../queue/managed-transaction-service";
 import { assertLocationInCity } from "./fms-v3-protected-reads";
@@ -44,23 +44,24 @@ function parseDate(val: unknown): Date {
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
 
-function mapV3Transaction(tx: Record<string, unknown>): TransactionInput {
-  const rawType = String(tx.type ?? "in").toLowerCase();
-  return {
-    type: rawType === "in" ? "in" : "out",
-    typeCheck: String(tx.typecheck ?? tx.typeCheck ?? "user"),
-    transactionDate: String(
-      tx.transactiondate ?? tx.transactionDate ?? new Date().toISOString()
-    ),
-    idcode: String(tx.idcode ?? ""),
-    idtype: Number(tx.idtype ?? 0),
-    bikeid: tx.bikeid != null ? String(tx.bikeid) : undefined,
-    price: tx.price as number | string | undefined,
-    paymenttypeid: Number(tx.paymenttypeid ?? tx.paymentTypeID ?? 1),
-    amountpaid: tx.price as number | string | undefined,
-    clienttypeid: Number(tx.clienttypeid ?? 1),
-  };
-}
+// KEEP FOR REFERENCE — used by commented-out uploadTransactionV3.
+// function mapV3Transaction(tx: Record<string, unknown>): TransactionInput {
+//   const rawType = String(tx.type ?? "in").toLowerCase();
+//   return {
+//     type: rawType === "in" ? "in" : "out",
+//     typeCheck: String(tx.typecheck ?? tx.typeCheck ?? "user"),
+//     transactionDate: String(
+//       tx.transactiondate ?? tx.transactionDate ?? new Date().toISOString()
+//     ),
+//     idcode: String(tx.idcode ?? ""),
+//     idtype: Number(tx.idtype ?? 0),
+//     bikeid: tx.bikeid != null ? String(tx.bikeid) : undefined,
+//     price: tx.price as number | string | undefined,
+//     paymenttypeid: Number(tx.paymenttypeid ?? tx.paymentTypeID ?? 1),
+//     amountpaid: tx.price as number | string | undefined,
+//     clienttypeid: Number(tx.clienttypeid ?? 1),
+//   };
+// }
 
 async function getCouncilSiteId(citycode: string): Promise<string | null> {
   const council = await prisma.contacts.findFirst({
@@ -70,29 +71,30 @@ async function getCouncilSiteId(citycode: string): Promise<string | null> {
   return council?.ID ?? null;
 }
 
-export async function uploadTransactionV3(
-  locationid: string,
-  sectionid: string,
-  transaction: Record<string, unknown>,
-  placeid?: number
-): Promise<FmsOkResult> {
-  if (!transaction.transactiondate && !transaction.transactionDate) {
-    throw new Error("Transactiondate is verplicht");
-  }
-  const tx = mapV3Transaction(transaction);
-  const result = await addTransactionToWachtrij(
-    locationid,
-    sectionid,
-    tx,
-    placeid
-  );
-  void logFmsCall(
-    "uploadTransaction",
-    locationid,
-    `${sectionid} place=${placeid ?? ""} id=${result.id}`
-  );
-  return okResult({ id: result.id });
-}
+// KEEP FOR REFERENCE — In/Uit HTTP is 410 on v4. Do not call from the public router.
+// export async function uploadTransactionV3(
+//   locationid: string,
+//   sectionid: string,
+//   transaction: Record<string, unknown>,
+//   placeid?: number
+// ): Promise<FmsOkResult> {
+//   if (!transaction.transactiondate && !transaction.transactionDate) {
+//     throw new Error("Transactiondate is verplicht");
+//   }
+//   const tx = mapV3Transaction(transaction);
+//   const result = await addTransactionToWachtrij(
+//     locationid,
+//     sectionid,
+//     tx,
+//     placeid
+//   );
+//   void logFmsCall(
+//     "uploadTransaction",
+//     locationid,
+//     `${sectionid} place=${placeid ?? ""} id=${result.id}`
+//   );
+//   return okResult({ id: result.id });
+// }
 
 function mapV3ManagedTransaction(raw: Record<string, unknown>): ManagedTransactionInput {
   return {
@@ -179,8 +181,7 @@ export function dedupeManagedTransactionsLastWins(
 export async function uploadManagedTransactionsV3(
   locationid: string,
   defaultSectionid: string,
-  managedRaws: Record<string, unknown>[],
-  opts: { useNewTables?: boolean } = {}
+  managedRaws: Record<string, unknown>[]
 ): Promise<FmsOkResult> {
   if (managedRaws.length === 0) {
     throw new Error("managedtransactions mag niet leeg zijn");
@@ -211,8 +212,7 @@ export async function uploadManagedTransactionsV3(
     const result = await addManagedTransactionToWachtrij(
       locationid,
       sectionid,
-      { ...raw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid },
-      opts
+      { ...raw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid }
     );
     ids.push(result.id);
   }
@@ -228,8 +228,7 @@ export async function uploadManagedTransactionsV3(
 export async function uploadManagedTransactionV3(
   locationid: string,
   sectionid: string,
-  managedRaw: Record<string, unknown>,
-  opts: { useNewTables?: boolean } = {}
+  managedRaw: Record<string, unknown>
 ): Promise<FmsOkResult> {
   const managed = mapV3ManagedTransaction(managedRaw);
   validateManagedTransaction(managed);
@@ -237,8 +236,7 @@ export async function uploadManagedTransactionV3(
   const result = await addManagedTransactionToWachtrij(
     locationid,
     sectionid,
-    { ...managedRaw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid },
-    opts
+    { ...managedRaw, ...managed, sectionid: managed.sectionid_checkin ?? sectionid }
   );
   void logFmsCall(
     "uploadManagedTransaction",
@@ -251,17 +249,16 @@ export async function uploadManagedTransactionV3(
 export async function uploadManagedTransactionsRequestV3(
   locationid: string,
   defaultSectionid: string,
-  body: unknown,
-  opts: { useNewTables?: boolean } = {}
+  body: unknown
 ): Promise<FmsOkResult> {
   const parsed = parseManagedTransactionsBody(body);
   if (parsed.mode === "single") {
     const sectionid = String(
       parsed.item.sectionid ?? parsed.item.sectionid_checkin ?? defaultSectionid
     );
-    return uploadManagedTransactionV3(locationid, sectionid, parsed.item, opts);
+    return uploadManagedTransactionV3(locationid, sectionid, parsed.item);
   }
-  return uploadManagedTransactionsV3(locationid, defaultSectionid, parsed.items, opts);
+  return uploadManagedTransactionsV3(locationid, defaultSectionid, parsed.items);
 }
 
 type CompletedTxInput = Record<string, unknown>;
@@ -359,6 +356,73 @@ export async function addSubscriptionV3(
     status: result.status,
     subscriptionid: result.id,
   };
+}
+
+export async function subscribeV3(
+  citycode: string,
+  locationid: string,
+  subscriptionid: number,
+  body: Record<string, unknown>
+): Promise<FmsOkResult> {
+  await assertLocationInCity(locationid, citycode);
+  const idcode = String(body.idcode ?? body.passID ?? "");
+  if (!subscriptionid || !idcode) {
+    return errorResult("subscriptionid and idcode required");
+  }
+  const result = await subscribe(locationid, { subscriptionID: subscriptionid, passID: idcode });
+  void logFmsCall("subscribe", locationid, `subscription=${subscriptionid} passID=${idcode}`);
+  return { message: result.message, status: result.status };
+}
+
+export async function addSaldoV3(
+  citycode: string,
+  locationid: string,
+  idtype: number,
+  idcode: string,
+  body: Record<string, unknown>
+): Promise<FmsOkResult> {
+  await assertLocationInCity(locationid, citycode);
+  const amount = Number(body.amount ?? body.cost ?? 0);
+  if (!idcode || !Number.isFinite(amount) || amount === 0) {
+    return errorResult("idcode and nonzero amount required");
+  }
+  const result = await addSaldoToWachtrij(locationid, {
+    passID: idcode,
+    idcode,
+    idtype,
+    amount,
+    paymentTypeID: Number(body.paymenttypeid ?? body.paymentTypeID ?? 1),
+    transactionDate: String(body.transactiondate ?? body.transactionDate ?? new Date().toISOString()),
+  });
+  void logFmsCall("addSaldo", locationid, `${idcode} amount=${amount} id=${result.id}`);
+  return okResult({ id: result.id });
+}
+
+export async function saveBikeV3(
+  citycode: string,
+  locationid: string,
+  idtype: number,
+  idcode: string,
+  body: Record<string, unknown>
+): Promise<FmsOkResult> {
+  await assertLocationInCity(locationid, citycode);
+  const barcode = String(body.bikeid ?? body.barcode ?? "");
+  if (!idcode || !barcode) {
+    return errorResult("idcode and bikeid required");
+  }
+  const result = await addBikeToWachtrij(locationid, {
+    passID: idcode,
+    barcode,
+    RFID: body.RFID != null ? String(body.RFID) : undefined,
+    RFIDBike: body.RFIDBike != null ? String(body.RFIDBike) : undefined,
+    biketypeID: body.biketypeid != null ? Number(body.biketypeid) : undefined,
+    transactionDate:
+      body.transactiondate != null || body.transactionDate != null
+        ? String(body.transactiondate ?? body.transactionDate)
+        : undefined,
+  });
+  void logFmsCall("saveBike", locationid, `${idcode} bike=${barcode} id=${result.id}`);
+  return okResult({ id: result.id });
 }
 
 export async function updatePlaceV3(
@@ -530,6 +594,7 @@ export async function setOccupationV3(
     checkins: data.checkins != null ? Number(data.checkins) : undefined,
     checkouts: data.checkouts != null ? Number(data.checkouts) : undefined,
     interval,
+    source: data.source != null ? String(data.source) : undefined,
     rawData: JSON.stringify(data).slice(0, 255),
   };
   const result = await reportOccupationData(locationid, sectionid, payload);
@@ -594,8 +659,7 @@ export async function koppelpasV3(
     prisma,
     newIdcode,
     siteId,
-    newPasstype,
-    false
+    newPasstype
   );
 
   await prisma.abonnementen.updateMany({

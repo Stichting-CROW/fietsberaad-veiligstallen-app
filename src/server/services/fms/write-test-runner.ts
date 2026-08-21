@@ -3,18 +3,13 @@
  *
  * Resolves a testgemeente bikepark/section, then for each scenario:
  *   1. builds a run-unique context (synthetic passID prefix `WTEST_<runId>_`),
- *   2. (optional) seeds deterministic state in new_*,
- *   3. performs the write under test through wachtrij-service (useNewTables: true),
+ *   2. (optional) seeds deterministic state,
+ *   3. performs the write under test through wachtrij-service (new_wachtrij_*),
  *   4. runs processQueues() one or more times,
  *   5. evaluates the golden assertions,
- *   6. tears down every row it created (by synthetic prefix) — production is never touched.
+ *   6. tears down every row it created (by synthetic prefix).
  *
- * All operations are confined to the testgemeente organization (assertTestgemeenteScope)
- * and to the shadow new_* tables.
- *
- * TODO (follow-up): extend `target=new` support to the v3 write service and the remaining
- * v2 writes (addSubscription/subscribe/updateLocker/reportOccupationData) so those methods
- * can be added here as Tier-A scenarios. Today they write straight to production.
+ * All operations are confined to the testgemeente organization (assertTestgemeenteScope).
  */
 
 import { prisma } from "~/server/db";
@@ -130,7 +125,7 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
   const prefix = ctx.passPrefix;
 
   // Collect synthetic accounts via their bikepasses before deleting the link rows.
-  const synthPasids = await prisma.new_accounts_pasids.findMany({
+  const synthPasids = await prisma.accounts_pasids.findMany({
     where: { PasID: { startsWith: prefix } },
     select: { ID: true, AccountID: true },
   });
@@ -139,16 +134,18 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
   );
 
   if (accountIDs.length > 0) {
-    await prisma.new_financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
+    await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
-  await prisma.new_transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
-  await prisma.new_accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
+  await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
+  await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
   if (accountIDs.length > 0) {
-    await prisma.new_accounts.deleteMany({ where: { ID: { in: accountIDs } } });
+    await prisma.accounts.deleteMany({ where: { ID: { in: accountIDs } } });
   }
 
   await prisma.new_wachtrij_pasids.deleteMany({ where: { passID: { startsWith: prefix } } });
-  await prisma.new_wachtrij_transacties.deleteMany({ where: { passID: { startsWith: prefix } } });
+  await prisma.new_wachtrij_managed_transacties.deleteMany({
+    where: { externalTransactionID: { startsWith: prefix } },
+  });
   await prisma.new_wachtrij_betalingen.deleteMany({ where: { passID: { startsWith: prefix } } });
   if (ctx.syncQueueIds.length > 0) {
     await prisma.new_wachtrij_sync.deleteMany({ where: { ID: { in: ctx.syncQueueIds } } });

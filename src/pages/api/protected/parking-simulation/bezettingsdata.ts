@@ -54,21 +54,9 @@ export default async function handler(
     const page = parseInt((req.query.page as string)) || 1;
     const pageSize = Math.min(parseInt((req.query.pageSize as string)) || 100, 500);
     const bikeparkID = req.query.bikeparkID as string | undefined;
-    const useNewTables = req.query.useNewTables === "true" || req.query.useNewTables === "1";
-
     const where = bikeparkID ? { bikeparkID } : {};
 
-    const [total, records] = useNewTables
-      ? await Promise.all([
-          prisma.new_bezettingsdata.count({ where }),
-          prisma.new_bezettingsdata.findMany({
-            where,
-            orderBy: { dateModified: "desc" },
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-          }),
-        ])
-      : await Promise.all([
+    const [total, records] = await Promise.all([
           prisma.bezettingsdata.count({ where }),
           prisma.bezettingsdata.findMany({
             where,
