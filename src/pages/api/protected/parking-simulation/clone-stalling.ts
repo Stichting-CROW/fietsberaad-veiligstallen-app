@@ -5,7 +5,7 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 import { generateID } from "~/utils/server/database-tools";
-import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
+import { TESTGEMEENTE_NAME, TESTGEMEENTE_STALLINGS_ID_PREFIX } from "~/data/testgemeente-data";
 
 /**
  * Clone an existing stalling into testgemeente. Layout only, no transaction data.
@@ -125,11 +125,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   ]);
 
   const existingStallings = await prisma.fietsenstallingen.findMany({
-    where: { SiteID: contact.ID, StallingsID: { startsWith: "9933_" } },
+    where: { SiteID: contact.ID, StallingsID: { startsWith: TESTGEMEENTE_STALLINGS_ID_PREFIX } },
     select: { StallingsID: true },
   });
   const maxIndex = existingStallings.reduce((max, s) => {
-    const m = s.StallingsID?.match(/^9933_(\d+)$/);
+    const m = s.StallingsID?.match(new RegExp(`^${TESTGEMEENTE_STALLINGS_ID_PREFIX}(\\d+)$`));
     return m ? Math.max(max, parseInt(m[1]!, 10)) : max;
   }, 0);
   const newStallingsID = `9933_${String(maxIndex + 1).padStart(3, "0")}`;

@@ -44,8 +44,7 @@ const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // v2 getJsonBikeType/{id}: use GET /v4/biketypes and filter on id (no single-id V3/V4 stub).
 // v2 getJsonClientTypes / getJsonBikes: V4 stubs exist but CF has no same-contract twin
 // (`/rest/v3/clienttypes` and `/rest/v3/bikes` 404). Omitted from parity compare.
-// v3 isAllowedToUse: implemented, but operator-protected and dependent on live pass state, so it is
-// not a deterministic parity read and is excluded from the automatic comparison suite.
+// v3 isAllowedToUse: 410 on v4 (unused FMS REST; buurtstallingen use Java /v1). Not in the compare suite.
 const ENDPOINTS: { id: string; label: string; path: string; params: string[]; oldPath?: string }[] = [
   { id: "v3-servertime", label: "V3 servertime", path: "/rest/v3/servertime", params: [], oldPath: "/rest/v3/servertime" },
   { id: "v3-biketypes", label: "V3 biketypes", path: "/rest/v3/biketypes", params: [], oldPath: "/rest/v3/biketypes" },

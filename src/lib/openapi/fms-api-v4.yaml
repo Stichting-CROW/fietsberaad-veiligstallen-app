@@ -14,8 +14,8 @@ info:
     - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen\
     \ het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`;\
     \ sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n\n## Transacties (v4)\n\nStallingstransacties\
-    \ worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions`\
-    \ en fietskluizen-writes geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n\n\
+    \ worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions`,\
+    \ fietskluizen-writes, `isAllowedToUse` en place-level koppelpas geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n\n\
     ## Next.js vs ColdFusion\n\nNext.js serveert alleen v4 (`/api/fms/v4/...`). Er zijn geen `/api/fms/v2`\
     \ of `/api/fms/v3` routes. Catalogus-aux (`/v4/biketypes`, `/v4/paymenttypes`, `/v4/servertime`)\
     \ volgt het V3-contract (`/rest/v3/...` op ColdFusion), niet V2 (`/REST/v1/getBikeTypes` enz.).\
@@ -859,39 +859,29 @@ paths:
                   $ref: '#/components/schemas/PlaceSummary'
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/idcodes/{idtype}/{idcode}:
     get:
-      summary: Mag ID-middel deze plek gebruiken (operator)
-      description: 'Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken
-
-        (ColdFusion isAllowedToUse). Vereist operator Basic Auth.
-
-        '
+      summary: Verwijderd in v4 — isAllowedToUse
       tags:
-      - V4 Protected
+      - V4 Write
       parameters:
       - $ref: '#/components/parameters/V4Citycode'
       - $ref: '#/components/parameters/V4Locationid'
       - $ref: '#/components/parameters/V4Sectionid'
       - $ref: '#/components/parameters/V4Placeid'
-      - name: idtype
-        in: path
-        required: true
-        schema:
-          type: integer
-          description: 0=sleutelhanger, 1=ovchip, 2=cijfercode, 3=tijdelijk
-      - name: idcode
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
-        '200':
-          description: Resultaat van de toegangscontrole
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/V3IsAllowedToUse'
-        '401':
-          description: Unauthorized of onvoldoende rechten
+        '410':
+          description: Fietskluizen/buurt-toegang via FMS REST is verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host, of Java /v1 voor buurtstallingen.
+    post:
+      summary: Verwijderd in v4 — koppelpas op kluisplek
+      tags:
+      - V4 Write
+      parameters:
+      - $ref: '#/components/parameters/V4Citycode'
+      - $ref: '#/components/parameters/V4Locationid'
+      - $ref: '#/components/parameters/V4Sectionid'
+      - $ref: '#/components/parameters/V4Placeid'
+      responses:
+        '410':
+          description: Place-level koppelpas is verwijderd in v4. Gebruik POST …/locations/{id}/idcodes/… of v2/v3 op de ColdFusion-host.
 components:
   securitySchemes:
     basicAuth:

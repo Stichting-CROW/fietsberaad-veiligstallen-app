@@ -38,11 +38,11 @@ const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: "contactName", label: "Contact" },
   { key: "parkingName", label: "Stalling" },
   { key: "stallingType", label: "Stalling type" },
-  { key: "countTransacties", label: "managedtransactions" },
+  { key: "countTransacties", label: "report transactions" },
   { key: "countPasids", label: "bike" },
   { key: "countBetalingen", label: "balance" },
-  { key: "countSync", label: "occupation (sync)" },
-  { key: "countReportOccupation", label: "occupation" },
+  { key: "countSync", label: "inventarisatie (sync)" },
+  { key: "countReportOccupation", label: "report bezetting" },
   { key: "countAddSubscription", label: "subscriptions" },
   { key: "countSubscribe", label: "subscribe" },
 ];
@@ -279,11 +279,11 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         "Contact",
         "Stalling type",
         "Aantal stallings",
-        "managedtransactions",
+        "report transactions",
         "bike",
         "balance",
-        "occupation (sync)",
-        "occupation",
+        "inventarisatie (sync)",
+        "report bezetting",
         "updatePlace",
         "subscriptions",
         "subscribe",
@@ -310,11 +310,11 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         "Stalling",
         "bikeparkID",
         "Stalling type",
-        "managedtransactions",
+        "report transactions",
         "bike",
         "balance",
-        "occupation (sync)",
-        "occupation",
+        "inventarisatie (sync)",
+        "report bezetting",
         "updatePlace",
         "subscriptions",
         "subscribe",
@@ -357,8 +357,8 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
       <h2 className="text-lg font-semibold mb-2">Statistieken</h2>
       <p className="text-sm text-gray-600 mb-2 max-w-4xl leading-relaxed">
         Per stalling het aantal binnengekomen{" "}
-        <strong>FMS v4-schrijfacties</strong>: geteld via de wachtrijtabellen (managedtransactions,
-        bike, balance, occupation/sync, tijdelijke bezettingsdata) en voor{" "}
+        <strong>FMS v4-schrijfacties</strong>: geteld via de wachtrijtabellen (report transactions,
+        bike, balance, inventarisatie/sync, report bezetting / tijdelijke bezettingsdata) en voor{" "}
         <strong>updatePlace</strong>, <strong>subscriptions</strong> en <strong>subscribe</strong> via het
         webservice-log (als daar gelogd). Alleen registraties{" "}
         <strong>vanaf de gekozen startdatum</strong> tellen mee. <strong>Overzicht</strong> sommeert per contact
@@ -370,7 +370,7 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         <strong>fietsenstalling_plek</strong>) en geen rij in de wachtrij of in{" "}
         <strong>bezettingsdata_tmp</strong> achterlaten: <strong>subscriptions</strong> en{" "}
         <strong>subscribe</strong> horen daarbij—die staan hier pas als er een passende regel in{" "}
-        <strong>webservice_log</strong> staat. Bezettingsrapportage telt alleen wat via{" "}
+        <strong>webservice_log</strong> staat. <strong>Report bezetting</strong> telt alleen wat via{" "}
         <strong>bezettingsdata_tmp</strong> binnenkomt. Ook ontbreken o.a.{" "}
         kluis-URL/log writes naar <strong>fmsservicelog</strong>, en mutaties
         via beheer of achtergrondprocessen.

@@ -47,7 +47,9 @@ yarn-error.log*
 #deploy scripts
 /scripts/updatelog.txt
 
-#check
+# next-pwa generated (never check in)
+/public/sw.js
+/public/swe-worker*
 /public/fallback*
 /public/workbox*
 
@@ -75,6 +77,7 @@ scripts/*.sql
 
 #temporary files
 /broncode
+/buurtstallingen-broncode
 debug.log
 .tmp/
 

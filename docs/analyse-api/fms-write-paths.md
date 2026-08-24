@@ -53,8 +53,9 @@ Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Ba
 
 - `POST …/transactions` and `…/completedtransactions` (In/Uit / completed)
 - Locker writes: `PUT`/`POST …/places/{id}`, `/logs`, `/actions`, place `/subscriptions`
+- Place-level `isAllowedToUse` (`GET …/places/{id}/idcodes/…`) and place-level `koppelpas` (`POST` same path). Location-level `POST …/idcodes/…` stays.
 
-Reads (place list, one place, `isAllowedToUse`) stay.
+Reads: place list and one place stay (catalog / compare). Buurtstallingen occupancy is Java `/v1`, not FMS REST.
 
 ## What Next.js does not do
 

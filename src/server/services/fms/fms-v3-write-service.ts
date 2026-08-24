@@ -600,6 +600,7 @@ export async function setOccupationV3(
   const payload = {
     occupation: Number(data.occupation),
     timestamp: transactionDate,
+    capacity: data.capacity != null ? Number(data.capacity) : undefined,
     checkins: data.checkins != null ? Number(data.checkins) : undefined,
     checkouts: data.checkouts != null ? Number(data.checkouts) : undefined,
     interval,

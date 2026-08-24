@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadManagedTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
+import { addSaldo, postManagedTransaction, postManagedTransactions, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
 import {
   buildManagedCheckIn,
   buildManagedCheckOut,
@@ -10,6 +10,18 @@ import {
 } from "~/lib/parking-simulation/managed-transaction";
 import { formatStallingLabel } from "~/lib/parking-simulation/types";
 import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
+import {
+  readManagedWriteScope,
+  readSimCheckType,
+  writeManagedWriteScope,
+  writeSimCheckType,
+  type ManagedWriteScope,
+  type SimCheckType,
+} from "~/lib/parking-simulation/credentials";
+import {
+  reportBezettingSnapshots,
+  type BezettingSnapshot,
+} from "~/lib/parking-simulation/report-bezetting";
 
 type Bicycle = { id: string; barcode: string; biketypeID?: number };
 type OccupationEntry = {
@@ -142,6 +154,9 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   const [saldoAmount, setSaldoAmount] = useState("");
   const [saldoPaymentTypeID, setSaldoPaymentTypeID] = useState(1);
   const [saldoLoading, setSaldoLoading] = useState(false);
+  const [batchCount, setBatchCount] = useState(1);
+  const [checkType, setCheckType] = useState<SimCheckType>(() => readSimCheckType());
+  const [managedScope, setManagedScope] = useState<ManagedWriteScope>(() => readManagedWriteScope());
   const [linkBikeId, setLinkBikeId] = useState("");
   const [linkPassID, setLinkPassID] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
@@ -335,6 +350,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       });
       const data = await res.json();
       if (data.ok) {
+        await reportBezettingSnapshots(credentials, data.bezetting as BezettingSnapshot[] | undefined);
         setMessage("Fiets gestald.");
         loadState();
         onSuccess?.();
@@ -359,6 +375,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       });
       const data = await res.json();
       if (data.ok) {
+        await reportBezettingSnapshots(credentials, data.bezetting as BezettingSnapshot[] | undefined);
         setMessage("Fiets uit stalling gehaald.");
         loadState();
         onSuccess?.();
@@ -377,82 +394,147 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
       setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
-    if (!firstSectionId || !selectedBicycleId || !currentLocationId) {
+    if (!firstSectionId || !currentLocationId) {
       setMessage("Selecteer fiets en stalling. Geen secties beschikbaar.");
       return;
     }
-    const bike = state?.bicycles?.find((b) => b.id === selectedBicycleId);
-    if (!bike || occupiedBicycleIds.has(bike.id)) {
+    const count = Math.min(50, Math.max(1, batchCount));
+    const freeBikes = (state?.bicycles ?? []).filter((b) => {
+      if (occupiedBicycleIds.has(b.id)) return false;
+      if (selectedBiketypeId !== "" && (b.biketypeID ?? 1) !== selectedBiketypeId) return false;
+      return true;
+    });
+    const selectedFirst = selectedBicycleId
+      ? freeBikes.filter((b) => b.id === selectedBicycleId)
+      : [];
+    const rest = freeBikes.filter((b) => b.id !== selectedBicycleId);
+    const bikesToCheckIn = [...selectedFirst, ...rest].slice(0, count);
+    if (bikesToCheckIn.length === 0) {
       setMessage("Selecteer een vrije fiets.");
       return;
     }
-    const spot = findFirstSuitableSpot(
-      currentLocationId,
-      bike.biketypeID ?? 1,
-      normalizedSections,
-      state?.occupation ?? []
-    );
-    if (!spot) {
-      setMessage("Geen geschikte vrije plek gevonden.");
-      return;
+
+    let workingOcc = [...(state?.occupation ?? [])];
+    const planned: Array<{
+      bike: Bicycle;
+      sectionid: string;
+      passID: string;
+      externalTransactionID: string;
+    }> = [];
+    for (const bike of bikesToCheckIn) {
+      const spot = findFirstSuitableSpot(
+        currentLocationId,
+        bike.biketypeID ?? 1,
+        normalizedSections,
+        workingOcc
+      );
+      if (!spot) {
+        setMessage(
+          planned.length === 0
+            ? "Geen geschikte vrije plek gevonden."
+            : `Slechts ${planned.length} plek(ken) vrij — verlaag aantal.`
+        );
+        if (planned.length === 0) return;
+        break;
+      }
+      const passID =
+        planned.length === 0 && selectedPassID !== PASSID_AUTO
+          ? selectedPassID
+          : (freePasids[planned.length]?.pasID ?? generateNewPassID());
+      const externalTransactionID = generateExternalTransactionId();
+      planned.push({ bike, sectionid: spot.sectionid, passID, externalTransactionID });
+      workingOcc = [
+        ...workingOcc,
+        {
+          id: `pending-${bike.id}`,
+          bicycleId: bike.id,
+          locationid: currentLocationId,
+          sectionid: spot.sectionid,
+        },
+      ];
     }
-    const passID =
-      selectedPassID === PASSID_AUTO
-        ? (freePasids[0]?.pasID ?? generateNewPassID())
-        : selectedPassID;
+    if (planned.length === 0) return;
 
     setCheckInLoading(true);
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const externalTransactionID = generateExternalTransactionId();
-      const res = await uploadManagedTransaction(
-        credentials,
-        citycodeFromLocationId(currentLocationId),
-        currentLocationId,
-        spot.sectionid,
+      const citycode = citycodeFromLocationId(currentLocationId);
+      const items = planned.map((p) =>
         buildManagedCheckIn({
-          externaltransactionid: externalTransactionID,
-          idcode: passID,
+          externaltransactionid: p.externalTransactionID,
+          idcode: p.passID,
           checkindate: simulationTime,
-          barcode: bike.barcode,
-          biketypeid: bike.biketypeID ?? 1,
+          barcode: p.bike.barcode,
+          biketypeid: p.bike.biketypeID ?? 1,
+          checkintype: checkType,
+          sectionid: p.sectionid,
         })
       );
-      if (res.status === 1) {
+      const res =
+        items.length === 1
+          ? await postManagedTransaction(
+              credentials,
+              citycode,
+              currentLocationId,
+              planned[0]!.sectionid,
+              items[0]!,
+              managedScope
+            )
+          : await postManagedTransactions(
+              credentials,
+              citycode,
+              currentLocationId,
+              planned[0]!.sectionid,
+              items,
+              managedScope
+            );
+      if (res.status !== 1) {
+        const msg = res.message ?? "onbekend";
+        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
+        return;
+      }
+
+      const lastBezetting: BezettingSnapshot[] = [];
+      for (const p of planned) {
         const parkRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "park",
-            bicycleId: selectedBicycleId,
+            bicycleId: p.bike.id,
             locationid: currentLocationId,
-            sectionid: spot.sectionid,
+            sectionid: p.sectionid,
             checkedIn: true,
-            passID,
-            externalTransactionID,
+            passID: p.passID,
+            externalTransactionID: p.externalTransactionID,
             checkInDate: simulationTime,
           }),
         });
         const parkData = await parkRes.json();
-        if (parkData.ok) {
-          setMessage("Check-in succesvol.");
-          loadState();
-          fetch("/api/protected/parking-simulation/pasids")
-            .then((r) => (r.ok ? r.json() : {}))
-            .then((data: { data?: PasidEntry[] }) => {
-              setPasids(data.data ?? []);
-              setSelectedPassID(PASSID_AUTO);
-            })
-            .catch(() => setSelectedPassID(PASSID_AUTO));
-          onSuccess?.();
-        } else {
+        if (!parkData.ok) {
           setMessage(parkData.message ?? "Park mislukt");
+          return;
         }
-      } else {
-        const msg = res.message ?? "onbekend";
-        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
+        for (const snap of (parkData.bezetting ?? []) as BezettingSnapshot[]) {
+          const idx = lastBezetting.findIndex(
+            (s) => s.locationid === snap.locationid && s.sectionid === snap.sectionid
+          );
+          if (idx >= 0) lastBezetting[idx] = snap;
+          else lastBezetting.push(snap);
+        }
       }
+      await reportBezettingSnapshots(credentials, lastBezetting);
+      setMessage(planned.length === 1 ? "Check-in succesvol." : `${planned.length} check-ins succesvol.`);
+      loadState();
+      fetch("/api/protected/parking-simulation/pasids")
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((data: { data?: PasidEntry[] }) => {
+          setPasids(data.data ?? []);
+          setSelectedPassID(PASSID_AUTO);
+        })
+        .catch(() => setSelectedPassID(PASSID_AUTO));
+      onSuccess?.();
     } catch (e) {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -478,7 +560,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     try {
       const simulationTime = await fetchSimulationTime();
       const checkindate = occ.checkInDate ?? occ.createdAt ?? simulationTime;
-      const res = await uploadManagedTransaction(
+      const res = await postManagedTransaction(
         credentials,
         citycodeFromLocationId(occ.locationid),
         occ.locationid,
@@ -490,7 +572,11 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
           checkoutdate: simulationTime,
           barcode: bike.barcode,
           biketypeid: bike.biketypeID ?? 1,
-        })
+          checkouttype: checkType,
+          checkintype: checkType,
+          sectionid: occ.sectionid,
+        }),
+        managedScope
       );
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
@@ -500,6 +586,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         });
         const removeData = await removeRes.json();
         if (removeData.ok) {
+          await reportBezettingSnapshots(credentials, removeData.bezetting as BezettingSnapshot[] | undefined);
           setMessage("Check-out succesvol.");
           loadState();
           onSuccess?.();
@@ -613,7 +700,57 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
 
   return (
     <div>
-      <h4 className="font-medium mb-2">Acties</h4>
+      <h4 className="font-medium mb-2">Report transactions</h4>
+      <p className="text-sm text-gray-600 mb-2">
+        Check-in/out schrijft managed transactions (v4). Park/unpark stuurt daarna{" "}
+        <strong>report bezetting</strong> voor dezelfde stalling.
+      </p>
+      <div className="flex flex-wrap gap-4 items-end mb-3">
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">Check type</label>
+          <select
+            value={checkType}
+            onChange={(e) => {
+              const v = e.target.value as SimCheckType;
+              setCheckType(v);
+              writeSimCheckType(v);
+            }}
+            className="border rounded px-3 py-2"
+          >
+            <option value="user">user</option>
+            <option value="controle">controle</option>
+            <option value="system">system</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">Report transactions niveau</label>
+          <select
+            value={managedScope}
+            onChange={(e) => {
+              const v = e.target.value as ManagedWriteScope;
+              setManagedScope(v);
+              writeManagedWriteScope(v);
+            }}
+            className="border rounded px-3 py-2"
+          >
+            <option value="section">sectie</option>
+            <option value="location">stalling (location)</option>
+          </select>
+        </div>
+        {actieType === "in" && (
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Aantal (batch, max 50)</label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={batchCount}
+              onChange={(e) => setBatchCount(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+              className="border rounded px-3 py-2 w-24"
+            />
+          </div>
+        )}
+      </div>
       {!credentialsLoading && !credentials && (
         <p className="text-sm text-amber-700 mb-2">
           FMS API-credentials ontbreken. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).
