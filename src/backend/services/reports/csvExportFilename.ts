@@ -28,7 +28,12 @@ export const resolveCsvExportFilename = (
         ? `${jaar}_${stallingsID}_transacties.csv`
         : `${jaar}_alle_stallingen_transacties.csv`;
     case "ruwedata": {
-      const maandPadded = String(maand ?? 0).padStart(2, "0");
+      if (maand === undefined) {
+        return stallingsID
+          ? `${jaar}_${stallingsID}_ruwedata.csv`
+          : `${jaar}_alle_stallingen_ruwedata.csv`;
+      }
+      const maandPadded = String(maand).padStart(2, "0");
       return stallingsID
         ? `${jaar}_${maandPadded}_${stallingsID}_ruwedata.csv`
         : `${jaar}_${maandPadded}_alle_stallingen_ruwedata.csv`;
@@ -42,7 +47,7 @@ export const resolveCsvExportFilename = (
 
 /**
  * First instant after the reported range, used for the cache settling check.
- * Yearly exports close on 1 January of the next year; monthly (ruwedata)
+ * Yearly exports close on 1 January of the next year; monthly ruwedata
  * exports close on the first day of the next month.
  */
 export const getCsvExportPeriodEnd = (
@@ -50,11 +55,14 @@ export const getCsvExportPeriodEnd = (
   { jaar, maand }: CsvExportFilenameParams
 ): string => {
   if (exportType === "ruwedata") {
-    if (!Number.isInteger(maand) || maand! < 1 || maand! > 12) {
+    if (maand === undefined) {
+      return `${jaar + 1}-01-01 00:00:00`;
+    }
+    if (!Number.isInteger(maand) || maand < 1 || maand > 12) {
       throw new Error(`Ongeldige maand voor periodend: ${maand}`);
     }
     if (maand === 12) return `${jaar + 1}-01-01 00:00:00`;
-    return `${jaar}-${String(maand! + 1).padStart(2, "0")}-01 00:00:00`;
+    return `${jaar}-${String(maand + 1).padStart(2, "0")}-01 00:00:00`;
   }
 
   return `${jaar + 1}-01-01 00:00:00`;

@@ -314,9 +314,15 @@ export const parseCsvExportCachePeriod = (
   const filename = filenameGz.replace(/\.gz$/, "");
 
   if (exportType === "ruwedata") {
-    const match = filename.match(/^(\d{4})_(\d{2})_/);
-    if (!match) return null;
-    return { jaar: Number(match[1]), maand: Number(match[2]) };
+    const monthlyMatch = filename.match(/^(\d{4})_(\d{2})_/);
+    if (monthlyMatch) {
+      return { jaar: Number(monthlyMatch[1]), maand: Number(monthlyMatch[2]) };
+    }
+    const yearlyMatch = filename.match(/^(\d{4})_.+_ruwedata\.csv$/);
+    if (yearlyMatch) {
+      return { jaar: Number(yearlyMatch[1]) };
+    }
+    return null;
   }
 
   const match = filename.match(/^(\d{4})_/);
