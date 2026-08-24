@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import FietsberaadSuperadminAccessDenied from "~/components/beheer/common/FietsberaadSuperadminAccessDenied";
 import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
 import { OccupationComparisonSection } from "~/components/beheer/test/OccupationComparisonSection";
 import {
@@ -1861,14 +1862,7 @@ const FmsApiComparePage: React.FC = () => {
   }
 
   if (!hasAccess) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-300 rounded-lg p-6 max-w-2xl mx-auto">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Geen toegang</h3>
-          <p className="text-sm text-red-700">Alleen fietsberaad superadmins hebben toegang tot deze pagina.</p>
-        </div>
-      </div>
-    );
+    return <FietsberaadSuperadminAccessDenied />;
   }
 
   return (

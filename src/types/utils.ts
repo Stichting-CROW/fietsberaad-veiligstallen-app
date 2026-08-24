@@ -94,6 +94,16 @@ export const isFietsberaadRootAdmin = (
 ): boolean =>
     mainContactId === "1" && profile?.roleId === VSUserRoleValuesNew.RootAdmin;
 
+/** Fietsberaad superadmin switched to another organisation (rights are scoped to that org). */
+export const isFietsberaadSuperadminViewingAsOrganisation = (
+    profile: VSUserSecurityProfile | undefined,
+    mainContactId?: string | null,
+    activeContactId?: string | null
+): boolean => {
+    if (!isFietsberaadRootAdmin(profile, mainContactId ?? undefined)) return false;
+    return !!activeContactId && activeContactId !== "1";
+};
+
 /** Cross-gemeente FMS permit overview (Fietsberaad superadmin or main-org RootAdmin). */
 export const canAccessFmsPermitsOverview = (
     profile: VSUserSecurityProfile | undefined,
