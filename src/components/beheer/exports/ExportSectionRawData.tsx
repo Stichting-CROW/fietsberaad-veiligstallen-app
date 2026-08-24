@@ -1,87 +1,23 @@
-import React, { useState, useEffect, useRef } from "react";
-import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
+import React, { useState } from "react";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
 import {
-  convertToBikeparkData,
   downloadCsvExport,
   buttonbase,
   csvDownloadKey,
   CsvDownloadSpinner,
 } from "./index";
 
-const ExportComponent: React.FC<ReportComponentProps> = ({
+interface ExportSectionRawDataProps extends ReportComponentProps {
+  bikeparkData: BikeparkData[];
+}
+
+const ExportSectionRawData: React.FC<ExportSectionRawDataProps> = ({
   gemeenteID,
-  firstDate,
-  lastDate,
-  bikeparks,
+  bikeparkData,
 }) => {
-  const [errorState, setErrorState] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
-  const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
-
-  const reportType = "transacties_voltooid";
-
-  const [loading, setLoading] = useState(false);
-
-  const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
-  const bikeparkIDsKey = validBikeparkIDs.join(",");
-  const startDT = firstDate.getTime();
-  const endDT = lastDate.getTime();
-  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT)].join("|");
-  const loadedFetchKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-      const fetchReportData = async () => {
-          const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
-          if (showLoadingUI) {
-            setLoading(true);
-          }
-
-          if(validBikeparkIDs.length !== bikeparks.length) {
-            console.warn("ExportSectionReportComponent: some bikeparks have no StallingsID. These are not shown.");
-          }
-
-          try {
-            const apiEndpoint = "/api/protected/database/availableDataDetailed";
-
-            const response = await fetch(apiEndpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                reportType,
-                bikeparkIDs: validBikeparkIDs,
-                startDT: firstDate,
-                endDT: lastDate,
-              }),
-            });
-    
-            if (!response.ok) {
-              throw new Error(`Error: ${response.statusText}`);
-            }
-            const data = await response.json() as AvailableDataDetailedResult[] | false;
-            if(data) {
-              setBikeparkData(convertToBikeparkData(bikeparks, data));
-              setErrorState("");
-              loadedFetchKeyRef.current = fetchKey;
-          } else {
-              setErrorState("Unable to fetch report data");
-            }
-          } catch (error) {
-            console.error(error);
-            setErrorState("Unable to fetch report data");
-          } finally {
-            if (showLoadingUI) {
-              setLoading(false);
-            }
-          }
-        };
-    
-        fetchReportData();
-  }, [reportType, bikeparkIDsKey, startDT, endDT, fetchKey]);
 
   const getMonthName = (month: number): string => {
       return new Date(2000, month - 1, 1).toLocaleString('nl-NL', { month: 'short' });
@@ -167,20 +103,6 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     return null;
   }
 
-  if(errorState) {
-    return (
-      <div className="flex flex-col space-y-2">
-        {errorState && <div style={{ color: "red", fontWeight: "bold" }}>{errorState}</div>}
-      </div>
-    )
-  }
-
-  if(loading) {
-    return <div className="spinner" style={{ margin: "auto" }}>
-      <div className="loader"></div>
-    </div>;
-  }
-
   return (
     <>
       <h2 className="text-lg font-semibold text-gray-900">
@@ -239,4 +161,4 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     </>);
 };
 
-export default ExportComponent;
+export default ExportSectionRawData;

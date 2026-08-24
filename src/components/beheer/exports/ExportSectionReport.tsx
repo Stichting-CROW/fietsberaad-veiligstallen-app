@@ -12,7 +12,8 @@ import {
 } from "./index";
 
 interface ExportSectionReportProps extends ReportComponentProps {
-  reportType: ReportType
+  reportType: ReportType;
+  bikeparkData: BikeparkData[];
 }
 
 const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
@@ -21,15 +22,17 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   firstDate,
   lastDate,
   bikeparks,
+  bikeparkData: sharedBikeparkData,
 }) => {
   const [errorState, setErrorState] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
-  const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
-
+  const [reportBikeparkData, setReportBikeparkData] = useState<BikeparkData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [counter, setCounter] = useState(0);
+
+  const usesSharedData = reportType === "transacties_voltooid";
+  const bikeparkData = usesSharedData ? sharedBikeparkData : reportBikeparkData;
 
   const csvExportType: CsvExportType | undefined =
     reportType === "transacties_voltooid"
@@ -46,10 +49,14 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   const bikeparkIDsKey = validBikeparkIDs.join(",");
   const startDT = firstDate.getTime();
   const endDT = lastDate.getTime();
-  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT), String(counter)].join("|");
+  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT)].join("|");
   const loadedFetchKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+      if (usesSharedData) {
+        return;
+      }
+
       const fetchReportData = async () => {
         const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
         if (showLoadingUI) {
@@ -81,7 +88,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           }
           const data = await response.json() as AvailableDataDetailedResult[] | false;
           if(data) {
-            setBikeparkData(convertToBikeparkData(bikeparks,data));
+            setReportBikeparkData(convertToBikeparkData(bikeparks,data));
             setErrorState("");
             loadedFetchKeyRef.current = fetchKey;
         } else {
@@ -100,7 +107,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
       if(showSectionReport) {
         fetchReportData();
       }
-  }, [reportType, bikeparkIDsKey, counter, startDT, endDT, showSectionReport, fetchKey]);
+  }, [reportType, bikeparkIDsKey, startDT, endDT, showSectionReport, fetchKey, usesSharedData]);
 
   const downloadYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
     if (csvExportType === undefined || downloadingKey !== null) return;
