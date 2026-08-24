@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
@@ -26,10 +26,18 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
   const [loading, setLoading] = useState(false);
 
   const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
+  const bikeparkIDsKey = validBikeparkIDs.join(",");
+  const startDT = firstDate.getTime();
+  const endDT = lastDate.getTime();
+  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT)].join("|");
+  const loadedFetchKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-      const fetchReportData = async () => {    
-          setLoading(true);
+      const fetchReportData = async () => {
+          const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
+          if (showLoadingUI) {
+            setLoading(true);
+          }
 
           if(validBikeparkIDs.length !== bikeparks.length) {
             console.warn("ExportSectionReportComponent: some bikeparks have no StallingsID. These are not shown.");
@@ -58,6 +66,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
             if(data) {
               setBikeparkData(convertToBikeparkData(bikeparks, data));
               setErrorState("");
+              loadedFetchKeyRef.current = fetchKey;
           } else {
               setErrorState("Unable to fetch report data");
             }
@@ -65,12 +74,14 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
             console.error(error);
             setErrorState("Unable to fetch report data");
           } finally {
-            setLoading(false);
+            if (showLoadingUI) {
+              setLoading(false);
+            }
           }
         };
     
         fetchReportData();
-  }, [reportType, bikeparks, firstDate, lastDate]);
+  }, [reportType, bikeparkIDsKey, startDT, endDT, fetchKey]);
 
   const getMonthName = (month: number): string => {
       return new Date(2000, month - 1, 1).toLocaleString('nl-NL', { month: 'short' });
