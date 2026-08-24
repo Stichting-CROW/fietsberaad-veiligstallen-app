@@ -33,6 +33,7 @@ const SettingsTab: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [tablesExist, setTablesExist] = useState<boolean | null>(null);
   const [tablesLoading, setTablesLoading] = useState(false);
+  const [testGemeenteLoading, setTestGemeenteLoading] = useState(false);
 
   const hasAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
@@ -272,6 +273,26 @@ const SettingsTab: React.FC = () => {
     }
   };
 
+  const handleCreateTestGemeente = async () => {
+    if (!hasAccess) return;
+    setTestGemeenteLoading(true);
+    setBootstrapMessage(null);
+    try {
+      const res = await fetch("/api/protected/parking-simulation/test-gemeente/create", {
+        method: "POST",
+      });
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) throw new Error(data.error ?? data.message ?? res.statusText);
+      setBootstrapMessage("Testgemeente aangemaakt (inclusief kopie Utrecht Vredenburg als 9933_001).");
+      await fetchTestGemeenteStatus();
+      window.dispatchEvent(new CustomEvent("stallings-updated"));
+    } catch (e) {
+      setBootstrapMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setTestGemeenteLoading(false);
+    }
+  };
+
   const handleDeleteStalling = async (id: string) => {
     setDeleteLoading(id);
     setBootstrapMessage(null);
@@ -307,6 +328,32 @@ const SettingsTab: React.FC = () => {
                   {tablesExist === true ? "Verwijder tabellen" : "Maak tabellen"}
                 </Button>
               </div>
+            </div>
+          )}
+          {hasAccess && (
+            <div>
+              <h4 className="text-base font-medium text-gray-900 mb-2">Testgemeente API</h4>
+              <div className="flex items-center gap-4 [&_button]:mb-0">
+                <span className="text-sm font-medium">
+                  Status:{" "}
+                  {testGemeenteLoading
+                    ? "Bezig…"
+                    : testGemeenteStatus?.exists
+                      ? "Aanwezig"
+                      : testGemeenteStatus
+                        ? "Niet aanwezig"
+                        : "—"}
+                </span>
+                {!testGemeenteStatus?.exists && (
+                  <Button onClick={() => void handleCreateTestGemeente()} disabled={testGemeenteLoading}>
+                    Maak testgemeente
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Maakt de organisatie &quot;testgemeente API&quot; (citycode <code>9933</code>) aan, inclusief
+                een kopie van Utrecht Vredenburg als <code>9933_001</code>.
+              </p>
             </div>
           )}
           {tablesExist === true && (
