@@ -170,7 +170,7 @@ let showAllBikeparks = false;
 let showIndividualBikeparks = false;
 switch(reportType) {
   case "transacties_voltooid":
-    exportTitle = "Aantal Afgeronde Transacties";
+    exportTitle = "Aantal afgeronde transacties";
     showAllBikeparks = true;
     showIndividualBikeparks = true;
     break;

@@ -2,6 +2,11 @@
 
 This is the code repository of the VeiligStallen frontend app. The codebase uses NextJS and is written in JavaScript (React).
 
+## URLs of app online
+
+- Acceptance: https://vstfb-eu-acc-app01.azurewebsites.net
+- Production: https://beta.veiligstallen.nl
+
 ## First time setup
 
 ### Install dependencies

@@ -31,6 +31,7 @@ import {
  *
  * GET /api/protected/export/transacties?gemeenteID=&stallingsID=&jaar=
  * GET /api/protected/export/ruwedata?gemeenteID=&stallingsID=&jaar=&maand=
+ *   (maand is optional; omit for a full-year export)
  * GET /api/protected/export/stallingsduur?gemeenteID=&jaar=
  * GET /api/protected/export/bezetting?gemeenteID=&stallingsID=&jaar=
  */
@@ -64,7 +65,9 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const gemeenteID = singleValue(req.query.gemeenteID);
   const stallingsID = singleValue(req.query.stallingsID);
   const jaar = Number(singleValue(req.query.jaar));
-  const maand = Number(singleValue(req.query.maand));
+  const maandRaw = singleValue(req.query.maand);
+  const maand =
+    maandRaw !== undefined && maandRaw !== "" ? Number(maandRaw) : undefined;
 
   if (!gemeenteID) {
     res.status(400).json({ error: "gemeenteID is verplicht" });
@@ -81,6 +84,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   if (exportType === "ruwedata" || exportType === "bezetting") {
     if (!stallingsID) {
       res.status(400).json({ error: "stallingsID is verplicht voor deze export" });
+      return;
+    }
+  }
+
+  if (exportType === "ruwedata" && maand !== undefined) {
+    if (!Number.isInteger(maand) || maand < 1 || maand > 12) {
+      res.status(400).json({ error: "Ongeldige maand" });
       return;
     }
   }

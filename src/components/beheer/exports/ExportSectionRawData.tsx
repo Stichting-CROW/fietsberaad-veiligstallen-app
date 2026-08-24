@@ -115,6 +115,29 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
       );
   };
 
+  const downloadRawTransactionsForYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
+    if(undefined === bikepark || downloadingKey !== null) {
+      return;
+    }
+
+    const key = csvDownloadKey(bikepark.bikeparkID, year);
+    try {
+      setDownloadError("");
+      setDownloadingKey(key);
+      await downloadCsvExport({
+        exportType: "ruwedata",
+        gemeenteID,
+        stallingsID: bikepark.bikeparkID,
+        jaar: year,
+      });
+    } catch (error) {
+      console.error(error);
+      setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
+
   const downloadRawTransactionsForMonth = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number, month: number) => {
     if(undefined === bikepark || downloadingKey !== null) {
       // deze export is alleen per stalling beschikbaar
@@ -161,7 +184,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
   return (
     <>
       <h2 className="text-lg font-semibold text-gray-900">
-          Alle Transacties (ruwe data)
+          Alle transacties (ruwe data)
       </h2>
       {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
       <ul className="bikepark-list">
@@ -185,18 +208,29 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
                           <ul className="year-list">
                               {Object.entries(yearGroups)
                                   .sort(([yearA], [yearB]) => Number(yearA) - Number(yearB))
-                                  .map(([year, months]) => (
+                                  .map(([year, months]) => {
+                                      const yearNum = Number(year);
+                                      const yearKey = csvDownloadKey(bp.bikeparkID, yearNum);
+                                      const isDownloadingYear = downloadingKey === yearKey;
+                                      return (
                                       <li key={year} className="year-item flex items-center">
-                                          <div
-                                              className="my-2 px-2 bg-white hover:bg-gray-50 transition-colors duration-150 
-                                                        text-sm text-gray-700 font-bold flex items-baseline"
-                                              onClick={() => {/* TODO: Handle year download */}}
-                                          >
-                                              {year}
-                                              {renderRawTransactionDataMonthButtons(gemeenteID, bp, Number(year), months.sort((a, b) => a - b))}
+                                          <div className="my-2 px-2 bg-white text-sm text-gray-700 font-bold flex items-baseline">
+                                              <button
+                                                  type="button"
+                                                  className={`year-button ${buttonbase} font-bold`}
+                                                  disabled={downloadingKey !== null}
+                                                  aria-busy={isDownloadingYear}
+                                                  title="Download volledig jaar"
+                                                  onClick={() => {void downloadRawTransactionsForYear(gemeenteID, bp, yearNum)}}
+                                              >
+                                                  {isDownloadingYear && <CsvDownloadSpinner />}
+                                                  {year}
+                                              </button>
+                                              {renderRawTransactionDataMonthButtons(gemeenteID, bp, yearNum, months.sort((a, b) => a - b))}
                                               </div>
                                       </li>
-                                  ))}
+                                  );
+                                  })}
                           </ul>
                       </li>
                   );
