@@ -31,18 +31,14 @@ const formatDate = (value: Date | string | null | undefined): string => {
   return d.toLocaleString("nl-NL");
 };
 
-/**
- * Admin controls for the on-demand gzip CSV export cache on disk.
- * Only files that were actually downloaded are stored; unused ones expire
- * after ≈ 3 months (REPORT_CACHE_MAX_AGE_DAYS).
- */
+/** Admin controls for the on-demand gzip CSV export cache on disk. */
 const ReportFileCacheComponent: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<ReportFileCacheStatus | undefined>();
 
-  const postAction = useCallback(async (action: "status" | "clear" | "expire") => {
+  const postAction = useCallback(async (action: "status" | "clear") => {
     setLoading(true);
     setError("");
     setMessage("");
@@ -79,8 +75,9 @@ const ReportFileCacheComponent: React.FC = () => {
       <h2 className="mb-2 text-xl font-semibold">CSV export bestandscache</h2>
       <p className="mb-3 text-sm text-gray-600">
         Gzip-bestanden van downloads die daadwerkelijk zijn aangevraagd. Lopend
-        jaar/maand wordt altijd opnieuw gegenereerd. Ongebruikte bestanden
-        verdwijnen na ongeveer 3 maanden.
+        jaar/maand wordt altijd opnieuw gegenereerd. Gecachte bestanden blijven
+        bewaard totdat ze handmatig worden verwijderd of na een cache-update voor
+        de betreffende periode.
       </p>
 
       {status && (
@@ -108,14 +105,6 @@ const ReportFileCacheComponent: React.FC = () => {
           onClick={() => void postAction("status")}
         >
           Status vernieuwen
-        </button>
-        <button
-          type="button"
-          className="rounded bg-amber-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-          disabled={loading}
-          onClick={() => void postAction("expire")}
-        >
-          Verwijder &gt; 3 maanden ongebruikt
         </button>
         <button
           type="button"

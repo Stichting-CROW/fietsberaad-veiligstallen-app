@@ -10,7 +10,6 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import { handleApiError } from "~/utils/formatPrismaError";
 import {
   clearAllReportFileCache,
-  expireOldReportFileCache,
   getReportFileCacheStatus,
 } from "~/backend/services/reports/csvExportCache";
 const dateSchema = z.string().datetime();
@@ -46,7 +45,7 @@ const CacheParamsSchema = z.object({
 
 const ReportFileCacheParamsSchema = z.object({
   databaseParams: z.object({
-    action: z.enum(["status", "clear", "expire"]),
+    action: z.enum(["status", "clear"]),
   }),
 });
 
@@ -188,18 +187,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                   : status.status === "error"
                     ? "Kon cachestatus niet lezen"
                     : `${status.fileCount} bestand(en) in cache`,
-              status,
-            });
-          }
-
-          if (action === "expire") {
-            const { deleted, errors } = await expireOldReportFileCache();
-            const status = await getReportFileCacheStatus();
-            return res.json({
-              success: errors === 0,
-              message: `${deleted} verouderde bestand(en) verwijderd` + (errors ? ` (${errors} fouten)` : ""),
-              deleted,
-              errors,
               status,
             });
           }
