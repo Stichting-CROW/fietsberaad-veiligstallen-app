@@ -41,7 +41,7 @@ info:
     | `GET /v2/REST/getJsonBikeUpdates/{bikeparkID}?fromDate=` | `GET …/locations/{locationid}/bikeupdates?from=` | query `from` i.p.v. `fromDate` |
     | `GET /v2/REST/getJsonSubscriptors/{bikeparkID}` | `GET …/locations/{locationid}/subscriptions` | V3-vorm (operator) |
     | `GET /v2/REST/getLockerInfo/{bikeparkID}/{sectionID}/{placeID}` | `GET …/sections/{sectionid}/places/{placeid}` | plek-read blijft; locker-writes zijn 410 |
-    | `GET /v2/isAllowedToUse/…` | `GET …/places/{placeid}/idcodes/{idtype}/{idcode}` | operator |
+    | `GET /v2/isAllowedToUse/…` | **410** — blijft op ColdFusion |
 
     ## Writes
 

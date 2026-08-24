@@ -522,7 +522,7 @@ const SettingsTab: React.FC = () => {
             />
           </div>
           <p className="text-xs text-gray-500">
-            Process gebruikt altijd Next.js: new_wachtrij_pasids / managed_transacties / betalingen / sync en new_bezettingsdata_tmp naar productietabellen. Check-in/out is managedtransactions. ColdFusion-wachtrijen kun je in het stalling-paneel bekijken (niet verwerken). Bestaande stallingen blijven op CF v2/v3 — niet beide hosts voor dezelfde stalling.
+            Process gebruikt altijd Next.js: new_wachtrij_pasids / managed_transacties / betalingen / sync en new_bezettingsdata_tmp naar productietabellen. <strong>Report transactions</strong> is check-in/out (managedtransactions). <strong>Report bezetting</strong> is occupation-telling → new_bezettingsdata_tmp. Beide mogen vanaf dezelfde stalling, ook als BronBezettingsdata=FMS. Bestaande stallingen blijven op CF v2/v3 — niet beide hosts voor dezelfde stalling.
           </p>
           <div className="flex flex-wrap gap-2 items-center">
             <Button onClick={saveToStorage}>

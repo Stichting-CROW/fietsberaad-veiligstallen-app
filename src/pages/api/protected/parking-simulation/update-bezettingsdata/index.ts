@@ -8,7 +8,7 @@ import { updateBezettingsdata } from "~/server/services/bezettingsdata/update-be
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
 /**
- * POST: Trigger update of bezettingsdata (Lumiguide path + FMS path).
+ * POST: Trigger update of bezettingsdata (report bezetting path + FMS path).
  * Same auth as process-queue: fietsberaad_superadmin only.
  * Writes production bezettingsdata, scoped to the testgemeente site when present.
  */
@@ -46,7 +46,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const total = result.lumiguideRows + result.fmsRows;
     return res.status(200).json({
       ok: true,
-      message: `Lumiguide: ${result.lumiguideRows} rows, FMS: ${result.fmsRows} rows (${result.fmsSectionsProcessed} sections)`,
+      message: `Report bezetting: ${result.lumiguideRows} rows, from transacties: ${result.fmsRows} rows (${result.fmsSectionsProcessed} sections)`,
       rowsProcessed: total,
     });
   } catch (e) {

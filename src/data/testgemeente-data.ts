@@ -15,6 +15,9 @@ export const CONTACT = {
   ThemeColor2: "96c11f",
 } as const;
 
+/** StallingsID prefix for testgemeente parks (citycode + _). Reset/clone only touch these. */
+export const TESTGEMEENTE_STALLINGS_ID_PREFIX = `${CONTACT.ZipID}_`;
+
 export const MODULES = {
   default: ["veiligstallen"] as const,
 } as const;

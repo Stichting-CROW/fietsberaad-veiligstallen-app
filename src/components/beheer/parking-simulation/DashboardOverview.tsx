@@ -5,9 +5,20 @@ import { useBikeTypes } from "~/hooks/useBikeTypes";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { Button } from "~/components/Button";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
+import {
+  occupationKeysFromState,
+  reportBezettingSnapshots,
+} from "~/lib/parking-simulation/report-bezetting";
 
 type Bicycle = { id: string; biketypeID?: number };
-type OccupationEntry = { id: string; bicycleId: string; bicycle?: { biketypeID?: number } };
+type OccupationEntry = {
+  id: string;
+  bicycleId: string;
+  locationid?: string;
+  sectionid?: string;
+  bicycle?: { biketypeID?: number };
+};
 type State = {
   bicycles: Bicycle[];
   occupation: OccupationEntry[];
@@ -24,6 +35,7 @@ const DEFAULT_START_DATE = "2025-01-01";
 
 const DashboardOverview: React.FC<{ hasStallings?: boolean }> = ({ hasStallings = false }) => {
   const { data: session } = useSession();
+  const { credentials } = useParkingSimCredentials();
   const [state, setState] = useState<State | null>(null);
   const { data: bikeTypes } = useBikeTypes();
   const [poolLoading, setPoolLoading] = useState<string | null>(null);
@@ -182,6 +194,11 @@ const DashboardOverview: React.FC<{ hasStallings?: boolean }> = ({ hasStallings 
       const startDate = simulationStartDate
         ? new Date(simulationStartDate + "T00:00:00").toISOString()
         : undefined;
+      const occupiedBefore = (state?.occupation ?? []).filter(
+        (o): o is OccupationEntry & { locationid: string; sectionid: string } =>
+          !!o.locationid && !!o.sectionid
+      );
+      const zeros = occupationKeysFromState(occupiedBefore);
       const res = await fetch("/api/protected/parking-simulation/tables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,6 +207,7 @@ const DashboardOverview: React.FC<{ hasStallings?: boolean }> = ({ hasStallings 
       const data = await res.json();
       setResetMessage(data.ok ? "Data gereset" : data.message ?? "Fout");
       if (data.ok) {
+        await reportBezettingSnapshots(credentials, zeros);
         window.dispatchEvent(new CustomEvent("simulation-clock-updated"));
         loadState();
       }

@@ -4,49 +4,36 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
-import { reportOccupationData } from "~/server/services/fms/report-occupation-service";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 import { getStallingLayoutFromVeiligstallen } from "~/lib/parking-simulation/stalling-layout";
 
-const SOURCE_FMS = "FMS";
+type BezettingSnapshot = {
+  locationid: string;
+  sectionid: string;
+  occupation: number;
+  capacity: number;
+};
 
-/**
- * Report Lumiguide occupation for a section when simulation changes assignment state.
- * Only for stallings with BronBezettingsdata != 'FMS'.
- * Writes to new_bezettingsdata_tmp.
- */
-async function reportLumiguideOccupationIfNeeded(
+async function bezettingSnapshots(
   simulationConfigId: string,
-  locationid: string,
-  sectionid: string
-): Promise<void> {
-  const stalling = await prisma.fietsenstallingen.findFirst({
-    where: {
-      OR: [{ StallingsID: locationid }, { ID: locationid }],
-      Status: "1",
-    },
-    select: { StallingsID: true, BronBezettingsdata: true },
-  });
-  if (!stalling || stalling.BronBezettingsdata === SOURCE_FMS) return;
-
-  const count = await prisma.parkingsimulation_section_assignments.count({
-    where: {
-      simulationConfigId,
-      locationid,
-      sectionid,
-    },
-  });
-
-  try {
-    await reportOccupationData(
-      stalling.StallingsID ?? locationid,
-      sectionid,
-      { occupation: count, source: "Lumiguide" }
-    );
-  } catch (e) {
-    console.warn("reportOccupationData failed:", e);
+  keys: Array<{ locationid: string; sectionid: string }>
+): Promise<BezettingSnapshot[]> {
+  const seen = new Set<string>();
+  const out: BezettingSnapshot[] = [];
+  for (const k of keys) {
+    const id = `${k.locationid}|${k.sectionid}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const [occupation, capacity] = await Promise.all([
+      prisma.parkingsimulation_section_assignments.count({
+        where: { simulationConfigId, locationid: k.locationid, sectionid: k.sectionid },
+      }),
+      getSectionCapacity(k.locationid, k.sectionid),
+    ]);
+    out.push({ locationid: k.locationid, sectionid: k.sectionid, occupation, capacity });
   }
+  return out;
 }
 
 /**
@@ -114,10 +101,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       await prisma.parkingsimulation_section_assignments.deleteMany({
         where: { bicycleId },
       });
-      for (const a of assignmentsBefore) {
-        await reportLumiguideOccupationIfNeeded(a.simulationConfigId, a.locationid, a.sectionid);
-      }
-      return res.status(200).json({ ok: true });
+      const bezetting = await bezettingSnapshots(
+        bicycle.simulationConfigId,
+        assignmentsBefore.map((a) => ({ locationid: a.locationid, sectionid: a.sectionid }))
+      );
+      return res.status(200).json({ ok: true, bezetting });
     }
 
     if (action === "park" || action === "move") {
@@ -158,13 +146,9 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           },
         });
       });
-      await reportLumiguideOccupationIfNeeded(bicycle.simulationConfigId, loc, sec);
-      for (const a of assignmentsBefore) {
-        if (a.locationid !== loc || a.sectionid !== sec) {
-          await reportLumiguideOccupationIfNeeded(a.simulationConfigId, a.locationid, a.sectionid);
-        }
-      }
-      return res.status(200).json({ ok: true });
+      const keys = [{ locationid: loc, sectionid: sec }, ...assignmentsBefore];
+      const bezetting = await bezettingSnapshots(bicycle.simulationConfigId, keys);
+      return res.status(200).json({ ok: true, bezetting });
     }
 
     return res.status(400).json({ message: "action must be park, remove, or move" });

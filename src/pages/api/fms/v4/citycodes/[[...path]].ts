@@ -8,7 +8,7 @@ import handleCitycodes from "~/server/services/fms/fms-citycodes-router";
 const REMOVED_MESSAGE =
   "Dit endpoint is verwijderd in API v4. Gebruik POST …/managedtransactions. Voor legacy in/out, completedtransactions of fietskluizen: gebruik v2/v3 op de ColdFusion-host.";
 
-/** Legacy In/Uit, completedtransaction, and locker writes blocked on v4 paths. */
+/** Legacy In/Uit, completedtransaction, locker writes, and unused place idcodes blocked on v4. */
 function isRemovedV4WritePath(path: string[], method: string | undefined): boolean {
   if (path[1] !== "locations" || !path[2]) return false;
 
@@ -19,6 +19,17 @@ function isRemovedV4WritePath(path: string[], method: string | undefined): boole
       if (path[5] === "completedtransactions" && !path[6]) return true;
       if (path[5] === "places" && path[6] && path[7] === "transactions") return true;
     }
+  }
+
+  // Place-level isAllowedToUse (GET) and koppelpas (POST) — unused on v4 (Java /v1 for buurtstallingen).
+  if (
+    path[3] === "sections" &&
+    path[4] &&
+    path[5] === "places" &&
+    path[6] &&
+    path[7] === "idcodes"
+  ) {
+    return true;
   }
 
   // Fietskluizen writes phased out on v4 (updatePlace / updateLocker / logs / actions / place subscriptions).

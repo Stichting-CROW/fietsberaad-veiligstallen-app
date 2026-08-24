@@ -51,16 +51,59 @@ const PARKINGSIMULATION_CREATE_STATEMENTS = [
       INDEX \`parkingsimulation_section_assignments_bicycleId_idx\`(\`bicycleId\`),
       PRIMARY KEY (\`id\`)
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
-    `ALTER TABLE \`parkingsimulation_bicycles\` ADD CONSTRAINT \`parkingsimulation_bicycles_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`externalTransactionID\` VARCHAR(100) NULL`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`checkInDate\` DATETIME(0) NULL`,
 ];
+
+const PARKINGSIMULATION_FKS: Array<{ name: string; sql: string }> = [
+  {
+    name: "parkingsimulation_bicycles_simulationConfigId_fkey",
+    sql: `ALTER TABLE \`parkingsimulation_bicycles\` ADD CONSTRAINT \`parkingsimulation_bicycles_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
+  },
+  {
+    name: "parkingsimulation_section_assignments_simulationConfigId_fkey",
+    sql: `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
+  },
+  {
+    name: "parkingsimulation_section_assignments_bicycleId_fkey",
+    sql: `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
+  },
+];
+
+const PARKINGSIMULATION_COLUMNS: Array<{ table: string; column: string; sql: string }> = [
+  {
+    table: "parkingsimulation_section_assignments",
+    column: "externalTransactionID",
+    sql: `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`externalTransactionID\` VARCHAR(100) NULL`,
+  },
+  {
+    table: "parkingsimulation_section_assignments",
+    column: "checkInDate",
+    sql: `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`checkInDate\` DATETIME(0) NULL`,
+  },
+];
+
+async function constraintExists(name: string): Promise<boolean> {
+  const rows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT COUNT(*) AS n FROM information_schema.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = ?`,
+    name
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
+
+async function columnExists(table: string, column: string): Promise<boolean> {
+  const rows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    table,
+    column
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
 
 /**
  * Create parkingsimulation tables. Same pattern as cache tables (TransactionsCacheActions etc).
  * Uses CREATE TABLE IF NOT EXISTS and raw SQL - no migration files.
+ * FKs and late-added columns are applied only when missing (reset calls this every time).
  */
 export async function createParkingsimulationTables(): Promise<boolean> {
   const statements = PARKINGSIMULATION_CREATE_STATEMENTS.map((s) =>
@@ -68,14 +111,16 @@ export async function createParkingsimulationTables(): Promise<boolean> {
   );
   try {
     for (const stmt of statements) {
-      try {
-        await prisma.$executeRawUnsafe(stmt);
-      } catch (alterErr) {
-        const msg = alterErr instanceof Error ? alterErr.message : String(alterErr);
-        if (stmt.startsWith("ALTER TABLE") && (msg.includes("Duplicate") || msg.includes("already exists"))) {
-          continue;
-        }
-        throw alterErr;
+      await prisma.$executeRawUnsafe(stmt);
+    }
+    for (const col of PARKINGSIMULATION_COLUMNS) {
+      if (!(await columnExists(col.table, col.column))) {
+        await prisma.$executeRawUnsafe(col.sql);
+      }
+    }
+    for (const fk of PARKINGSIMULATION_FKS) {
+      if (!(await constraintExists(fk.name))) {
+        await prisma.$executeRawUnsafe(fk.sql);
       }
     }
     return true;
