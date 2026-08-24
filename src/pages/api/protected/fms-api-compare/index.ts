@@ -4,10 +4,11 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentials";
-import { rewriteSameHostUrlToLoopback } from "~/server/utils/same-host-loopback";
+import { fetchApiUrl, formatFetchError } from "~/server/utils/internal-api-fetch";
 
 /**
  * Proxy for FMS API comparison. Fetches old and new API from the backend to avoid CORS.
+ * Same-host new API URLs are invoked in-process (no loopback HTTP).
  * Only fietsberaad_superadmin.
  */
 export default async function handle(
@@ -61,49 +62,38 @@ export default async function handle(
     return null;
   };
 
-  const newFetchUrl = rewriteSameHostUrlToLoopback(newUrl, req.headers);
+  const fetchSide = async (
+    url: string,
+    label: "old" | "new",
+    checkBodyError: boolean
+  ) => {
+    const start = performance.now();
+    try {
+      const r = await fetchApiUrl(url, { headers }, req.headers);
+      if (!r.ok) {
+        const msg = `HTTP ${r.status}: ${r.text.slice(0, 200)}`;
+        console.error(`FMS API compare (${label}):`, msg);
+        return { text: null, durationMs: performance.now() - start, error: msg };
+      }
+      if (checkBodyError) {
+        const bodyError = looksLikeErrorResponse(r.text);
+        if (bodyError) {
+          console.error(`FMS API compare (${label}):`, bodyError);
+          return { text: null, durationMs: performance.now() - start, error: bodyError };
+        }
+      }
+      return { text: r.text, durationMs: performance.now() - start, error: null as string | null };
+    } catch (err) {
+      const msg = formatFetchError(err);
+      console.error(`FMS API compare (${label}):`, msg, err);
+      return { text: null, durationMs: null, error: msg };
+    }
+  };
 
   const [oldResult, newResult] = await Promise.all([
-      (async () => {
-        const start = performance.now();
-        try {
-          const r = await fetch(oldUrl, { headers });
-          const text = await r.text();
-          if (!r.ok) {
-            const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
-            console.error("FMS API compare (old):", msg);
-            return { text: null, durationMs: performance.now() - start, error: msg };
-          }
-          const bodyError = looksLikeErrorResponse(text);
-          if (bodyError) {
-            console.error("FMS API compare (old):", bodyError);
-            return { text: null, durationMs: performance.now() - start, error: bodyError };
-          }
-          return { text, durationMs: performance.now() - start, error: null as string | null };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Fetch failed";
-          console.error("FMS API compare (old):", msg);
-          return { text: null, durationMs: null, error: msg };
-        }
-      })(),
-      (async () => {
-        const start = performance.now();
-        try {
-          const r = await fetch(newFetchUrl, { headers });
-          const text = await r.text();
-          if (!r.ok) {
-            const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;
-            console.error("FMS API compare (new):", msg);
-            return { text: null, durationMs: performance.now() - start, error: msg };
-          }
-          return { text, durationMs: performance.now() - start, error: null as string | null };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Fetch failed";
-          console.error("FMS API compare (new):", msg);
-          return { text: null, durationMs: null, error: msg };
-        }
-      })(),
-    ]);
+    fetchSide(oldUrl, "old", true),
+    fetchSide(newUrl, "new", false),
+  ]);
 
   const oldError = oldResult.error;
   const newError = newResult.error;

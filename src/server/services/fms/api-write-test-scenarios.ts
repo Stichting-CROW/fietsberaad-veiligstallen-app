@@ -3,9 +3,11 @@
  * Calls real /api/fms/v4 routes; asserts queue rows or direct DB effects on testgemeente.
  */
 
+import type { IncomingHttpHeaders } from "http";
 import { prisma } from "~/server/db";
 import { processQueues } from "~/server/services/queue/processor";
 import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
+import { fetchApiUrl } from "~/server/utils/internal-api-fetch";
 
 export const API_SYNTHETIC_PREFIX = "WTEST_API_";
 
@@ -22,6 +24,7 @@ export type ApiWriteTestContext = {
   pass: (suffix: string) => string;
   baseUrl: string;
   authHeader: string;
+  incomingHeaders: IncomingHttpHeaders;
   citycode: string;
   bikeparkID: string;
   sectionID: string;
@@ -62,16 +65,20 @@ export async function fmsHttp(
   if (query) {
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString(), {
-    method,
-    headers: {
-      Authorization: ctx.authHeader,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const res = await fetchApiUrl(
+    url.toString(),
+    {
+      method,
+      headers: {
+        Authorization: ctx.authHeader,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: body != null ? JSON.stringify(body) : undefined,
     },
-    body: body != null ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
+    ctx.incomingHeaders
+  );
+  const text = res.text;
   let parsed: Record<string, unknown> = {};
   try {
     parsed = JSON.parse(text) as Record<string, unknown>;

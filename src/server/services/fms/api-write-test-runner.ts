@@ -2,6 +2,7 @@
  * Runner for Tier B HTTP ingress write tests.
  */
 
+import type { IncomingHttpHeaders } from "http";
 import { prisma } from "~/server/db";
 import { env } from "~/env.mjs";
 import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentials";
@@ -72,7 +73,12 @@ async function resolveSubscriptionTypeID(bikeparkID: string): Promise<number> {
   return link?.SubscriptiontypeID ?? 0;
 }
 
-function buildContext(scope: WriteTestScope, baseUrl: string, authHeader: string): ApiWriteTestContext {
+function buildContext(
+  scope: WriteTestScope,
+  baseUrl: string,
+  authHeader: string,
+  incomingHeaders: IncomingHttpHeaders
+): ApiWriteTestContext {
   const runId = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)
     .toString(36)
     .padStart(3, "0")}`;
@@ -83,6 +89,7 @@ function buildContext(scope: WriteTestScope, baseUrl: string, authHeader: string
     pass: (suffix: string) => `${passPrefix}${suffix}`,
     baseUrl: baseUrl.replace(/\/$/, ""),
     authHeader,
+    incomingHeaders,
     citycode: "9933",
     bikeparkID: scope.bikeparkID,
     sectionID: scope.sectionID,
@@ -108,10 +115,11 @@ async function runScenario(
   scenario: ApiWriteScenario,
   scope: WriteTestScope,
   baseUrl: string,
-  authHeader: string
+  authHeader: string,
+  incomingHeaders: IncomingHttpHeaders
 ): Promise<ApiScenarioRunResult> {
   const started = Date.now();
-  const ctx = buildContext(scope, baseUrl, authHeader);
+  const ctx = buildContext(scope, baseUrl, authHeader, incomingHeaders);
   const lockerStatus = await inspectTestgemeenteLockerPlace();
   ctx.lockerPlaceID = lockerStatus.placeID;
   ctx.subscriptionTypeID = await resolveSubscriptionTypeID(ctx.bikeparkID);
@@ -189,7 +197,8 @@ export async function getApiWriteTestPreflight(): Promise<{
 export async function runApiWriteTests(
   baseUrl: string,
   scenarioId?: string,
-  suite: WriteTestSuite = "api"
+  suite: WriteTestSuite = "api",
+  incomingHeaders: IncomingHttpHeaders = {}
 ): Promise<RunApiWriteTestsResult> {
   const scope = await resolveTestgemeenteScope();
   const authHeader = (await buildTestFmsAuthHeader()) ?? "";
@@ -205,7 +214,7 @@ export async function runApiWriteTests(
 
   const results: ApiScenarioRunResult[] = [];
   for (const scenario of scenarios) {
-    results.push(await runScenario(scenario, scope, baseUrl, authHeader));
+    results.push(await runScenario(scenario, scope, baseUrl, authHeader, incomingHeaders));
   }
 
   return {
