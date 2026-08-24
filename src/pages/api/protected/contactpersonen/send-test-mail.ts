@@ -163,6 +163,7 @@ export default async function handle(
       subject: `[TEST] ${subject}`,
       html,
       text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+      replyTo: cfg.replyTo,
     });
     res.status(200).json({ ok: true });
   } catch (e) {

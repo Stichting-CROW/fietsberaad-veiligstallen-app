@@ -6,8 +6,8 @@
  * Only exports that are actively downloaded are written (lazy, no pre-warm).
  * A cached file is only served when the reported period has been closed for at
  * least REPORT_CACHE_SETTLING_DAYS (default 14). Running and recently-closed
- * periods always regenerate. Files unused for REPORT_CACHE_MAX_AGE_DAYS
- * (default 90 ≈ 3 months) are deleted on the next export request.
+ * periods always regenerate. Cached files are kept indefinitely unless cleared
+ * manually or after an aggregate cache refresh for the overlapping period.
  */
 
 import { createHash, randomBytes } from "node:crypto";
@@ -26,8 +26,6 @@ import { type CsvExportResult } from "~/backend/services/reports/transactionsExp
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const DEFAULT_SETTLING_DAYS = 14;
-/** Unused cached files older than this are deleted (≈ 3 months). */
-const DEFAULT_MAX_AGE_DAYS = 90;
 
 export type CsvExportCacheKey = {
   exportType: CsvExportType;
@@ -69,11 +67,12 @@ export const getReportCacheSettlingDays = (): number => {
   return Math.floor(parsed);
 };
 
-export const getReportCacheMaxAgeDays = (): number => {
+/** Returns max age in days when REPORT_CACHE_MAX_AGE_DAYS is set; otherwise null (keep forever). */
+export const getReportCacheMaxAgeDays = (): number | null => {
   const raw = process.env.REPORT_CACHE_MAX_AGE_DAYS;
-  if (raw === undefined || raw === "") return DEFAULT_MAX_AGE_DAYS;
+  if (raw === undefined || raw === "") return null;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_MAX_AGE_DAYS;
+  if (!Number.isFinite(parsed) || parsed < 1) return null;
   return Math.floor(parsed);
 };
 
@@ -124,23 +123,13 @@ export const isCsvExportPeriodSettled = async (
   return Number(rows[0]?.settled ?? 0) === 1;
 };
 
-const maxAgeCutoffMs = (maxAgeDays: number = getReportCacheMaxAgeDays()): number =>
+const maxAgeCutoffMs = (maxAgeDays: number): number =>
   Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
 const readCachedCsv = async (cachePath: string): Promise<string | null> => {
   try {
-    const stat = await fs.stat(cachePath);
-    if (stat.mtimeMs < maxAgeCutoffMs()) {
-      await fs.unlink(cachePath).catch(() => undefined);
-      return null;
-    }
-
     const compressed = await fs.readFile(cachePath);
-    const csv = gunzipSync(compressed).toString("utf8");
-    // Touch mtime so repeatedly downloaded files stay beyond the 3-month TTL.
-    const now = new Date();
-    await fs.utimes(cachePath, now, now).catch(() => undefined);
-    return csv;
+    return gunzipSync(compressed).toString("utf8");
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return null;
@@ -188,12 +177,13 @@ const walkFiles = async (dir: string): Promise<string[]> => {
 
 /**
  * Delete cached `.gz` files whose mtime is older than REPORT_CACHE_MAX_AGE_DAYS.
- * Called opportunistically from export requests so unused downloads disappear
- * after ≈ 3 months without a separate cron.
+ * No-op when REPORT_CACHE_MAX_AGE_DAYS is unset (default: keep cached files forever).
  */
 export const expireOldReportFileCache = async (
-  maxAgeDays: number = getReportCacheMaxAgeDays()
+  maxAgeDays: number | null = getReportCacheMaxAgeDays()
 ): Promise<{ deleted: number; errors: number }> => {
+  if (maxAgeDays === null) return { deleted: 0, errors: 0 };
+
   const cutoff = maxAgeCutoffMs(maxAgeDays);
   const files = await walkFiles(getReportCacheBaseDir());
   let deleted = 0;
@@ -225,11 +215,6 @@ export const getCachedOrGenerateCsvExport = async (
   key: CsvExportCacheKey,
   generate: () => Promise<CsvExportResult>
 ): Promise<CsvExportResult> => {
-  // Best-effort TTL sweep; never blocks the download on failure.
-  void expireOldReportFileCache().catch((error) => {
-    console.error("Failed to expire old CSV export cache files:", error);
-  });
-
   const filename = resolveCsvExportFilename(key.exportType, key);
   const cachePath = resolveCsvExportCachePath(key);
   const settled = await isCsvExportPeriodSettled(key.exportType, key);

@@ -1,5 +1,8 @@
 # Documentation Overview
 
+**Current FMS write path (tracked):** [`docs/analyse-api/fms-write-paths.md`](analyse-api/fms-write-paths.md).  
+`QUEUE_PROCESSOR_PORTING_PLAN.md` and the other motorblok files below are **local historical porting notes**, not the leading plan.
+
 ### Transaction flow and motorblok
 
 | File | Purpose | Action |
@@ -46,7 +49,7 @@ Plans stored in `~/.cursor/plans/`:
 
 | Plan file | Topic |
 |-----------|-------|
-| **QUEUE_PROCESSOR_PORTING_PLAN.md** | **Leading plan** – Queue processor port (processTransactions2.cfm → Next.js); wachtrij processing, data flow, tables without UI |
+| QUEUE_PROCESSOR_PORTING_PLAN.md | Historical – CF queue processor port notes. Current path: `docs/analyse-api/fms-write-paths.md` |
 | API_PORTING_PLAN.md | FMS REST API and transaction processing |
 | DATASTANDARD_REPORTING_API_PLAN.md | Datastandard and Reporting APIs (separate implementation) |
 

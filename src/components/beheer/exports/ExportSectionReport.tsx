@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { type ReportType } from "../reports/ReportsFilter";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import type { ReportComponentProps, BikeparkData, CsvExportType } from "./index";
@@ -43,10 +43,18 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
   const showSectionReport = csvExportType !== undefined;
 
   const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
-  
+  const bikeparkIDsKey = validBikeparkIDs.join(",");
+  const startDT = firstDate.getTime();
+  const endDT = lastDate.getTime();
+  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT), String(counter)].join("|");
+  const loadedFetchKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
       const fetchReportData = async () => {
-        setLoading(true);
+        const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
+        if (showLoadingUI) {
+          setLoading(true);
+        }
 
         try {
           if(validBikeparkIDs.length !== bikeparks.length) {
@@ -75,6 +83,7 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           if(data) {
             setBikeparkData(convertToBikeparkData(bikeparks,data));
             setErrorState("");
+            loadedFetchKeyRef.current = fetchKey;
         } else {
             setErrorState("Unable to fetch report data");
           }
@@ -82,14 +91,16 @@ const ExportSectionReportComponent: React.FC<ExportSectionReportProps> = ({
           console.error(error);
           setErrorState("Unable to fetch report data");
         } finally {
-          setLoading(false);
+          if (showLoadingUI) {
+            setLoading(false);
+          }
         }
       };
   
       if(showSectionReport) {
         fetchReportData();
       }
-  }, [reportType, bikeparks, counter, firstDate, lastDate]);
+  }, [reportType, bikeparkIDsKey, counter, startDT, endDT, showSectionReport, fetchKey]);
 
   const downloadYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
     if (csvExportType === undefined || downloadingKey !== null) return;

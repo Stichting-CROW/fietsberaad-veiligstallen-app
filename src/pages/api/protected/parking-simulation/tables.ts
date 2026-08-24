@@ -7,6 +7,7 @@ import { prisma } from "~/server/db";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 import { createParkingsimulationTables } from "~/backend/services/database/ParkingsimulationTableActions";
+import { createNewFmsTables } from "~/backend/services/database/NewFmsTableActions";
 
 const PARKINGSIMULATION_TABLES = [
   "parkingsimulation_section_assignments",
@@ -60,6 +61,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   if (action === "reset") {
     console.log("[parking-simulation/reset] Start of reset");
+    await createParkingsimulationTables();
+    await createNewFmsTables();
     // startDate from body is ISO string (UTC); store as UTC in DB
     const startDate = body.startDate ? new Date(body.startDate) : DEFAULT_SIMULATION_START_DATE;
     const contact = await prisma.contacts.findFirst({
@@ -80,7 +83,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         });
       }
 
-      // Delete transaction data for teststallingen only (wachtrij_*, transacties, transacties_archief, new_*).
+      // Delete transaction data for teststallingen only (wachtrij_*, new_wachtrij_*, transacties, accounts).
       // Prisma delete of fietsenstallingen does NOT cascade to these tables (no FK).
       const teststallings = await prisma.fietsenstallingen.findMany({
         where: { SiteID: contact.ID, StallingsID: { not: null } },
@@ -97,37 +100,36 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             prisma.wachtrij_pasids.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.wachtrij_betalingen.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.wachtrij_sync.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
-            prisma.new_wachtrij_transacties.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.new_wachtrij_pasids.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.new_wachtrij_betalingen.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.new_wachtrij_sync.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
+            prisma.new_wachtrij_managed_transacties.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
+            prisma.new_bezettingsdata_tmp.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
+            prisma.bezettingsdata_tmp.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
-            prisma.new_transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
-            prisma.new_financialtransactions.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
+            prisma.financialtransactions.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
           );
         }
         if (stallingsIds.length > 0) {
           deletes.push(
             prisma.transacties.deleteMany({ where: { FietsenstallingID: { in: stallingsIds } } }),
-            prisma.new_transacties.deleteMany({ where: { FietsenstallingID: { in: stallingsIds } } }),
           );
         }
         await prisma.$transaction(deletes);
 
-        // new_accounts_pasids and new_accounts: scoped by SiteID (testgemeente contact)
-        const pasidsToDelete = await prisma.new_accounts_pasids.findMany({
+        const pasidsToDelete = await prisma.accounts_pasids.findMany({
           where: { SiteID: contact.ID },
           select: { AccountID: true },
         });
         const accountIds = [...new Set(pasidsToDelete.map((p) => p.AccountID).filter((id): id is string => id != null))];
         if (accountIds.length > 0) {
           await prisma.$transaction([
-            prisma.new_financialtransactions.deleteMany({ where: { accountID: { in: accountIds } } }),
-            prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } }),
-            prisma.new_accounts.deleteMany({ where: { ID: { in: accountIds } } }),
+            prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIds } } }),
+            prisma.accounts_pasids.deleteMany({ where: { SiteID: contact.ID } }),
+            prisma.accounts.deleteMany({ where: { ID: { in: accountIds } } }),
           ]);
         } else {
-          await prisma.new_accounts_pasids.deleteMany({ where: { SiteID: contact.ID } });
+          await prisma.accounts_pasids.deleteMany({ where: { SiteID: contact.ID } });
         }
       }
 

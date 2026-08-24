@@ -5,7 +5,6 @@ import {
   filterLocation,
   filterSectionForApi,
   type FieldsParam,
-  useMinimalCitycodesLocationShape,
 } from "./fms-v3-fields";
 
 const FMS_TIMING = false;
@@ -23,8 +22,13 @@ const CACHE_CITYCODES_DURATION_MINUTES =
   process.env.NODE_ENV === "development" ? 0 : 30;
 const cityCache = new Map<string, { data: CityWithLocations; expires: number }>();
 
-function getCityCacheKey(citycode: string, depth: number, fields?: string): string {
-  return `city:${citycode}:d:${depth}:f:${fields ?? ""}`;
+function getCityCacheKey(
+  citycode: string,
+  depth: number,
+  fields?: string,
+  forV3Citycodes?: boolean
+): string {
+  return `city:${citycode}:d:${depth}:f:${fields ?? ""}:list:${forV3Citycodes ? 1 : 0}`;
 }
 
 const CITY_CACHE_TTL_MS =
@@ -202,11 +206,13 @@ type GetCitiesOptions = {
   forV3Citycodes?: boolean;
 };
 
-/** ColdFusion-compatible: returns cities with nested locations (depth >= 1). */
+/**
+ * ColdFusion GET /citycodes list. Live CF ignores `depth` and `fields` on this
+ * endpoint and always returns compact locations (no sections/address/exploitant).
+ */
 export async function getCities(
-  options: GetCitiesOptions = {}
+  _options: GetCitiesOptions = {}
 ): Promise<CityWithLocations[]> {
-  const { depth = 3 } = options;
   // ColdFusion: getCouncilsWithBikeparks() - councils with active bikeparks, ORDER BY companyName
   const councils = await prisma.contacts.findMany({
     where: {
@@ -229,7 +235,7 @@ export async function getCities(
   const result: CityWithLocations[] = [];
   for (const council of councils) {
     if (!council.ZipID) continue;
-    const city = await getCity(council.ZipID, { ...options, forV3Citycodes: true });
+    const city = await getCity(council.ZipID, { depth: 1, forV3Citycodes: true });
     if (city) result.push(city);
   }
   return result;
@@ -247,7 +253,7 @@ export async function getCity(
 ): Promise<CityWithLocations | null> {
   const { depth = 3, fields } = options;
   if (CITY_CACHE_TTL_MS > 0) {
-    const cacheKey = getCityCacheKey(citycode, depth, fields);
+    const cacheKey = getCityCacheKey(citycode, depth, fields, options.forV3Citycodes);
     const cached = cityCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) {
       return cached.data;
@@ -284,9 +290,9 @@ export async function getCity(
     name: council.CompanyName ?? undefined,
     locations,
   });
-  const result = filterCity(built, fields, depth);
+  const result = options.forV3Citycodes ? built : filterCity(built, fields, depth);
   if (CITY_CACHE_TTL_MS > 0) {
-    cityCache.set(getCityCacheKey(citycode, depth, fields), {
+    cityCache.set(getCityCacheKey(citycode, depth, fields, options.forV3Citycodes), {
       data: result,
       expires: Date.now() + CITY_CACHE_TTL_MS,
     });
@@ -387,9 +393,9 @@ async function getLocationsFull(
 ): Promise<ColdFusionLocation[]> {
   const t0 = timeStart("getLocationsFull total");
   const { depth = 3, limit, forV3Citycodes = false, omitSections = false, fields } = options;
-  const minimalListShape =
-    forV3Citycodes && useMinimalCitycodesLocationShape(fields);
-  const includeSections = depth >= 2 && !omitSections;
+  // City + locations list: live CF includes `sections` only at depth >= 3.
+  // Single location (`getLocation`) still uses depth >= 2.
+  const includeSections = depth >= 3 && !omitSections && !forV3Citycodes;
 
   const tFind = timeStart("getLocationsFull findMany locations");
   const rows = await prisma.fietsenstallingen.findMany({
@@ -483,9 +489,13 @@ async function getLocationsFull(
       sectionsForRows[i] ?? [],
       ocfResults[i]!,
       includeSections,
-      minimalListShape
+      forV3Citycodes
     );
-    result.push(filterLocation(built, fields, depth, { embeddedInCity: forV3Citycodes }));
+    result.push(
+      forV3Citycodes
+        ? built
+        : filterLocation(built, fields, depth, { embeddedInCity: false })
+    );
   }
   // citycodes list: order by locationid (old API uses this for getCities). citycodes/{citycode}/locations: order by name (title asc).
   if (forV3Citycodes) {
@@ -717,8 +727,7 @@ async function assembleSectionsFromRows(
           return { timespan: ts > 0 ? ts : DEF_TS, cost: parseFloat(costStr) || 0 };
         };
         type RateOrNullLoc = { timespan: number; cost: number } | null;
-        const toRatesArr = (raw: RateOrNullLoc[]): RateOrNullLoc[] =>
-          raw.length === 0 ? [null, null, null] : raw;
+        const toRatesArr = (raw: RateOrNullLoc[]): RateOrNullLoc[] => raw;
 
         let sectionRates: RateOrNullLoc[] | null = null;
         /** CF BikeparkSection.getCostPeriods: uni bike type uses stalling-only when uni section+bike, else sectie-only; never sectie fallback when both uni flags. */
@@ -762,7 +771,7 @@ async function assembleSectionsFromRows(
                 tr = tariefBySbt.get(sf.SectionBiketypeID);
               }
               const fromTr = stripLeadingNullRates(tr ? tr.map(toRateOrNullLoc) : []);
-              rates = fromTr.length > 0 ? toRatesArr(fromTr) : [null, null, null];
+              rates = fromTr.length > 0 ? toRatesArr(fromTr) : [];
             }
             const out: { allowed: boolean; biketypeid: number; rates: Array<{ timespan: number; cost: number } | null>; capacity?: number } = {
               allowed,
@@ -908,8 +917,8 @@ function computeOcfForRow(
   const capacity = totalCapacityNetto; // always getNettoCapacity()
   const capacityForFree = stallingCapacitySet ? capVal : totalCapacityRaw;
   const free = Math.max(0, capacityForFree - totalOccupied);
-  // ColdFusion: capacity only when bikepark.getCapacity() > 0 (omit when Capacity=0)
-  const includeCapacity = capacityForFree > 0;
+  // ColdFusion omits `capacity` when the emitted value is 0 (even if stalling.Capacity is set).
+  const includeCapacity = capacity > 0;
   return { occupied: totalOccupied, capacity, free, includeCapacity };
 }
 
@@ -1039,9 +1048,11 @@ export function toLocationDetailFormat(loc: ColdFusionLocation): LocationDetailS
 function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation {
   const order = [
     "occupied",
+    "postalcode",
     "exploitantcontact",
     "locationtype",
     "long",
+    "services",
     "sections",
     "station",
     "occupationsource",
@@ -1049,16 +1060,14 @@ function toColdFusionLocationOrder(loc: ColdFusionLocation): ColdFusionLocation 
     "name",
     "free",
     "city",
+    "costsdescription",
     "capacity",
+    "description",
+    "thirdpartyreservationsurl",
+    "exploitantname",
     "address",
     "locationid",
     "openinghours",
-    "exploitantname",
-    "postalcode",
-    "costsdescription",
-    "thirdpartyreservationsurl",
-    "description",
-    "services",
   ];
   const out: Record<string, unknown> = {};
   for (const k of order) {
@@ -1088,19 +1097,17 @@ export async function getLocations(
   citycode: string,
   options: { depth?: number; fields?: FieldsParam } = {}
 ): Promise<ColdFusionLocation[]> {
-  // Old API: citycodes/{citycode}/locations includes sections when depth > 1 (BaseRestService getLocation line 391).
+  // Old API: citycodes/{citycode}/locations includes sections only when depth >= 3.
   return getLocationsFull(citycode, { ...options, forV3Citycodes: false });
 }
 
 /**
  * StallingsID (locationid) is globally unique. Prisma schema: @unique(map: "idxstallingsid") on fietsenstallingen.
  * DB enforces uniqueness; lookups use locationid only (no citycode).
- * When useNewTables: occupancy from new_transacties (open records) instead of Bezetting.
  */
 export async function getLocation(
   locationid: string,
   depth = 2,
-  useNewTables = false,
   fields?: FieldsParam
 ): Promise<ColdFusionLocation | null> {
   const stalling = await prisma.fietsenstallingen.findFirst({
@@ -1158,43 +1165,7 @@ export async function getLocation(
   });
   if (!stalling?.StallingsID) return null;
   const sections = await getSections(locationid, depth);
-  let ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
-  if (useNewTables && stalling.ID) {
-    const openCounts = await prisma.new_transacties.groupBy({
-      by: ["SectieID"],
-      where: {
-        FietsenstallingID: stalling.ID,
-        Date_checkout: null,
-      },
-      _count: { ID: true },
-    });
-    const bySection = new Map<string, number>();
-    let totalOccupied = 0;
-    for (const r of openCounts) {
-      if (r.SectieID) {
-        bySection.set(r.SectieID, r._count.ID);
-        totalOccupied += r._count.ID;
-      }
-    }
-    const capacityForFree = ocf.includeCapacity ? ocf.capacity : ocf.free + ocf.occupied;
-    const free = Math.max(0, capacityForFree - totalOccupied);
-    ocf = { occupied: totalOccupied, capacity: ocf.capacity, free, includeCapacity: ocf.includeCapacity };
-    const loc = buildColdFusionLocation(
-      stalling as LocationRow,
-      sections as ColdFusionSection[],
-      ocf,
-      depth >= 2
-    );
-    if (loc.sections) {
-      for (const s of loc.sections) {
-        const occ = s.sectionid ? bySection.get(s.sectionid) : undefined;
-        if (occ != null) s.occupation = occ;
-      }
-    }
-    loc.occupied = totalOccupied;
-    loc.free = free;
-    return filterLocation(loc, fields, depth);
-  }
+  const ocf = await computeOccupiedCapacityFree(stalling as LocationRow);
   const built = buildColdFusionLocation(
     stalling as LocationRow,
     sections as ColdFusionSection[],
@@ -1467,7 +1438,7 @@ async function buildSectionFromSectie(
 
     const toRatesArray = (raw: RateOrNull[] | Array<{ timespan: number; cost: number }>): Array<{ timespan: number; cost: number } | null> => {
       const arr = raw as RateOrNull[];
-      if (arr.length === 0) return [null, null, null];
+      if (arr.length === 0) return [];
       return arr;
     };
 
@@ -1506,7 +1477,7 @@ async function buildSectionFromSectie(
         if (fromTr.length > 0) {
           rates = toRatesArray(fromTr);
         } else {
-          rates = [null, null, null];
+          rates = [];
         }
       }
       const out: { allowed: boolean; biketypeid: number; rates: Array<{ timespan: number; cost: number } | null>; capacity?: number } = {
@@ -1581,6 +1552,80 @@ export async function getPlaces(
       statuscode,
     };
     return place;
+  });
+}
+
+/**
+ * Single place. ColdFusion BaseRestService.getPlace (REST /…/places/{placeid}).
+ * Validates the place belongs to the given section and location; returns null when not found.
+ * Public shape: { id, name, datelaststatusupdate?, statuscode } (protected fields omitted, matching getPlaces).
+ */
+export async function getPlace(
+  locationid: string,
+  sectionid: string,
+  placeid: string | number
+): Promise<PlaceSummary | null> {
+  const placeIdNum = typeof placeid === "number" ? placeid : parseInt(placeid, 10);
+  if (Number.isNaN(placeIdNum)) return null;
+
+  const sectie = await prisma.fietsenstalling_sectie.findFirst({
+    where: {
+      externalId: sectionid,
+      fietsenstalling: {
+        StallingsID: locationid,
+        Status: "1",
+      },
+    },
+    select: { sectieId: true },
+  });
+  if (!sectie) return null;
+
+  const p = await prisma.fietsenstalling_plek.findFirst({
+    where: { id: BigInt(placeIdNum), sectie_id: BigInt(sectie.sectieId) },
+    select: { id: true, titel: true, status: true, dateLastStatusUpdate: true },
+  });
+  if (!p) return null;
+
+  const status = p.status ?? 0;
+  const statuscode = typeof status === "number" ? status % 10 : 0;
+  const datelaststatusupdate =
+    p.dateLastStatusUpdate != null
+      ? p.dateLastStatusUpdate instanceof Date
+        ? p.dateLastStatusUpdate.toISOString().slice(0, 19)
+        : String(p.dateLastStatusUpdate).slice(0, 19)
+      : undefined;
+  // ColdFusion key order: id, name, datelaststatusupdate (when set), statuscode
+  return {
+    id: Number(p.id),
+    name: p.titel ?? undefined,
+    ...(datelaststatusupdate != null && { datelaststatusupdate }),
+    statuscode,
+  };
+}
+
+/**
+ * GET …/{citycode}/locationscsv
+ * ColdFusion getLocationsCSV: depth=1 locations, one line per location with the simple
+ * (non-object/array) field values joined by ";" (trailing ";"). Object/array fields are skipped.
+ */
+export async function getLocationsCsv(
+  citycode: string,
+  fields?: FieldsParam
+): Promise<string[]> {
+  const locations = await getLocationsFull(citycode, { depth: 1, fields, forV3Citycodes: false });
+  return locations.map((loc) => {
+    let line = "";
+    for (const value of Object.values(toColdFusionLocationOrder(loc) as Record<string, unknown>)) {
+      if (
+        value != null &&
+        (typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean")
+      ) {
+        line += `${String(value)};`;
+      }
+    }
+    return line;
   });
 }
 

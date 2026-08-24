@@ -1,4 +1,5 @@
 import { prisma } from "~/server/db";
+import { expandPermitString } from "~/types/fms-permit-types";
 
 export type FmsAuthResult =
   | { ok: true; urlName: string; permits: string[] }

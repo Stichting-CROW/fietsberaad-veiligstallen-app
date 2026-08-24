@@ -7,12 +7,15 @@ export function formatFrom(fromEmailOrHeader: string) {
   return `VeiligStallen <${fromEmailOrHeader}>`;
 }
 
+const DEFAULT_SMTP_REPLY_TO = "info@veiligstallen.nl";
+
 export function requireSmtpConfig() {
   const host = env.SMTP_HOST;
   const port = env.SMTP_PORT;
   const user = env.SMTP_USER;
   const pass = env.SMTP_PASS;
   const from = env.SMTP_FROM ?? user;
+  const replyTo = env.SMTP_REPLY_TO ?? DEFAULT_SMTP_REPLY_TO;
 
   if (!host || !port || !user || !pass || !from) {
     return {
@@ -22,7 +25,7 @@ export function requireSmtpConfig() {
     };
   }
 
-  return { ok: true as const, host, port, user, pass, from };
+  return { ok: true as const, host, port, user, pass, from, replyTo };
 }
 
 export function createMailer(cfg: { host: string; port: number; user: string; pass: string }) {

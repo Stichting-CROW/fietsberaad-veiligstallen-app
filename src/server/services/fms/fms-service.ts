@@ -33,6 +33,23 @@ export async function getBikeTypes(): Promise<BikeType[]> {
   }));
 }
 
+/**
+ * Single bike type by id.
+ * ColdFusion BaseFMSService.getBikeType → proxy.BikeType { bikeTypeID, name }.
+ */
+export async function getBikeType(bikeTypeID: number): Promise<BikeType | null> {
+  const row = await prisma.fietstypen.findFirst({
+    where: { ID: bikeTypeID },
+    select: { ID: true, Name: true, naamenkelvoud: true },
+  });
+  if (!row) return null;
+  return {
+    bikeTypeID: row.ID,
+    name: row.Name ?? "",
+    naamenkelvoud: row.naamenkelvoud,
+  };
+}
+
 export async function getPaymentTypes(): Promise<PaymentType[]> {
   return [
     {

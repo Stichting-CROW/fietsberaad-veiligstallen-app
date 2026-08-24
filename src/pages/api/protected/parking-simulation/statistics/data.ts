@@ -7,33 +7,34 @@ import { prisma } from "~/server/db";
 import { resolveExistingTableNames } from "~/server/utils/mysql-schema-tables";
 
 const NEW_WACHTRIJ_STATS_TABLES = [
-  "new_wachtrij_transacties",
   "new_wachtrij_pasids",
   "new_wachtrij_betalingen",
   "new_wachtrij_sync",
+  "new_wachtrij_managed_transacties",
+  "new_bezettingsdata_tmp",
 ] as const;
 
 export type StatisticsDataRow = {
   bikeparkID: string;
-  countTransacties: number;  // uploadJsonTransaction, uploadJsonTransactions
-  countPasids: number;       // saveJsonBike, saveJsonBikes
-  countBetalingen: number;   // addJsonSaldo, addJsonSaldos
-  countSync: number;         // syncSector
-  countReportOccupation: number;  // reportOccupationData, reportJsonOccupationData
-  countUpdateLocker: number; // updateLocker (from webservice_log)
-  countAddSubscription: number; // addSubscription (from webservice_log)
-  countSubscribe: number;    // subscribe (from webservice_log)
+  countTransacties: number;  // new_wachtrij_managed_transacties + leftover CF wachtrij_transacties
+  countPasids: number;       // v4 …/bike (new_wachtrij_pasids)
+  countBetalingen: number;   // v4 …/balance (new_wachtrij_betalingen)
+  countSync: number;         // v4 occupation data.bikes (new_wachtrij_sync)
+  countReportOccupation: number;  // v4 occupation (new_bezettingsdata_tmp)
+  countUpdateLocker: number; // v4 updatePlace / locker (webservice_log)
+  countAddSubscription: number; // v4 …/subscriptions (webservice_log)
+  countSubscribe: number;    // v4 …/subscriptions/{id} (webservice_log)
 };
 
 /**
- * GET statistics per stalling (light: aggregate counts from wachtrij_* and bezettingsdata_tmp).
- * Counts map to V1/V2/V3 API write method calls:
- * - countTransacties: uploadJsonTransaction, uploadJsonTransactions
- * - countPasids: saveJsonBike, saveJsonBikes
- * - countBetalingen: addJsonSaldo, addJsonSaldos
- * - countSync: syncSector
- * - countReportOccupation: reportOccupationData, reportJsonOccupationData
- * - countUpdateLocker: updateLocker (from webservice_log, if populated)
+ * GET statistics per stalling (aggregate counts from CF wachtrij_* plus Next.js new_wachtrij_*).
+ * Simulation writes are v4-only; check-in/out is managedtransactions.
+ * - countTransacties: managedtransactions + leftover In/Uit transacties queues
+ * - countPasids: v4 bike
+ * - countBetalingen: v4 balance
+ * - countSync: v4 occupation (data.bikes)
+ * - countReportOccupation: v4 occupation
+ * - countUpdateLocker / subscriptions: webservice_log, if populated
  * Query: dateStart (optional). Filter: date >= dateStart.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -66,7 +67,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   const mirrorTableNames = await resolveExistingTableNames([
     ...NEW_WACHTRIJ_STATS_TABLES,
-    "new_bezettingsdata_tmp",
   ]);
   const mirrorSql = new Map(mirrorTableNames.map((n) => [n.toLowerCase(), n]));
   const qMirror = (lower: string, fragment: string) => {
@@ -78,7 +78,9 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     );
   };
 
-  const [wt, wp, wb, ws, bdt, nbdt, nwt, nwp, nwb, nws, wsl, wsa, wss] = await Promise.all([
+  const dateFilterManaged = `AND (dateCreated IS NULL OR dateCreated >= '${dateStart} 00:00:00')`;
+
+  const [wt, wp, wb, ws, bdt, nwp, nwb, nws, nwm, nbdt, wsl, wsa, wss] = await Promise.all([
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM wachtrij_transacties WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilter} GROUP BY bikeparkID`
     ),
@@ -94,11 +96,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM bezettingsdata_tmp WHERE bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterBezetting} GROUP BY bikeparkID`
     ),
-    qMirror("new_bezettingsdata_tmp", dateFilterBezetting),
-    qMirror("new_wachtrij_transacties", dateFilter),
     qMirror("new_wachtrij_pasids", dateFilter),
     qMirror("new_wachtrij_betalingen", dateFilter),
     qMirror("new_wachtrij_sync", dateFilter),
+    qMirror("new_wachtrij_managed_transacties", dateFilterManaged),
+    qMirror("new_bezettingsdata_tmp", dateFilterBezetting),
     prisma.$queryRawUnsafe<CountRow[]>(
       `SELECT bikeparkID ${collate} AS bikeparkID, COUNT(*) AS cnt FROM webservice_log WHERE LOWER(TRIM(method)) = 'updatelocker' AND bikeparkID IS NOT NULL AND bikeparkID != '' ${dateFilterWebserviceLog} GROUP BY bikeparkID`
     ).catch(() => [] as CountRow[]),
@@ -116,11 +118,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const mWb = toMap(wb);
   const mWs = toMap(ws);
   const mBdt = toMap(bdt);
-  const mNbdt = toMap(nbdt);
-  const mNwt = toMap(nwt);
   const mNwp = toMap(nwp);
   const mNwb = toMap(nwb);
   const mNws = toMap(nws);
+  const mNwm = toMap(nwm);
+  const mNbdt = toMap(nbdt);
   const mWsl = toMap(wsl);
   const mWsa = toMap(wsa);
   const mWss = toMap(wss);
@@ -131,11 +133,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     ...mWb.keys(),
     ...mWs.keys(),
     ...mBdt.keys(),
-    ...mNbdt.keys(),
-    ...mNwt.keys(),
     ...mNwp.keys(),
     ...mNwb.keys(),
     ...mNws.keys(),
+    ...mNwm.keys(),
+    ...mNbdt.keys(),
     ...mWsl.keys(),
     ...mWsa.keys(),
     ...mWss.keys(),
@@ -143,7 +145,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   const data: StatisticsDataRow[] = Array.from(allIds).map((bikeparkID) => ({
     bikeparkID,
-    countTransacties: (mWt.get(bikeparkID) ?? 0) + (mNwt.get(bikeparkID) ?? 0),
+    countTransacties: (mWt.get(bikeparkID) ?? 0) + (mNwm.get(bikeparkID) ?? 0),
     countPasids: (mWp.get(bikeparkID) ?? 0) + (mNwp.get(bikeparkID) ?? 0),
     countBetalingen: (mWb.get(bikeparkID) ?? 0) + (mNwb.get(bikeparkID) ?? 0),
     countSync: (mWs.get(bikeparkID) ?? 0) + (mNws.get(bikeparkID) ?? 0),

@@ -7,7 +7,8 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { useFietsenstallingenCompact } from "~/hooks/useFietsenstallingenCompact";
 import { useFietsenstallingtypen } from "~/hooks/useFietsenstallingtypen";
-import { useGemeentenInLijst } from "~/hooks/useGemeenten";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { notifyParkingSimCredentialsUpdated } from "~/lib/parking-simulation/credentials";
 type TestStalling = { id: string; locationid: string; title: string; type: string };
 
 const SettingsTab: React.FC = () => {
@@ -15,16 +16,16 @@ const SettingsTab: React.FC = () => {
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [processQueueBaseUrl, setProcessQueueBaseUrl] = useState("https://remote.veiligstallenontwikkel.nl");
-  const [useLocalProcessor, setUseLocalProcessor] = useState(false);
-  const [simulationDataproviderExists, setSimulationDataproviderExists] = useState<boolean | null>(null);
-  const [simulationDataproviderLoading, setSimulationDataproviderLoading] = useState(false);
   const [bootstrapMessage, setBootstrapMessage] = useState<string | null>(null);
   const [testGemeenteStatus, setTestGemeenteStatus] = useState<{ exists: boolean; id: string | null } | null>(null);
   const [testStallings, setTestStallings] = useState<TestStalling[]>([]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [cloneType, setCloneType] = useState("");
   const [cloneSiteId, setCloneSiteId] = useState("");
+  const [cloneSourceOwners, setCloneSourceOwners] = useState<
+    Array<{ id: string; companyName: string; stallingCount: number }>
+  >([]);
+  const [cloneSourceOwnersLoading, setCloneSourceOwnersLoading] = useState(false);
   const [cloneStallingSearch, setCloneStallingSearch] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [cloneTitle, setCloneTitle] = useState("");
@@ -36,12 +37,6 @@ const SettingsTab: React.FC = () => {
   const hasAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
 
   const { fietsenstallingtypen } = useFietsenstallingtypen();
-  const { gemeenten } = useGemeentenInLijst();
-  const cloneDataOwners = useMemo(
-    () => gemeenten.filter((g) => g.hasStallingen).map((g) => ({ id: g.ID, companyName: g.CompanyName ?? g.ID })),
-    [gemeenten]
-  );
-
   const { fietsenstallingen, isLoading: cloneStallingsLoading } = useFietsenstallingenCompact(cloneSiteId || undefined);
   const cloneStallings = useMemo(() => {
     if (!cloneType || !cloneSiteId) return [];
@@ -78,17 +73,24 @@ const SettingsTab: React.FC = () => {
 
   const loadCredentials = async () => {
     try {
+      const localUsername =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiUsername") ?? "" : "";
+      const localPassword =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-apiPassword") ?? "" : "";
+      const localBaseUrl =
+        typeof window !== "undefined" ? localStorage.getItem("parking-sim-baseUrl") ?? "" : "";
+
+      setApiUsername(localUsername);
+      setApiPassword(localPassword);
+
       const res = await fetch("/api/protected/parking-simulation/config");
       const data = await res.json();
       const session = data.session;
+
       if (session) {
-        setBaseUrl(session.baseUrl ?? "");
-        setProcessQueueBaseUrl(session.processQueueBaseUrl ?? "https://remote.veiligstallenontwikkel.nl");
-        setUseLocalProcessor(session.useLocalProcessor ?? false);
+        setBaseUrl(localBaseUrl || (session.baseUrl ?? ""));
       } else {
-        setBaseUrl("");
-        setProcessQueueBaseUrl("https://remote.veiligstallenontwikkel.nl");
-        setUseLocalProcessor(false);
+        setBaseUrl(localBaseUrl);
       }
     } catch {
       // ignore
@@ -161,44 +163,18 @@ const SettingsTab: React.FC = () => {
     return () => window.removeEventListener("stallings-updated", onUpdated);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setApiUsername(localStorage.getItem("parking-sim-apiUsername") ?? "");
-    setApiPassword(localStorage.getItem("parking-sim-apiPassword") ?? "");
-  }, []);
-
-  const fetchSimulationDataproviderStatus = async () => {
-    if (!hasAccess) return;
-    try {
-      const res = await fetch("/api/protected/parking-simulation/dataprovider");
-      if (res.ok) {
-        const data = await res.json();
-        setSimulationDataproviderExists(data.exists ?? false);
-      } else {
-        setSimulationDataproviderExists(null);
-      }
-    } catch {
-      setSimulationDataproviderExists(null);
-    }
-  };
-
-  useEffect(() => {
-    void fetchSimulationDataproviderStatus();
-  }, [hasAccess]);
-
   const saveToStorage = async () => {
     if (typeof window === "undefined") return;
     localStorage.setItem("parking-sim-apiUsername", apiUsername);
     localStorage.setItem("parking-sim-apiPassword", apiPassword ?? "");
     localStorage.setItem("parking-sim-baseUrl", baseUrl);
+    notifyParkingSimCredentialsUpdated();
     try {
       await fetch("/api/protected/parking-simulation/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: baseUrl || null,
-          processQueueBaseUrl: processQueueBaseUrl || null,
-          useLocalProcessor,
         }),
       });
     } catch (e) {
@@ -206,49 +182,23 @@ const SettingsTab: React.FC = () => {
     }
   };
 
-  const createSimulationDataprovider = async () => {
-    setSimulationDataproviderLoading(true);
-    setBootstrapMessage(null);
-    try {
-      const res = await fetch("/api/protected/parking-simulation/dataprovider", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? res.statusText);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("parking-sim-apiUsername", data.urlname ?? "");
-        localStorage.setItem("parking-sim-apiPassword", data.password ?? "");
-        setApiUsername(data.urlname ?? "");
-        setApiPassword(data.password ?? "");
-      }
-      setSimulationDataproviderExists(true);
-      setBootstrapMessage("Simulatie dataprovider aangemaakt. Credentials opgeslagen.");
-    } catch (e) {
-      setBootstrapMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setSimulationDataproviderLoading(false);
+  useEffect(() => {
+    if (!cloneType) {
+      setCloneSourceOwners([]);
+      setCloneSiteId("");
+      return;
     }
-  };
-
-  const deleteSimulationDataprovider = async () => {
-    setSimulationDataproviderLoading(true);
-    setBootstrapMessage(null);
-    try {
-      const res = await fetch("/api/protected/parking-simulation/dataprovider", { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? res.statusText);
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("parking-sim-apiUsername");
-        localStorage.removeItem("parking-sim-apiPassword");
-        setApiUsername("");
-        setApiPassword("");
-      }
-      setSimulationDataproviderExists(false);
-      setBootstrapMessage("Simulatie dataprovider verwijderd.");
-    } catch (e) {
-      setBootstrapMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setSimulationDataproviderLoading(false);
-    }
-  };
+    setCloneSiteId("");
+    setSelectedSourceId("");
+    setCloneSourceOwnersLoading(true);
+    fetch(`/api/protected/parking-simulation/clone-stalling?type=${encodeURIComponent(cloneType)}`)
+      .then((r) => r.json())
+      .then((d: { owners?: Array<{ id: string; companyName: string; stallingCount: number }> }) => {
+        setCloneSourceOwners(d.owners ?? []);
+      })
+      .catch(() => setCloneSourceOwners([]))
+      .finally(() => setCloneSourceOwnersLoading(false));
+  }, [cloneType]);
 
   useEffect(() => {
     if (!cloneType || !cloneSiteId) setSelectedSourceId("");
@@ -382,13 +332,15 @@ const SettingsTab: React.FC = () => {
               </button>
             </div>
             <p className="text-sm text-gray-600 mb-2">
-              Kloon bestaande stallingen naar de testgemeente. Nodig voor de simulatie.
+              Kloon een bestaande stalling van een andere organisatie naar de testgemeente. Kies niet
+              &quot;testgemeente API&quot; als bron — die is het doel, geen broncatalogus.
             </p>
             <div className="overflow-x-auto border rounded mt-2">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Title</th>
+                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">StallingsID</th>
                     <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Type</th>
                     <th className="px-3 py-2 text-right text-sm font-medium text-gray-700 w-20">Acties</th>
                   </tr>
@@ -397,6 +349,7 @@ const SettingsTab: React.FC = () => {
                   {testStallings.map((s) => (
                     <tr key={s.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2">{s.title}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-700">{s.locationid || "—"}</td>
                       <td className="px-3 py-2">{s.type ?? "—"}</td>
                       <td className="px-3 py-2 text-right">
                         <button
@@ -431,17 +384,38 @@ const SettingsTab: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data-eigenaar</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Bron (data-eigenaar)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Organisatie waar de te klonen stalling staat (bijv. NS of een gemeente).
+                      </p>
                       <select
                         value={cloneSiteId}
                         onChange={(e) => setCloneSiteId(e.target.value)}
                         className="border rounded px-3 py-2 w-full"
+                        disabled={!cloneType || cloneSourceOwnersLoading}
                       >
-                        <option value="">—</option>
-                        {cloneDataOwners.map((c) => (
-                          <option key={c.id} value={c.id}>{c.companyName ?? c.id}</option>
+                        <option value="">
+                          {cloneSourceOwnersLoading
+                            ? "Laden..."
+                            : !cloneType
+                              ? "Kies eerst een type"
+                              : cloneSourceOwners.length === 0
+                                ? "Geen bronnen voor dit type"
+                                : "—"}
+                        </option>
+                        {cloneSourceOwners.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.companyName} ({c.stallingCount})
+                          </option>
                         ))}
                       </select>
+                      {!cloneSourceOwnersLoading && cloneType && cloneSourceOwners.length === 0 && (
+                        <p className="text-xs text-amber-700 mt-2">
+                          Geen data-eigenaren met stallings van dit type in de database.
+                        </p>
+                      )}
                     </div>
                     {cloneType && cloneSiteId && (
                       <div>
@@ -461,9 +435,16 @@ const SettingsTab: React.FC = () => {
                         >
                           <option value="">{cloneStallingsLoading ? "Laden..." : "—"}</option>
                           {cloneStallings.map((s) => (
-                            <option key={s.id} value={s.id}>{s.title} ({s.locationid})</option>
+                            <option key={s.id} value={s.id}>{formatStallingLabel(s.title, s.locationid)}</option>
                           ))}
                         </select>
+                        {!cloneStallingsLoading && cloneStallings.length === 0 && (
+                          <p className="text-xs text-amber-700 mt-2">
+                            Geen stallings van type &quot;
+                            {fietsenstallingtypen.find((t) => t.id === cloneType)?.name ?? cloneType}
+                            &quot; bij deze bron. Kies een andere data-eigenaar.
+                          </p>
+                        )}
                       </div>
                     )}
                     {selectedSourceId && (
@@ -492,30 +473,6 @@ const SettingsTab: React.FC = () => {
                   </DialogActions>
                 </Dialog>
           </div>
-          {hasAccess && testGemeenteStatus?.exists && (
-            <div>
-              <h4 className="text-base font-medium text-gray-900 mb-2">Dataprovider</h4>
-              {simulationDataproviderExists ? (
-                <button
-                  type="button"
-                  onClick={deleteSimulationDataprovider}
-                  disabled={simulationDataproviderLoading}
-                  className="px-4 py-1 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
-                >
-                  {simulationDataproviderLoading ? "Bezig…" : "Verwijderen"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={createSimulationDataprovider}
-                  disabled={simulationDataproviderLoading}
-                  className="px-4 py-1 rounded-full border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
-                >
-                  {simulationDataproviderLoading ? "Bezig…" : "Toevoegen"}
-                </button>
-              )}
-            </div>
-          )}
           </>
           )}
         </div>
@@ -530,7 +487,9 @@ const SettingsTab: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">FMS API instellingen</h3>
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            UrlName en Wachtwoord voor FMS API (check-in/check-out). Opgeslagen in browser.
+            UrlName en wachtwoord van een <strong>dataleverancier</strong> met FMS-rechten op
+            testgemeente (aanmaken via Beheer → Dataleveranciers, koppelen via gemeente → FMS rechten).
+            Opgeslagen in browser voor simulatie-API calls.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">UrlName</label>
@@ -539,7 +498,7 @@ const SettingsTab: React.FC = () => {
               value={apiUsername}
               onChange={(e) => setApiUsername(e.target.value)}
               className="border rounded px-3 py-2 w-full"
-              placeholder="simulatie"
+              placeholder="ContractorID (UrlName)"
             />
           </div>
           <div>
@@ -562,39 +521,9 @@ const SettingsTab: React.FC = () => {
               placeholder="Leeg = huidige origin"
             />
           </div>
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useLocalProcessor}
-                onChange={(e) => setUseLocalProcessor(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                NextJS processor + new_* tabellen (i.p.v. ColdFusion processor + standaard tabellen)
-              </span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1">
-              Bij aan: Gebruik nieuwe implementatie (NextJS) in plaats van ColdFusion.
-            </p>
-            {!useLocalProcessor && (
-              <p className="text-xs text-amber-600 mt-1">
-                Let op: Remote ColdFusion gebruikt een andere database. Transacties blijven dan vaak op "wachtend" staan. Zet aan voor lokale ontwikkeling.
-              </p>
-            )}
-          </div>
-          {!useLocalProcessor && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Process queue URL (motorblok)</label>
-              <input
-                type="text"
-                value={processQueueBaseUrl}
-                onChange={(e) => setProcessQueueBaseUrl(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-                placeholder="https://remote.veiligstallenontwikkel.nl"
-              />
-            </div>
-          )}
+          <p className="text-xs text-gray-500">
+            Process gebruikt altijd Next.js: new_wachtrij_pasids / managed_transacties / betalingen / sync en new_bezettingsdata_tmp naar productietabellen. Check-in/out is managedtransactions. ColdFusion-wachtrijen kun je in het stalling-paneel bekijken (niet verwerken). Bestaande stallingen blijven op CF v2/v3 — niet beide hosts voor dezelfde stalling.
+          </p>
           <div className="flex flex-wrap gap-2 items-center">
             <Button onClick={saveToStorage}>
               Opslaan

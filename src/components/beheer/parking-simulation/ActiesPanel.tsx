@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
+import { uploadManagedTransaction, addSaldo, saveBike } from "~/lib/parking-simulation/fms-api-write-client";
+import {
+  buildManagedCheckIn,
+  buildManagedCheckOut,
+  citycodeFromLocationId,
+  generateExternalTransactionId,
+} from "~/lib/parking-simulation/managed-transaction";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 
 type Bicycle = { id: string; barcode: string; biketypeID?: number };
 type OccupationEntry = {
@@ -10,8 +18,17 @@ type OccupationEntry = {
   locationid: string;
   sectionid: string;
   passID?: string | null;
+  externalTransactionID?: string | null;
+  checkInDate?: string | null;
+  createdAt?: string | null;
   bicycle?: Bicycle;
 };
+
+function fmsWriteErrorHint(message: string): string {
+  return /rechten|unauthorized|401/i.test(message)
+    ? " Controleer Instellingen: dataprovider heeft type2 nodig voor managed transactions."
+    : "";
+}
 type PasidEntry = {
   id: string;
   pasID: string;
@@ -35,15 +52,6 @@ type Layout = {
 };
 
 export type Stalling = { id: string; locationid: string; title: string };
-
-function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
-  if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("parking-sim-apiUsername");
-  const p = localStorage.getItem("parking-sim-apiPassword");
-  const b = localStorage.getItem("parking-sim-baseUrl");
-  if (!u || !p) return null;
-  return { username: u, password: p, baseUrl: b || undefined };
-}
 
 type Props = {
   /** When set, single-stalling mode: fixed location, no stalling dropdown */
@@ -89,6 +97,7 @@ function generateNewPassID(): string {
 }
 
 export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stallings, storageKey, onMessage, onSuccess }) => {
+  const { credentials, loading: credentialsLoading } = useParkingSimCredentials();
   const { data: bikeTypes } = useBikeTypes();
   const singleStallingMode = !!fixedLocationId;
   const effectiveLocationId = singleStallingMode ? fixedLocationId! : "";
@@ -218,10 +227,16 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     const btIds = [...new Set((state.bicycles ?? []).map((b) => b.biketypeID ?? 1))];
     if (btIds.length === 0) return;
     const firstBiketypeId = btIds[0];
-    setSelectedBiketypeId((prev) => (btIds.includes(prev) ? prev : (firstBiketypeId ?? "")));
+    setSelectedBiketypeId((prev) =>
+      typeof prev === "number" && btIds.includes(prev) ? prev : (firstBiketypeId ?? "")
+    );
     if (actieType === "in") {
+      const activeBiketypeId =
+        typeof selectedBiketypeId === "number" && btIds.includes(selectedBiketypeId)
+          ? selectedBiketypeId
+          : firstBiketypeId;
       const freeOfType = free.filter(
-        (b) => (b.biketypeID ?? 1) === (btIds.includes(selectedBiketypeId) ? selectedBiketypeId : firstBiketypeId)
+        (b) => (b.biketypeID ?? 1) === activeBiketypeId
       );
       const firstFree = freeOfType[0];
       setSelectedBicycleId((prev) => (free.some((b) => b.id === prev) ? prev : (firstFree?.id ?? "")));
@@ -233,9 +248,18 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     }
   }, [state?.bicycles, state?.occupation, actieType, currentLocationId, selectedBiketypeId]);
 
+  useEffect(() => {
+    if (!showLinkBlock || linkBikeId) return;
+    if (selectedBicycleId && (state?.bicycles ?? []).some((b) => b.id === selectedBicycleId)) {
+      setLinkBikeId(selectedBicycleId);
+    }
+  }, [showLinkBlock, linkBikeId, selectedBicycleId, state?.bicycles]);
+
   const normalizedSections = ((): LayoutSection[] => {
     if (!layout) return [];
-    if (layout.sections && layout.sections.length > 0) return layout.sections;
+    if (layout.sections && layout.sections.length > 0) {
+      return layout.sections.filter((s) => s.sectionid != null && s.sectionid !== "");
+    }
     if (layout.sectionid != null || layout.biketypes) {
       return [{
         sectionid: layout.sectionid ?? layout.locationid ?? null,
@@ -349,9 +373,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   };
 
   const handleCheckIn = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMessage("Geen credentials. Configureer in Instellingen of voeg Simulatie Dataprovider toe.");
+    if (!credentials) {
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     if (!firstSectionId || !selectedBicycleId || !currentLocationId) {
@@ -382,15 +405,20 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const tx = {
-        type: "in" as const,
-        transactionDate: simulationTime,
-        passID,
-        idtype: 0,
-        barcodeBike: bike.barcode,
-        bikeid: bike.barcode,
-      };
-      const res = await uploadTransaction(creds, currentLocationId, spot.sectionid, tx);
+      const externalTransactionID = generateExternalTransactionId();
+      const res = await uploadManagedTransaction(
+        credentials,
+        citycodeFromLocationId(currentLocationId),
+        currentLocationId,
+        spot.sectionid,
+        buildManagedCheckIn({
+          externaltransactionid: externalTransactionID,
+          idcode: passID,
+          checkindate: simulationTime,
+          barcode: bike.barcode,
+          biketypeid: bike.biketypeID ?? 1,
+        })
+      );
       if (res.status === 1) {
         const parkRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -402,6 +430,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
             sectionid: spot.sectionid,
             checkedIn: true,
             passID,
+            externalTransactionID,
+            checkInDate: simulationTime,
           }),
         });
         const parkData = await parkRes.json();
@@ -421,10 +451,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         }
       } else {
         const msg = res.message ?? "onbekend";
-        const hint = /unauthorized|401/i.test(String(msg))
-          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
-          : "";
-        setMessage("Fout: " + msg + hint);
+        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
       }
     } catch (e) {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
@@ -434,9 +461,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   };
 
   const handleCheckOut = async (bicycleId: string) => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMessage("Geen credentials. Configureer in Instellingen of voeg Simulatie Dataprovider toe.");
+    if (!credentials) {
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const occ = (state?.occupation ?? []).find((o) => o.bicycleId === bicycleId);
@@ -451,15 +477,21 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const tx = {
-        type: "out" as const,
-        transactionDate: simulationTime,
-        passID,
-        idtype: 0,
-        barcodeBike: bike.barcode,
-        bikeid: bike.barcode,
-      };
-      const res = await uploadTransaction(creds, occ.locationid, occ.sectionid, tx);
+      const checkindate = occ.checkInDate ?? occ.createdAt ?? simulationTime;
+      const res = await uploadManagedTransaction(
+        credentials,
+        citycodeFromLocationId(occ.locationid),
+        occ.locationid,
+        occ.sectionid,
+        buildManagedCheckOut({
+          externaltransactionid: occ.externalTransactionID?.trim() || generateExternalTransactionId(),
+          idcode: passID,
+          checkindate,
+          checkoutdate: simulationTime,
+          barcode: bike.barcode,
+          biketypeid: bike.biketypeID ?? 1,
+        })
+      );
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
           method: "POST",
@@ -476,10 +508,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         }
       } else {
         const msg = res.message ?? "onbekend";
-        const hint = /unauthorized|401/i.test(String(msg))
-          ? " Controleer Instellingen: vul UrlName/Wachtwoord van je dataprovider in."
-          : "";
-        setMessage("Fout: " + msg + hint);
+        setMessage("Fout: " + msg + fmsWriteErrorHint(String(msg)));
       }
     } catch (e) {
       setMessage("Fout: " + (e instanceof Error ? e.message : String(e)));
@@ -489,9 +518,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   };
 
   const handleAddSaldo = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMessage("Geen credentials. Configureer in Instellingen.");
+    if (!credentials) {
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const passID = saldoPassID.trim() || (freePasids[0]?.pasID ?? "");
@@ -512,7 +540,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setMessage(null);
     try {
       const simulationTime = await fetchSimulationTime();
-      const res = await addSaldo(creds, currentLocationId, {
+      const res = await addSaldo(credentials, currentLocationId, {
         passID,
         amount,
         paymentTypeID: saldoPaymentTypeID,
@@ -537,9 +565,8 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   };
 
   const handleLinkBike = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setMessage("Geen credentials. Configureer in Instellingen.");
+    if (!credentials) {
+      setMessage("Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).");
       return;
     }
     const bike = state?.bicycles?.find((b) => b.id === linkBikeId);
@@ -559,7 +586,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
     setLinkLoading(true);
     setMessage(null);
     try {
-      const res = await saveBike(creds, currentLocationId, {
+      const res = await saveBike(credentials, currentLocationId, {
         barcode: bike.barcode,
         passID,
       });
@@ -587,6 +614,16 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
   return (
     <div>
       <h4 className="font-medium mb-2">Acties</h4>
+      {!credentialsLoading && !credentials && (
+        <p className="text-sm text-amber-700 mb-2">
+          FMS API-credentials ontbreken. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser).
+        </p>
+      )}
+      {currentLocationId && layout && normalizedSections.length === 0 && (
+        <p className="text-sm text-amber-700 mb-2">
+          Geen secties gevonden voor deze stalling — check-in is niet mogelijk.
+        </p>
+      )}
       <div className="flex flex-wrap gap-4 items-end">
         <div>
           <label className="block text-sm text-gray-600 mb-1">Type</label>
@@ -624,7 +661,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
         <div>
           <label className="block text-sm text-gray-600 mb-1">Fiets type</label>
           <select
-            value={biketypeIdsWithBikes.includes(selectedBiketypeId) ? selectedBiketypeId : ""}
+            value={typeof selectedBiketypeId === "number" && biketypeIdsWithBikes.includes(selectedBiketypeId) ? selectedBiketypeId : ""}
             onChange={(e) => {
               setSelectedBiketypeId(e.target.value === "" ? "" : Number(e.target.value));
               setSelectedBicycleId("");
@@ -669,7 +706,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
               <option value="">—</option>
               {stallings.map((s) => (
                 <option key={s.id} value={s.locationid}>
-                  {s.title}
+                  {formatStallingLabel(s.title, s.locationid)}
                 </option>
               ))}
             </select>
@@ -685,7 +722,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
                 !currentLocationId ||
                 !firstSectionId ||
                 !isSelectedBikeFree ||
-                !getStoredCredentials()
+                !credentials
               }
               style={{ backgroundColor: "#16a34a" }}
             >
@@ -707,7 +744,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
                 checkOutLoading !== null ||
                 !selectedBicycleId ||
                 !isSelectedBikeParkedHere ||
-                !getStoredCredentials()
+                !credentials
               }
               className="mb-0 whitespace-nowrap"
               style={{ backgroundColor: "#16a34a" }}
@@ -747,7 +784,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
                     <option value="">—</option>
                     {stallings.map((s) => (
                       <option key={s.id} value={s.locationid}>
-                        {s.title}
+                        {formatStallingLabel(s.title, s.locationid)}
                       </option>
                     ))}
                   </select>
@@ -793,7 +830,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
               </div>
               <Button
                 onClick={() => void handleAddSaldo()}
-                disabled={saldoLoading || !currentLocationId || !saldoAmount || !getStoredCredentials()}
+                disabled={saldoLoading || !currentLocationId || !saldoAmount || !credentials}
               >
                 Saldo toevoegen
               </Button>
@@ -822,7 +859,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
                     <option value="">—</option>
                     {stallings.map((s) => (
                       <option key={s.id} value={s.locationid}>
-                        {s.title}
+                        {formatStallingLabel(s.title, s.locationid)}
                       </option>
                     ))}
                   </select>
@@ -860,7 +897,7 @@ export const ActiesPanel: React.FC<Props> = ({ locationid: fixedLocationId, stal
               </div>
               <Button
                 onClick={() => void handleLinkBike()}
-                disabled={linkLoading || !currentLocationId || !linkBikeId || !getStoredCredentials()}
+                disabled={linkLoading || !currentLocationId || !linkBikeId || !credentials}
               >
                 Koppelen
               </Button>

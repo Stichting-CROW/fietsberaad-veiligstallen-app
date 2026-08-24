@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
-import { env } from "~/env.mjs";
+import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentials";
+import { rewriteSameHostUrlToLoopback } from "~/server/utils/same-host-loopback";
 
 /**
  * Proxy for FMS API comparison. Fetches old and new API from the backend to avoid CORS.
@@ -38,8 +39,9 @@ export default async function handle(
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (useApiCredentials && env.FMS_TEST_USER && env.FMS_TEST_PASS) {
-    headers.Authorization = `Basic ${Buffer.from(`${env.FMS_TEST_USER}:${env.FMS_TEST_PASS}`).toString("base64")}`;
+  if (useApiCredentials) {
+    const auth = await buildTestFmsAuthHeader();
+    if (auth) headers.Authorization = auth;
   } else if (typeof authorizationHeader === "string" && authorizationHeader.startsWith("Basic ")) {
     headers.Authorization = authorizationHeader;
   }
@@ -58,6 +60,8 @@ export default async function handle(
     }
     return null;
   };
+
+  const newFetchUrl = rewriteSameHostUrlToLoopback(newUrl, req.headers);
 
   const [oldResult, newResult] = await Promise.all([
       (async () => {
@@ -85,7 +89,7 @@ export default async function handle(
       (async () => {
         const start = performance.now();
         try {
-          const r = await fetch(newUrl, { headers });
+          const r = await fetch(newFetchUrl, { headers });
           const text = await r.text();
           if (!r.ok) {
             const msg = `HTTP ${r.status}: ${text.slice(0, 200)}`;

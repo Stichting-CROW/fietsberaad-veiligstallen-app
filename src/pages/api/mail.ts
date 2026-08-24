@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     to,
     subject,
     text,
-    replyTo: session.user.email ?? undefined,
+    replyTo: cfg.replyTo,
   });
 
   res.status(200).json({

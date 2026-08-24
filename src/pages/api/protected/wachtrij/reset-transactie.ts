@@ -8,14 +8,17 @@ import { userHasRight } from "~/types/utils";
 /**
  * POST: Reset wachtrij_transacties processed status to 0 (wachtend) so the record can be retried.
  * Mirrors legacy viewTransactions.cfm reset 2→0, 8→0.
- * Body: { id: number, useNewTables?: boolean }
+ * Body: { id: number, queue?: "managed" | "transacties" }
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  if (!userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij)) {
+  const hasAccess =
+    userHasRight(session.user.securityProfile, VSSecurityTopic.wachtrij) ||
+    userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  if (!hasAccess) {
     return res.status(403).json({ error: "Access denied" });
   }
   if (req.method !== "POST") {
@@ -29,11 +32,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Invalid id" });
   }
 
-  const useNewTables = body.useNewTables === true || body.useNewTables === "true";
+  const queue = body.queue === "managed" ? "managed" : "transacties";
 
   try {
-    if (useNewTables) {
-      const updated = await prisma.new_wachtrij_transacties.updateMany({
+    if (queue === "managed") {
+      const updated = await prisma.new_wachtrij_managed_transacties.updateMany({
         where: { ID: id },
         data: { processed: 0, error: null, processDate: null },
       });

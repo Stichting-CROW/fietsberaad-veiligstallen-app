@@ -1452,6 +1452,33 @@ CREATE TABLE IF NOT EXISTS `bezettingsdata_tmp` (
 /*!40000 ALTER TABLE `bezettingsdata_tmp` DISABLE KEYS */;
 /*!40000 ALTER TABLE `bezettingsdata_tmp` ENABLE KEYS */;
 
+CREATE TABLE IF NOT EXISTS `new_bezettingsdata_tmp` (
+  `ID` INT NOT NULL AUTO_INCREMENT,
+  `timestampStartInterval` DATETIME(0) NULL,
+  `timestamp` DATETIME(0) NULL,
+  `interval` INT NOT NULL DEFAULT 1,
+  `source` VARCHAR(25) NULL,
+  `bikeparkID` VARCHAR(8) NULL,
+  `sectionID` VARCHAR(13) NULL,
+  `brutoCapacity` INT NULL,
+  `capacity` INT NULL,
+  `bulkreserveration` INT NOT NULL DEFAULT 0,
+  `occupation` INT NULL,
+  `checkins` INT NULL,
+  `checkouts` INT NULL,
+  `open` BIT(1) NULL,
+  `rawData` TEXT NULL,
+  `dateModified` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+  PRIMARY KEY (`ID`),
+  UNIQUE INDEX `new_bdt_timestamp_2` (`timestamp`, `interval`, `source`, `bikeparkID`, `sectionID`),
+  INDEX `new_bdt_bikeparkID` (`bikeparkID`),
+  INDEX `new_bdt_dateModified` (`dateModified`),
+  INDEX `new_bdt_interval` (`interval`),
+  INDEX `new_bdt_sectionID` (`sectionID`),
+  INDEX `new_bdt_source` (`source`),
+  INDEX `new_bdt_timestamp` (`timestamp`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- Structuur van  tabel veiligstallen_test.bikeparklog wordt geschreven
 CREATE TABLE IF NOT EXISTS `bikeparklog` (
   `ID` int(11) NOT NULL AUTO_INCREMENT,
@@ -9117,6 +9144,7 @@ CREATE TABLE IF NOT EXISTS `transacties` (
   `SectieID_uit` varchar(13) DEFAULT NULL,
   `PlaceID` int(11) DEFAULT NULL COMMENT 'koppeling met tabel fietsenstalling_plek',
   `ExternalPlaceID` varchar(100) DEFAULT NULL,
+  `ExternalTransactionID` varchar(100) DEFAULT NULL,
   `PassUUID` varchar(35) DEFAULT NULL,
   `PasID` varchar(35) NOT NULL,
   `Pastype` int(2) DEFAULT NULL,
@@ -9151,14 +9179,16 @@ CREATE TABLE IF NOT EXISTS `transacties` (
   KEY `Pastype` (`Pastype`),
   KEY `PassUUID` (`PassUUID`),
   KEY `PlaceID` (`PlaceID`),
+  KEY `ExternalTransactionID` (`ExternalTransactionID`),
+  UNIQUE KEY `uk_fietsenstalling_external_tx` (`FietsenstallingID`,`ExternalTransactionID`),
   KEY `dateModified` (`dateModified`),
   KEY `dateCreated` (`dateCreated`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 
 -- Dumpen data van tabel veiligstallen_test.transacties: ~1 rows (ongeveer)
 /*!40000 ALTER TABLE `transacties` DISABLE KEYS */;
-REPLACE INTO `transacties` (`ID`, `ZipID`, `FietsenstallingID`, `SectieID`, `SectieID_uit`, `PlaceID`, `ExternalPlaceID`, `PassUUID`, `PasID`, `Pastype`, `BarcodeFiets_in`, `BarcodeFiets_uit`, `Date_checkin`, `Date_checkout`, `Stallingsduur`, `Type_checkin`, `Type_checkout`, `Stallingskosten`, `Tariefstaffels`, `BikeTypeID`, `ClientTypeID`, `Reserveringsduur`, `ExploitantID`, `dateModified`, `dateCreated`) VALUES
-	(1, '0000', '0000_002', '0000_002_1', '0000_002_1', 391, NULL, NULL, '#012701', 3, NULL, NULL, '2022-04-15 09:18:21', '2022-04-15 09:20:29', 0, 'reservation', 'reservation', 0.00, '[{"TIMESPAN":1,"COST":0.01},{"TIMESPAN":24,"COST":0.02}]', 1, 1, 2, '0D0AD4DA-FE19-63CD-764C7607A96716BE', '2022-04-15 09:20:30', '2022-04-15 09:18:21');
+REPLACE INTO `transacties` (`ID`, `ZipID`, `FietsenstallingID`, `SectieID`, `SectieID_uit`, `PlaceID`, `ExternalPlaceID`, `ExternalTransactionID`, `PassUUID`, `PasID`, `Pastype`, `BarcodeFiets_in`, `BarcodeFiets_uit`, `Date_checkin`, `Date_checkout`, `Stallingsduur`, `Type_checkin`, `Type_checkout`, `Stallingskosten`, `Tariefstaffels`, `BikeTypeID`, `ClientTypeID`, `Reserveringsduur`, `ExploitantID`, `dateModified`, `dateCreated`) VALUES
+	(1, '0000', '0000_002', '0000_002_1', '0000_002_1', 391, NULL, NULL, NULL, '#012701', 3, NULL, NULL, '2022-04-15 09:18:21', '2022-04-15 09:20:29', 0, 'reservation', 'reservation', 0.00, '[{"TIMESPAN":1,"COST":0.01},{"TIMESPAN":24,"COST":0.02}]', 1, 1, 2, '0D0AD4DA-FE19-63CD-764C7607A96716BE', '2022-04-15 09:20:30', '2022-04-15 09:18:21');
 /*!40000 ALTER TABLE `transacties` ENABLE KEYS */;
 
 -- Structuur van  tabel veiligstallen_test.transacties_archief wordt geschreven
@@ -9737,33 +9767,7 @@ CREATE TABLE IF NOT EXISTS `winkansen_zelf_inzet` (
 /*!40000 ALTER TABLE `winkansen_zelf_inzet` DISABLE KEYS */;
 /*!40000 ALTER TABLE `winkansen_zelf_inzet` ENABLE KEYS */;
 
--- FMS migration tables (new_* for Next.js queue processor)
-CREATE TABLE IF NOT EXISTS `new_wachtrij_transacties` (
-    `ID` INTEGER NOT NULL AUTO_INCREMENT,
-    `transactionDate` TIMESTAMP(0) NULL,
-    `bikeparkID` VARCHAR(8) NOT NULL,
-    `sectionID` VARCHAR(13) NOT NULL,
-    `placeID` INTEGER NULL,
-    `externalPlaceID` VARCHAR(100) NULL,
-    `transactionID` INTEGER NOT NULL DEFAULT 0,
-    `passID` VARCHAR(35) NOT NULL,
-    `passtype` VARCHAR(20) NULL,
-    `type` VARCHAR(10) NOT NULL,
-    `typeCheck` VARCHAR(60) NULL,
-    `price` DECIMAL(5, 2) NULL,
-    `transaction` TEXT NOT NULL,
-    `processed` TINYINT(1) NOT NULL DEFAULT 0,
-    `processDate` TIMESTAMP(0) NULL,
-    `error` TEXT NULL,
-    `dateCreated` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    INDEX `new_wt_passID`(`passID`),
-    INDEX `new_wt_processed`(`processed`),
-    INDEX `new_wt_idx_transactionDate`(`transactionDate`),
-    INDEX `new_wt_type`(`type`),
-    UNIQUE INDEX `new_wt_uk_transactionDate`(`transactionDate`, `bikeparkID`, `sectionID`, `transactionID`, `passID`, `passtype`, `type`),
-    PRIMARY KEY (`ID`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
+-- Next.js FMS input queues (no new_wachtrij_transacties — check-in/out is managed)
 CREATE TABLE IF NOT EXISTS `new_wachtrij_pasids` (
     `ID` INTEGER NOT NULL AUTO_INCREMENT,
     `transactionDate` TIMESTAMP(0) NULL,
@@ -9816,203 +9820,25 @@ CREATE TABLE IF NOT EXISTS `new_wachtrij_sync` (
     PRIMARY KEY (`ID`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `new_transacties` (
+CREATE TABLE IF NOT EXISTS `new_wachtrij_managed_transacties` (
     `ID` INTEGER NOT NULL AUTO_INCREMENT,
-    `ZipID` VARCHAR(4) NULL,
-    `FietsenstallingID` VARCHAR(35) NOT NULL,
-    `SectieID` VARCHAR(13) NULL,
-    `SectieID_uit` VARCHAR(13) NULL,
-    `PlaceID` BIGINT NULL,
-    `ExternalPlaceID` VARCHAR(100) NULL,
-    `PassUUID` VARCHAR(35) NULL,
-    `PasID` VARCHAR(35) NOT NULL,
-    `Pastype` INTEGER NULL,
-    `BarcodeFiets_in` VARCHAR(36) NULL,
-    `BarcodeFiets_uit` VARCHAR(36) NULL,
-    `Date_checkin` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    `Date_checkout` DATETIME(0) NULL,
-    `Stallingsduur` INTEGER UNSIGNED NULL,
-    `Type_checkin` VARCHAR(40) NULL,
-    `Type_checkout` VARCHAR(40) NULL,
-    `Stallingskosten` DECIMAL(8, 2) NULL DEFAULT 0.00,
-    `Tariefstaffels` VARCHAR(255) NULL,
-    `BikeTypeID` SMALLINT NOT NULL DEFAULT 1,
-    `ClientTypeID` INTEGER NOT NULL DEFAULT 1,
-    `Reserveringsduur` INTEGER NULL,
-    `ExploitantID` VARCHAR(35) NULL,
-    `dateModified` TIMESTAMP(0) NULL,
+    `bikeparkID` VARCHAR(8) NOT NULL,
+    `externalTransactionID` VARCHAR(100) NOT NULL,
+    `payload` TEXT NOT NULL,
+    `processed` TINYINT(1) NOT NULL DEFAULT 0,
+    `processDate` TIMESTAMP(0) NULL,
+    `error` TEXT NULL,
     `dateCreated` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    INDEX `new_t_BarcodeFiets_in`(`BarcodeFiets_in`),
-    INDEX `new_t_BikeTypeID`(`BikeTypeID`),
-    INDEX `new_t_ClientTypeID`(`ClientTypeID`),
-    INDEX `new_t_Date_checkin`(`Date_checkin`),
-    INDEX `new_t_Date_checkout`(`Date_checkout`),
-    INDEX `new_t_ExploitantID`(`ExploitantID`),
-    INDEX `new_t_FietsenstallingID`(`FietsenstallingID`),
-    INDEX `new_t_PasID`(`PasID`),
-    INDEX `new_t_PassUUID`(`PassUUID`),
-    INDEX `new_t_Pastype`(`Pastype`),
-    INDEX `new_t_PlaceID`(`PlaceID`),
-    INDEX `new_t_SectieID`(`SectieID`),
-    INDEX `new_t_Type_checkin`(`Type_checkin`),
-    INDEX `new_t_Type_checkout`(`Type_checkout`),
-    INDEX `new_t_ZipID`(`ZipID`),
-    INDEX `new_t_dateCreated`(`dateCreated`),
-    INDEX `new_t_dateModified`(`dateModified`),
+    INDEX `new_wmt_bikeparkID`(`bikeparkID`),
+    INDEX `new_wmt_externalTransactionID`(`externalTransactionID`),
+    INDEX `new_wmt_processed`(`processed`),
     PRIMARY KEY (`ID`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `new_transacties_archief` (
-    `ID` INTEGER NOT NULL AUTO_INCREMENT,
-    `citycode` VARCHAR(4) NOT NULL,
-    `locationid` VARCHAR(8) NOT NULL,
-    `sectionid` VARCHAR(13) NOT NULL,
-    `sectionid_out` VARCHAR(13) NULL,
-    `placeid` INTEGER NULL,
-    `externalplaceid` VARCHAR(100) NULL,
-    `checkindate` DATETIME(0) NOT NULL,
-    `checkoutdate` DATETIME(0) NULL,
-    `checkintype` ENUM('user', 'controle', 'system', 'sync', 'reservation') NOT NULL,
-    `checkouttype` ENUM('user', 'controle', 'system', 'sync', 'reservation') NULL,
-    `daybeginsat` TIME(0) NOT NULL,
-    `reservationtime` INTEGER NULL,
-    `price` DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
-    `clienttypeid` INTEGER NOT NULL,
-    `biketypeid` INTEGER NOT NULL,
-    `source` VARCHAR(35) NULL,
-    `exploitantid` VARCHAR(35) NULL,
-    `modified` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    `created` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    INDEX `new_ta_biketypeid`(`biketypeid`),
-    INDEX `new_ta_checkindate`(`checkindate`),
-    INDEX `new_ta_checkoutdate`(`checkoutdate`),
-    INDEX `new_ta_citycode`(`citycode`),
-    INDEX `new_ta_clienttypeid`(`clienttypeid`),
-    INDEX `new_ta_exploitantid`(`exploitantid`),
-    INDEX `new_ta_idx_citycode_locationid`(`citycode`, `locationid`, `checkoutdate`, `sectionid`),
-    INDEX `new_ta_locationid`(`locationid`),
-    INDEX `new_ta_modified`(`modified`),
-    INDEX `new_ta_placeid`(`placeid`),
-    INDEX `new_ta_sectionid`(`sectionid`),
-    INDEX `new_ta_source`(`source`),
-    PRIMARY KEY (`ID`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `new_accounts` (
-    `ID` VARCHAR(35) NOT NULL,
-    `Email` VARCHAR(100) NULL,
-    `EncryptedPassword` VARCHAR(60) NULL,
-    `Sex` VARCHAR(10) NULL,
-    `FirstName` VARCHAR(100) NULL,
-    `MiddleName` VARCHAR(50) NULL,
-    `LastName` VARCHAR(100) NULL,
-    `Address` VARCHAR(255) NULL,
-    `Address_Nr` VARCHAR(10) NULL,
-    `Zip` VARCHAR(10) NULL,
-    `City` VARCHAR(100) NULL,
-    `Phone` VARCHAR(50) NULL,
-    `Mobile` VARCHAR(50) NULL,
-    `Nieuwsbrief` VARCHAR(4) NULL,
-    `Status` VARCHAR(4) NULL DEFAULT '1',
-    `DateRegistration` DATETIME(0) NULL,
-    `LastLogin` DATETIME(0) NULL,
-    `DateDeleted` DATETIME(0) NULL,
-    `WinkansInzetMehode` ENUM('AUTO', 'HANDMATIG') NULL DEFAULT 'AUTO',
-    `saldo` DECIMAL(10, 2) NULL DEFAULT 0.00,
-    `account_type` ENUM('SYSTEM', 'USER', 'DELETED') NULL DEFAULT 'USER',
-    `dateLastSaldoUpdate` TIMESTAMP(0) NULL,
-    `dateLastPrize` DATETIME(0) NULL,
-    `nameLastPrize` VARCHAR(255) NULL,
-    UNIQUE INDEX `new_a_Email`(`Email`),
-    INDEX `new_a_Email_idx`(`Email`),
-    INDEX `new_a_EncryptedPassword`(`EncryptedPassword`),
-    INDEX `new_a_LastName`(`LastName`),
-    INDEX `new_a_account_type`(`account_type`),
-    INDEX `new_a_dateLastSaldoUpdate`(`dateLastSaldoUpdate`),
-    INDEX `new_a_saldo`(`saldo`),
-    PRIMARY KEY (`ID`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `new_accounts_pasids` (
-    `ID` VARCHAR(35) NOT NULL,
-    `AccountID` VARCHAR(35) NULL,
-    `SiteID` VARCHAR(36) NULL,
-    `PasID` VARCHAR(36) NOT NULL DEFAULT '',
-    `Pastype` VARCHAR(20) NOT NULL DEFAULT 'sleutelhanger',
-    `BikeTypeID` INTEGER NULL DEFAULT 1,
-    `Naam` VARCHAR(255) NULL,
-    `RFID` VARCHAR(36) NULL,
-    `RFIDBike` VARCHAR(36) NULL,
-    `barcodeFiets` VARCHAR(36) NULL,
-    `dateLastIdUpdate` DATETIME(0) NULL,
-    `dateCreated` DATETIME(0) NULL,
-    `huidigeFietsenstallingId` VARCHAR(10) NULL,
-    `huidigeSectieId` VARCHAR(15) NULL,
-    `huidigeStallingskosten` DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
-    `dateLastCheck` DATETIME(0) NULL,
-    `dateModified` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    `dateLastSaldoUpdate` TIMESTAMP(0) NULL,
-    `dateLastSubscriptionUpdate` DATETIME(0) NULL,
-    `typeLastCheckin` VARCHAR(60) NULL,
-    `transactionID` INTEGER NULL,
-    UNIQUE INDEX `new_ap_SiteID`(`SiteID`, `PasID`, `Pastype`),
-    INDEX `new_ap_AccountID_pasID`(`AccountID`, `PasID`),
-    INDEX `new_ap_Naam`(`Naam`),
-    INDEX `new_ap_Pastype`(`Pastype`),
-    INDEX `new_ap_accountID`(`AccountID`),
-    INDEX `new_ap_barcodeFiets`(`barcodeFiets`),
-    INDEX `new_ap_currently_parked`(`huidigeFietsenstallingId`, `huidigeSectieId`),
-    INDEX `new_ap_dateModified`(`dateModified`),
-    INDEX `new_ap_huidigeFietsenstallingId`(`huidigeFietsenstallingId`),
-    INDEX `new_ap_huidigeSectieId`(`huidigeSectieId`),
-    INDEX `new_ap_idx_SiteID`(`SiteID`),
-    INDEX `new_ap_pasID`(`PasID`),
-    INDEX `new_ap_rfid`(`RFID`),
-    PRIMARY KEY (`ID`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `new_financialtransactions` (
-    `ID` VARCHAR(35) NOT NULL,
-    `mollieTransactionID` VARCHAR(20) NULL,
-    `amount` DECIMAL(8, 2) NULL,
-    `btw` DECIMAL(8, 2) NULL,
-    `btwPercentage` DOUBLE NULL,
-    `transactionDate` DATETIME(0) NULL,
-    `transactiekosten` DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
-    `depositDate` DATETIME(0) NULL,
-    `paymentMethod` VARCHAR(15) NULL,
-    `status` VARCHAR(10) NULL,
-    `description` VARCHAR(255) NULL,
-    `code` VARCHAR(50) NULL,
-    `accountID` VARCHAR(35) NULL,
-    `paidToSiteID` VARCHAR(35) NULL,
-    `paidBySiteID` VARCHAR(35) NULL,
-    `sourceSiteID` VARCHAR(35) NULL,
-    `targetSiteID` VARCHAR(35) NULL,
-    `siteID` VARCHAR(35) NULL,
-    `bikeparkID` VARCHAR(8) NULL,
-    `sectionID` VARCHAR(13) NULL,
-    `placeID` BIGINT NULL,
-    `transactionID` INTEGER NULL,
-    `subscriptiontypeID` INTEGER NULL,
-    `subscriptionID` INTEGER NULL,
-    `reservationID` INTEGER NULL,
-    `dateCreated` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
-    INDEX `new_ft_accountID_idx`(`accountID`),
-    INDEX `new_ft_code`(`code`),
-    INDEX `new_ft_mollieTransactionID`(`mollieTransactionID`),
-    INDEX `new_ft_paidBySiteID`(`paidBySiteID`),
-    INDEX `new_ft_paidToSiteID`(`paidToSiteID`),
-    INDEX `new_ft_siteID`(`siteID`),
-    INDEX `new_ft_sourceSiteID`(`sourceSiteID`),
-    INDEX `new_ft_status`(`status`),
-    INDEX `new_ft_subscriptionID`(`subscriptionID`),
-    INDEX `new_ft_targetSiteID`(`targetSiteID`),
-    INDEX `new_ft_transactionDate`(`transactionDate`),
-    INDEX `new_ft_transactionID`(`transactionID`),
-    UNIQUE INDEX `new_ft_uk_accountID`(`accountID`, `transactionDate`, `amount`, `status`, `code`, `bikeparkID`),
-    PRIMARY KEY (`ID`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 
 -- Parking simulation tables
 CREATE TABLE IF NOT EXISTS `parkingsimulation_simulation_config` (
@@ -10026,7 +9852,7 @@ CREATE TABLE IF NOT EXISTS `parkingsimulation_simulation_config` (
     `defaultIdtype` INTEGER NOT NULL DEFAULT 0,
     `simulationTimeOffsetSeconds` INTEGER NOT NULL DEFAULT 0,
     `simulationStartDate` DATETIME(0) NULL,
-    `useLocalProcessor` BOOLEAN NOT NULL DEFAULT false,
+    `useLocalProcessor` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
     `updatedAt` DATETIME(0) NOT NULL,
     UNIQUE INDEX `parkingsimulation_simulation_config_siteID_key`(`siteID`),

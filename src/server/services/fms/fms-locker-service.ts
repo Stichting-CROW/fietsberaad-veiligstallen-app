@@ -4,7 +4,6 @@
  */
 
 import { prisma } from "~/server/db";
-import { addTransactionToWachtrij } from "./wachtrij-service";
 import { addSaldoToWachtrij } from "./wachtrij-service";
 import { getLockerInfo } from "./fms-read-service";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
@@ -61,18 +60,11 @@ export async function updateLocker(
         select: { PasID: true, Pastype: true },
       });
       if (openTx) {
-        await addTransactionToWachtrij(
-          bikeparkID,
-          sectionID,
-          {
-            type: "Uit",
-            typeCheck,
-            transactionDate: transactionDate.toISOString(),
-            passID: openTx.PasID,
-            price: cost,
-          },
-          placeIdNum
-        );
+        // FUTURE REFERENCE — DO NOT DELETE (In/Uit / ColdFusion parity).
+        // await addTransactionToWachtrij(bikeparkID, sectionID, {
+        //   type: "Uit", typeCheck, transactionDate: transactionDate.toISOString(),
+        //   passID: openTx.PasID, price: cost,
+        // }, placeIdNum);
         if (cost > 0) {
           await addSaldoToWachtrij(bikeparkID, {
             passID: openTx.PasID,
@@ -100,18 +92,11 @@ export async function updateLocker(
       });
       if (!openTx) {
         const dummyPassId = `${bikeparkID}_${sectionID}_${placeIdNum}`;
-        await addTransactionToWachtrij(
-          bikeparkID,
-          sectionID,
-          {
-            type: "In",
-            typeCheck,
-            transactionDate: transactionDate.toISOString(),
-            passID: dummyPassId,
-            price: cost,
-          },
-          placeIdNum
-        );
+        // FUTURE REFERENCE — DO NOT DELETE (In/Uit / ColdFusion parity).
+        // await addTransactionToWachtrij(bikeparkID, sectionID, {
+        //   type: "In", typeCheck, transactionDate: transactionDate.toISOString(),
+        //   passID: dummyPassId, price: cost,
+        // }, placeIdNum);
         if (cost > 0) {
           await addSaldoToWachtrij(bikeparkID, {
             passID: dummyPassId,

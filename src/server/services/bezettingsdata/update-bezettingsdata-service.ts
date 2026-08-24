@@ -1,10 +1,10 @@
 /**
  * Update bezettingsdata service – port of ColdFusion updateTableBezettingsdata.cfm.
  * Populates bezettingsdata from:
- * - Lumiguide: bezettingsdata_tmp → bezettingsdata
+ * - Lumiguide: new_bezettingsdata_tmp → bezettingsdata (Next.js input; CF uses bezettingsdata_tmp)
  * - FMS: transacties → bezettingsdata (checkins/checkouts per 15-min interval, occupation backfill)
  *
- * Column definitions: see docs/analyse-motorblok/QUEUE_PROCESSOR_PORTING_PLAN.md Appendix L.
+ * Write path: docs/analyse-api/fms-write-paths.md.
  */
 
 import { prisma } from "~/server/db";
@@ -13,7 +13,6 @@ const INTERVAL_MINUTES = 15;
 const SOURCE_FMS = "FMS";
 
 export interface UpdateBezettingsdataParams {
-  useNewTables?: boolean;
   dateStart?: Date;
   dateEnd?: Date;
   siteID?: string | null;
@@ -41,20 +40,19 @@ function generateIntervalTimestamps(dateStart: Date, dateEnd: Date): Date[] {
 }
 
 /**
- * Process Lumiguide path: copy bezettingsdata_tmp (or new_bezettingsdata_tmp) → bezettingsdata (or new_bezettingsdata),
- * backfill occupation, TRUNCATE tmp.
+ * Process Lumiguide path: copy new_bezettingsdata_tmp → bezettingsdata,
+ * backfill occupation, delete processed tmp rows (scoped).
  */
-async function processLumiguidePath(useNewTables: boolean): Promise<number> {
-  const tmpRows = useNewTables
-    ? await prisma.new_bezettingsdata_tmp.findMany({
+export async function processLumiguidePath(allowedBikeparkIDs: string[] | null): Promise<number> {
+  const parkFilter =
+    allowedBikeparkIDs === null
+      ? { bikeparkID: { not: null } }
+      : allowedBikeparkIDs.length === 0
+        ? { bikeparkID: { in: [] as string[] } }
+        : { bikeparkID: { in: allowedBikeparkIDs } };
+  const tmpRows = await prisma.new_bezettingsdata_tmp.findMany({
         where: {
-          bikeparkID: { not: null },
-          sectionID: { not: null },
-        },
-      })
-    : await prisma.bezettingsdata_tmp.findMany({
-        where: {
-          bikeparkID: { not: null },
+          ...parkFilter,
           sectionID: { not: null },
         },
       });
@@ -62,12 +60,12 @@ async function processLumiguidePath(useNewTables: boolean): Promise<number> {
 
   let inserted = 0;
   for (const row of tmpRows) {
-    const tsStart = row.timestampStartInterval ?? row.timestamp;
     const ts = row.timestamp;
     const src = row.source ?? "Lumiguide";
     const bpId = row.bikeparkID;
     const secId = row.sectionID;
     if (!ts || !bpId || !secId) continue;
+    const tsStart = row.timestampStartInterval ?? ts;
 
     const createData = {
       timestampStartInterval: tsStart,
@@ -97,8 +95,7 @@ async function processLumiguidePath(useNewTables: boolean): Promise<number> {
       rawData: row.rawData ? row.rawData.substring(0, 255) : null,
     };
 
-    if (useNewTables) {
-      await prisma.new_bezettingsdata.upsert({
+    await prisma.bezettingsdata.upsert({
         where: {
           timestampStartInterval_timestamp_source_bikeparkID_sectionID: {
             timestampStartInterval: tsStart,
@@ -111,57 +108,18 @@ async function processLumiguidePath(useNewTables: boolean): Promise<number> {
         create: createData,
         update: updateData,
       });
-    } else {
-      await prisma.bezettingsdata.upsert({
-        where: {
-          timestampStartInterval_timestamp_source_bikeparkID_sectionID: {
-            timestampStartInterval: tsStart,
-            timestamp: ts,
-            source: src,
-            bikeparkID: bpId,
-            sectionID: secId,
-          },
-        },
-        create: createData,
-        update: updateData,
-      });
-    }
     inserted++;
   }
 
   // Backfill occupation for NULL rows (Lumiguide: getOccupation_from_bezettingsdata)
   const sections = [...new Set(tmpRows.map((r) => ({ sectionID: r.sectionID!, source: r.source ?? "Lumiguide" })))];
-  if (useNewTables) {
-    for (const { sectionID, source } of sections) {
-      const nullRows = await prisma.new_bezettingsdata.findMany({
-        where: { sectionID, source, occupation: null },
-        orderBy: { timestamp: "asc" },
-      });
-      for (const row of nullRows) {
-        const prev = await prisma.new_bezettingsdata.findFirst({
-          where: {
-            sectionID,
-            source,
-            timestamp: { lte: row.timestamp },
-            occupation: { not: null },
-          },
-          orderBy: { timestamp: "desc" },
-        });
-        const occ = prev?.occupation ?? 0;
-        await prisma.new_bezettingsdata.update({
-          where: { ID: row.ID },
-          data: { occupation: occ },
-        });
-      }
-    }
-    await prisma.new_bezettingsdata_tmp.deleteMany({});
-  } else {
-    for (const { sectionID, source } of sections) {
+  for (const { sectionID, source } of sections) {
       const nullRows = await prisma.bezettingsdata.findMany({
         where: { sectionID, source, occupation: null },
         orderBy: { timestamp: "asc" },
       });
       for (const row of nullRows) {
+        if (!row.timestamp) continue;
         const prev = await prisma.bezettingsdata.findFirst({
           where: {
             sectionID,
@@ -178,8 +136,12 @@ async function processLumiguidePath(useNewTables: boolean): Promise<number> {
         });
       }
     }
-    await prisma.bezettingsdata_tmp.deleteMany({});
-  }
+    const processedParks = [...new Set(tmpRows.map((r) => r.bikeparkID).filter((id): id is string => !!id))];
+    if (processedParks.length > 0) {
+      await prisma.new_bezettingsdata_tmp.deleteMany({
+        where: { bikeparkID: { in: processedParks } },
+      });
+    }
   return inserted;
 }
 
@@ -189,7 +151,7 @@ async function processLumiguidePath(useNewTables: boolean): Promise<number> {
 async function processFmsPath(
   params: UpdateBezettingsdataParams
 ): Promise<{ rows: number; sectionsProcessed: number }> {
-  const transactiesTable = params.useNewTables ? "new_transacties" : "transacties";
+  const transactiesTable = "transacties";
   const dateEnd = params.dateEnd ?? new Date();
   const dateStart = params.dateStart ?? new Date(dateEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -265,8 +227,7 @@ async function processFmsPath(
         update: { checkins, checkouts },
       };
 
-      if (params.useNewTables) {
-        await prisma.new_bezettingsdata.upsert({
+      await prisma.bezettingsdata.upsert({
           where: {
             timestampStartInterval_timestamp_source_bikeparkID_sectionID: {
               timestampStartInterval: ts,
@@ -278,20 +239,6 @@ async function processFmsPath(
           },
           ...upsertData,
         });
-      } else {
-        await prisma.bezettingsdata.upsert({
-          where: {
-            timestampStartInterval_timestamp_source_bikeparkID_sectionID: {
-              timestampStartInterval: ts,
-              timestamp: ts,
-              source: SOURCE_FMS,
-              bikeparkID,
-              sectionID,
-            },
-          },
-          ...upsertData,
-        });
-      }
       totalRows++;
     }
 
@@ -303,16 +250,7 @@ async function processFmsPath(
     );
     let runningOcc = Number(occupation[0]?.cnt ?? 0);
 
-    const rowsToUpdate = params.useNewTables
-      ? await prisma.new_bezettingsdata.findMany({
-          where: {
-            sectionID,
-            source: SOURCE_FMS,
-            timestamp: { gte: dateStart },
-          },
-          orderBy: { timestamp: "asc" },
-        })
-      : await prisma.bezettingsdata.findMany({
+    const rowsToUpdate = await prisma.bezettingsdata.findMany({
           where: {
             sectionID,
             source: SOURCE_FMS,
@@ -325,17 +263,10 @@ async function processFmsPath(
       const checkins = row.checkins ?? 0;
       const checkouts = row.checkouts ?? 0;
       runningOcc = runningOcc + checkins - checkouts;
-      if (params.useNewTables) {
-        await prisma.new_bezettingsdata.update({
+      await prisma.bezettingsdata.update({
           where: { ID: row.ID },
           data: { occupation: runningOcc },
         });
-      } else {
-        await prisma.bezettingsdata.update({
-          where: { ID: row.ID },
-          data: { occupation: runningOcc },
-        });
-      }
     }
   }
 
@@ -348,8 +279,15 @@ async function processFmsPath(
 export async function updateBezettingsdata(
   params: UpdateBezettingsdataParams = {}
 ): Promise<UpdateBezettingsdataResult> {
-  const useNewTables = params.useNewTables ?? false;
-  const lumiguideRows = await processLumiguidePath(useNewTables);
+  let allowedBikeparkIDs: string[] | null = null;
+  if (params.siteID) {
+    const parks = await prisma.fietsenstallingen.findMany({
+      where: { SiteID: params.siteID },
+      select: { StallingsID: true },
+    });
+    allowedBikeparkIDs = parks.map((p) => p.StallingsID).filter((v): v is string => !!v);
+  }
+  const lumiguideRows = await processLumiguidePath(allowedBikeparkIDs);
   const fms = await processFmsPath(params);
 
   return {

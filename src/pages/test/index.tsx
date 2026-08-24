@@ -92,6 +92,26 @@ const TestIndexPage: React.FC = () => {
           >
             Transacties overzicht
           </Button>
+
+          <Button
+            onClick={() => handleNavigate('/test/tag-report')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Tag rapport
+          </Button>
+
+          <Button
+            onClick={() => handleNavigate('/test/barcode-report')}
+            className="py-6 px-8 text-center w-full"
+            style={{
+              backgroundColor: '#3B82F6',
+            }}
+          >
+            Barcode rapport
+          </Button>
           
           <Button
             onClick={() => handleNavigate('/test/wachtrij')}
@@ -161,6 +181,13 @@ const TestIndexPage: React.FC = () => {
               >
                 FMS API vergelijking
               </Button>
+              <Button
+                onClick={() => handleNavigate('/test/fms-write-tests')}
+                className="py-6 px-8 text-center w-full"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                FMS schrijf-tests
+              </Button>
             </>
           )}
 
@@ -169,7 +196,28 @@ const TestIndexPage: React.FC = () => {
             className="py-6 px-8 text-center w-full"
             style={{ backgroundColor: '#3B82F6' }}
           >
-            FMS API documentatie (Swagger)
+            FMS API documentatie v2 + v3 (ColdFusion, Swagger)
+          </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-v4')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS API v4 documentatie (Swagger)
+          </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-migrate-v2')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS migratie V2 → V4 (Swagger)
+          </Button>
+          <Button
+            onClick={() => handleNavigate('/test/fms-api-docs-migrate-v3')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            FMS migratie V3 → V4 (Swagger)
           </Button>
           
         </div>

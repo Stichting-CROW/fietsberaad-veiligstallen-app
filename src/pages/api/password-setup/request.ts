@@ -120,6 +120,7 @@ VeiligStallen`;
     subject,
     text,
     html,
+    replyTo: cfg.replyTo,
   });
 
   res.status(200).json({ ok: true });

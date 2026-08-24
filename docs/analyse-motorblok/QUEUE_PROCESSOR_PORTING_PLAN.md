@@ -1,3 +1,5 @@
+> **Historical porting notes (local only).** Current write path: `docs/analyse-api/fms-write-paths.md`. This file is not the leading plan.
+
 # Queue Processing Component Port to Next.js
 
 **Overview:** Port the ColdFusion queue processing component (processTransactions2.cfm) to Next.js, implementing a processor that reads from new_wachtrij_* tables and writes to new_transacties, new_accounts, new_accounts_pasids, and new_financialtransactions. Also document which tables used by queue processing have no UI.

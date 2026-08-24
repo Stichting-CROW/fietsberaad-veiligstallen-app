@@ -9,21 +9,68 @@ import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
 /**
  * Clone an existing stalling into testgemeente. Layout only, no transaction data.
- * Body: { sourceStallingId: string, title: string }
+ * GET ?type=fietskluizen — data-eigenaren met bronstallings van dat type (excl. testgemeente).
+ * POST Body: { sourceStallingId: string, title: string }
  * Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     return res.status(401).json({ message: "Niet ingelogd" });
   }
   if (!userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin)) {
     return res.status(403).json({ message: "Geen rechten" });
+  }
+
+  if (req.method === "GET") {
+    const type = typeof req.query.type === "string" ? req.query.type.trim() : "";
+    if (!type) {
+      return res.status(400).json({ message: "Queryparameter type is verplicht" });
+    }
+
+    const testGemeente = await prisma.contacts.findFirst({
+      where: { CompanyName: TESTGEMEENTE_NAME, ItemType: "organizations", Status: "1" },
+      select: { ID: true },
+    });
+
+    const grouped = await prisma.fietsenstallingen.groupBy({
+      by: ["SiteID"],
+      where: {
+        Type: type,
+        Status: "1",
+        StallingsID: { not: null },
+        Title: { not: "Systeemstalling" },
+        ...(testGemeente ? { SiteID: { not: testGemeente.ID } } : {}),
+        contacts_fietsenstallingen_SiteIDTocontacts: { Status: { not: "0" } },
+      },
+      _count: { _all: true },
+    });
+
+    const siteIds = grouped.map((g) => g.SiteID).filter((id): id is string => !!id);
+    const contacts =
+      siteIds.length > 0
+        ? await prisma.contacts.findMany({
+            where: { ID: { in: siteIds } },
+            select: { ID: true, CompanyName: true },
+          })
+        : [];
+    const nameById = new Map(contacts.map((c) => [c.ID, c.CompanyName ?? c.ID]));
+
+    const owners = grouped
+      .filter((g) => g.SiteID)
+      .map((g) => ({
+        id: g.SiteID as string,
+        companyName: nameById.get(g.SiteID as string) ?? g.SiteID,
+        stallingCount: g._count._all,
+      }))
+      .sort((a, b) => a.companyName.localeCompare(b.companyName, "nl"));
+
+    return res.status(200).json({ owners });
+  }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
+    return res.status(405).json({ message: "Method not allowed" });
   }
 
   const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};

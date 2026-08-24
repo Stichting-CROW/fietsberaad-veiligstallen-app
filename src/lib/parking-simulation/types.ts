@@ -28,6 +28,12 @@ export interface PassIdentifier {
   idtype?: number;
 }
 
+/** Display label for simulation UI: title plus StallingsID (e.g. 9933_001). */
+export function formatStallingLabel(title: string, locationid: string): string {
+  if (locationid && title) return `${title} (${locationid})`;
+  return locationid || title || "—";
+}
+
 export interface TariffRate {
   timespan: number;
   cost: number;
@@ -36,8 +42,6 @@ export interface TariffRate {
 export interface SimulationSession {
   id: string;
   siteID: string;
-  apiUsername?: string | null;
-  apiPasswordEncrypted?: string | null;
   baseUrl?: string | null;
   defaultBiketypeID: number;
   defaultIdtype: number;
@@ -62,5 +66,19 @@ export interface SimulationOccupation {
   sectionid: string;
   placeId?: number | null;
   checkedIn: boolean;
+  passID?: string | null;
+  externalTransactionID?: string | null;
+  checkInDate?: string | null;
+  createdAt?: string | null;
   bicycle?: SimulationBicycle;
+}
+
+/** Pass on occupation: only set after check-in (or koppelen); otherwise unknown. */
+export function formatSimulationPass(passID: string | null | undefined): string {
+  return passID?.trim() ? passID : "—";
+}
+
+/** idcode for v4 occupation / inventarisatie scan when pass may be unknown. */
+export function syncIdcodeForBike(passID: string | null | undefined, barcode: string): string {
+  return passID?.trim() || barcode;
 }

@@ -1,6 +1,6 @@
 /**
- * Service for inserting records into wachtrij_* queue tables.
- * Records are processed by the background processor (Phase 3).
+ * Service for inserting records into new_wachtrij_* queue tables.
+ * Records are processed by the Next.js queue processor.
  */
 
 import { prisma } from "~/server/db";
@@ -11,10 +11,12 @@ type BikeInput = {
   RFID?: string;
   RFIDBike?: string;
   biketypeID?: number;
+  /** ISO timestamp; default is slightly in the past for immediate queue pickup. */
+  transactionDate?: string;
 };
 
 export type TransactionInput = {
-  type: "in" | "out" | "In" | "Out" | "afboeking" | "Afboeking";
+  type: "in" | "out" | "In" | "Out" | "uit" | "Uit" | "afboeking" | "Afboeking";
   typeCheck?: string;
   transactionDate: string;
   idcode?: string;
@@ -50,10 +52,20 @@ type SyncInput = {
   transactionDate: string;
 };
 
+/**
+ * Timestamp for wachtrij rows. Slightly in the past so the queue processor
+ * (`transactionDate <= NOW()`) picks up rows immediately after insert, even when
+ * Node and MySQL clocks differ by a second or TIMESTAMP rounds up.
+ */
+function wachtrijTransactionDate(explicit?: string): Date {
+  if (explicit) return parseDate(explicit);
+  return new Date(Date.now() - 2000);
+}
+
 function parseDate(val: string | undefined): Date {
-  if (!val) return new Date();
+  if (!val) return wachtrijTransactionDate();
   const d = new Date(val);
-  if (isNaN(d.getTime())) return new Date();
+  if (isNaN(d.getTime())) return wachtrijTransactionDate();
   return d;
 }
 
@@ -62,111 +74,139 @@ function toDecimal(val: number | string | undefined): number | null {
   return Number(val);
 }
 
-export async function addBikeToWachtrij(bikeparkID: string, bike: BikeInput): Promise<{ id: number }> {
-  const transactionDate = new Date();
-  const bikeJson = JSON.stringify(bike);
-  const row = await prisma.wachtrij_pasids.create({
-    data: {
-      transactionDate,
-      bikeparkID,
-      passID: bike.passID,
-      barcode: bike.barcode,
-      RFID: bike.RFID ?? "",
-      RFIDBike: bike.RFIDBike ?? "",
-      biketypeID: bike.biketypeID ?? null,
-      bike: bikeJson,
-    },
-  });
-  return { id: row.ID };
-}
+/** Next.js FMS host always enqueues `new_wachtrij_*` (ColdFusion keeps `wachtrij_*`). */
 
-export async function addTransactionToWachtrij(
+export async function addBikeToWachtrij(
   bikeparkID: string,
-  sectionID: string,
-  tx: TransactionInput,
-  placeID?: number,
-  externalPlaceID?: string,
-  transactionID?: number
+  bike: BikeInput
 ): Promise<{ id: number }> {
-  const transactionDate = parseDate(tx.transactionDate);
-  const passID = tx.idcode ?? tx.passID ?? "";
-  if (!passID) {
-    throw new Error("passID or idcode required");
-  }
-  const passtype = tx.idtype === 1 ? "ovchip" : tx.idtype === 2 ? "barcodebike" : "sleutelhanger";
-  const type: string =
-    tx.type === "in" || tx.type === "In"
-      ? "In"
-      : (tx.type === "afboeking" || tx.type === "Afboeking" ? "afboeking" : "Uit");
-  const transactionJson = JSON.stringify(tx);
-
-  const row = await prisma.wachtrij_transacties.create({
-    data: {
-      transactionDate,
-      bikeparkID,
-      sectionID,
-      placeID: placeID ?? null,
-      externalPlaceID: externalPlaceID ?? null,
-      transactionID: transactionID ?? 0,
-      passID,
-      passtype,
-      type,
-      typeCheck: tx.typeCheck ?? "user",
-      price: toDecimal(tx.price),
-      transaction: transactionJson,
-    },
-  });
-
-  // Payment at check-in: when transaction JSON has paymenttypeid + amountpaid > 0,
-  // also add to wachtrij_betalingen so processor creates financialtransactions (ColdFusion parity).
-  const paymentTypeID = tx.paymenttypeid ?? tx.paymentTypeID ?? 1;
-  const amountpaid = Number(tx.amountpaid ?? tx.amountPaid ?? 0);
-  if (paymentTypeID != null && amountpaid > 0) {
-    try {
-      await addSaldoToWachtrij(bikeparkID, {
-        passID,
-        transactionDate: tx.transactionDate ?? transactionDate.toISOString(),
-        paymentTypeID,
-        amount: amountpaid,
-      });
-    } catch (e) {
-      // Duplicate (unique constraint) or other error – log but don't fail transaction insert.
-      // ColdFusion addSaldoUpdateToWachtrij returns false on duplicate; transaction still succeeds.
-      console.warn("Payment at check-in: could not add wachtrij_betalingen", e);
-    }
-  }
-
+  const transactionDate = bike.transactionDate
+    ? parseDate(bike.transactionDate)
+    : wachtrijTransactionDate();
+  const bikeJson = JSON.stringify(bike);
+  const data = {
+    transactionDate,
+    bikeparkID,
+    passID: bike.passID,
+    barcode: bike.barcode,
+    RFID: bike.RFID ?? "",
+    RFIDBike: bike.RFIDBike ?? "",
+    biketypeID: bike.biketypeID ?? null,
+    bike: bikeJson,
+  };
+  const row = await prisma.new_wachtrij_pasids.create({ data });
   return { id: row.ID };
 }
 
-export async function addSaldoToWachtrij(bikeparkID: string, saldo: SaldoInput): Promise<{ id: number }> {
+// FUTURE REFERENCE — DO NOT DELETE (In/Uit / ColdFusion parity).
+// Keep this commented block; do not remove it as unused code.
+// v4 check-in/out uses addManagedTransactionToWachtrij / new_wachtrij_managed_transacties.
+// export async function addTransactionToWachtrij(
+//   bikeparkID: string,
+//   sectionID: string,
+//   tx: TransactionInput,
+//   placeID?: number,
+//   externalPlaceID?: string,
+//   transactionID?: number
+// ): Promise<{ id: number }> {
+//   const transactionDate = parseDate(tx.transactionDate);
+//   const passID = tx.idcode ?? tx.passID ?? "";
+//   if (!passID) {
+//     throw new Error("passID or idcode required");
+//   }
+//   const passtype = tx.idtype === 1 ? "ovchip" : tx.idtype === 2 ? "barcodebike" : "sleutelhanger";
+//   const type: string =
+//     tx.type === "in" || tx.type === "In"
+//       ? "In"
+//       : tx.type === "afboeking" || tx.type === "Afboeking"
+//         ? "afboeking"
+//         : "Uit";
+//   const transactionJson = JSON.stringify(tx);
+//   const data = {
+//     transactionDate,
+//     bikeparkID,
+//     sectionID,
+//     placeID: placeID ?? null,
+//     externalPlaceID: externalPlaceID ?? null,
+//     transactionID: transactionID ?? 0,
+//     passID,
+//     passtype,
+//     type,
+//     typeCheck: tx.typeCheck ?? "user",
+//     price: toDecimal(tx.price),
+//     transaction: transactionJson,
+//   };
+//   const row = await prisma.new_wachtrij_transacties.create({ data });
+//   const paymentTypeID = tx.paymenttypeid ?? tx.paymentTypeID ?? 1;
+//   const amountpaid = Number(tx.amountpaid ?? tx.amountPaid ?? 0);
+//   if (paymentTypeID != null && amountpaid > 0) {
+//     try {
+//       await addSaldoToWachtrij(bikeparkID, {
+//         passID,
+//         transactionDate: tx.transactionDate ?? transactionDate.toISOString(),
+//         paymentTypeID,
+//         amount: amountpaid,
+//       });
+//     } catch (e) {
+//       console.warn("Payment at check-in: could not add wachtrij_betalingen", e);
+//     }
+//   }
+//   return { id: row.ID };
+// }
+
+export async function addSaldoToWachtrij(
+  bikeparkID: string,
+  saldo: SaldoInput
+): Promise<{ id: number }> {
   const passID = saldo.passID ?? saldo.idcode ?? "";
   if (!passID) throw new Error("passID or idcode required");
   const paymentTypeID = saldo.paymentTypeID ?? saldo.paymenttypeid ?? 1;
   const transactionDate = parseDate(saldo.transactionDate);
-  const row = await prisma.wachtrij_betalingen.create({
-    data: {
-      bikeparkID,
-      passID,
-      idtype: saldo.idtype ?? null,
-      transactionDate,
-      paymentTypeID,
-      amount: toDecimal(saldo.amount) ?? 0,
-    },
-  });
+  const data = {
+    bikeparkID,
+    passID,
+    idtype: saldo.idtype ?? null,
+    transactionDate,
+    paymentTypeID,
+    amount: toDecimal(saldo.amount) ?? 0,
+  };
+  const row = await prisma.new_wachtrij_betalingen.create({ data });
+  return { id: row.ID };
+}
+
+export type ManagedTransactionPayload = Record<string, unknown>;
+
+export async function addManagedTransactionToWachtrij(
+  bikeparkID: string,
+  sectionID: string,
+  managed: ManagedTransactionPayload
+): Promise<{ id: number }> {
+  const externalTransactionID = String(
+    managed.externaltransactionid ?? managed.externalTransactionID ?? ""
+  ).trim();
+  if (!externalTransactionID) {
+    throw new Error("externaltransactionid is verplicht");
+  }
+
+  const payload = JSON.stringify({ ...managed, sectionid: managed.sectionid ?? sectionID });
+  const data = {
+    bikeparkID,
+    externalTransactionID,
+    payload,
+  };
+  const row = await prisma.new_wachtrij_managed_transacties.create({ data });
   return { id: row.ID };
 }
 
 export async function addSyncToWachtrij(sync: SyncInput): Promise<{ id: number }> {
   const transactionDate = parseDate(sync.transactionDate);
   const bikesJson = JSON.stringify(sync.bikes);
-  const row = await prisma.wachtrij_sync.create({
-    data: {
-      bikes: bikesJson,
-      bikeparkID: sync.bikeparkID,
-      sectionID: sync.sectionID,
-      transactionDate,
-    },
-  });
+  const data = {
+    bikes: bikesJson,
+    bikeparkID: sync.bikeparkID,
+    sectionID: sync.sectionID,
+    transactionDate,
+  };
+  const row = await prisma.new_wachtrij_sync.create({ data });
   return { id: row.ID };
 }

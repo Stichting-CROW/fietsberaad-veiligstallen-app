@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { UNKNOWN_BIKETYPE_ID } from "~/lib/parking-simulation/types";
+import { formatSimulationPass, UNKNOWN_BIKETYPE_ID } from "~/lib/parking-simulation/types";
 
 type ParkedBicycle = {
   id: string;
@@ -70,7 +70,7 @@ export const StallingSlotOverview: React.FC<Props> = ({ locationid, title }) => 
   const getParkedBikeTooltip = (p: ParkedBicycle): string => {
     const parts = [
       `Fiets: ${p.bicycle?.barcode ?? p.bicycleId}`,
-      `Pas: ${p.passID ?? "—"}`,
+      `Pas: ${formatSimulationPass(p.passID)}`,
       `Type: ${getBikeTypeName(p.bicycle?.biketypeID ?? UNKNOWN_BIKETYPE_ID)}`,
       `Duur: ${formatDurationHours(p.createdAt)}`,
     ];

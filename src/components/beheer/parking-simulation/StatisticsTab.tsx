@@ -33,17 +33,17 @@ type StatisticsTabProps = {
   stallings?: Array<{ id: string; locationid: string; title: string }>;
 };
 
-// One column per metric; single/multi (e.g. uploadJsonTransaction vs uploadJsonTransactions) not distinguishable in wachtrij data
+// One column per metric; queue rows are not split by single vs batch.
 const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: "contactName", label: "Contact" },
   { key: "parkingName", label: "Stalling" },
   { key: "stallingType", label: "Stalling type" },
-  { key: "countTransacties", label: "uploadJsonTransaction(s)" },
-  { key: "countPasids", label: "saveJsonBike(s)" },
-  { key: "countBetalingen", label: "addJsonSaldo(s)" },
-  { key: "countSync", label: "syncSector" },
-  { key: "countReportOccupation", label: "report(Json)OccupationData" },
-  { key: "countAddSubscription", label: "addSubscription" },
+  { key: "countTransacties", label: "managedtransactions" },
+  { key: "countPasids", label: "bike" },
+  { key: "countBetalingen", label: "balance" },
+  { key: "countSync", label: "occupation (sync)" },
+  { key: "countReportOccupation", label: "occupation" },
+  { key: "countAddSubscription", label: "subscriptions" },
   { key: "countSubscribe", label: "subscribe" },
 ];
 
@@ -279,13 +279,13 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         "Contact",
         "Stalling type",
         "Aantal stallings",
-        "uploadJsonTransaction(s)",
-        "saveJsonBike(s)",
-        "addJsonSaldo(s)",
-        "syncSector",
-        "report(Json)OccupationData",
-        "updateLocker",
-        "addSubscription",
+        "managedtransactions",
+        "bike",
+        "balance",
+        "occupation (sync)",
+        "occupation",
+        "updatePlace",
+        "subscriptions",
         "subscribe",
       ]);
       for (const row of sortedOverviewData) {
@@ -310,13 +310,13 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         "Stalling",
         "bikeparkID",
         "Stalling type",
-        "uploadJsonTransaction(s)",
-        "saveJsonBike(s)",
-        "addJsonSaldo(s)",
-        "syncSector",
-        "report(Json)OccupationData",
-        "updateLocker",
-        "addSubscription",
+        "managedtransactions",
+        "bike",
+        "balance",
+        "occupation (sync)",
+        "occupation",
+        "updatePlace",
+        "subscriptions",
         "subscribe",
       ]);
       for (const row of sortedData) {
@@ -357,9 +357,9 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
       <h2 className="text-lg font-semibold mb-2">Statistieken</h2>
       <p className="text-sm text-gray-600 mb-2 max-w-4xl leading-relaxed">
         Per stalling het aantal binnengekomen{" "}
-        <strong>FMS write-API-schrijfacties</strong>: geteld via de wachtrijtabellen (transacties,
-        pasregistraties, saldo-aanvullingen, sectiesynchronisatie, tijdelijke bezettingsdata) en voor{" "}
-        <strong>updateLocker</strong>, <strong>addSubscription</strong> en <strong>subscribe</strong> via het
+        <strong>FMS v4-schrijfacties</strong>: geteld via de wachtrijtabellen (managedtransactions,
+        bike, balance, occupation/sync, tijdelijke bezettingsdata) en voor{" "}
+        <strong>updatePlace</strong>, <strong>subscriptions</strong> en <strong>subscribe</strong> via het
         webservice-log (als daar gelogd). Alleen registraties{" "}
         <strong>vanaf de gekozen startdatum</strong> tellen mee. <strong>Overzicht</strong> sommeert per contact
         en stallingtype.
@@ -368,11 +368,11 @@ const StatisticsTab: React.FC<StatisticsTabProps> = () => {
         <strong>Niet zichtbaar</strong> zijn schrijfacties die <strong>alleen rechtstreeks</strong> op
         eindtabellen landen (bijv. <strong>abonnementen</strong>, <strong>accounts</strong>,{" "}
         <strong>fietsenstalling_plek</strong>) en geen rij in de wachtrij of in{" "}
-        <strong>bezettingsdata_tmp</strong> achterlaten: <strong>addSubscription</strong> en{" "}
+        <strong>bezettingsdata_tmp</strong> achterlaten: <strong>subscriptions</strong> en{" "}
         <strong>subscribe</strong> horen daarbij—die staan hier pas als er een passende regel in{" "}
         <strong>webservice_log</strong> staat. Bezettingsrapportage telt alleen wat via{" "}
         <strong>bezettingsdata_tmp</strong> binnenkomt. Ook ontbreken o.a.{" "}
-        <strong>setUrlWebserviceForLocker</strong>, kluis-methodes naar <strong>fmsservicelog</strong>, en mutaties
+        kluis-URL/log writes naar <strong>fmsservicelog</strong>, en mutaties
         via beheer of achtergrondprocessen.
       </p>
         <div className="flex flex-wrap items-center gap-4 mb-6">

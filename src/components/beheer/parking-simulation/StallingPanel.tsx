@@ -3,35 +3,13 @@ import { FiRotateCcw } from "react-icons/fi";
 import { Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import { Button } from "~/components/Button";
 import { ActiesPanel } from "./ActiesPanel";
+import { InventarisatiePanel } from "./InventarisatiePanel";
 import { StallingSlotOverview } from "./StallingSlotOverview";
 import { syncSector } from "~/lib/parking-simulation/fms-api-write-client";
+import { formatStallingLabel } from "~/lib/parking-simulation/types";
+import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
 
-function getStoredCredentials(): { username: string; password: string; baseUrl?: string } | null {
-  if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("parking-sim-apiUsername");
-  const p = localStorage.getItem("parking-sim-apiPassword");
-  const b = localStorage.getItem("parking-sim-baseUrl");
-  if (!u || !p) return null;
-  return { username: u, password: p, baseUrl: b || undefined };
-}
-
-type WachtrijTransactie = {
-  ID: number;
-  transactionDate: string | null;
-  bikeparkID: string;
-  sectionID: string;
-  placeID: number | null;
-  passID: string;
-  bikeid?: string | null;
-  passtype: string | null;
-  type: string;
-  processed: number;
-  processDate: string | null;
-  error: string | null;
-  dateCreated: string;
-};
-
-/** processed codes from ColdFusion processTransactions2.cfm (QUEUE_PROCESSOR_PORTING_PLAN.md Appendix B) */
+/** Queue processed codes (same values as the Next.js processor / former CF motorblok). */
 const PROCESSED_LABELS: Record<number, string> = {
   0: "Wachtend",
   8: "In behandeling",
@@ -53,6 +31,20 @@ type Transactie = {
   Type_checkin: string | null;
   Type_checkout: string | null;
   Stallingskosten: number | null;
+  ExternalTransactionID: string | null;
+  dateCreated: string;
+};
+
+type WachtrijManaged = {
+  ID: number;
+  bikeparkID: string;
+  externalTransactionID: string;
+  idcode: string | null;
+  checkindate: string | null;
+  checkoutdate: string | null;
+  processed: number;
+  processDate: string | null;
+  error: string | null;
   dateCreated: string;
 };
 
@@ -107,13 +99,14 @@ type BezettingsdataTmpRow = { ID: number; timestampStartInterval: string | null;
 type BezettingsdataRow = { ID: number; timestampStartInterval: string | null; timestamp: string | null; interval: number; source: string | null; bikeparkID: string | null; sectionID: string | null; brutoCapacity: number | null; capacity: number | null; bulkreserveration: number; occupation: number | null; checkins: number | null; checkouts: number | null; open: boolean | null; fillup: boolean; rawData: string | null; dateModified: string; dateCreated: string | null };
 
 const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingskosten = false }) => {
+  const { credentials } = useParkingSimCredentials();
   const [layout, setLayout] = useState<Layout | null>(null);
   const [state, setState] = useState<{ bicycles: Bicycle[]; occupation?: OccupationEntry[]; session?: { simulationTimeOffsetSeconds?: number } } | null>(null);
   const [apiMessage, setApiMessage] = useState<string | null>(null);
-  const tableTabValues = ["wachtrij_transacties", "transacties", "wachtrij_pasids", "wachtrij_betalingen", "wachtrij_sync", "bezettingsdata_tmp", "bezettingsdata"] as const;
-  type PanelTabValue = "stalling" | (typeof tableTabValues)[number];
+  const tableTabValues = ["wachtrij_managed_transacties", "transacties", "wachtrij_pasids", "wachtrij_betalingen", "wachtrij_sync", "bezettingsdata_tmp", "bezettingsdata"] as const;
+  type PanelTabValue = "stalling" | "inventarisatie" | (typeof tableTabValues)[number];
   const [panelTab, setPanelTab] = useState<PanelTabValue>("stalling");
-  const [wachtrijTransacties, setWachtrijTransacties] = useState<WachtrijTransactie[]>([]);
+  const [wachtrijManaged, setWachtrijManaged] = useState<WachtrijManaged[]>([]);
   const [transacties, setTransacties] = useState<Transactie[]>([]);
   const [wachtrijPasids, setWachtrijPasids] = useState<WachtrijPasid[]>([]);
   const [wachtrijBetalingen, setWachtrijBetalingen] = useState<WachtrijBetaling[]>([]);
@@ -125,12 +118,14 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const [processQueueResult, setProcessQueueResult] = useState<string | null>(null);
   const [updateBezettingsdataLoading, setUpdateBezettingsdataLoading] = useState(false);
   const [updateBezettingsdataResult, setUpdateBezettingsdataResult] = useState<string | null>(null);
-  const [useLocalProcessor, setUseLocalProcessor] = useState(false);
+  const [showCfQueues, setShowCfQueues] = useState(false);
+  const queueHostLabel = showCfQueues ? "CF" : "Next.js";
   const [resettingId, setResettingId] = useState<number | null>(null);
   const [syncListModalOpen, setSyncListModalOpen] = useState(false);
   const [syncList, setSyncList] = useState<SyncListSection[]>([]);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncLog, setSyncLog] = useState<string[]>([]);
+  const [inventarisatieRefreshKey, setInventarisatieRefreshKey] = useState(0);
   const loadAbortRef = useRef<AbortController | null>(null);
 
   const loadLayout = async () => {
@@ -160,8 +155,6 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       const configRes = await fetch("/api/protected/parking-simulation/config", fetchOpts);
       const configData = await configRes.json();
       const session = configData?.session;
-      const useLocal = session?.useLocalProcessor ?? false;
-      setUseLocalProcessor(useLocal);
 
       const startDate = session?.simulationStartDate as string | undefined;
       const cutoff = startDate ? new Date(startDate) : null;
@@ -170,20 +163,21 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         : null;
       const txFromParam = cutoffMinusDay ? `&transactionDateFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
       const dateCheckinFrom = cutoffMinusDay ? `&dateCheckinFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
-      const newTablesParam = useLocal ? "&useNewTables=true" : "";
+      const dateCreatedFrom = cutoffMinusDay ? `&dateCreatedFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
+      const queueParam = showCfQueues ? "" : "&useNewTables=true";
 
-      const [wachtrijRes, transactiesRes, pasidsRes, betalingenRes, syncRes, bezettingsdataTmpRes, bezettingsdataRes] = await Promise.all([
-        fetch(`/api/protected/wachtrij/wachtrij_transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${dateCheckinFrom}${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/wachtrij/wachtrij_pasids?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/wachtrij/wachtrij_betalingen?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/wachtrij/wachtrij_sync?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/parking-simulation/bezettingsdata-tmp?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${newTablesParam}`, fetchOpts),
-        fetch(`/api/protected/parking-simulation/bezettingsdata?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${newTablesParam}`, fetchOpts),
+      const [managedRes, transactiesRes, pasidsRes, betalingenRes, syncRes, bezettingsdataTmpRes, bezettingsdataRes] = await Promise.all([
+        fetch(`/api/protected/wachtrij/wachtrij_managed_transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${dateCreatedFrom}`, fetchOpts),
+        fetch(`/api/protected/transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${dateCheckinFrom}`, fetchOpts),
+        fetch(`/api/protected/wachtrij/wachtrij_pasids?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${queueParam}`, fetchOpts),
+        fetch(`/api/protected/wachtrij/wachtrij_betalingen?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${queueParam}`, fetchOpts),
+        fetch(`/api/protected/wachtrij/wachtrij_sync?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${txFromParam}${queueParam}`, fetchOpts),
+        fetch(`/api/protected/parking-simulation/bezettingsdata-tmp?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${queueParam}`, fetchOpts),
+        fetch(`/api/protected/parking-simulation/bezettingsdata?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100`, fetchOpts),
       ]);
 
-      const [wachtrijData, transactiesData, pasidsData, betalingenData, syncData, bezettingsdataTmpData, bezettingsdataData] = await Promise.all([
-        wachtrijRes.json(),
+      const [managedData, transactiesData, pasidsData, betalingenData, syncData, bezettingsdataTmpData, bezettingsdataData] = await Promise.all([
+        managedRes.json(),
         transactiesRes.json(),
         pasidsRes.json(),
         betalingenRes.json(),
@@ -192,7 +186,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         bezettingsdataRes.json(),
       ]);
 
-      setWachtrijTransacties(wachtrijData?.data ?? []);
+      setWachtrijManaged(managedData?.data ?? []);
       setTransacties(transactiesData?.data ?? []);
       setWachtrijPasids(pasidsData?.data ?? []);
       setWachtrijBetalingen(betalingenData?.data ?? []);
@@ -201,7 +195,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       setBezettingsdata(bezettingsdataData?.data ?? []);
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
-      setWachtrijTransacties([]);
+      setWachtrijManaged([]);
       setTransacties([]);
       setWachtrijPasids([]);
       setWachtrijBetalingen([]);
@@ -211,7 +205,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
     } finally {
       setMotorblokLoading(false);
     }
-  }, [locationid]);
+  }, [locationid, showCfQueues]);
 
   const handleProcessQueue = async () => {
     setProcessQueueLoading(true);
@@ -228,9 +222,10 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
             ? r
             : r && typeof r === "object"
               ? `pasids: ${r.pasids?.processed ?? 0} ok, ${r.pasids?.errors ?? 0} err\n` +
-                `transacties: ${r.transacties?.processed ?? 0} ok, ${r.transacties?.errors ?? 0} err\n` +
+                `managed: ${r.managedTransacties?.processed ?? 0} ok, ${r.managedTransacties?.errors ?? 0} err\n` +
                 `betalingen: ${r.betalingen?.processed ?? 0} ok, ${r.betalingen?.errors ?? 0} err\n` +
-                `sync: ${r.sync?.processed ?? 0} ok, ${r.sync?.errors ?? 0} err`
+                `sync: ${r.sync?.processed ?? 0} ok, ${r.sync?.errors ?? 0} err\n` +
+                `occupation: ${r.occupation?.processed ?? 0} ok, ${r.occupation?.errors ?? 0} err`
               : "";
         setProcessQueueResult(text);
         loadState();
@@ -312,9 +307,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   };
 
   const handleSyncExecute = async () => {
-    const creds = getStoredCredentials();
-    if (!creds) {
-      setSyncLog(["Fout: Geen credentials. Configureer in Instellingen."]);
+    if (!credentials) {
+      setSyncLog(["Fout: Geen FMS API-credentials. Vul UrlName en wachtwoord in bij Instellingen (opgeslagen in deze browser)."]);
       return;
     }
     setSyncListModalOpen(false);
@@ -334,8 +328,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           idtype: 0,
           transactiondate: transactionDate,
         }));
-        log.push(`syncSector ${locationid}/${sec.sectionid}: ${bikes.length} fietsen`);
-        const res = await syncSector(creds, locationid, sec.sectionid, { bikes, transactionDate });
+        log.push(`v4 occupation ${locationid}/${sec.sectionid}: ${bikes.length} fietsen`);
+        const res = await syncSector(credentials, locationid, sec.sectionid, { bikes, transactionDate });
         if (res.status === 1) {
           log.push(`  OK (id: ${res.id})`);
         } else {
@@ -349,7 +343,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       if (pqData.ok && pqData.result) {
         const r = pqData.result;
         log.push(`  pasids: ${r.pasids?.processed ?? 0} ok, ${r.pasids?.errors ?? 0} err`);
-        log.push(`  transacties: ${r.transacties?.processed ?? 0} ok, ${r.transacties?.errors ?? 0} err`);
+        log.push(`  managed: ${r.managedTransacties?.processed ?? 0} ok, ${r.managedTransacties?.errors ?? 0} err`);
         log.push(`  betalingen: ${r.betalingen?.processed ?? 0} ok, ${r.betalingen?.errors ?? 0} err`);
         log.push(`  sync: ${r.sync?.processed ?? 0} ok, ${r.sync?.errors ?? 0} err`);
       } else {
@@ -367,13 +361,13 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
     }
   };
 
-  const handleResetTransactie = async (id: number) => {
+  const handleResetTransactie = async (id: number, queue: "transacties" | "managed" = "transacties") => {
     setResettingId(id);
     try {
       const res = await fetch("/api/protected/wachtrij/reset-transactie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, useNewTables: useLocalProcessor }),
+        body: JSON.stringify({ id, queue }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -402,11 +396,15 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       loadState();
     };
     window.addEventListener("simulation-clock-updated", handler);
-    return () => window.removeEventListener("simulation-clock-updated", handler);
+    window.addEventListener("parking-slot-updated", handler);
+    return () => {
+      window.removeEventListener("simulation-clock-updated", handler);
+      window.removeEventListener("parking-slot-updated", handler);
+    };
   }, []);
 
   useEffect(() => {
-    if (panelTab === "stalling") {
+    if (panelTab === "stalling" || panelTab === "inventarisatie") {
       loadState();
       loadLayout();
       return;
@@ -424,17 +422,17 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   return (
     <div className="bg-white border rounded-lg p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold">{title} ({locationid})</h3>
+        <h3 className="text-lg font-semibold">{formatStallingLabel(title, locationid)}</h3>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <Button onClick={handleProcessQueue} disabled={processQueueLoading} style={{ backgroundColor: "#16a34a" }}>
-          {processQueueLoading ? "Bezig…" : useLocalProcessor ? "Process (new)" : "Process"}
+          {processQueueLoading ? "Bezig…" : "Process"}
         </Button>
         <Button onClick={handleUpdateBezettingsdata} disabled={updateBezettingsdataLoading} style={{ backgroundColor: "#16a34a" }}>
           {updateBezettingsdataLoading ? "Bezig…" : "Update bezettingsdata"}
         </Button>
-        <Button onClick={handleSyncClick} disabled={!getStoredCredentials()} style={{ backgroundColor: "#16a34a" }}>
+        <Button onClick={handleSyncClick} disabled={!credentials} style={{ backgroundColor: "#16a34a" }}>
           Sync
         </Button>
         <Button onClick={handleRefreshAll} disabled={motorblokLoading} style={{ backgroundColor: "#16a34a" }}>
@@ -442,16 +440,26 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showCfQueues}
+            onChange={(e) => setShowCfQueues(e.target.checked)}
+            className="rounded"
+          />
+          Toon ColdFusion-wachtrijen (alleen kijken)
+        </label>
         <Tabs value={panelTab} onChange={(_, v) => setPanelTab(v as PanelTabValue)}>
           <Tab label="Stalling" value="stalling" />
-          <Tab label={useLocalProcessor ? "Wachtrij transacties (new)" : "Wachtrij transacties"} value="wachtrij_transacties" />
-          <Tab label={useLocalProcessor ? "Wachtrij pasids (new)" : "Wachtrij pasids"} value="wachtrij_pasids" />
-          <Tab label={useLocalProcessor ? "Wachtrij betalingen (new)" : "Wachtrij betalingen"} value="wachtrij_betalingen" />
-          <Tab label={useLocalProcessor ? "Wachtrij sync (new)" : "Wachtrij sync"} value="wachtrij_sync" />
-          <Tab label={useLocalProcessor ? "Transacties (new)" : "Transacties"} value="transacties" />
-          <Tab label={useLocalProcessor ? "Bezettingsdata tmp (new)" : "Bezettingsdata tmp"} value="bezettingsdata_tmp" />
-          <Tab label={useLocalProcessor ? "Bezettingsdata (new)" : "Bezettingsdata"} value="bezettingsdata" />
+          <Tab label="Inventarisatie" value="inventarisatie" />
+          <Tab label="Wachtrij managed" value="wachtrij_managed_transacties" />
+          <Tab label={`Wachtrij pasids (${queueHostLabel})`} value="wachtrij_pasids" />
+          <Tab label={`Wachtrij betalingen (${queueHostLabel})`} value="wachtrij_betalingen" />
+          <Tab label={`Wachtrij sync (${queueHostLabel})`} value="wachtrij_sync" />
+          <Tab label="Transacties" value="transacties" />
+          <Tab label={`Bezettingsdata tmp (${queueHostLabel})`} value="bezettingsdata_tmp" />
+          <Tab label="Bezettingsdata" value="bezettingsdata" />
         </Tabs>
       </div>
 
@@ -466,7 +474,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
               : "Onbekend"}
         </p>
         <p className="text-xs text-gray-500">
-          FMS API: {getStoredCredentials() ? "credentials geconfigureerd" : "geen credentials — configureer in Instellingen"}
+          FMS API: {credentials ? "credentials geconfigureerd (v4 managed transactions, type2)" : "geen credentials — vul in bij Instellingen (browser)"}
+          Process gebruikt altijd Next.js (new_wachtrij_* / new_bezettingsdata_tmp).
         </p>
       </div>
 
@@ -530,6 +539,42 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
         </>
       )}
 
+      {panelTab === "inventarisatie" && (
+        <>
+          <div className="mb-4">
+            <ActiesPanel
+              locationid={locationid}
+              stallings={[{ id: locationid, locationid, title }]}
+              onMessage={setApiMessage}
+              onSuccess={() => {
+                loadState();
+                loadLayout();
+                setInventarisatieRefreshKey((k) => k + 1);
+                window.dispatchEvent(new CustomEvent("parking-slot-updated"));
+              }}
+            />
+          </div>
+          <InventarisatiePanel
+            locationid={locationid}
+            sectionIds={normalizedSections.map((s) => s.sectionid)}
+            refreshKey={inventarisatieRefreshKey}
+            onMessage={setApiMessage}
+            onSuccess={() => {
+              loadState();
+              loadLayout();
+              loadMotorblok();
+              setInventarisatieRefreshKey((k) => k + 1);
+              window.dispatchEvent(new CustomEvent("parking-slot-updated"));
+            }}
+          />
+          {apiMessage && (
+            <p className={`mt-2 text-sm ${apiMessage.startsWith("Fout") ? "text-red-600" : "text-green-600"}`}>
+              {apiMessage}
+            </p>
+          )}
+        </>
+      )}
+
       {tableTabValues.includes(panelTab as (typeof tableTabValues)[number]) && (
         <div className="space-y-4">
           {(processQueueResult != null || updateBezettingsdataResult != null || syncLog.length > 0) && (
@@ -541,22 +586,18 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
                   : String(processQueueResult).replace(/<br\s*\/?>/gi, "\n")}
             </pre>
           )}
-          {panelTab === "wachtrij_transacties" && (
+          {panelTab === "wachtrij_managed_transacties" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Wachtrij transacties (new)" : "Wachtrij transacties"}</h4>
+            <h4 className="font-medium mb-2">Wachtrij managed transacties</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="text-left p-2">ID</th>
-                    <th className="text-left p-2">transactionDate</th>
-                    <th className="text-left p-2">bikeparkID</th>
-                    <th className="text-left p-2">sectionID</th>
-                    <th className="text-left p-2">placeID</th>
-                    <th className="text-left p-2">passID</th>
-                    <th className="text-left p-2">bikeid</th>
-                    <th className="text-left p-2">passtype</th>
-                    <th className="text-left p-2">type</th>
+                    <th className="text-left p-2">externalTransactionID</th>
+                    <th className="text-left p-2">idcode</th>
+                    <th className="text-left p-2">checkindate</th>
+                    <th className="text-left p-2">checkoutdate</th>
                     <th className="text-left p-2">processed</th>
                     <th className="text-left p-2">processDate</th>
                     <th className="text-left p-2">dateCreated</th>
@@ -565,21 +606,17 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
                 </thead>
                 <tbody>
                   {motorblokLoading ? (
-                    <tr><td colSpan={13} className="p-4 text-gray-500">Laden...</td></tr>
-                  ) : wachtrijTransacties.length === 0 ? (
-                    <tr><td colSpan={13} className="p-4 text-gray-500">Geen wachtrij transacties</td></tr>
+                    <tr><td colSpan={9} className="p-4 text-gray-500">Laden...</td></tr>
+                  ) : wachtrijManaged.length === 0 ? (
+                    <tr><td colSpan={9} className="p-4 text-gray-500">Geen managed transacties</td></tr>
                   ) : (
-                    wachtrijTransacties.map((r) => (
+                    wachtrijManaged.map((r) => (
                       <tr key={r.ID} className="border-t">
                         <td className="p-2">{r.ID}</td>
-                        <td className="p-2">{r.transactionDate ? new Date(r.transactionDate).toLocaleString() : "—"}</td>
-                        <td className="p-2">{r.bikeparkID}</td>
-                        <td className="p-2">{r.sectionID}</td>
-                        <td className="p-2">{r.placeID ?? "—"}</td>
-                        <td className="p-2">{r.passID}</td>
-                        <td className="p-2">{r.bikeid ?? "—"}</td>
-                        <td className="p-2">{r.passtype ?? "—"}</td>
-                        <td className="p-2">{r.type}</td>
+                        <td className="p-2 font-mono text-xs">{r.externalTransactionID}</td>
+                        <td className="p-2">{r.idcode ?? "—"}</td>
+                        <td className="p-2">{r.checkindate ? new Date(r.checkindate).toLocaleString() : "—"}</td>
+                        <td className="p-2">{r.checkoutdate ? new Date(r.checkoutdate).toLocaleString() : "—"}</td>
                         <td className="p-2" title={r.error ?? undefined}>
                           <span className={r.processed === 2 ? "text-red-600" : r.processed === 1 ? "text-green-600" : "text-gray-500"}>
                             {PROCESSED_LABELS[r.processed] ?? `(${r.processed})`}
@@ -591,7 +628,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
                           {(r.processed === 2 || r.processed === 8 || r.processed === 9) && (
                             <button
                               type="button"
-                              onClick={() => handleResetTransactie(r.ID)}
+                              onClick={() => handleResetTransactie(r.ID, "managed")}
                               disabled={resettingId === r.ID}
                               className="p-1 rounded hover:bg-gray-200 text-gray-600 hover:text-gray-800 disabled:opacity-50"
                               title="Reset naar wachtend (opnieuw verwerken)"
@@ -610,12 +647,13 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "transacties" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Transacties (new)" : "Transacties"}</h4>
+            <h4 className="font-medium mb-2">Transacties</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="text-left p-2">ID</th>
+                    <th className="text-left p-2">ExternalTransactionID</th>
                     <th className="text-left p-2">SectieID</th>
                     <th className="text-left p-2">PasID</th>
                     <th className="text-left p-2">Fiets in</th>
@@ -631,13 +669,14 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
                 </thead>
                 <tbody>
                   {motorblokLoading ? (
-                    <tr><td colSpan={12} className="p-4 text-gray-500">Laden...</td></tr>
+                    <tr><td colSpan={13} className="p-4 text-gray-500">Laden...</td></tr>
                   ) : transacties.length === 0 ? (
-                    <tr><td colSpan={12} className="p-4 text-gray-500">Geen transacties</td></tr>
+                    <tr><td colSpan={13} className="p-4 text-gray-500">Geen transacties</td></tr>
                   ) : (
                     transacties.map((r) => (
                       <tr key={r.ID} className="border-t">
                         <td className="p-2">{r.ID}</td>
+                        <td className="p-2 font-mono text-xs">{r.ExternalTransactionID ?? "—"}</td>
                         <td className="p-2">{r.SectieID ?? "—"}</td>
                         <td className="p-2">{r.PasID}</td>
                         <td className="p-2">{r.BarcodeFiets_in ?? "—"}</td>
@@ -659,7 +698,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_pasids" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Wachtrij pasids (new)" : "Wachtrij pasids"}</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij pasids (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -698,7 +737,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_betalingen" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Wachtrij betalingen (new)" : "Wachtrij betalingen"}</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij betalingen (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -739,7 +778,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_sync" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Wachtrij sync (new)" : "Wachtrij sync"}</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij sync (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -778,7 +817,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "bezettingsdata_tmp" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Bezettingsdata tmp (new)" : "Bezettingsdata tmp"}</h4>
+            <h4 className="font-medium mb-2">{`Bezettingsdata tmp (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -825,7 +864,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "bezettingsdata" && (
           <div>
-            <h4 className="font-medium mb-2">{useLocalProcessor ? "Bezettingsdata (new)" : "Bezettingsdata"}</h4>
+            <h4 className="font-medium mb-2">Bezettingsdata</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">

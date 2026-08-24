@@ -36,3 +36,15 @@ export const isValidApiPasswordHash = (value: string | null | undefined): boolea
   if (!value) return false;
   return /^[0-9a-fA-F]{64}$/.test(value);
 };
+
+/**
+ * Verify a plaintext password against security_users.EncryptedPassword2
+ * (ColdFusion API Basic Auth uses SHA-256, not bcrypt).
+ */
+export const verifyApiPassword = (
+  password: string,
+  storedHash: string | null | undefined
+): boolean => {
+  if (!storedHash || !isValidApiPasswordHash(storedHash)) return false;
+  return encryptPasswordForApi(password).toUpperCase() === storedHash.toUpperCase();
+};

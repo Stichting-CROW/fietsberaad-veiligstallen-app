@@ -9,6 +9,7 @@ import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
 import { getBikepassByPassId } from "../queue/account-service";
 import { passtype2string } from "./fms-idtypes";
+import { accounts_account_type } from "~/generated/prisma-client";
 
 function shortUUID(): string {
   return randomUUID().replace(/-/g, "");
@@ -73,11 +74,20 @@ export async function addSubscription(
       prisma,
       input.passID,
       bikepark.SiteID,
-      pastype,
-      false
+      pastype
     );
     accountID = bikepass.AccountID ?? undefined;
     bikepassID = bikepass.ID;
+  } else if (!accountID) {
+    // Subscription purchased before pass is linked (subscribe flow).
+    accountID = shortUUID();
+    await prisma.accounts.create({
+      data: {
+        ID: accountID,
+        saldo: 0,
+        account_type: accounts_account_type.SYSTEM,
+      },
+    });
   }
 
   if (!accountID) {
@@ -132,11 +142,14 @@ export async function addSubscription(
 export type SubscribeInput = {
   subscriptionID: number;
   passID: string;
+  /** ColdFusion idtype (0=sleutelhanger, 1=ovchip, 2=cijfercode, …) */
+  idtype?: number;
 };
 
 /**
  * subscribe – link key fob (passID) to existing subscription.
- * Updates abonnementen.bikepassID and accounts_pasids.dateLastSubscriptionUpdate.
+ * Creates the pass on the subscription account when it does not exist yet
+ * (buy first, hand out fob later). Updates abonnementen.bikepassID.
  */
 export async function subscribe(
   bikeparkID: string,
@@ -163,14 +176,32 @@ export async function subscribe(
     return { status: 0, message: "Subscription not found" };
   }
 
-  const bikepass = await prisma.accounts_pasids.findFirst({
+  const pastype =
+    input.idtype != null ? passtype2string(input.idtype) : "sleutelhanger";
+
+  let bikepass = await prisma.accounts_pasids.findFirst({
     where: {
       PasID: passID,
       SiteID: bikepark.SiteID,
     },
   });
+
   if (!bikepass) {
-    return { status: 0, message: "Pass not found for this site" };
+    const accountID = abonnement.AccountID;
+    if (!accountID) {
+      return { status: 0, message: "Subscription has no account to attach pass" };
+    }
+    const bikepassID = shortUUID();
+    bikepass = await prisma.accounts_pasids.create({
+      data: {
+        ID: bikepassID,
+        AccountID: accountID,
+        SiteID: bikepark.SiteID,
+        PasID: passID,
+        Pastype: pastype,
+        dateLastSubscriptionUpdate: new Date(),
+      },
+    });
   }
 
   await prisma.$transaction([

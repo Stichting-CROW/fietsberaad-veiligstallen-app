@@ -7,10 +7,13 @@ import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
+import { OccupationComparisonSection } from "~/components/beheer/test/OccupationComparisonSection";
 import {
   prepareForCompare,
   responsesMatch,
   normalizeSectionBiketypesOrderDeep,
+  isLegacyNotFoundResponse,
+  isLegacyUnusableOldApiError,
 } from "~/server/utils/fms-compare";
 
 /** Returns { oldOnly, newOnly } with only differing paths. Uses deep-object-diff: diff(a,b) = values from b that differ from a. */
@@ -36,19 +39,51 @@ function getDiffOnly(oldJson: string, newJson: string): { oldOnly: string; newOn
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // Endpoints aligned with ColdFusion REST (remote/REST/FMSService.cfc) and V3 (fms_service.cfc).
-// Old V2: REST/v1/ uses getBikeTypes, getPaymentTypes, getClientTypes, getServerTime (not getJson*).
-// getJsonBikeType/{id} omitted: not in REST API; new API matches old.
+// Next.js is v4-only. Catalog aux (servertime / biketypes / paymenttypes) follows the V3
+// contract (`/rest/v3/...`), not V2 `/REST/v1/getBikeTypes` (BIKETYPEID/NAME).
+// v2 getJsonBikeType/{id}: use GET /v4/biketypes and filter on id (no single-id V3/V4 stub).
+// v2 getJsonClientTypes / getJsonBikes: V4 stubs exist but CF has no same-contract twin
+// (`/rest/v3/clienttypes` and `/rest/v3/bikes` 404). Omitted from parity compare.
+// v3 isAllowedToUse: implemented, but operator-protected and dependent on live pass state, so it is
+// not a deterministic parity read and is excluded from the automatic comparison suite.
 const ENDPOINTS: { id: string; label: string; path: string; params: string[]; oldPath?: string }[] = [
-  { id: "v2-getServerTime", label: "V2 getServerTime", path: "/v2/getServerTime", params: [], oldPath: "/REST/v1/getServerTime" },
-  { id: "v2-getJsonBikeTypes", label: "V2 getJsonBikeTypes", path: "/v2/getJsonBikeTypes", params: [], oldPath: "/REST/v1/getBikeTypes" },
-  { id: "v2-getJsonPaymentTypes", label: "V2 getJsonPaymentTypes", path: "/v2/getJsonPaymentTypes", params: [], oldPath: "/REST/v1/getPaymentTypes" },
-  { id: "v2-getJsonClientTypes", label: "V2 getJsonClientTypes", path: "/v2/getJsonClientTypes", params: [], oldPath: "/REST/v1/getClientTypes" },
+  { id: "v3-servertime", label: "V3 servertime", path: "/rest/v3/servertime", params: [], oldPath: "/rest/v3/servertime" },
+  { id: "v3-biketypes", label: "V3 biketypes", path: "/rest/v3/biketypes", params: [], oldPath: "/rest/v3/biketypes" },
+  { id: "v3-paymenttypes", label: "V3 paymenttypes", path: "/rest/v3/paymenttypes", params: [], oldPath: "/rest/v3/paymenttypes" },
   {
     id: "v2-getJsonSubscriptionTypes",
     label: "V2 getJsonSubscriptionTypes/{bikeparkID}",
     path: "/v2/getJsonSubscriptionTypes",
     params: ["bikeparkID"],
     oldPath: "/v2/REST/getJsonSubscriptionTypes",
+  },
+  {
+    id: "v2-getJsonSectors",
+    label: "V2 getJsonSectors/{bikeparkID}",
+    path: "/v2/getJsonSectors",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonSectors",
+  },
+  {
+    id: "v2-getJsonBikeUpdates",
+    label: "V2 getJsonBikeUpdates/{bikeparkID}",
+    path: "/v2/getJsonBikeUpdates",
+    params: ["bikeparkID", "fromDate"],
+    oldPath: "/v2/REST/getJsonBikeUpdates",
+  },
+  {
+    id: "v2-getJsonSubscriptors",
+    label: "V2 getJsonSubscriptors/{bikeparkID}",
+    path: "/v2/getJsonSubscriptors",
+    params: ["bikeparkID"],
+    oldPath: "/v2/REST/getJsonSubscriptors",
+  },
+  {
+    id: "v2-getLockerInfo",
+    label: "V2 getLockerInfo/{bikeparkID}/{sectionID}/{placeID}",
+    path: "/v2/getLockerInfo",
+    params: ["bikeparkID", "sectionid", "placeid"],
+    oldPath: "/v2/REST/getLockerInfo",
   },
   { id: "v3-citycodes", label: "V3 citycodes", path: "/rest/v3/citycodes", params: [] },
   { id: "v3-citycode", label: "V3 citycodes/{citycode}", path: "/rest/v3/citycodes", params: ["citycode"] },
@@ -57,14 +92,26 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
   { id: "v3-sections", label: "V3 locations/{locationid}/sections", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-section", label: "V3 sections/{sectionid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
   { id: "v3-places", label: "V3 sections/{sectionid}/places", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
+  { id: "v3-place", label: "V3 sections/{sectionid}/places/{placeid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid", "placeid"] },
+  { id: "v3-locationscsv", label: "V3 citycodes/{citycode}/locationscsv", path: "/rest/v3/citycodes", params: ["citycode"] },
   { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-balances", label: "V3 locations/{locationid}/balances", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-subscriptions", label: "V3 locations/{locationid}/subscriptions", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
   { id: "v3-bikeupdates", label: "V3 locations/{locationid}/bikeupdates", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  {
+    id: "v3-balance",
+    label: "V3 idcodes/{idtype}/{idcode}/balance",
+    path: "/rest/v3/citycodes",
+    params: ["citycode", "locationid", "idtype", "idcode"],
+  },
 ];
 
+const V3_AUX_ENDPOINTS = new Set(["v3-servertime", "v3-biketypes", "v3-paymenttypes"]);
 const GLOBAL_ENDPOINTS = ENDPOINTS.filter(
-  (e) => (e.id.startsWith("v2-") && !e.params.includes("bikeparkID")) || e.id === "v3-citycodes"
+  (e) =>
+    (e.id.startsWith("v2-") && !e.params.includes("bikeparkID")) ||
+    e.id === "v3-citycodes" ||
+    V3_AUX_ENDPOINTS.has(e.id)
 ) as EndpointDef[];
 const LOCATION_ENDPOINTS = ENDPOINTS.filter((e) => !GLOBAL_ENDPOINTS.includes(e)) as EndpointDef[];
 
@@ -74,15 +121,38 @@ const ENDPOINTS_OLD_API_FAILS_NON_NUMERIC: string[] = [
   "v3-sections",
   "v3-section",
   "v3-places",
+  "v3-place",
+  "v3-locationscsv",
   "v3-subscriptiontypes",
   "v3-balances",
   "v3-subscriptions",
   "v3-bikeupdates",
+  "v3-balance",
 ];
 
 function isSkippedForNonNumericCitycode(citycode: string, endpointId: string): boolean {
   if (!citycode || /^\d+$/.test(citycode)) return false;
   return ENDPOINTS_OLD_API_FAILS_NON_NUMERIC.includes(endpointId);
+}
+
+const TESTGEMEENTE_CITYCODE = "9933";
+const OPERATOR_LOCATION_ENDPOINTS = new Set([
+  "v3-balances",
+  "v3-subscriptions",
+  "v3-bikeupdates",
+  "v3-balance",
+  "v2-getJsonBikeUpdates",
+  "v2-getJsonSubscriptors",
+]);
+
+/** Operator reads: testgemeente credentials only. Other cities 401 on both sides. */
+function isSkippedOperatorEndpoint(citycode: string, endpointId: string, hasAuth: boolean): boolean {
+  if (!OPERATOR_LOCATION_ENDPOINTS.has(endpointId)) return false;
+  return !hasAuth || citycode !== TESTGEMEENTE_CITYCODE;
+}
+
+function shouldSkipUnusableOldApi(oldError?: string): boolean {
+  return isLegacyUnusableOldApiError(oldError);
 }
 
 function buildFullDatasetTestId(
@@ -96,8 +166,8 @@ function buildFullDatasetTestId(
 }
 
 function getTypeForEndpoint(endpointId: string): "city" | "location" | "section" {
-  if (endpointId === "v3-citycode" || endpointId === "v3-locations") return "city";
-  if (endpointId === "v3-section" || endpointId === "v3-places") return "section";
+  if (endpointId === "v3-citycode" || endpointId === "v3-locations" || endpointId === "v3-locationscsv") return "city";
+  if (endpointId === "v3-section" || endpointId === "v3-places" || endpointId === "v3-place") return "section";
   return "location";
 }
 
@@ -111,6 +181,10 @@ const DEFAULT_PARAMS: Record<string, string> = {
   locationid: "9933_001",
   bikeparkID: "9933_001",
   sectionid: "9933_001_1",
+  placeid: "",
+  fromDate: "2020-01-01T00:00:00.000Z",
+  idtype: "0",
+  idcode: "",
   depth: "3",
 };
 
@@ -209,16 +283,40 @@ function hasRequiredParams(endpoint: (typeof ENDPOINTS)[0], params: Record<strin
   return endpoint.params.every((p) => (params[p] ?? "").trim().length > 0);
 }
 
+/** Scalar location fields only. CF locationscsv 500s when `fields` includes openinghours (including `*`). */
+const LOCATIONS_CSV_FIELDS = [
+  "location.name",
+  "location.lat",
+  "location.long",
+  "location.exploitantname",
+  "location.exploitantcontact",
+  "location.address",
+  "location.postalcode",
+  "location.city",
+  "location.locationtype",
+  "location.station",
+  "location.occupation",
+  "location.capacity",
+].join(",");
+
 function appendV3QueryParams(url: string, depth: string, endpointId: string): string {
   if (!url) return url; // Avoid returning "?depth=3" when url is empty (causes fetch to fail in Node)
   if (!endpointId.startsWith("v3-")) return url;
-  const protectedReads = new Set([
+  const skipQuery = new Set([
     "v3-balances",
     "v3-subscriptions",
     "v3-bikeupdates",
+    "v3-balance",
+    "v3-servertime",
+    "v3-biketypes",
+    "v3-paymenttypes",
+    "v3-citycodes",
   ]);
-  if (protectedReads.has(endpointId)) return url;
+  if (skipQuery.has(endpointId)) return url;
   const sep = url.includes("?") ? "&" : "?";
+  if (endpointId === "v3-locationscsv") {
+    return `${url}${sep}fields=${encodeURIComponent(LOCATIONS_CSV_FIELDS)}`;
+  }
   let out = `${url}${sep}depth=${encodeURIComponent(depth)}&fields=${encodeURIComponent("*")}`;
   return out;
 }
@@ -229,49 +327,119 @@ function getOldUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
     let path = `/rest/v3/citycodes/${paramValues.citycode}`;
     if (endpoint.id === "v3-citycode") url = `${oldApiBase}${path}`;
     else if (endpoint.id === "v3-locations") url = `${oldApiBase}${path}/locations`;
+    else if (endpoint.id === "v3-locationscsv") url = `${oldApiBase}${path}/locationscsv`;
     else if (paramValues.locationid) {
       path += `/locations/${paramValues.locationid}`;
       if (endpoint.id === "v3-subscriptiontypes") url = `${oldApiBase}${path}/subscriptiontypes`;
       else if (endpoint.id === "v3-balances") url = `${oldApiBase}${path}/balances`;
       else if (endpoint.id === "v3-subscriptions") url = `${oldApiBase}${path}/subscriptions`;
       else if (endpoint.id === "v3-bikeupdates") url = `${oldApiBase}${path}/bikeupdates`;
+      else if (endpoint.id === "v3-balance" && paramValues.idtype && paramValues.idcode) {
+        url = `${oldApiBase}${path}/idcodes/${paramValues.idtype}/${paramValues.idcode}/balance`;
+      }
       else if (endpoint.id === "v3-sections") url = `${oldApiBase}${path}/sections`;
       else if (endpoint.id === "v3-location") url = `${oldApiBase}${path}`;
       else if (paramValues.sectionid) {
         path += `/sections/${paramValues.sectionid}`;
         if (endpoint.id === "v3-places") url = `${oldApiBase}${path}/places`;
+        else if (endpoint.id === "v3-place" && paramValues.placeid) url = `${oldApiBase}${path}/places/${paramValues.placeid}`;
         else if (endpoint.id === "v3-section") url = `${oldApiBase}${path}`;
         else url = "";
       } else url = "";
     } else url = "";
   } else if (endpoint.id === "v3-citycodes") {
     url = `${oldApiBase}/rest/v3/citycodes`;
+  } else if (
+    endpoint.id === "v2-getJsonSubscriptionTypes" ||
+    endpoint.id === "v2-getJsonSectors" ||
+    endpoint.id === "v2-getJsonBikeUpdates" ||
+    endpoint.id === "v2-getJsonSubscriptors" ||
+    endpoint.id === "v2-getLockerInfo"
+  ) {
+    const citycode = paramValues.citycode;
+    const locationid = paramValues.bikeparkID || paramValues.locationid;
+    if (!citycode || !locationid) url = "";
+    else if (endpoint.id === "v2-getJsonSubscriptionTypes") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptiontypes`;
+    } else if (endpoint.id === "v2-getJsonSectors") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections`;
+    }     else if (endpoint.id === "v2-getJsonBikeUpdates") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/bikeupdates`;
+      if (paramValues.fromDate) {
+        url += `?from=${encodeURIComponent(paramValues.fromDate)}`;
+      }
+    } else if (endpoint.id === "v2-getJsonSubscriptors") {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/subscriptions`;
+    } else if (
+      endpoint.id === "v2-getLockerInfo" &&
+      paramValues.sectionid &&
+      paramValues.placeid
+    ) {
+      url = `${oldApiBase}/rest/v3/citycodes/${citycode}/locations/${locationid}/sections/${paramValues.sectionid}/places/${paramValues.placeid}`;
+    } else {
+      url = "";
+    }
   } else {
     const path = "oldPath" in endpoint && endpoint.oldPath ? endpoint.oldPath : endpoint.path;
     url = `${oldApiBase}${path}`;
     if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
       url += `/${paramValues.bikeparkID}`;
     }
+    if (endpoint.params.includes("sectionid") && paramValues.sectionid) {
+      url += `/${paramValues.sectionid}`;
+    }
+    if (endpoint.params.includes("placeid") && paramValues.placeid) {
+      url += `/${paramValues.placeid}`;
+    }
+    if (endpoint.id === "v2-getJsonBikeUpdates" && paramValues.fromDate) {
+      url += `${url.includes("?") ? "&" : "?"}fromDate=${encodeURIComponent(paramValues.fromDate)}`;
+    }
   }
   return appendV3QueryParams(url, paramValues.depth ?? "3", endpoint.id);
 }
 
+function v4CitycodesBase(baseNew: string, citycode?: string): string {
+  const root = `${baseNew}/api/fms/v4/citycodes`;
+  return citycode ? `${root}/${citycode}` : root;
+}
+
 function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, string>, baseNew: string): string {
-  const base = "/api/fms";
   let url: string;
   if (endpoint.id.startsWith("v2-")) {
-    const method = endpoint.path.split("/").pop() ?? "";
-    url = `${baseNew}${base}/v2/${method}`;
-    if (endpoint.params.includes("bikeparkID") && paramValues.bikeparkID) {
-      url += `/${paramValues.bikeparkID}`;
+    const citycode = paramValues.citycode;
+    const locationid = paramValues.bikeparkID || paramValues.locationid;
+    if (!citycode || !locationid) url = "";
+    else if (endpoint.id === "v2-getJsonSubscriptionTypes") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/subscriptiontypes`;
+    } else if (endpoint.id === "v2-getJsonSectors") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/sections`;
+    } else if (endpoint.id === "v2-getJsonBikeUpdates") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/bikeupdates`;
+      if (paramValues.fromDate) {
+        url += `?from=${encodeURIComponent(paramValues.fromDate)}`;
+      }
+    } else if (endpoint.id === "v2-getJsonSubscriptors") {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/subscriptions`;
+    } else if (
+      endpoint.id === "v2-getLockerInfo" &&
+      paramValues.sectionid &&
+      paramValues.placeid
+    ) {
+      url = `${v4CitycodesBase(baseNew, citycode)}/locations/${locationid}/sections/${paramValues.sectionid}/places/${paramValues.placeid}`;
+    } else {
+      url = "";
     }
   } else if (endpoint.id.startsWith("v3-")) {
-    if (endpoint.id === "v3-citycodes") url = `${baseNew}${base}/v3/citycodes`;
-    else if (!paramValues.citycode) url = `${baseNew}${base}/v3/citycodes`;
+    if (endpoint.id === "v3-servertime") url = `${baseNew}/api/fms/v4/servertime`;
+    else if (endpoint.id === "v3-biketypes") url = `${baseNew}/api/fms/v4/biketypes`;
+    else if (endpoint.id === "v3-paymenttypes") url = `${baseNew}/api/fms/v4/paymenttypes`;
+    else if (endpoint.id === "v3-citycodes") url = v4CitycodesBase(baseNew);
+    else if (!paramValues.citycode) url = v4CitycodesBase(baseNew);
     else {
-      let p = `${baseNew}${base}/v3/citycodes/${paramValues.citycode}`;
+      let p = v4CitycodesBase(baseNew, paramValues.citycode);
       if (endpoint.id === "v3-citycode") url = p;
       else if (endpoint.id === "v3-locations") url = `${p}/locations`;
+      else if (endpoint.id === "v3-locationscsv") url = `${p}/locationscsv`;
       else if (paramValues.locationid) {
         p += `/locations/${paramValues.locationid}`;
         if (endpoint.id === "v3-location") url = p;
@@ -279,12 +447,16 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         else if (endpoint.id === "v3-balances") url = `${p}/balances`;
         else if (endpoint.id === "v3-subscriptions") url = `${p}/subscriptions`;
         else if (endpoint.id === "v3-bikeupdates") url = `${p}/bikeupdates`;
+        else if (endpoint.id === "v3-balance" && paramValues.idtype && paramValues.idcode) {
+          url = `${p}/idcodes/${paramValues.idtype}/${paramValues.idcode}/balance`;
+        }
         else if (endpoint.id === "v3-sections") url = `${p}/sections`;
-        else if ((endpoint.id === "v3-places" || endpoint.id === "v3-section") && paramValues.sectionid) {
+        else if ((endpoint.id === "v3-places" || endpoint.id === "v3-place" || endpoint.id === "v3-section") && paramValues.sectionid) {
           p += `/sections/${paramValues.sectionid}`;
           if (endpoint.id === "v3-section") url = p;
+          else if (endpoint.id === "v3-place") url = paramValues.placeid ? `${p}/places/${paramValues.placeid}` : "";
           else url = `${p}/places`;
-        } else if (endpoint.id === "v3-places" || endpoint.id === "v3-section") url = "";
+        } else if (endpoint.id === "v3-places" || endpoint.id === "v3-place" || endpoint.id === "v3-section") url = "";
         else url = p;
       } else if (
         endpoint.id === "v3-location" ||
@@ -292,7 +464,8 @@ function getNewUrl(endpoint: typeof ENDPOINTS[0], paramValues: Record<string, st
         endpoint.id === "v3-subscriptiontypes" ||
         endpoint.id === "v3-balances" ||
         endpoint.id === "v3-subscriptions" ||
-        endpoint.id === "v3-bikeupdates"
+        endpoint.id === "v3-bikeupdates" ||
+        endpoint.id === "v3-balance"
       ) {
         url = "";
       } else {
@@ -542,10 +715,28 @@ const FmsApiComparePage: React.FC = () => {
   const [fullDatasetResults, setFullDatasetResults] = useState<FullDatasetTestResponse | null>(() => loadStoredFullDataset());
   const [showOnlyFailedFullDataset, setShowOnlyFailedFullDataset] = useState(true);
   const [fullDatasetLocationtypeFilter, setFullDatasetLocationtypeFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "instellingen">("algemeen");
+  const [activeTab, setActiveTab] = useState<"algemeen" | "specifiek" | "geautomatiseerd" | "reporting" | "occupation" | "instellingen">("algemeen");
   const [allowDynamicDiffs, setAllowDynamicDiffs] = useState(() => loadStoredSettings().allowDynamicDiffs);
   const [maxverschil, setMaxverschil] = useState(() => loadStoredSettings().maxverschil);
   const [showStallingNames, setShowStallingNames] = useState(() => loadStoredSettings().showStallingNames);
+
+  // Reporting tab state (compares old CF vs new reporting transactions endpoint)
+  const [reportingType, setReportingType] = useState<"checkout" | "checkin" | "overlap">("checkout");
+  const [reportingYear, setReportingYear] = useState("");
+  const [reportingMonth, setReportingMonth] = useState("");
+  const [reportingFrom, setReportingFrom] = useState("");
+  const [reportingTo, setReportingTo] = useState("");
+  const [reportingStatus, setReportingStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [reportingOldResult, setReportingOldResult] = useState("");
+  const [reportingNewResult, setReportingNewResult] = useState("");
+  const [reportingOldError, setReportingOldError] = useState("");
+  const [reportingNewError, setReportingNewError] = useState("");
+  const [reportingOldDurationSeconds, setReportingOldDurationSeconds] = useState<number | null>(null);
+  const [reportingNewDurationSeconds, setReportingNewDurationSeconds] = useState<number | null>(null);
+  const [reportingOldUrl, setReportingOldUrl] = useState("");
+  const [reportingNewUrl, setReportingNewUrl] = useState("");
+  const [reportingMatch, setReportingMatch] = useState<boolean | null>(null);
+  const [reportingError, setReportingError] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -663,10 +854,19 @@ const FmsApiComparePage: React.FC = () => {
     }
 
     const citycode = params.citycode ?? "";
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const endpoint of endpoints) {
       if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
         setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
         setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(citycode, endpoint.id, hasAuth)) {
+        setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setRowError((e) => ({
+          ...e,
+          [endpoint.id]: "Overgeslagen (operator-endpoint, alleen testgemeente met FMS-auth)",
+        }));
         continue;
       }
       setRowStatus((s) => ({ ...s, [endpoint.id]: "loading" }));
@@ -689,6 +889,11 @@ const FmsApiComparePage: React.FC = () => {
         const { oldError, newError } = data as { oldError?: string; newError?: string };
         const hasFetchError = !!oldError || !!newError;
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (oude API weigert of faalt)" }));
+          continue;
+        }
         if (!res.ok) {
           const parts: string[] = [];
           if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -736,6 +941,11 @@ const FmsApiComparePage: React.FC = () => {
           oldDurationSeconds?: number;
           newDurationSeconds?: number;
         };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          setRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (stalling niet op oude API)" }));
+          continue;
+        }
         if (oldDurationSeconds != null && newDurationSeconds != null) {
           setRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
         }
@@ -908,10 +1118,20 @@ const FmsApiComparePage: React.FC = () => {
     }
 
     const citycode = params.citycode ?? "";
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const endpoint of LOCATION_ENDPOINTS) {
       if (isSkippedForNonNumericCitycode(citycode, endpoint.id)) {
         setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
         setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (non-numeric citycode)" }));
+        updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(citycode, endpoint.id, hasAuth)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+        setAutoCompareRowError((e) => ({
+          ...e,
+          [endpoint.id]: "Overgeslagen (operator-endpoint, alleen testgemeente met FMS-auth)",
+        }));
         updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
         continue;
       }
@@ -938,6 +1158,12 @@ const FmsApiComparePage: React.FC = () => {
         const parts = [oldError && `Oude API: ${oldError}`, newError && `Nieuwe API: ${newError}`].filter(Boolean);
         const errMsg = parts.join("; ");
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (oude API weigert of faalt)" }));
+          updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+          continue;
+        }
         if (!res.ok) {
           setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "error" }));
           setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: parts.length > 0 ? errMsg : data.message ?? "Request failed" }));
@@ -980,6 +1206,12 @@ const FmsApiComparePage: React.FC = () => {
           oldDurationSeconds?: number;
           newDurationSeconds?: number;
         };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          setAutoCompareRowStatus((s) => ({ ...s, [endpoint.id]: "skipped" }));
+          setAutoCompareRowError((e) => ({ ...e, [endpoint.id]: "Overgeslagen (stalling niet op oude API)" }));
+          updateFullDatasetRowStatus(endpoint.id, "skipped", undefined, params);
+          continue;
+        }
         if (oldDurationSeconds != null && newDurationSeconds != null) {
           setAutoCompareRowTiming((t) => ({ ...t, [endpoint.id]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
         }
@@ -1019,10 +1251,15 @@ const FmsApiComparePage: React.FC = () => {
       body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
     }
 
+    const hasAuth = !!(body.useApiCredentials || body.authorizationHeader);
     for (const row of failedRows) {
       const endpoint = ENDPOINTS.find((e) => e.id === row.endpointId);
       if (!endpoint) continue;
       if (isSkippedForNonNumericCitycode(row.citycode, row.endpointId)) {
+        updateRowStatusByTestId(row.testId, "skipped");
+        continue;
+      }
+      if (isSkippedOperatorEndpoint(row.citycode, row.endpointId, hasAuth)) {
         updateRowStatusByTestId(row.testId, "skipped");
         continue;
       }
@@ -1054,6 +1291,10 @@ const FmsApiComparePage: React.FC = () => {
           .filter(Boolean)
           .join("; ");
 
+        if (shouldSkipUnusableOldApi(oldError)) {
+          updateRowStatusByTestId(row.testId, "skipped");
+          continue;
+        }
         if (!res.ok) {
           updateRowStatusByTestId(row.testId, "error", errMsg);
           continue;
@@ -1064,6 +1305,10 @@ const FmsApiComparePage: React.FC = () => {
         }
 
         const { oldResult: oldRes, newResult: newRes } = data as { oldResult: string; newResult: string };
+        if (isLegacyNotFoundResponse(oldRes)) {
+          updateRowStatusByTestId(row.testId, "skipped");
+          continue;
+        }
         const citycode = row.citycode ?? "";
         const { status } = getCompareStatus(row.endpointId, oldRes, newRes, citycode, {
           allowDynamicDiffs,
@@ -1131,6 +1376,12 @@ const FmsApiComparePage: React.FC = () => {
       const { oldError, newError } = data as { oldError?: string; newError?: string };
       const hasFetchError = !!oldError || !!newError;
 
+      if (shouldSkipUnusableOldApi(oldError)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (oude API weigert of faalt)" }));
+        updateFullDatasetRowStatus(endpointId, "skipped");
+        return;
+      }
       if (!res.ok) {
         const parts: string[] = [];
         if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -1179,6 +1430,12 @@ const FmsApiComparePage: React.FC = () => {
         oldDurationSeconds?: number;
         newDurationSeconds?: number;
       };
+      if (isLegacyNotFoundResponse(oldRes)) {
+        setAutoCompareRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setAutoCompareRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (stalling niet op oude API)" }));
+        updateFullDatasetRowStatus(endpointId, "skipped");
+        return;
+      }
       if (oldDurationSeconds != null && newDurationSeconds != null) {
         setAutoCompareRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
       }
@@ -1343,6 +1600,12 @@ const FmsApiComparePage: React.FC = () => {
       const { oldError, newError } = data as { oldError?: string; newError?: string };
       const hasFetchError = !!oldError || !!newError;
 
+      if (shouldSkipUnusableOldApi(oldError)) {
+        setRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (oude API weigert of faalt)" }));
+        setRowExpanded((x) => ({ ...x, [endpointId]: false }));
+        return;
+      }
       if (!res.ok) {
         const parts: string[] = [];
         if (oldError) parts.push(`Oude API: ${oldError}`);
@@ -1391,6 +1654,11 @@ const FmsApiComparePage: React.FC = () => {
         oldDurationSeconds?: number;
         newDurationSeconds?: number;
       };
+      if (isLegacyNotFoundResponse(oldRes)) {
+        setRowStatus((s) => ({ ...s, [endpointId]: "skipped" }));
+        setRowError((e) => ({ ...e, [endpointId]: "Overgeslagen (stalling niet op oude API)" }));
+        return;
+      }
       if (oldDurationSeconds != null && newDurationSeconds != null) {
         setRowTiming((t) => ({ ...t, [endpointId]: { oldSeconds: oldDurationSeconds, newSeconds: newDurationSeconds } }));
       }
@@ -1482,6 +1750,106 @@ const FmsApiComparePage: React.FC = () => {
     void navigator.clipboard.writeText(instruction);
   };
 
+  const handleReportingFetch = async () => {
+    const citycode = paramValues.citycode ?? "";
+    const locationid = paramValues.locationid ?? "";
+    if (!citycode || !locationid) {
+      setReportingStatus("error");
+      setReportingError("Selecteer eerst een organisatie en stalling.");
+      return;
+    }
+
+    const query = new URLSearchParams();
+    if (reportingType) query.set("type", reportingType);
+    if (reportingFrom.trim()) query.set("from", reportingFrom.trim());
+    if (reportingTo.trim()) query.set("to", reportingTo.trim());
+    if (reportingYear.trim()) query.set("year", reportingYear.trim());
+    if (reportingMonth.trim()) query.set("month", reportingMonth.trim());
+    const qs = query.toString();
+    const suffix = `/citycodes/${encodeURIComponent(citycode)}/locations/${encodeURIComponent(locationid)}/transactions${qs ? `?${qs}` : ""}`;
+
+    const newBase = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
+    const oldBase = oldApiUrl || OLD_API_BASE;
+    const newUrl = `${newBase}/api/reporting${suffix}`;
+    const oldUrl = `${oldBase}/rest/reporting/v1${suffix}`;
+
+    setReportingOldUrl(oldUrl);
+    setReportingNewUrl(newUrl);
+    setReportingStatus("loading");
+    setReportingError("");
+    setReportingOldError("");
+    setReportingNewError("");
+    setReportingOldResult("");
+    setReportingNewResult("");
+    setReportingOldDurationSeconds(null);
+    setReportingNewDurationSeconds(null);
+    setReportingMatch(null);
+
+    // Both endpoints use the same security_users Basic auth. The shared proxy
+    // also avoids CORS for the old (remote) API.
+    const body: { authorizationHeader?: string; oldUrl: string; newUrl: string } = { oldUrl, newUrl };
+    if (authUsername && authPassword) {
+      body.authorizationHeader = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
+    }
+
+    const formatResult = (s: string) => {
+      try {
+        return JSON.stringify(JSON.parse(s), null, 2);
+      } catch {
+        return s;
+      }
+    };
+
+    try {
+      const res = await fetch("/api/protected/fms-api-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const { oldError, newError, oldResult, newResult, oldDurationSeconds, newDurationSeconds, message } = data as {
+        oldError?: string;
+        newError?: string;
+        oldResult?: string;
+        newResult?: string;
+        oldDurationSeconds?: number;
+        newDurationSeconds?: number;
+        message?: string;
+      };
+
+      if (oldDurationSeconds != null) setReportingOldDurationSeconds(oldDurationSeconds);
+      if (newDurationSeconds != null) setReportingNewDurationSeconds(newDurationSeconds);
+
+      if (!res.ok && !oldError && !newError) {
+        setReportingStatus("error");
+        setReportingError(message ?? "Request mislukt");
+        return;
+      }
+
+      if (oldError) {
+        setReportingOldError(oldError);
+      } else {
+        setReportingOldResult(formatResult(oldResult ?? ""));
+      }
+      if (newError) {
+        setReportingNewError(newError);
+      } else {
+        setReportingNewResult(formatResult(newResult ?? ""));
+      }
+
+      if (!oldError && !newError) {
+        const diffResult = getDiffOnly(oldResult ?? "", newResult ?? "");
+        setReportingMatch(diffResult != null && diffResult.oldOnly === "{}" && diffResult.newOnly === "{}");
+      } else {
+        setReportingMatch(null);
+      }
+      setReportingStatus("done");
+    } catch (err) {
+      setReportingStatus("error");
+      setReportingError(err instanceof Error ? err.message : "Fetch mislukt");
+    }
+  };
+
   if (!session) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -1523,8 +1891,8 @@ const FmsApiComparePage: React.FC = () => {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nieuwe API url (basis) –{" "}
-            <Link href="/test/fms-api-docs" className="text-blue-600 hover:underline">
-              Swagger docs
+            <Link href="/test/fms-api-docs-v4" className="text-blue-600 hover:underline">
+              Swagger docs v4
             </Link>
           </label>
           <input
@@ -1607,6 +1975,28 @@ const FmsApiComparePage: React.FC = () => {
             }`}
           >
             Geautomatiseerd Testen
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("reporting")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "reporting"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Reporting
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("occupation")}
+            className={`py-2 px-1 border-b-2 font-bold text-2xl ${
+              activeTab === "occupation"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Occupation
           </button>
           <button
             type="button"
@@ -1798,6 +2188,45 @@ const FmsApiComparePage: React.FC = () => {
                 <option value={paramValues.sectionid ?? ""}>{paramValues.sectionid} (opgeslagen)</option>
               )}
             </select>
+          </div>
+          <div className="w-auto min-w-[8rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Plek (placeID)</label>
+            <input
+              type="text"
+              value={paramValues.placeid ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, placeid: e.target.value }))}
+              placeholder="bv. 12345"
+              className="w-auto min-w-[8rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[14rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">fromDate (V2 bikeupdates)</label>
+            <input
+              type="text"
+              value={paramValues.fromDate ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, fromDate: e.target.value }))}
+              placeholder="ISO 8601"
+              className="w-auto min-w-[14rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[6rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">idtype</label>
+            <input
+              type="text"
+              value={paramValues.idtype ?? "0"}
+              onChange={(e) => setParamValues((p) => ({ ...p, idtype: e.target.value }))}
+              className="w-auto min-w-[6rem] p-2 border rounded"
+            />
+          </div>
+          <div className="w-auto min-w-[12rem]">
+            <label className="block text-sm font-medium text-gray-700 mb-1">idcode (V3 balance)</label>
+            <input
+              type="text"
+              value={paramValues.idcode ?? ""}
+              onChange={(e) => setParamValues((p) => ({ ...p, idcode: e.target.value }))}
+              placeholder="passID"
+              className="w-auto min-w-[12rem] p-2 border rounded"
+            />
           </div>
           <div className="w-auto min-w-[4rem]">
             <label className="block text-sm font-medium text-gray-700 mb-1">Depth</label>
@@ -2073,6 +2502,248 @@ const FmsApiComparePage: React.FC = () => {
           </div>
         )}
 
+        {activeTab === "reporting" && (
+          <div>
+            <p className="text-sm text-gray-600 mb-4">
+              Vergelijkt de oude en nieuwe reporting-API:{" "}
+              <code className="bg-gray-100 px-1 rounded">
+                /rest/reporting/v1/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
+              </code>{" "}
+              (oud) versus{" "}
+              <code className="bg-gray-100 px-1 rounded">
+                /api/reporting/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
+              </code>{" "}
+              (nieuw). Beide endpoints gebruiken Basic Auth tegen{" "}
+              <code className="bg-gray-100 px-1 rounded">security_users</code> (beheer-inlog), dus vul hierboven
+              beheer-credentials in (niet de FMS data-provider credentials). De oude API gebruikt het veld
+              &quot;Oude API url&quot; als basis, de nieuwe het veld &quot;Nieuwe API url&quot;.
+            </p>
+
+            <div className="flex flex-wrap items-end gap-4 mb-4">
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organisatie</label>
+                <Autocomplete
+                  options={cityOptions}
+                  getOptionLabel={(o) => o.label}
+                  value={
+                    cityOptions.find((o) => o.value === (paramValues.citycode ?? "")) ??
+                    ((paramValues.citycode ?? "")
+                      ? { value: paramValues.citycode ?? "", label: `${paramValues.citycode} (opgeslagen)` }
+                      : null)
+                  }
+                  onChange={(_, newValue) =>
+                    setParamValues((p) => ({
+                      ...p,
+                      citycode: newValue?.value ?? "",
+                      locationid: "",
+                      sectionid: "",
+                    }))
+                  }
+                  isOptionEqualToValue={(a, b) => a.value === b.value}
+                  loading={optionsLoading.city}
+                  disabled={optionsLoading.city}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder={optionsLoading.city ? "Laden..." : "Typ om te zoeken..."}
+                      size="small"
+                      className="w-full"
+                    />
+                  )}
+                />
+              </div>
+              <div className="w-auto min-w-[20rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stalling</label>
+                <Autocomplete
+                  options={locationOptions}
+                  getOptionLabel={(o) => o.label}
+                  value={
+                    locationOptions.find((o) => o.value === (paramValues.locationid ?? "")) ??
+                    ((paramValues.locationid ?? "")
+                      ? { value: paramValues.locationid ?? "", label: `${paramValues.locationid} (opgeslagen)` }
+                      : null)
+                  }
+                  onChange={(_, newValue) =>
+                    setParamValues((p) => ({
+                      ...p,
+                      locationid: newValue?.value ?? "",
+                      sectionid: "",
+                    }))
+                  }
+                  isOptionEqualToValue={(a, b) => a.value === b.value}
+                  loading={optionsLoading.location}
+                  disabled={optionsLoading.location || !paramValues.citycode}
+                  slotProps={{ paper: { sx: { minWidth: 280 } } }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder={
+                        optionsLoading.location
+                          ? "Laden..."
+                          : !paramValues.citycode
+                            ? "Selecteer eerst organisatie"
+                            : "Typ om te zoeken..."
+                      }
+                      size="small"
+                      className="w-full"
+                    />
+                  )}
+                />
+              </div>
+              <div className="w-auto min-w-[8rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={reportingType}
+                  onChange={(e) => setReportingType(e.target.value as "checkout" | "checkin" | "overlap")}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="checkout">checkout</option>
+                  <option value="checkin">checkin</option>
+                  <option value="overlap">overlap</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-4 mb-2">
+              <div className="w-auto min-w-[6rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jaar</label>
+                <input
+                  type="number"
+                  value={reportingYear}
+                  onChange={(e) => setReportingYear(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="bijv. 2026"
+                />
+              </div>
+              <div className="w-auto min-w-[5rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maand</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={reportingMonth}
+                  onChange={(e) => setReportingMonth(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="1-12"
+                />
+              </div>
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Van (from)</label>
+                <input
+                  type="text"
+                  value={reportingFrom}
+                  onChange={(e) => setReportingFrom(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <div className="w-auto min-w-[12rem]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tot (to)</label>
+                <input
+                  type="text"
+                  value={reportingTo}
+                  onChange={(e) => setReportingTo(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleReportingFetch()}
+                disabled={reportingStatus === "loading" || !paramValues.citycode || !paramValues.locationid}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {reportingStatus === "loading" ? "Bezig..." : "Vergelijken"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Als <code className="bg-gray-100 px-1 rounded">from</code> en <code className="bg-gray-100 px-1 rounded">to</code>{" "}
+              zijn ingevuld hebben die voorrang boven jaar/maand. Zonder periode wordt standaard de vorige maand gebruikt.
+            </p>
+
+            {reportingStatus === "error" && (
+              <div className="bg-red-50 border border-red-300 rounded p-3 mb-3 text-sm text-red-700">
+                Fout: {reportingError || "Onbekende fout"}
+              </div>
+            )}
+
+            {reportingMatch !== null && (
+              <div
+                className={`rounded p-3 mb-3 text-sm font-medium ${
+                  reportingMatch
+                    ? "bg-green-50 border border-green-300 text-green-800"
+                    : "bg-red-50 border border-red-300 text-red-800"
+                }`}
+              >
+                {reportingMatch ? "Identiek: oude en nieuwe API geven dezelfde data." : "Verschillend: oude en nieuwe API geven andere data."}
+              </div>
+            )}
+
+            {(reportingOldUrl || reportingNewUrl) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                    Oude API
+                    {reportingOldDurationSeconds != null && (
+                      <span className="font-normal text-gray-500"> ({reportingOldDurationSeconds}s)</span>
+                    )}
+                  </h3>
+                  {reportingOldUrl && (
+                    <p className="text-xs text-gray-600 mb-2 break-all">
+                      <code className="bg-gray-100 px-1 rounded">{reportingOldUrl}</code>
+                    </p>
+                  )}
+                  {reportingOldError ? (
+                    <div className="bg-red-50 border border-red-300 rounded p-3 text-sm text-red-700 break-words">
+                      Fout: {reportingOldError}
+                    </div>
+                  ) : (
+                    <pre className="bg-gray-50 border rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words">
+                      {reportingOldResult || (reportingStatus === "loading" ? "Bezig..." : "")}
+                    </pre>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                    Nieuwe API
+                    {reportingNewDurationSeconds != null && (
+                      <span className="font-normal text-gray-500"> ({reportingNewDurationSeconds}s)</span>
+                    )}
+                  </h3>
+                  {reportingNewUrl && (
+                    <p className="text-xs text-gray-600 mb-2 break-all">
+                      <code className="bg-gray-100 px-1 rounded">{reportingNewUrl}</code>
+                    </p>
+                  )}
+                  {reportingNewError ? (
+                    <div className="bg-red-50 border border-red-300 rounded p-3 text-sm text-red-700 break-words">
+                      Fout: {reportingNewError}
+                    </div>
+                  ) : (
+                    <pre className="bg-gray-50 border rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words">
+                      {reportingNewResult || (reportingStatus === "loading" ? "Bezig..." : "")}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "occupation" && (
+          <OccupationComparisonSection
+            oldApiUrl={oldApiUrl}
+            newApiUrl={newApiUrl}
+            authUsername={authUsername}
+            authPassword={authPassword}
+            cityOptions={cityOptions}
+            locationOptions={locationOptions}
+            optionsLoading={optionsLoading}
+            paramValues={paramValues}
+            setParamValues={setParamValues}
+          />
+        )}
+
         {activeTab === "instellingen" && (
           <div className="space-y-6 max-w-xl">
             <h2 className="text-xl font-semibold text-gray-900">Vergelijkingsinstellingen</h2>
@@ -2132,8 +2803,8 @@ const FmsApiComparePage: React.FC = () => {
                   dynamisch: opnieuw testen na korte tijd geeft vaak identieke resultaten zodra caches verlopen.
                 </p>
                 <p>
-                  Zie <code className="bg-gray-100 px-1 rounded">docs/analyse-motorblok/API_PORTING_PLAN.md</code> §14
-                  voor meer details.
+                  Zie <code className="bg-gray-100 px-1 rounded">docs/analyse-api/fms-write-paths.md</code> voor het
+                  huidige write-pad (v4 Next.js vs v2/v3 ColdFusion).
                 </p>
               </div>
             </section>

@@ -7,12 +7,9 @@ import { prisma } from "~/server/db";
 import { processQueues } from "~/server/services/queue/processor";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 
-const DEFAULT_PROCESS_QUEUE_BASE = "https://remote.veiligstallenontwikkel.nl";
-
 /**
- * POST: Trigger the ColdFusion processTransactions2.cfm queue processor.
- * Uses processQueueBaseUrl from parkingsimulation_simulation_config (default: remote.veiligstallenontwikkel.nl).
- * Proxies the request to avoid CORS. Returns the plain-text response.
+ * POST: Drain Next.js input queues (new_wachtrij_* / new_bezettingsdata_tmp → production).
+ * Always uses processQueues(). Does not call ColdFusion processTransactions2.cfm.
  * Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -37,44 +34,21 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(400).json({ message: "Testgemeente niet gevonden" });
   }
 
-  const pmConfig = await prisma.parkingsimulation_simulation_config.findUnique({
-    where: { siteID: contact.ID },
-    select: { processQueueBaseUrl: true, useLocalProcessor: true },
-  });
-
-  if (pmConfig?.useLocalProcessor) {
-    try {
-      const result = await processQueues();
-      return res.status(200).json({
-        ok: true,
-        result: {
-          pasids: result.pasids,
-          transacties: result.transacties,
-          betalingen: result.betalingen,
-          sync: result.sync,
-        },
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[process-queue] Local processor error:", msg);
-      return res.status(500).json({ ok: false, message: "Fout: " + msg });
-    }
-  }
-
-  const base = (pmConfig?.processQueueBaseUrl ?? DEFAULT_PROCESS_QUEUE_BASE).replace(/\/$/, "");
-  const url = `${base}/remote/processTransactions2.cfm`;
-
   try {
-    const response = await fetch(url, { method: "GET" });
-    const text = await response.text();
-    console.log("[process-queue] URL:", url, "status:", response.status, "result:", text);
-    if (!response.ok) {
-      return res.status(response.status).json({ ok: false, message: text || response.statusText });
-    }
-    return res.status(200).json({ ok: true, result: text });
+    const result = await processQueues();
+    return res.status(200).json({
+      ok: true,
+      result: {
+        pasids: result.pasids,
+        managedTransacties: result.managedTransacties,
+        betalingen: result.betalingen,
+        sync: result.sync,
+        occupation: result.occupation,
+      },
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[process-queue] Error:", msg);
+    console.error("[process-queue] Local processor error:", msg);
     return res.status(500).json({ ok: false, message: "Fout: " + msg });
   }
 }

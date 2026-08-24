@@ -8,7 +8,9 @@ import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 
 /**
- * GET config, PATCH to update (simulationTimeOffsetSeconds, apiUsername, apiPasswordEncrypted, baseUrl, processQueueBaseUrl, useLocalProcessor).
+ * GET config, PATCH to update (simulationTimeOffsetSeconds, baseUrl).
+ * processQueueBaseUrl / useLocalProcessor columns remain unused (Process is always Next.js).
+ * FMS UrlName/wachtwoord live in browser localStorage only (Instellingen tab).
  * Reads/writes parkingsimulation_simulation_config. Fietsberaad superadmin only.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -49,7 +51,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       session: {
         id: pmConfig.id,
         siteID: pmConfig.siteID,
-        apiUsername: pmConfig.apiUsername,
         baseUrl: pmConfig.baseUrl,
         processQueueBaseUrl: pmConfig.processQueueBaseUrl,
         useLocalProcessor: pmConfig.useLocalProcessor ?? false,
@@ -65,8 +66,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
     const data: Record<string, unknown> = {};
     if (typeof body.simulationTimeOffsetSeconds === "number") data.simulationTimeOffsetSeconds = body.simulationTimeOffsetSeconds;
-    if (body.apiUsername != null) data.apiUsername = body.apiUsername;
-    if (body.apiPasswordEncrypted != null) data.apiPasswordEncrypted = body.apiPasswordEncrypted;
     if (body.baseUrl != null) data.baseUrl = body.baseUrl;
     if (body.processQueueBaseUrl != null) data.processQueueBaseUrl = body.processQueueBaseUrl;
     if (typeof body.useLocalProcessor === "boolean") data.useLocalProcessor = body.useLocalProcessor;

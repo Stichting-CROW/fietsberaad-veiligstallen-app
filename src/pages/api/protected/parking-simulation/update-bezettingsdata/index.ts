@@ -10,7 +10,7 @@ import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 /**
  * POST: Trigger update of bezettingsdata (Lumiguide path + FMS path).
  * Same auth as process-queue: fietsberaad_superadmin only.
- * Uses testgemeente config: useLocalProcessor → new_transacties; siteID for scope.
+ * Writes production bezettingsdata, scoped to the testgemeente site when present.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -31,14 +31,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     select: { ID: true },
   });
 
-  const pmConfig = contact
-    ? await prisma.parkingsimulation_simulation_config.findUnique({
-        where: { siteID: contact.ID },
-        select: { useLocalProcessor: true },
-      })
-    : null;
-
-  const useNewTables = pmConfig?.useLocalProcessor ?? false;
   const siteID = contact?.ID ?? null;
 
   const dateEnd = new Date();
@@ -46,7 +38,6 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
   try {
     const result = await updateBezettingsdata({
-      useNewTables,
       dateStart,
       dateEnd,
       siteID,

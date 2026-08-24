@@ -11,7 +11,6 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import {
   clearReportFileCacheForDateRange,
-  expireOldReportFileCache,
 } from "~/backend/services/reports/csvExportCache";
 
 export interface CacheUpdateLogEntry {
@@ -228,14 +227,10 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                        logEntry.data.Bezetting.success && 
                        logEntry.data.Stallingsduur.success;
 
-    // Drop CSV files whose reported period overlaps the refreshed range, then
-    // sweep unused downloads older than ≈ 3 months.
+    // Drop CSV files whose reported period overlaps the refreshed range.
     try {
       const cleared = await clearReportFileCacheForDateRange(params.startDate, params.endDate);
-      const expired = await expireOldReportFileCache();
-      console.log(
-        `*** Report file cache: cleared ${cleared.deleted} overlapping, expired ${expired.deleted} old`
-      );
+      console.log(`*** Report file cache: cleared ${cleared.deleted} overlapping`);
     } catch (error) {
       console.error("*** Report file cache cleanup error:", error);
     }

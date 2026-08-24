@@ -19,11 +19,6 @@ export const MODULES = {
   default: ["veiligstallen"] as const,
 } as const;
 
-export const FMS_PERMIT = {
-  Permit: "operator",
-  BikeparkID: null,
-} as const;
-
 import {
   type StallingEntry,
   STALLING_DATA_BY_TARGET,

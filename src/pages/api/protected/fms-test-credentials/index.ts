@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
-import { env } from "~/env.mjs";
+import { resolveTestFmsCredentials } from "~/server/services/fms/fms-test-credentials";
 
 /**
  * Returns FMS test credentials for the API compare page.
- * Only fietsberaad_superadmin. Requires FMS_TEST_USER and FMS_TEST_PASS in env.
+ * Uses FMS_TEST_USER/FMS_TEST_PASS when both set; otherwise the testgemeente dataprovider in DB.
+ * Not used by parkeersimulatie (browser localStorage there).
  */
 export default async function handle(
   req: NextApiRequest,
@@ -26,12 +27,20 @@ export default async function handle(
     return res.status(403).json({ message: "Geen rechten" });
   }
 
-  const username = env.FMS_TEST_USER ?? "testgemeente-api";
-  const password = env.FMS_TEST_PASS ?? null;
+  const creds = await resolveTestFmsCredentials();
 
-  if (!password) {
-    return res.status(200).json({ username: "", password: "" });
+  if (!creds.password) {
+    return res.status(200).json({
+      username: "",
+      password: "",
+      source: creds.source,
+      hint: "Stel FMS_TEST_USER/FMS_TEST_PASS in, of koppel een dataleverancier via gemeente → FMS rechten",
+    });
   }
 
-  return res.status(200).json({ username, password });
+  return res.status(200).json({
+    username: creds.username,
+    password: creds.password,
+    source: creds.source,
+  });
 }

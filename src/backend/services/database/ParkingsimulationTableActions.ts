@@ -12,7 +12,7 @@ const PARKINGSIMULATION_CREATE_STATEMENTS = [
       \`defaultIdtype\` INTEGER NOT NULL DEFAULT 0,
       \`simulationTimeOffsetSeconds\` INTEGER NOT NULL DEFAULT 0,
       \`simulationStartDate\` DATETIME(0) NULL,
-      \`useLocalProcessor\` BOOLEAN NOT NULL DEFAULT false,
+      \`useLocalProcessor\` BOOLEAN NOT NULL DEFAULT true,
       \`createdAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
       \`updatedAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0) ON UPDATE CURRENT_TIMESTAMP(0),
       UNIQUE INDEX \`parkingsimulation_simulation_config_siteID_key\`(\`siteID\`),
@@ -42,6 +42,8 @@ const PARKINGSIMULATION_CREATE_STATEMENTS = [
       \`sectionid\` VARCHAR(35) NOT NULL,
       \`checkedIn\` BOOLEAN NOT NULL DEFAULT false,
       \`passID\` VARCHAR(36) NULL,
+      \`externalTransactionID\` VARCHAR(100) NULL,
+      \`checkInDate\` DATETIME(0) NULL,
       \`createdAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
       \`updatedAt\` DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0) ON UPDATE CURRENT_TIMESTAMP(0),
       UNIQUE INDEX \`parkingsimulation_section_assignments_bicycleId_key\`(\`bicycleId\`),
@@ -51,7 +53,9 @@ const PARKINGSIMULATION_CREATE_STATEMENTS = [
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
     `ALTER TABLE \`parkingsimulation_bicycles\` ADD CONSTRAINT \`parkingsimulation_bicycles_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
     `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_simulationConfigId_fkey\` FOREIGN KEY (\`simulationConfigId\`) REFERENCES \`parkingsimulation_simulation_config\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
-    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE;`,
+    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD CONSTRAINT \`parkingsimulation_section_assignments_bicycleId_fkey\` FOREIGN KEY (\`bicycleId\`) REFERENCES \`parkingsimulation_bicycles\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE`,
+    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`externalTransactionID\` VARCHAR(100) NULL`,
+    `ALTER TABLE \`parkingsimulation_section_assignments\` ADD COLUMN \`checkInDate\` DATETIME(0) NULL`,
 ];
 
 /**
