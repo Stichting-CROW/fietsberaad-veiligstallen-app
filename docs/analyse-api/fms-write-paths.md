@@ -32,7 +32,7 @@ Swagger migration pages: [V2 → V4](/test/fms-api-docs-migrate-v2), [V3 → V4]
 
 Location-level V2 reads that already have a v4/v3 resource twin (`getJsonSubscriptionTypes`, `getJsonSectors`, `getJsonBikeUpdates`, `getJsonSubscriptors`, `getLockerInfo`) keep their existing compare pairing.
 
-Simulation Process and cron `/api/cron/process-queues` always run Next.js `processQueues()`. The UI can still **view** leftover CF `wachtrij_*` (checkbox “Toon ColdFusion-wachtrijen”); that does not process them. Check-in/out queue on Next.js is `new_wachtrij_managed_transacties` only — there is no `new_wachtrij_transacties`.
+Simulation Process and cron `/api/cron/process-queues` always run Next.js `processQueues()`. Check-in/out queue on Next.js is `new_wachtrij_managed_transacties` only — there is no `new_wachtrij_transacties`.
 
 ## v4 writes (Next.js)
 
