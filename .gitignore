@@ -75,6 +75,7 @@ scripts/*.sql
 
 #temporary files
 /broncode
+/buurtstallingen-broncode
 debug.log
 .tmp/
 
