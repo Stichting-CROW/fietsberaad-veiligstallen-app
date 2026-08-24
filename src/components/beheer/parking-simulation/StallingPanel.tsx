@@ -118,6 +118,8 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
   const [processQueueResult, setProcessQueueResult] = useState<string | null>(null);
   const [updateBezettingsdataLoading, setUpdateBezettingsdataLoading] = useState(false);
   const [updateBezettingsdataResult, setUpdateBezettingsdataResult] = useState<string | null>(null);
+  const [showCfQueues, setShowCfQueues] = useState(false);
+  const queueHostLabel = showCfQueues ? "CF" : "Next.js";
   const [resettingId, setResettingId] = useState<number | null>(null);
   const [syncListModalOpen, setSyncListModalOpen] = useState(false);
   const [syncList, setSyncList] = useState<SyncListSection[]>([]);
@@ -162,7 +164,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
       const txFromParam = cutoffMinusDay ? `&transactionDateFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
       const dateCheckinFrom = cutoffMinusDay ? `&dateCheckinFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
       const dateCreatedFrom = cutoffMinusDay ? `&dateCreatedFrom=${encodeURIComponent(cutoffMinusDay.toISOString())}` : "";
-      const queueParam = "&useNewTables=true";
+      const queueParam = showCfQueues ? "" : "&useNewTables=true";
 
       const [managedRes, transactiesRes, pasidsRes, betalingenRes, syncRes, bezettingsdataTmpRes, bezettingsdataRes] = await Promise.all([
         fetch(`/api/protected/wachtrij/wachtrij_managed_transacties?bikeparkID=${encodeURIComponent(locationid)}&pageSize=100${dateCreatedFrom}`, fetchOpts),
@@ -203,7 +205,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
     } finally {
       setMotorblokLoading(false);
     }
-  }, [locationid]);
+  }, [locationid, showCfQueues]);
 
   const handleProcessQueue = async () => {
     setProcessQueueLoading(true);
@@ -447,13 +449,22 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           <Tab label="Stalling" value="stalling" />
           <Tab label="Inventarisatie" value="inventarisatie" />
           <Tab label="Wachtrij managed" value="wachtrij_managed_transacties" />
-          <Tab label="Wachtrij pasids (Next.js)" value="wachtrij_pasids" />
-          <Tab label="Wachtrij betalingen (Next.js)" value="wachtrij_betalingen" />
-          <Tab label="Wachtrij sync (Next.js)" value="wachtrij_sync" />
+          <Tab label={`Wachtrij pasids (${queueHostLabel})`} value="wachtrij_pasids" />
+          <Tab label={`Wachtrij betalingen (${queueHostLabel})`} value="wachtrij_betalingen" />
+          <Tab label={`Wachtrij sync (${queueHostLabel})`} value="wachtrij_sync" />
           <Tab label="Transacties" value="transacties" />
-          <Tab label="Bezettingsdata tmp (Next.js)" value="bezettingsdata_tmp" />
+          <Tab label={`Bezettingsdata tmp (${queueHostLabel})`} value="bezettingsdata_tmp" />
           <Tab label="Bezettingsdata" value="bezettingsdata" />
         </Tabs>
+        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showCfQueues}
+            onChange={(e) => setShowCfQueues(e.target.checked)}
+            className="rounded"
+          />
+          Toon ColdFusion-wachtrijen (alleen kijken)
+        </label>
       </div>
 
       {panelTab === "stalling" && (
@@ -691,7 +702,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_pasids" && (
           <div>
-            <h4 className="font-medium mb-2">Wachtrij pasids (Next.js)</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij pasids (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -730,7 +741,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_betalingen" && (
           <div>
-            <h4 className="font-medium mb-2">Wachtrij betalingen (Next.js)</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij betalingen (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -771,7 +782,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "wachtrij_sync" && (
           <div>
-            <h4 className="font-medium mb-2">Wachtrij sync (Next.js)</h4>
+            <h4 className="font-medium mb-2">{`Wachtrij sync (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
@@ -810,7 +821,7 @@ const StallingPanel: React.FC<Props> = ({ locationid, title, berekentStallingsko
           )}
           {panelTab === "bezettingsdata_tmp" && (
           <div>
-            <h4 className="font-medium mb-2">Bezettingsdata tmp (Next.js)</h4>
+            <h4 className="font-medium mb-2">{`Bezettingsdata tmp (${queueHostLabel})`}</h4>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-100">
