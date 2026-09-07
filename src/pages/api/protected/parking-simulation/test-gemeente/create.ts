@@ -251,13 +251,19 @@ export default async function handle(
             });
 
             const bikeTypeToSectionBikeType = new Map<number, number>();
+            const hasBikeType1 = sec.sectieFietstypes.some((t) => t.BikeTypeID === 1);
+            const capacityBikeTypeId = hasBikeType1 ? 1 : sec.sectieFietstypes[0]?.BikeTypeID;
             for (const sft of sec.sectieFietstypes) {
+              const explicit =
+                "Capaciteit" in sft && typeof sft.Capaciteit === "number" ? sft.Capaciteit : undefined;
               const sftCreated = await tx.sectie_fietstype.create({
                 data: {
                   sectieID: sectieCreated.sectieId,
                   StallingsID: stallingId,
                   BikeTypeID: sft.BikeTypeID,
                   Toegestaan: true,
+                  Capaciteit:
+                    explicit ?? (sft.BikeTypeID === capacityBikeTypeId ? (sec.capaciteit ?? null) : null),
                 },
               });
               bikeTypeToSectionBikeType.set(sft.BikeTypeID, sftCreated.SectionBiketypeID);
