@@ -5,12 +5,11 @@ import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
-import { getStallingLayoutFromVeiligstallen, type StallingSection } from "~/lib/parking-simulation/stalling-layout";
-
-function sectionCapacity(sec: StallingSection, fallbackPerSection: number): number {
-  const capacityFromBiketypes = sec.biketypes.reduce((sum, bt) => sum + bt.capacity, 0);
-  return capacityFromBiketypes > 0 ? capacityFromBiketypes : sec.places.length || Math.round(fallbackPerSection);
-}
+import {
+  fallbackCapacityPerSection,
+  getStallingLayoutFromVeiligstallen,
+  sectionCapacity,
+} from "~/lib/parking-simulation/stalling-layout";
 
 /**
  * Get sections and places for a location (parkeersimulatie layout).
@@ -60,8 +59,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       })
     : [];
 
-  const fallbackPerSection =
-    layout.sections.length > 0 ? Math.max(1, layout.totalCapacity / layout.sections.length) : 0;
+  const fallbackPerSection = fallbackCapacityPerSection(layout);
 
   const sections = layout.sections.map((sec) => {
     const capacity = sectionCapacity(sec, fallbackPerSection);

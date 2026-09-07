@@ -164,10 +164,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   }
 
   if (action === "create") {
-    const alreadyExist = await checkTablesExist();
-    if (alreadyExist) {
-      return res.status(200).json({ ok: true, message: "Tabellen bestaan al", tablesExist: true });
-    }
+    // Always run: CREATE IF NOT EXISTS plus missing columns (externalTransactionID, checkInDate).
     const success = await createParkingsimulationTables();
     const tablesExist = await checkTablesExist();
     if (success && tablesExist) {

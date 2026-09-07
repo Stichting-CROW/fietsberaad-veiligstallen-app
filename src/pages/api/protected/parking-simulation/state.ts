@@ -6,7 +6,7 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
-import { getStallingLayoutFromVeiligstallen } from "~/lib/parking-simulation/stalling-layout";
+import { getSectionCapacity } from "~/lib/parking-simulation/stalling-layout";
 
 type BezettingSnapshot = {
   locationid: string;
@@ -36,16 +36,6 @@ async function bezettingSnapshots(
   return out;
 }
 
-/**
- * Get section capacity (sum of sectie_fietstype.Capaciteit) for a location.
- */
-async function getSectionCapacity(locationid: string, sectionid: string): Promise<number> {
-  const layout = await getStallingLayoutFromVeiligstallen(locationid);
-  if (!layout) return 0;
-  const sec = layout.sections.find((s) => s.sectionid === sectionid);
-  if (!sec) return 0;
-  return sec.biketypes.reduce((sum, bt) => sum + bt.capacity, 0);
-}
 
 /**
  * GET: full simulation state (session, bicycles, occupation).
@@ -67,91 +57,117 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   }
 
   if (req.method === "POST") {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-    const {
-      action,
-      bicycleId,
-      locationid,
-      sectionid,
-      targetLocationid,
-      targetSectionid,
-      checkedIn,
-      passID,
-      externalTransactionID,
-      checkInDate,
-    } = body;
+    try {
+      const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
+      const {
+        action,
+        bicycleId,
+        locationid,
+        sectionid,
+        targetLocationid,
+        targetSectionid,
+        checkedIn,
+        passID,
+        externalTransactionID,
+        checkInDate,
+      } = body;
 
-    if (!bicycleId) {
-      return res.status(400).json({ message: "bicycleId required" });
-    }
-
-    const bicycle = await prisma.parkingsimulation_bicycles.findFirst({
-      where: { id: bicycleId },
-      include: { simulationConfig: true },
-    });
-    if (!bicycle) {
-      return res.status(404).json({ message: "Bicycle not found" });
-    }
-
-    if (action === "remove") {
-      const assignmentsBefore = await prisma.parkingsimulation_section_assignments.findMany({
-        where: { bicycleId },
-        select: { locationid: true, sectionid: true, simulationConfigId: true },
-      });
-      await prisma.parkingsimulation_section_assignments.deleteMany({
-        where: { bicycleId },
-      });
-      const bezetting = await bezettingSnapshots(
-        bicycle.simulationConfigId,
-        assignmentsBefore.map((a) => ({ locationid: a.locationid, sectionid: a.sectionid }))
-      );
-      return res.status(200).json({ ok: true, bezetting });
-    }
-
-    if (action === "park" || action === "move") {
-      const loc = action === "move" ? targetLocationid : locationid;
-      const sec = action === "move" ? targetSectionid : sectionid;
-      if (!loc || !sec) {
-        return res.status(400).json({ message: "locationid and sectionid required" });
+      if (!bicycleId) {
+        return res.status(400).json({ ok: false, message: "bicycleId required" });
       }
 
-      let assignmentsBefore: Array<{ locationid: string; sectionid: string; simulationConfigId: string }> = [];
-      await prisma.$transaction(async (tx) => {
-        assignmentsBefore = await tx.parkingsimulation_section_assignments.findMany({
+      const bicycle = await prisma.parkingsimulation_bicycles.findFirst({
+        where: { id: bicycleId },
+        include: { simulationConfig: true },
+      });
+      if (!bicycle) {
+        return res.status(404).json({ ok: false, message: "Bicycle not found" });
+      }
+
+      if (action === "remove") {
+        const assignmentsBefore = await prisma.parkingsimulation_section_assignments.findMany({
           where: { bicycleId },
           select: { locationid: true, sectionid: true, simulationConfigId: true },
         });
-        await tx.parkingsimulation_section_assignments.deleteMany({
+        await prisma.parkingsimulation_section_assignments.deleteMany({
           where: { bicycleId },
         });
+        const bezetting = await bezettingSnapshots(
+          bicycle.simulationConfigId,
+          assignmentsBefore.map((a) => ({ locationid: a.locationid, sectionid: a.sectionid }))
+        );
+        return res.status(200).json({ ok: true, bezetting });
+      }
 
-        const capacity = await getSectionCapacity(loc, sec);
-        const occupied = await tx.parkingsimulation_section_assignments.count({
-          where: { simulationConfigId: bicycle.simulationConfigId, locationid: loc, sectionid: sec },
-        });
-        if (occupied >= capacity) {
-          throw new Error("Section at capacity");
+      if (action === "park" || action === "move") {
+        const loc = action === "move" ? targetLocationid : locationid;
+        const sec = action === "move" ? targetSectionid : sectionid;
+        if (!loc || !sec) {
+          return res.status(400).json({ ok: false, message: "locationid and sectionid required" });
         }
 
-        await tx.parkingsimulation_section_assignments.create({
-          data: {
-            simulationConfigId: bicycle.simulationConfigId,
-            bicycleId,
-            locationid: loc,
-            sectionid: sec,
-            checkedIn: checkedIn ?? false,
-            passID: passID ?? null,
-            externalTransactionID: typeof externalTransactionID === "string" ? externalTransactionID : null,
-            checkInDate: typeof checkInDate === "string" && checkInDate.trim() !== "" ? new Date(checkInDate) : null,
-          },
-        });
-      });
-      const keys = [{ locationid: loc, sectionid: sec }, ...assignmentsBefore];
-      const bezetting = await bezettingSnapshots(bicycle.simulationConfigId, keys);
-      return res.status(200).json({ ok: true, bezetting });
-    }
+        const parsedCheckInDate =
+          typeof checkInDate === "string" && checkInDate.trim() !== "" ? new Date(checkInDate) : null;
+        const checkInDateValue =
+          parsedCheckInDate && !Number.isNaN(parsedCheckInDate.getTime()) ? parsedCheckInDate : null;
 
-    return res.status(400).json({ message: "action must be park, remove, or move" });
+        // Layout queries stay outside the write transaction (ACC DB is slower; default tx timeout is 5s).
+        const capacity = await getSectionCapacity(loc, sec);
+        if (capacity <= 0) {
+          return res.status(409).json({
+            ok: false,
+            message: `Geen capaciteit voor sectie ${sec} in ${loc}. Controleer secties/plekken van de teststalling.`,
+          });
+        }
+
+        let assignmentsBefore: Array<{ locationid: string; sectionid: string; simulationConfigId: string }> = [];
+        try {
+          await prisma.$transaction(async (tx) => {
+            assignmentsBefore = await tx.parkingsimulation_section_assignments.findMany({
+              where: { bicycleId },
+              select: { locationid: true, sectionid: true, simulationConfigId: true },
+            });
+            await tx.parkingsimulation_section_assignments.deleteMany({
+              where: { bicycleId },
+            });
+
+            const occupied = await tx.parkingsimulation_section_assignments.count({
+              where: { simulationConfigId: bicycle.simulationConfigId, locationid: loc, sectionid: sec },
+            });
+            if (occupied >= capacity) {
+              throw new Error("Section at capacity");
+            }
+
+            await tx.parkingsimulation_section_assignments.create({
+              data: {
+                simulationConfigId: bicycle.simulationConfigId,
+                bicycleId,
+                locationid: loc,
+                sectionid: sec,
+                checkedIn: checkedIn ?? false,
+                passID: passID ?? null,
+                externalTransactionID: typeof externalTransactionID === "string" ? externalTransactionID : null,
+                checkInDate: checkInDateValue,
+              },
+            });
+          });
+        } catch (e) {
+          if (e instanceof Error && e.message === "Section at capacity") {
+            return res.status(409).json({ ok: false, message: `Sectie ${sec} is vol.` });
+          }
+          throw e;
+        }
+        const keys = [{ locationid: loc, sectionid: sec }, ...assignmentsBefore];
+        const bezetting = await bezettingSnapshots(bicycle.simulationConfigId, keys);
+        return res.status(200).json({ ok: true, bezetting });
+      }
+
+      return res.status(400).json({ ok: false, message: "action must be park, remove, or move" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[parking-simulation/state] POST failed", e);
+      return res.status(500).json({ ok: false, message: msg });
+    }
   }
 
   const contact = await prisma.contacts.findFirst({
