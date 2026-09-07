@@ -84,10 +84,7 @@ const ExploreUsersComponent = () => {
                 user.UserName?.toLowerCase().includes(emailFilter.toLowerCase()) || 
                 user.DisplayName?.toLowerCase().includes(emailFilter.toLowerCase())
             ))
-            .filter((user) => {
-                if(contactFilter === "Yes") return user.isContact;
-                return !user.isContact;
-            })
+            .filter((user) => contactFilter !== "Yes" || user.isContact)
             .filter((user) => {
                 const isArchived = archivedUserIds.includes(user.UserID);
                 if (archivedFilter === "Yes") {
@@ -192,7 +189,7 @@ const ExploreUsersComponent = () => {
     const resetFilters = () => {
         setEmailFilter("");
         setContactFilter("No");
-        setOrganisatieFilter("");
+        setOrganisatieFilter("all-organizations");
         setInvalidDataFilter("Yes");
         setArchivedFilter("No");
         setShowInactiveDays(undefined);
