@@ -40,7 +40,7 @@ export type RuweDataExportParams = {
   gemeenteID: string;
   stallingsID?: string;
   jaar: number;
-  maand: number;
+  maand?: number;
 };
 
 const TRANSACTIES_HEADERS_ALLE_STALLINGEN = [
@@ -280,16 +280,23 @@ export const createRuweDataExport = async ({
   maand,
 }: RuweDataExportParams): Promise<CsvExportResult> => {
   assertValidYear(jaar);
-  assertValidMonth(maand);
+  if (maand !== undefined) {
+    assertValidMonth(maand);
+  }
 
   const { zipID, timeShiftInMinutes } = await getGemeenteExportContext(gemeenteID);
   const perStalling = !!stallingsID;
-  const maandPadded = String(maand).padStart(2, "0");
 
   const shiftedIn = `DATE_ADD(Date_checkin, INTERVAL ${-timeShiftInMinutes} MINUTE)`;
   const shiftedOut = `DATE_ADD(Date_checkout, INTERVAL ${-timeShiftInMinutes} MINUTE)`;
-  const startDate = `DATE_ADD('${jaar}-${maandPadded}-01 00:00:00', INTERVAL ${timeShiftInMinutes} MINUTE)`;
-  const endDate = `DATE_ADD(${startDate}, INTERVAL 1 MONTH)`;
+  const startDate =
+    maand === undefined
+      ? `DATE_ADD('${jaar}-01-01 00:00:00', INTERVAL ${timeShiftInMinutes} MINUTE)`
+      : `DATE_ADD('${jaar}-${String(maand).padStart(2, "0")}-01 00:00:00', INTERVAL ${timeShiftInMinutes} MINUTE)`;
+  const endDate =
+    maand === undefined
+      ? `DATE_ADD(${startDate}, INTERVAL 1 YEAR)`
+      : `DATE_ADD(${startDate}, INTERVAL 1 MONTH)`;
 
   const sql = `
     SELECT

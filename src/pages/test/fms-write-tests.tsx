@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import FietsberaadSuperadminAccessDenied from "~/components/beheer/common/FietsberaadSuperadminAccessDenied";
 
 type ScenarioInfo = {
   id: string;
@@ -155,11 +156,7 @@ const FmsWriteTestsPage: React.FC = () => {
     );
   }
   if (!hasAccess) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <p className="text-red-700">Geen rechten (Fietsberaad superadmin vereist).</p>
-      </div>
-    );
+    return <FietsberaadSuperadminAccessDenied />;
   }
 
   const allRun = running === "__all__";

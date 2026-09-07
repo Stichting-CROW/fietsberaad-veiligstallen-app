@@ -4,7 +4,7 @@ import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { prisma } from "~/server/db";
-import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
+import { TESTGEMEENTE_NAME, TESTGEMEENTE_STALLINGS_ID_PREFIX } from "~/data/testgemeente-data";
 import { DEFAULT_SIMULATION_START_DATE } from "~/lib/parking-simulation/types";
 import { createParkingsimulationTables } from "~/backend/services/database/ParkingsimulationTableActions";
 import { createNewFmsTables } from "~/backend/services/database/NewFmsTableActions";
@@ -83,14 +83,19 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         });
       }
 
-      // Delete transaction data for teststallingen only (wachtrij_*, new_wachtrij_*, transacties, accounts).
+      // Delete transaction data for testgemeente 9933_* parks only (not live StallingsIDs).
       // Prisma delete of fietsenstallingen does NOT cascade to these tables (no FK).
       const teststallings = await prisma.fietsenstallingen.findMany({
-        where: { SiteID: contact.ID, StallingsID: { not: null } },
+        where: {
+          SiteID: contact.ID,
+          StallingsID: { startsWith: TESTGEMEENTE_STALLINGS_ID_PREFIX },
+        },
         select: { ID: true, StallingsID: true },
       });
       const stallingsIds = teststallings.map((s) => s.ID);
-      const stallingsIDs = teststallings.map((s) => s.StallingsID).filter((id): id is string => id != null);
+      const stallingsIDs = teststallings
+        .map((s) => s.StallingsID)
+        .filter((id): id is string => !!id && id.startsWith(TESTGEMEENTE_STALLINGS_ID_PREFIX));
 
       if (stallingsIDs.length > 0 || stallingsIds.length > 0) {
         const deletes: Promise<unknown>[] = [];
@@ -123,35 +128,43 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         });
         const accountIds = [...new Set(pasidsToDelete.map((p) => p.AccountID).filter((id): id is string => id != null))];
         if (accountIds.length > 0) {
-          await prisma.$transaction([
-            prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIds } } }),
+          const sharedElsewhere = await prisma.accounts_pasids.findMany({
+            where: { AccountID: { in: accountIds }, SiteID: { not: contact.ID } },
+            select: { AccountID: true },
+          });
+          const sharedIds = new Set(sharedElsewhere.map((p) => p.AccountID));
+          const accountsOnlyOnTestSite = accountIds.filter((id) => !sharedIds.has(id));
+          const accountCleanup = [
             prisma.accounts_pasids.deleteMany({ where: { SiteID: contact.ID } }),
-            prisma.accounts.deleteMany({ where: { ID: { in: accountIds } } }),
-          ]);
+          ];
+          if (accountsOnlyOnTestSite.length > 0) {
+            accountCleanup.unshift(
+              prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountsOnlyOnTestSite } } }),
+            );
+            accountCleanup.push(prisma.accounts.deleteMany({ where: { ID: { in: accountsOnlyOnTestSite } } }));
+          }
+          await prisma.$transaction(accountCleanup);
         } else {
           await prisma.accounts_pasids.deleteMany({ where: { SiteID: contact.ID } });
         }
       }
 
-      await prisma.parkingsimulation_section_assignments.deleteMany({});
       if (pmConfig) {
+        await prisma.parkingsimulation_section_assignments.deleteMany({
+          where: { simulationConfigId: pmConfig.id },
+        });
         await prisma.parkingsimulation_bicycles.updateMany({
           where: { simulationConfigId: pmConfig.id },
           data: { status: "available" },
         });
       }
-    } else {
-      await prisma.parkingsimulation_section_assignments.deleteMany({});
     }
     console.log("[parking-simulation/reset] End of reset");
     return res.status(200).json({ ok: true, message: "Data reset" });
   }
 
   if (action === "create") {
-    const alreadyExist = await checkTablesExist();
-    if (alreadyExist) {
-      return res.status(200).json({ ok: true, message: "Tabellen bestaan al", tablesExist: true });
-    }
+    // Always run: CREATE IF NOT EXISTS plus missing columns (externalTransactionID, checkInDate).
     const success = await createParkingsimulationTables();
     const tablesExist = await checkTablesExist();
     if (success && tablesExist) {

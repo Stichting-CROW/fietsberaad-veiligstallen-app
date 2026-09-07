@@ -109,3 +109,25 @@ export async function getStallingLayoutFromVeiligstallen(
   };
 }
 
+/**
+ * Same formula as /sections-places: explicit sectie_fietstype capacity, else
+ * place count, else a share of fietsenstallingen.Capacity. Without this fallback
+ * cloned ACC stallings (often no per-type Capaciteit) report capacity 0.
+ */
+export function sectionCapacity(sec: StallingSection, fallbackPerSection: number): number {
+  const capacityFromBiketypes = sec.biketypes.reduce((sum, bt) => sum + bt.capacity, 0);
+  return capacityFromBiketypes > 0 ? capacityFromBiketypes : sec.places.length || Math.round(fallbackPerSection);
+}
+
+export function fallbackCapacityPerSection(layout: StallingLayout): number {
+  return layout.sections.length > 0 ? Math.max(1, layout.totalCapacity / layout.sections.length) : 0;
+}
+
+export async function getSectionCapacity(locationid: string, sectionid: string): Promise<number> {
+  const layout = await getStallingLayoutFromVeiligstallen(locationid);
+  if (!layout) return 0;
+  const sec = layout.sections.find((s) => s.sectionid === sectionid);
+  if (!sec) return 0;
+  return sectionCapacity(sec, fallbackCapacityPerSection(layout));
+}
+

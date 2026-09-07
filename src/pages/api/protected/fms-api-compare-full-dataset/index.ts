@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { IncomingHttpHeaders } from "http";
 import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { userHasRight } from "~/types/utils";
@@ -8,7 +9,7 @@ import { buildTestFmsAuthHeader } from "~/server/services/fms/fms-test-credentia
 import { prisma } from "~/server/db";
 import { getFullDatasetIds } from "~/server/services/fms/fms-v3-service";
 import { responsesMatch, prepareForCompare, isLegacyNotFoundResponse, isLegacyUnusableOldApiError } from "~/server/utils/fms-compare";
-import { rewriteSameHostBaseToLoopback } from "~/server/utils/same-host-loopback";
+import { fetchApiUrl, formatFetchError } from "~/server/utils/internal-api-fetch";
 
 const OLD_API_BASE = "https://remote.veiligstallen.nl";
 
@@ -63,22 +64,21 @@ function looksLikeErrorResponse(text: string): string | null {
 
 async function fetchWithAuth(
   url: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  incomingHeaders: IncomingHttpHeaders
 ): Promise<{ text: string; error: string | null }> {
   try {
-    const res = await fetch(url, { headers });
-    const text = await res.text();
+    const res = await fetchApiUrl(url, { headers }, incomingHeaders);
     if (!res.ok) {
-      return { text: "", error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+      return { text: "", error: `HTTP ${res.status}: ${res.text.slice(0, 200)}` };
     }
-    const bodyError = looksLikeErrorResponse(text);
+    const bodyError = looksLikeErrorResponse(res.text);
     if (bodyError) {
       return { text: "", error: bodyError };
     }
-    return { text, error: null };
+    return { text: res.text, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Fetch failed";
-    return { text: "", error: msg };
+    return { text: "", error: formatFetchError(err) };
   }
 }
 
@@ -195,18 +195,18 @@ function buildNewUrl(
 }
 
 const ENDPOINT_LABELS: Record<string, string> = {
-  "v3-biketypes": "V3 biketypes",
-  "v3-paymenttypes": "V3 paymenttypes",
-  "v3-citycode": "V3 citycodes/{citycode}",
-  "v3-locations": "V3 citycodes/{citycode}/locations",
-  "v3-location": "V3 locations/{locationid}",
-  "v3-sections": "V3 locations/{locationid}/sections",
-  "v3-section": "V3 sections/{sectionid}",
-  "v3-places": "V3 sections/{sectionid}/places",
-  "v3-subscriptiontypes": "V3 locations/{locationid}/subscriptiontypes",
-  "v3-balances": "V3 locations/{locationid}/balances",
-  "v3-subscriptions": "V3 locations/{locationid}/subscriptions",
-  "v3-bikeupdates": "V3 locations/{locationid}/bikeupdates",
+  "v3-biketypes": "V4 biketypes",
+  "v3-paymenttypes": "V4 paymenttypes",
+  "v3-citycode": "V4 citycodes/{citycode}",
+  "v3-locations": "V4 citycodes/{citycode}/locations",
+  "v3-location": "V4 locations/{locationid}",
+  "v3-sections": "V4 locations/{locationid}/sections",
+  "v3-section": "V4 sections/{sectionid}",
+  "v3-places": "V4 sections/{sectionid}/places",
+  "v3-subscriptiontypes": "V4 locations/{locationid}/subscriptiontypes",
+  "v3-balances": "V4 locations/{locationid}/balances",
+  "v3-subscriptions": "V4 locations/{locationid}/subscriptions",
+  "v3-bikeupdates": "V4 locations/{locationid}/bikeupdates",
   "v2-getJsonSectors": "V2 getJsonSectors/{bikeparkID}",
   "v2-getJsonBikeUpdates": "V2 getJsonBikeUpdates/{bikeparkID}",
   "v2-getJsonSubscriptors": "V2 getJsonSubscriptors/{bikeparkID}",
@@ -260,7 +260,7 @@ export default async function handle(
   const protocol = (req.headers["x-forwarded-proto"] as string) || (req.headers["x-forwarded-ssl"] === "on" ? "https" : "http");
   const host = (req.headers["host"] as string) || `localhost:${process.env.PORT ?? 3000}`;
   const newBaseRaw = typeof newApiUrl === "string" && newApiUrl ? newApiUrl : `${protocol}://${host}`;
-  const newBase = rewriteSameHostBaseToLoopback(newBaseRaw, req.headers);
+  const newBase = newBaseRaw.replace(/\/$/, "");
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (useApiCredentials) {
@@ -304,8 +304,8 @@ export default async function handle(
     if (!oldUrl || !newUrl) return;
 
     const [oldRes, newRes] = await Promise.all([
-      fetchWithAuth(oldUrl, headers),
-      fetchWithAuth(newUrl, headers),
+      fetchWithAuth(oldUrl, headers, req.headers),
+      fetchWithAuth(newUrl, headers, req.headers),
     ]);
 
     testIndex++;
@@ -416,8 +416,8 @@ export default async function handle(
     if (!oldUrl || !newUrl) return;
 
     const [oldRes, newRes] = await Promise.all([
-      fetchWithAuth(oldUrl, headers),
-      fetchWithAuth(newUrl, headers),
+      fetchWithAuth(oldUrl, headers, req.headers),
+      fetchWithAuth(newUrl, headers, req.headers),
     ]);
 
     testIndex++;

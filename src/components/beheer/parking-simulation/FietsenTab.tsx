@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "~/components/Button";
 import { useBikeTypes } from "~/hooks/useBikeTypes";
-import { uploadManagedTransaction } from "~/lib/parking-simulation/fms-api-write-client";
+import { postManagedTransaction } from "~/lib/parking-simulation/fms-api-write-client";
 import {
   buildManagedCheckOut,
   citycodeFromLocationId,
@@ -9,6 +9,8 @@ import {
 } from "~/lib/parking-simulation/managed-transaction";
 import { formatStallingLabel } from "~/lib/parking-simulation/types";
 import { useParkingSimCredentials } from "~/hooks/useParkingSimCredentials";
+import { readManagedWriteScope, readSimCheckType } from "~/lib/parking-simulation/credentials";
+import { reportBezettingSnapshots, type BezettingSnapshot } from "~/lib/parking-simulation/report-bezetting";
 import { ActiesPanel, type Stalling } from "./ActiesPanel";
 
 const FIETSEN_TAB_STORAGE_KEY = "parking-mgmt-fietsen-tab";
@@ -70,6 +72,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
       });
       const data = await res.json();
       if (data.ok) {
+        await reportBezettingSnapshots(credentials, data.bezetting as BezettingSnapshot[] | undefined);
         setMessage("Fiets uit stalling gehaald.");
         loadState();
       } else {
@@ -106,7 +109,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
     try {
       const simulationTime = await fetchSimulationTime();
       const checkindate = occ.checkInDate ?? occ.createdAt ?? simulationTime;
-      const res = await uploadManagedTransaction(
+      const res = await postManagedTransaction(
         credentials,
         citycodeFromLocationId(occ.locationid),
         occ.locationid,
@@ -118,7 +121,11 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
           checkoutdate: simulationTime,
           barcode: bike.barcode,
           biketypeid: bike.biketypeID ?? 1,
-        })
+          checkouttype: readSimCheckType(),
+          checkintype: readSimCheckType(),
+          sectionid: occ.sectionid,
+        }),
+        readManagedWriteScope()
       );
       if (res.status === 1) {
         const removeRes = await fetch("/api/protected/parking-simulation/state", {
@@ -128,6 +135,7 @@ const FietsenTab: React.FC<{ stallings: Stalling[] }> = ({ stallings }) => {
         });
         const removeData = await removeRes.json();
         if (removeData.ok) {
+          await reportBezettingSnapshots(credentials, removeData.bezetting as BezettingSnapshot[] | undefined);
           setMessage("Check-out succesvol.");
           loadState();
         } else {

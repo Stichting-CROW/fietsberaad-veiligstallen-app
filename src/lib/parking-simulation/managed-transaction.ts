@@ -15,14 +15,17 @@ export function stallingsduurMinutes(checkInIso: string, checkOutIso: string): n
   return Math.max(0, Math.round(ms / 60000));
 }
 
+export type SimCheckType = "user" | "controle" | "system";
+
 export type ManagedSimTransaction = {
   externaltransactionid: string;
   idcode: string;
   idtype: number;
   checkindate: string;
-  checkintype: "user";
+  checkintype: SimCheckType;
   checkoutdate?: string;
-  checkouttype?: "user";
+  checkouttype?: SimCheckType;
+  sectionid?: string;
   stallingsduur?: number;
   stallingskosten?: number;
   bikeid_in?: string;
@@ -37,15 +40,18 @@ export function buildManagedCheckIn(input: {
   checkindate: string;
   barcode: string;
   biketypeid?: number;
+  checkintype?: SimCheckType;
+  sectionid?: string;
 }): ManagedSimTransaction {
   return {
     externaltransactionid: input.externaltransactionid,
     idcode: input.idcode,
     idtype: input.idtype ?? 0,
     checkindate: input.checkindate,
-    checkintype: "user",
+    checkintype: input.checkintype ?? "user",
     bikeid_in: input.barcode,
     biketypeid: input.biketypeid ?? 1,
+    ...(input.sectionid ? { sectionid: input.sectionid } : {}),
   };
 }
 
@@ -58,11 +64,14 @@ export function buildManagedCheckOut(input: {
   barcode: string;
   biketypeid?: number;
   stallingskosten?: number;
+  checkouttype?: SimCheckType;
+  checkintype?: SimCheckType;
+  sectionid?: string;
 }): ManagedSimTransaction {
   return {
     ...buildManagedCheckIn(input),
     checkoutdate: input.checkoutdate,
-    checkouttype: "user",
+    checkouttype: input.checkouttype ?? input.checkintype ?? "user",
     stallingsduur: stallingsduurMinutes(input.checkindate, input.checkoutdate),
     stallingskosten: input.stallingskosten ?? 0,
     bikeid_out: input.barcode,

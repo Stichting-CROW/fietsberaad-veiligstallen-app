@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import { diff } from "deep-object-diff";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import FietsberaadSuperadminAccessDenied from "~/components/beheer/common/FietsberaadSuperadminAccessDenied";
 import { EndpointComparisonTable, type EndpointDef } from "~/components/beheer/test/EndpointComparisonTable";
 import { OccupationComparisonSection } from "~/components/beheer/test/OccupationComparisonSection";
 import {
@@ -44,12 +45,11 @@ const OLD_API_BASE = "https://remote.veiligstallen.nl";
 // v2 getJsonBikeType/{id}: use GET /v4/biketypes and filter on id (no single-id V3/V4 stub).
 // v2 getJsonClientTypes / getJsonBikes: V4 stubs exist but CF has no same-contract twin
 // (`/rest/v3/clienttypes` and `/rest/v3/bikes` 404). Omitted from parity compare.
-// v3 isAllowedToUse: implemented, but operator-protected and dependent on live pass state, so it is
-// not a deterministic parity read and is excluded from the automatic comparison suite.
+// v3 isAllowedToUse: 410 on v4 (unused FMS REST; buurtstallingen use Java /v1). Not in the compare suite.
 const ENDPOINTS: { id: string; label: string; path: string; params: string[]; oldPath?: string }[] = [
-  { id: "v3-servertime", label: "V3 servertime", path: "/rest/v3/servertime", params: [], oldPath: "/rest/v3/servertime" },
-  { id: "v3-biketypes", label: "V3 biketypes", path: "/rest/v3/biketypes", params: [], oldPath: "/rest/v3/biketypes" },
-  { id: "v3-paymenttypes", label: "V3 paymenttypes", path: "/rest/v3/paymenttypes", params: [], oldPath: "/rest/v3/paymenttypes" },
+  { id: "v3-servertime", label: "V4 servertime", path: "/api/fms/v4/servertime", params: [], oldPath: "/rest/v3/servertime" },
+  { id: "v3-biketypes", label: "V4 biketypes", path: "/api/fms/v4/biketypes", params: [], oldPath: "/rest/v3/biketypes" },
+  { id: "v3-paymenttypes", label: "V4 paymenttypes", path: "/api/fms/v4/paymenttypes", params: [], oldPath: "/rest/v3/paymenttypes" },
   {
     id: "v2-getJsonSubscriptionTypes",
     label: "V2 getJsonSubscriptionTypes/{bikeparkID}",
@@ -85,23 +85,23 @@ const ENDPOINTS: { id: string; label: string; path: string; params: string[]; ol
     params: ["bikeparkID", "sectionid", "placeid"],
     oldPath: "/v2/REST/getLockerInfo",
   },
-  { id: "v3-citycodes", label: "V3 citycodes", path: "/rest/v3/citycodes", params: [] },
-  { id: "v3-citycode", label: "V3 citycodes/{citycode}", path: "/rest/v3/citycodes", params: ["citycode"] },
-  { id: "v3-locations", label: "V3 citycodes/{citycode}/locations", path: "/rest/v3/citycodes", params: ["citycode"] },
-  { id: "v3-location", label: "V3 locations/{locationid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
-  { id: "v3-sections", label: "V3 locations/{locationid}/sections", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
-  { id: "v3-section", label: "V3 sections/{sectionid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
-  { id: "v3-places", label: "V3 sections/{sectionid}/places", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid"] },
-  { id: "v3-place", label: "V3 sections/{sectionid}/places/{placeid}", path: "/rest/v3/citycodes", params: ["citycode", "locationid", "sectionid", "placeid"] },
-  { id: "v3-locationscsv", label: "V3 citycodes/{citycode}/locationscsv", path: "/rest/v3/citycodes", params: ["citycode"] },
-  { id: "v3-subscriptiontypes", label: "V3 locations/{locationid}/subscriptiontypes", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
-  { id: "v3-balances", label: "V3 locations/{locationid}/balances", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
-  { id: "v3-subscriptions", label: "V3 locations/{locationid}/subscriptions", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
-  { id: "v3-bikeupdates", label: "V3 locations/{locationid}/bikeupdates", path: "/rest/v3/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-citycodes", label: "V4 citycodes", path: "/api/fms/v4/citycodes", params: [] },
+  { id: "v3-citycode", label: "V4 citycodes/{citycode}", path: "/api/fms/v4/citycodes", params: ["citycode"] },
+  { id: "v3-locations", label: "V4 citycodes/{citycode}/locations", path: "/api/fms/v4/citycodes", params: ["citycode"] },
+  { id: "v3-location", label: "V4 locations/{locationid}", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-sections", label: "V4 locations/{locationid}/sections", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-section", label: "V4 sections/{sectionid}", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid", "sectionid"] },
+  { id: "v3-places", label: "V4 sections/{sectionid}/places", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid", "sectionid"] },
+  { id: "v3-place", label: "V4 sections/{sectionid}/places/{placeid}", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid", "sectionid", "placeid"] },
+  { id: "v3-locationscsv", label: "V4 citycodes/{citycode}/locationscsv", path: "/api/fms/v4/citycodes", params: ["citycode"] },
+  { id: "v3-subscriptiontypes", label: "V4 locations/{locationid}/subscriptiontypes", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-balances", label: "V4 locations/{locationid}/balances", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-subscriptions", label: "V4 locations/{locationid}/subscriptions", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
+  { id: "v3-bikeupdates", label: "V4 locations/{locationid}/bikeupdates", path: "/api/fms/v4/citycodes", params: ["citycode", "locationid"] },
   {
     id: "v3-balance",
-    label: "V3 idcodes/{idtype}/{idcode}/balance",
-    path: "/rest/v3/citycodes",
+    label: "V4 idcodes/{idtype}/{idcode}/balance",
+    path: "/api/fms/v4/citycodes",
     params: ["citycode", "locationid", "idtype", "idcode"],
   },
 ];
@@ -1862,19 +1862,12 @@ const FmsApiComparePage: React.FC = () => {
   }
 
   if (!hasAccess) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-300 rounded-lg p-6 max-w-2xl mx-auto">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Geen toegang</h3>
-          <p className="text-sm text-red-700">Alleen fietsberaad superadmins hebben toegang tot deze pagina.</p>
-        </div>
-      </div>
-    );
+    return <FietsberaadSuperadminAccessDenied />;
   }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-full">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">FMS API vergelijking</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">FMS API vergelijking (ColdFusion v3 vs Next.js v4)</h1>
 
       {/* API URL fields - shared by both tabs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -2219,7 +2212,7 @@ const FmsApiComparePage: React.FC = () => {
             />
           </div>
           <div className="w-auto min-w-[12rem]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">idcode (V3 balance)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">idcode (v4 balance)</label>
             <input
               type="text"
               value={paramValues.idcode ?? ""}

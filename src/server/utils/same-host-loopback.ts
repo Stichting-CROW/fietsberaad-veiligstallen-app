@@ -1,10 +1,10 @@
 import type { IncomingHttpHeaders } from "http";
 
 /**
- * Azure App Service / Front Door often returns an HTML login page when the
- * Node process fetches its own public hostname. Rewrite same-host URLs to
- * loopback so compare + write tests hit this process directly.
- * Safe on local dev: localhost / 127.0.0.1 already work; loopback is equivalent.
+ * Detect when a URL targets this app (compare/write-test proxies).
+ *
+ * Prefer internal-api-fetch.ts (in-process handler invoke) over loopback HTTP.
+ * Loopback helpers remain for callers not yet migrated.
  */
 
 function headerValue(headers: IncomingHttpHeaders, name: string): string | undefined {
@@ -26,6 +26,15 @@ function hostnameFromRaw(raw: string | undefined): string | undefined {
 
 export function loopbackOrigin(): string {
   return `http://127.0.0.1:${process.env.PORT ?? "3000"}`;
+}
+
+export function isSameHostUrl(url: string, headers: IncomingHttpHeaders): boolean {
+  try {
+    const parsed = new URL(url);
+    return sameHostNames(headers).has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 export function sameHostNames(headers: IncomingHttpHeaders): Set<string> {

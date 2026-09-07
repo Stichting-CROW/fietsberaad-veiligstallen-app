@@ -1,0 +1,12 @@
+---
+description: Location of buurtstallingen Java broncode (source) on this PC
+alwaysApply: true
+---
+
+# Buurtstallingen broncode
+
+The buurtstallingen Java slot-engine source lives in the **`buurtstallingen-broncode`** folder at the project root:
+
+- **Path (this PC):** `buurtstallingen-broncode/` (relative to this workspace)
+- **Full path:** `<workspace>/buurtstallingen-broncode`
+- **Note:** This folder is local-only: it is in `.gitignore` and not in version control. When present, use it for parity checks and to see which `/v1` bikepark methods CF/FMS call. It is **not** an FMS v2/v3 client. If not present and the user asks Java-backend-specific questions, report that the source is not available.

@@ -3,9 +3,11 @@
  * Calls real /api/fms/v4 routes; asserts queue rows or direct DB effects on testgemeente.
  */
 
+import type { IncomingHttpHeaders } from "http";
 import { prisma } from "~/server/db";
 import { processQueues } from "~/server/services/queue/processor";
 import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
+import { fetchApiUrl } from "~/server/utils/internal-api-fetch";
 
 export const API_SYNTHETIC_PREFIX = "WTEST_API_";
 
@@ -22,6 +24,7 @@ export type ApiWriteTestContext = {
   pass: (suffix: string) => string;
   baseUrl: string;
   authHeader: string;
+  incomingHeaders: IncomingHttpHeaders;
   citycode: string;
   bikeparkID: string;
   sectionID: string;
@@ -36,7 +39,13 @@ export type ApiWriteTestContext = {
   createdSyncId?: number;
   previousLockerUrl?: string | null;
   legacyGoneStatus?: { transactions: number; completed: number };
-  lockerGoneStatus?: { updatePlace: number; logs: number; actions: number };
+  lockerGoneStatus?: {
+    updatePlace: number;
+    logs: number;
+    actions: number;
+    isAllowedToUse: number;
+    placeKoppelpas: number;
+  };
 };
 
 export type FmsHttpResult = {
@@ -56,16 +65,20 @@ export async function fmsHttp(
   if (query) {
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString(), {
-    method,
-    headers: {
-      Authorization: ctx.authHeader,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const res = await fetchApiUrl(
+    url.toString(),
+    {
+      method,
+      headers: {
+        Authorization: ctx.authHeader,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: body != null ? JSON.stringify(body) : undefined,
     },
-    body: body != null ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
+    ctx.incomingHeaders
+  );
+  const text = res.text;
   let parsed: Record<string, unknown> = {};
   try {
     parsed = JSON.parse(text) as Record<string, unknown>;
@@ -325,17 +338,21 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
   {
     id: "api-v4-locker-writes-gone",
     label: "HTTP V4 locker writes → 410",
-    description: "PUT/POST v4 plek (updatePlace), logs en actions moeten 410 geven — fietskluizen zijn uit v4.",
+    description: "PUT/POST v4 plek (updatePlace), logs, actions, isAllowedToUse en place-level koppelpas moeten 410 geven — fietskluizen/buurt FMS REST zijn uit v4.",
     writeMethods: ["v4 410"],
     act: async (ctx) => {
       const placePath = v4LockerPlacePath({ ...ctx, lockerPlaceID: ctx.lockerPlaceID || "1" });
       const updatePlace = await fmsHttp(ctx, "PUT", placePath, { properties: { name: "gone" } });
       const logs = await fmsHttp(ctx, "POST", `${placePath}/logs`, { properties: { type: "info" } });
       const actions = await fmsHttp(ctx, "POST", `${placePath}/actions`, { properties: { action: "test" } });
+      const isAllowedToUse = await fmsHttp(ctx, "GET", `${placePath}/idcodes/0/dummy`);
+      const placeKoppelpas = await fmsHttp(ctx, "POST", `${placePath}/idcodes/0/dummy`, { newidcodes: {} });
       ctx.lockerGoneStatus = {
         updatePlace: updatePlace.status,
         logs: logs.status,
         actions: actions.status,
+        isAllowedToUse: isAllowedToUse.status,
+        placeKoppelpas: placeKoppelpas.status,
       };
     },
     assert: async (ctx) => [
@@ -356,6 +373,18 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
         ok: ctx.lockerGoneStatus?.actions === 410,
         expected: "410",
         actual: String(ctx.lockerGoneStatus?.actions ?? "?"),
+      },
+      {
+        label: "isAllowedToUse 410",
+        ok: ctx.lockerGoneStatus?.isAllowedToUse === 410,
+        expected: "410",
+        actual: String(ctx.lockerGoneStatus?.isAllowedToUse ?? "?"),
+      },
+      {
+        label: "place koppelpas 410",
+        ok: ctx.lockerGoneStatus?.placeKoppelpas === 410,
+        expected: "410",
+        actual: String(ctx.lockerGoneStatus?.placeKoppelpas ?? "?"),
       },
     ],
     teardown: async () => undefined,
@@ -472,6 +501,50 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
       await prisma.new_wachtrij_managed_transacties.deleteMany({
         where: { externalTransactionID: { in: ids } },
       });
+    },
+  },
+  {
+    id: "api-v4-managedtransactions-location",
+    label: "HTTP V4 location managedtransaction → transacties",
+    description: "POST v4 bikepark-level managedtransactions (geen section in URL).",
+    writeMethods: ["v4 managedtransactions"],
+    act: async (ctx) => {
+      const res = await fmsHttp(
+        ctx,
+        "POST",
+        `/api/fms/v4/citycodes/${ctx.citycode}/locations/${ctx.bikeparkID}/managedtransactions`,
+        {
+          managedtransaction: {
+            externaltransactionid: `WTEST_API_${ctx.runId}_mtl`,
+            idcode: ctx.pass("mtl"),
+            idtype: 0,
+            checkindate: ctx.baseTime.toISOString(),
+            checkintype: "user",
+            sectionid: ctx.sectionID,
+          },
+        }
+      );
+      if (!res.ok || Number(res.body.status) !== 1) {
+        throw new Error(`V4 location managedtransaction failed: ${JSON.stringify(res.body)}`);
+      }
+      await processQueues();
+    },
+    assert: async (ctx) => {
+      const extId = `WTEST_API_${ctx.runId}_mtl`;
+      const tx = await prisma.transacties.findFirst({ where: { ExternalTransactionID: extId } });
+      return [
+        {
+          label: "transacties upsert",
+          ok: !!tx && tx.PasID === ctx.pass("mtl"),
+          expected: ctx.pass("mtl"),
+          actual: tx ? `PasID=${tx.PasID}` : "geen rij",
+        },
+      ];
+    },
+    teardown: async (ctx) => {
+      const extId = `WTEST_API_${ctx.runId}_mtl`;
+      await prisma.transacties.deleteMany({ where: { ExternalTransactionID: extId } });
+      await prisma.new_wachtrij_managed_transacties.deleteMany({ where: { externalTransactionID: extId } });
     },
   },
   {

@@ -1,87 +1,23 @@
-import React, { useState, useEffect, useRef } from "react";
-import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
+import React, { useState } from "react";
 
 import type { BikeparkData, ReportComponentProps } from "./index";
 import {
-  convertToBikeparkData,
   downloadCsvExport,
   buttonbase,
   csvDownloadKey,
   CsvDownloadSpinner,
 } from "./index";
 
-const ExportComponent: React.FC<ReportComponentProps> = ({
+interface ExportSectionRawDataProps extends ReportComponentProps {
+  bikeparkData: BikeparkData[];
+}
+
+const ExportSectionRawData: React.FC<ExportSectionRawDataProps> = ({
   gemeenteID,
-  firstDate,
-  lastDate,
-  bikeparks,
+  bikeparkData,
 }) => {
-  const [errorState, setErrorState] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
-  const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
-
-  const reportType = "transacties_voltooid";
-
-  const [loading, setLoading] = useState(false);
-
-  const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
-  const bikeparkIDsKey = validBikeparkIDs.join(",");
-  const startDT = firstDate.getTime();
-  const endDT = lastDate.getTime();
-  const fetchKey = [reportType, bikeparkIDsKey, String(startDT), String(endDT)].join("|");
-  const loadedFetchKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-      const fetchReportData = async () => {
-          const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
-          if (showLoadingUI) {
-            setLoading(true);
-          }
-
-          if(validBikeparkIDs.length !== bikeparks.length) {
-            console.warn("ExportSectionReportComponent: some bikeparks have no StallingsID. These are not shown.");
-          }
-
-          try {
-            const apiEndpoint = "/api/protected/database/availableDataDetailed";
-
-            const response = await fetch(apiEndpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                reportType,
-                bikeparkIDs: validBikeparkIDs,
-                startDT: firstDate,
-                endDT: lastDate,
-              }),
-            });
-    
-            if (!response.ok) {
-              throw new Error(`Error: ${response.statusText}`);
-            }
-            const data = await response.json() as AvailableDataDetailedResult[] | false;
-            if(data) {
-              setBikeparkData(convertToBikeparkData(bikeparks, data));
-              setErrorState("");
-              loadedFetchKeyRef.current = fetchKey;
-          } else {
-              setErrorState("Unable to fetch report data");
-            }
-          } catch (error) {
-            console.error(error);
-            setErrorState("Unable to fetch report data");
-          } finally {
-            if (showLoadingUI) {
-              setLoading(false);
-            }
-          }
-        };
-    
-        fetchReportData();
-  }, [reportType, bikeparkIDsKey, startDT, endDT, fetchKey]);
 
   const getMonthName = (month: number): string => {
       return new Date(2000, month - 1, 1).toLocaleString('nl-NL', { month: 'short' });
@@ -115,6 +51,29 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
       );
   };
 
+  const downloadRawTransactionsForYear = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number) => {
+    if(undefined === bikepark || downloadingKey !== null) {
+      return;
+    }
+
+    const key = csvDownloadKey(bikepark.bikeparkID, year);
+    try {
+      setDownloadError("");
+      setDownloadingKey(key);
+      await downloadCsvExport({
+        exportType: "ruwedata",
+        gemeenteID,
+        stallingsID: bikepark.bikeparkID,
+        jaar: year,
+      });
+    } catch (error) {
+      console.error(error);
+      setDownloadError(error instanceof Error ? error.message : "Download mislukt");
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
+
   const downloadRawTransactionsForMonth = async (gemeenteID: string, bikepark: BikeparkData | undefined, year: number, month: number) => {
     if(undefined === bikepark || downloadingKey !== null) {
       // deze export is alleen per stalling beschikbaar
@@ -144,24 +103,10 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     return null;
   }
 
-  if(errorState) {
-    return (
-      <div className="flex flex-col space-y-2">
-        {errorState && <div style={{ color: "red", fontWeight: "bold" }}>{errorState}</div>}
-      </div>
-    )
-  }
-
-  if(loading) {
-    return <div className="spinner" style={{ margin: "auto" }}>
-      <div className="loader"></div>
-    </div>;
-  }
-
   return (
     <>
       <h2 className="text-lg font-semibold text-gray-900">
-          Alle Transacties (ruwe data)
+          Alle transacties (ruwe data)
       </h2>
       {downloadError && <div style={{ color: "red", fontWeight: "bold" }}>{downloadError}</div>}
       <ul className="bikepark-list">
@@ -185,18 +130,29 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
                           <ul className="year-list">
                               {Object.entries(yearGroups)
                                   .sort(([yearA], [yearB]) => Number(yearA) - Number(yearB))
-                                  .map(([year, months]) => (
+                                  .map(([year, months]) => {
+                                      const yearNum = Number(year);
+                                      const yearKey = csvDownloadKey(bp.bikeparkID, yearNum);
+                                      const isDownloadingYear = downloadingKey === yearKey;
+                                      return (
                                       <li key={year} className="year-item flex items-center">
-                                          <div
-                                              className="my-2 px-2 bg-white hover:bg-gray-50 transition-colors duration-150 
-                                                        text-sm text-gray-700 font-bold flex items-baseline"
-                                              onClick={() => {/* TODO: Handle year download */}}
-                                          >
-                                              {year}
-                                              {renderRawTransactionDataMonthButtons(gemeenteID, bp, Number(year), months.sort((a, b) => a - b))}
+                                          <div className="my-2 px-2 bg-white text-sm text-gray-700 font-bold flex items-baseline">
+                                              <button
+                                                  type="button"
+                                                  className={`year-button ${buttonbase} font-bold`}
+                                                  disabled={downloadingKey !== null}
+                                                  aria-busy={isDownloadingYear}
+                                                  title="Download volledig jaar"
+                                                  onClick={() => {void downloadRawTransactionsForYear(gemeenteID, bp, yearNum)}}
+                                              >
+                                                  {isDownloadingYear && <CsvDownloadSpinner />}
+                                                  {year}
+                                              </button>
+                                              {renderRawTransactionDataMonthButtons(gemeenteID, bp, yearNum, months.sort((a, b) => a - b))}
                                               </div>
                                       </li>
-                                  ))}
+                                  );
+                                  })}
                           </ul>
                       </li>
                   );
@@ -205,4 +161,4 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     </>);
 };
 
-export default ExportComponent;
+export default ExportSectionRawData;

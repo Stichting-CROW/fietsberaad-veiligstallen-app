@@ -47,7 +47,7 @@ info:
     | `GET …/idcodes/{idtype}/{idcode}/balance` | zelfde (operator) |
     | `GET …/subscriptions` | zelfde (operator) |
     | `GET …/bikeupdates?from=` | zelfde (`from`, operator / type1) |
-    | `GET …/places/{placeid}/idcodes/{idtype}/{idcode}` | `isAllowedToUse` (operator) |
+    | `GET …/places/{placeid}/idcodes/{idtype}/{idcode}` | **410** — `isAllowedToUse` |
 
     ## Writes die blijven
 
@@ -73,8 +73,9 @@ info:
     | `POST …/places/{placeid}/logs` | **410** |
     | `POST …/places/{placeid}/actions` | **410** |
     | `POST …/places/{placeid}/subscriptions` | **410** |
+    | `GET`/`POST …/places/{placeid}/idcodes/…` | **410** — `isAllowedToUse` / place koppelpas |
 
-    Plek-**reads** (`GET …/places`, `GET …/places/{id}`, `isAllowedToUse`) blijven.
+    Plek-**reads** (`GET …/places`, `GET …/places/{id}`) blijven. `isAllowedToUse` is 410.
 
     ## Nieuw in V4 (niet in V3)
 

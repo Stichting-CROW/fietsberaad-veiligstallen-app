@@ -9,11 +9,10 @@ import {
   listApiWriteScenarios,
   runApiWriteTests,
 } from "~/server/services/fms/api-write-test-runner";
-import { rewriteSameHostBaseToLoopback } from "~/server/utils/same-host-loopback";
 
 /**
  * Tier B — HTTP ingress FMS write tests.
- * GET: list scenarios. POST: run one or all via real /api/fms HTTP calls.
+ * GET: list scenarios. POST: run one or all via /api/fms (in-process when same host).
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -56,10 +55,10 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       typeof req.body?.baseUrl === "string" && req.body.baseUrl
         ? req.body.baseUrl
         : `${protocol}://${host}`;
-    const baseUrl = rewriteSameHostBaseToLoopback(baseUrlRaw, req.headers);
+    const baseUrl = baseUrlRaw.replace(/\/$/, "");
 
     try {
-      const result = await runApiWriteTests(baseUrl, scenarioId, suite);
+      const result = await runApiWriteTests(baseUrl, scenarioId, suite, req.headers);
       return res.status(200).json({ ok: true, tier: suite === "sequences" ? "C" : "B", ...result });
     } catch (e) {
       if (e instanceof ScopeError) {

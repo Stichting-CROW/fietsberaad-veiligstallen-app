@@ -170,11 +170,12 @@ export const InventarisatiePanel: React.FC<Props> = ({
           transactiondate: transactionDate,
         }));
         lines.push(
-          `v4 occupation ${locationid}/${sectionid}: ${bikes.length} gescande fiets(en) → new_wachtrij_sync`
+          `v4 occupation ${locationid}/${sectionid}: ${bikes.length} gescande fiets(en) + report bezetting ${bikes.length}`
         );
         const res = await syncSector(credentials, locationid, sectionid, {
           bikes,
           transactionDate,
+          occupation: bikes.length,
         });
         if (res.status === 1) {
           lines.push(`  OK (wachtrij_sync id: ${res.id})`);
@@ -245,9 +246,11 @@ export const InventarisatiePanel: React.FC<Props> = ({
         <h4 className="font-medium mb-2">Inventariseren</h4>
         <div className="text-sm text-gray-700 space-y-2 mb-4">
           <p>
-            Pas eerst de bezetting aan via <strong>Acties</strong> hierboven. Start daarna de inventarisatie:
-            een momentopname van alle fietsen in deze stalling. Scan fietsen; bij afronden volgt{" "}
-            <strong>POST …/occupation</strong> (v4) → <code className="text-xs bg-gray-100 px-1">new_wachtrij_sync</code>.
+            Pas eerst de bezetting aan via <strong>Report transactions</strong> hierboven. Start daarna de
+            inventarisatie: een momentopname van alle fietsen in deze stalling. Scan fietsen; bij afronden
+            volgt <strong>POST …/occupation</strong> met <code className="text-xs bg-gray-100 px-1">data.bikes</code>{" "}
+            → <code className="text-xs bg-gray-100 px-1">new_wachtrij_sync</code>. Dat is geen{" "}
+            <strong>report bezetting</strong> (dat is <code className="text-xs bg-gray-100 px-1">data.occupation</code>).
           </p>
         </div>
 

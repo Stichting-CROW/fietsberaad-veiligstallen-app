@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { type ReportBikepark, type ReportType, getAvailableReports } from "../reports/ReportsFilter";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
 import ExportSectionReport from "./ExportSectionReport";
 import ExportSectionRawData from "./ExportSectionRawData";
-import moment from "moment";
 
 export type MonthData = {
   year: number;
@@ -123,6 +122,12 @@ export const convertToBikeparkData = (bikeparks: ReportBikepark[], data: Availab
 }
 
 
+const ExportLoadingSpinner: React.FC = () => (
+  <div className="spinner" style={{ margin: "auto" }}>
+    <div className="loader"></div>
+  </div>
+);
+
 const ExportComponent: React.FC<ReportComponentProps> = ({
   gemeenteID,
   gemeenteName,
@@ -131,6 +136,64 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
   bikeparks,
 }) => {
   const [reportType, setReportType] = useState<ReportType>("transacties_voltooid");
+  const [bikeparkData, setBikeparkData] = useState<BikeparkData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState("");
+
+  const validBikeparkIDs = bikeparks.map(bp => bp.StallingsID).filter(bp => bp !== "" && bp !== undefined && bp !== null);
+  const bikeparkIDsKey = validBikeparkIDs.join(",");
+  const startDT = firstDate.getTime();
+  const endDT = lastDate.getTime();
+  const fetchKey = ["transacties_voltooid", bikeparkIDsKey, String(startDT), String(endDT)].join("|");
+  const loadedFetchKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const fetchReportData = async () => {
+      const showLoadingUI = loadedFetchKeyRef.current !== fetchKey;
+      if (showLoadingUI) {
+        setLoading(true);
+      }
+
+      if (validBikeparkIDs.length !== bikeparks.length) {
+        console.warn("ExportComponent: some bikeparks have no StallingsID. These are not shown.");
+      }
+
+      try {
+        const response = await fetch("/api/protected/database/availableDataDetailed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportType: "transacties_voltooid",
+            bikeparkIDs: validBikeparkIDs,
+            startDT: firstDate,
+            endDT: lastDate,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+
+        const data = await response.json() as AvailableDataDetailedResult[] | false;
+        if (data) {
+          setBikeparkData(convertToBikeparkData(bikeparks, data));
+          setErrorState("");
+          loadedFetchKeyRef.current = fetchKey;
+        } else {
+          setErrorState("Unable to fetch report data");
+        }
+      } catch (error) {
+        console.error(error);
+        setErrorState("Unable to fetch report data");
+      } finally {
+        if (showLoadingUI) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReportData();
+  }, [bikeparkIDsKey, startDT, endDT, fetchKey]);
 
   const renderReportTypeSelect = () => {
     // "Absolute bezetting" has no CSV export of its own; the bezetting export
@@ -168,8 +231,31 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
           {renderReportTypeSelect()}
 
           <div className="max-w-7xl">
-              <ExportSectionReport reportType={reportType} bikeparks={bikeparks} gemeenteID={gemeenteID} gemeenteName={gemeenteName || ""} firstDate={firstDate} lastDate={lastDate} /> 
-              <ExportSectionRawData bikeparks={bikeparks} gemeenteID={gemeenteID} gemeenteName={gemeenteName || ""} firstDate={firstDate} lastDate={lastDate} />
+            {loading ? (
+              <ExportLoadingSpinner />
+            ) : errorState ? (
+              <div style={{ color: "red", fontWeight: "bold" }}>{errorState}</div>
+            ) : (
+              <>
+                <ExportSectionReport
+                  reportType={reportType}
+                  bikeparks={bikeparks}
+                  gemeenteID={gemeenteID}
+                  gemeenteName={gemeenteName || ""}
+                  firstDate={firstDate}
+                  lastDate={lastDate}
+                  bikeparkData={bikeparkData}
+                />
+                <ExportSectionRawData
+                  bikeparks={bikeparks}
+                  gemeenteID={gemeenteID}
+                  gemeenteName={gemeenteName || ""}
+                  firstDate={firstDate}
+                  lastDate={lastDate}
+                  bikeparkData={bikeparkData}
+                />
+              </>
+            )}
           </div>
       </div>
     </div>

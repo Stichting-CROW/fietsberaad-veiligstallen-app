@@ -7,6 +7,7 @@
  */
 
 import { citycodeFromLocationId } from "~/lib/parking-simulation/managed-transaction";
+import type { ManagedWriteScope } from "~/lib/parking-simulation/credentials";
 
 export interface FmsCredentials {
   username: string;
@@ -72,12 +73,108 @@ export async function uploadManagedTransaction(
   );
 }
 
+/** Bikepark-level managedtransactions (default sectionid = locationid unless set on the item). */
+export async function uploadManagedTransactionAtLocation(
+  creds: FmsCredentials,
+  citycode: string,
+  locationid: string,
+  managed: Record<string, unknown>
+): Promise<FmsWriteResult> {
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, "/managedtransactions"),
+    { managedtransaction: managed }
+  );
+}
+
+export async function uploadManagedTransactions(
+  creds: FmsCredentials,
+  citycode: string,
+  locationid: string,
+  items: Record<string, unknown>[],
+  sectionid?: string
+): Promise<FmsWriteResult> {
+  const suffix = sectionid
+    ? `/sections/${encodeURIComponent(sectionid)}/managedtransactions`
+    : "/managedtransactions";
+  return fmsPost(creds, v4Location(citycode, locationid, suffix), {
+    managedtransactions: items,
+  });
+}
+
+export async function postManagedTransaction(
+  creds: FmsCredentials,
+  citycode: string,
+  locationid: string,
+  sectionid: string,
+  managed: Record<string, unknown>,
+  scope: ManagedWriteScope = "section"
+): Promise<FmsWriteResult> {
+  if (scope === "location") {
+    return uploadManagedTransactionAtLocation(creds, citycode, locationid, {
+      ...managed,
+      sectionid: managed.sectionid ?? sectionid,
+    });
+  }
+  return uploadManagedTransaction(creds, citycode, locationid, sectionid, managed);
+}
+
+export async function postManagedTransactions(
+  creds: FmsCredentials,
+  citycode: string,
+  locationid: string,
+  sectionid: string,
+  items: Record<string, unknown>[],
+  scope: ManagedWriteScope = "section"
+): Promise<FmsWriteResult> {
+  const withSection = items.map((item) => ({
+    ...item,
+    sectionid: item.sectionid ?? sectionid,
+  }));
+  if (scope === "location") {
+    return uploadManagedTransactions(creds, citycode, locationid, withSection);
+  }
+  return uploadManagedTransactions(creds, citycode, locationid, withSection, sectionid);
+}
+
 export async function syncSector(
   creds: FmsCredentials,
   locationid: string,
   sectionid: string,
   payload: {
     bikes: Array<{ idcode?: string; bikeid?: string; idtype?: number; transactiondate?: string }>;
+    transactionDate: string;
+    occupation?: number;
+    capacity?: number;
+  }
+): Promise<FmsWriteResult> {
+  const citycode = citycodeFromLocationId(locationid);
+  const data: Record<string, unknown> = {
+    bikes: payload.bikes,
+    transactiondate: payload.transactionDate,
+  };
+  if (payload.occupation != null) {
+    data.occupation = payload.occupation;
+    data.checkins = 0;
+    data.checkouts = 0;
+    data.source = "Lumiguide";
+    if (payload.capacity != null) data.capacity = payload.capacity;
+  }
+  return fmsPost(
+    creds,
+    v4Location(citycode, locationid, `/sections/${encodeURIComponent(sectionid)}/occupation`),
+    { data }
+  );
+}
+
+/** Report bezetting: POST occupation with data.occupation (not inventarisatie bikes). */
+export async function reportBezetting(
+  creds: FmsCredentials,
+  locationid: string,
+  sectionid: string,
+  payload: {
+    occupation: number;
+    capacity?: number;
     transactionDate: string;
   }
 ): Promise<FmsWriteResult> {
@@ -87,8 +184,12 @@ export async function syncSector(
     v4Location(citycode, locationid, `/sections/${encodeURIComponent(sectionid)}/occupation`),
     {
       data: {
-        bikes: payload.bikes,
+        occupation: payload.occupation,
+        capacity: payload.capacity,
         transactiondate: payload.transactionDate,
+        checkins: 0,
+        checkouts: 0,
+        source: "Lumiguide",
       },
     }
   );

@@ -2,6 +2,7 @@ import React from "react";
 import { useSession } from "next-auth/react";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
+import FietsberaadSuperadminAccessDenied from "~/components/beheer/common/FietsberaadSuperadminAccessDenied";
 import ParkingManagementDashboard from "~/components/beheer/parking-simulation/ParkingManagementDashboard";
 import SimulationClockOverlay from "~/components/beheer/parking-simulation/SimulationClockOverlay";
 
@@ -31,10 +32,7 @@ const ParkingSimulationPage: React.FC = () => {
   if (!hasAccess) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-[87.5%]">
-        <div className="bg-red-50 border border-red-300 rounded-lg p-6 max-w-2xl mx-auto">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Geen toegang</h3>
-          <p className="text-sm text-red-700">Alleen fietsberaad admins hebben toegang tot de simulatie.</p>
-        </div>
+        <FietsberaadSuperadminAccessDenied withPageContainer={false} />
       </div>
     );
   }
