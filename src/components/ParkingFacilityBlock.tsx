@@ -6,7 +6,7 @@ import { getParkingColor } from "~/utils/theme";
 import { openRoute } from "~/utils/map/index";
 
 import { formatOpeningToday } from "~/utils/parkings-openclose";
-import type { ParkingDetailsType } from "~/types/parking";
+import type { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 import type { AppState } from "~/store/store";
 import { useTariefcodes } from "~/hooks/useTariefcodes";
 
@@ -21,7 +21,7 @@ function ParkingFacilityBlock({
   showButtons
 }: {
   id?: any,
-  parking: ParkingDetailsType,
+  parking: VSFietsenstallingLijst,
   compact: boolean
   openParkingHandler?: Function,
   expandParkingHandler?: Function,
@@ -43,13 +43,6 @@ function ParkingFacilityBlock({
     : "";
 
   const openingDescription = formatOpeningToday(parking, moment()).message;
-
-  // const detailsLine = `${costDescription}${costDescription && openingDescription ? "| " : ""
-  //   }${openingDescription}`;
-
-  if (parking.ExtraServices) {
-    // console.log('parking', parking)
-  }
 
   // Set image
   let parkingImageUrl = parking.Image;

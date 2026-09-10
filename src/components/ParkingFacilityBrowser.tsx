@@ -16,7 +16,7 @@ import ParkingFacilityBrowserStyles from './ParkingFacilityBrowser.module.css';
 import SearchBar from "~/components/SearchBar";
 import ParkingFacilityBlock from "~/components/ParkingFacilityBlock";
 import type { AppState } from "~/store/store";
-import { ParkingDetailsType } from "~/types/parking";
+import { type VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 import { setIsParkingListVisible } from "~/store/appSlice";
 
 const MunicipalityBlock = ({
@@ -51,13 +51,13 @@ function ParkingFacilityBrowser({
   onShowStallingDetails,
   showSearchBar,
 }: {
-  allparkingdata: ParkingDetailsType[];
+  allparkingdata: VSFietsenstallingLijst[];
   onShowStallingDetails?: (id: string | undefined) => void;
   showSearchBar?: boolean;
 }) {
   const dispatch = useDispatch();
 
-  const [visibleParkings, setVisibleParkings] = useState<ParkingDetailsType[]>(allparkingdata || []);
+  const [visibleParkings, setVisibleParkings] = useState<VSFietsenstallingLijst[]>(allparkingdata || []);
   const [visibleMunicipalities, setVisibleMunicipalities] = useState([]);
 
   const mapZoom = useSelector((state: AppState) => state.map.zoom);

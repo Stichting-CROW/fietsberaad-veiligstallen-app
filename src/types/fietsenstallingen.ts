@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ParkingDetailsType } from "~/types/parking";
+import { type ParkingDetailsType, type UitzonderingenOpeningstijden } from "~/types/parking";
 import { parseLatLng } from "~/utils/map/coordinates";
 
 export type VSFietsenstallingLijst = {
@@ -17,6 +17,24 @@ export type VSFietsenstallingLijst = {
   Coordinaten: string | null;
   Image: string | null;
   Description: string | null;
+  Openingstijden: string | null;
+  Tariefcode: number | null;
+  EditorCreated: string | null;
+  Open_ma: Date | string | null;
+  Dicht_ma: Date | string | null;
+  Open_di: Date | string | null;
+  Dicht_di: Date | string | null;
+  Open_wo: Date | string | null;
+  Dicht_wo: Date | string | null;
+  Open_do: Date | string | null;
+  Dicht_do: Date | string | null;
+  Open_vr: Date | string | null;
+  Dicht_vr: Date | string | null;
+  Open_za: Date | string | null;
+  Dicht_za: Date | string | null;
+  Open_zo: Date | string | null;
+  Dicht_zo: Date | string | null;
+  uitzonderingenopeningstijden: UitzonderingenOpeningstijden | null;
 };
 
 export const getDefaultNewFietsenstalling = (name: string): ParkingDetailsType => ({
@@ -102,6 +120,31 @@ export const fietsenstallingLijstSelect = {
   Coordinaten: true,
   Image: true,
   Description: true,
+  Openingstijden: true,
+  Tariefcode: true,
+  EditorCreated: true,
+  Open_ma: true,
+  Dicht_ma: true,
+  Open_di: true,
+  Dicht_di: true,
+  Open_wo: true,
+  Dicht_wo: true,
+  Open_do: true,
+  Dicht_do: true,
+  Open_vr: true,
+  Dicht_vr: true,
+  Open_za: true,
+  Dicht_za: true,
+  Open_zo: true,
+  Dicht_zo: true,
+  uitzonderingenopeningstijden: {
+    select: {
+      ID: true,
+      openingDateTime: true,
+      closingDateTime: true,
+      fietsenstallingsID: true,
+    },
+  },
 };
 
 export const fietsenstallingSchema = z.object({
