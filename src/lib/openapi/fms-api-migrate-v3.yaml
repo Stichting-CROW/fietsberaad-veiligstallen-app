@@ -2,28 +2,31 @@ openapi: 3.0.3
 info:
   title: FMS migratie V3 → V4
   description: |
-    Migratiepad van **ColdFusion V3** (`/rest/v3/...`) naar **Next.js V4**
-    (`/api/fms/v4/...`).
+    Migratiepad van **FMS V3** (`/rest/v3/...`) naar **V4** (`/api/fms/v4/...`).
 
-    Next.js heeft geen `/api/fms/v3`. Het V4-contract is het V3-contract
-    (zelfde JSON, andere prefix). Bestaande stallingen blijven op ColdFusion
-    tot ze overgaan. Test/simulatie (testgemeente) is v4-only.
+    Het V4-contract is het V3-contract: dezelfde JSON, andere prefix.
+    Vervang `/rest/v3` door `/api/fms/v4`. Resource-paden blijven gelijk.
 
-    - [V4 API-referentie](/test/fms-api-docs-v4)
+    - [V4 API-referentie](/docs/api/v4)
     - [Migratie V2 → V4](/test/fms-api-docs-migrate-v2)
-    - [V2 + V3 (ColdFusion)](/test/fms-api-docs)
+    - [V2 + V3](/test/fms-api-docs)
 
     ## Host en pad
 
-    Vervang prefix `/rest/v3` door `/api/fms/v4`. Resource-paden blijven gelijk.
+    | | V3 | V4 |
+    | --- | --- | --- |
+    | Prefix | `/rest/v3/…` | `/api/fms/v4/…` |
+    | Auth | HTTP Basic + `permit` | hetzelfde |
+    | Query | `depth`, `fields` op catalogus-reads | hetzelfde |
 
-    | V3 (ColdFusion) | V4 (Next.js) |
-    | --- | --- |
-    | `https://remote.veiligstallen.nl/rest/v3/…` | `{next-host}/api/fms/v4/…` |
-    | Auth: HTTP Basic + `permit` | hetzelfde |
-    | `depth`, `fields` op catalogus-reads | hetzelfde |
+    **Catalogus** is naslagdata (geen mutaties). Twee groepen:
 
-    ## Catalogus-aux
+    - **Algemene catalogus** — keuzelijsten voor de hele dienst (servertijd,
+      fietstypen, betalingstypen).
+    - **Stallingscatalogus** — gemeenten, locaties, secties, plekken,
+      abonnementsvormen (`citycodes` / `locations` / …).
+
+    ## Algemene catalogus
 
     | V3 | V4 |
     | --- | --- |
@@ -31,7 +34,7 @@ info:
     | `GET /rest/v3/biketypes` | `GET /api/fms/v4/biketypes` |
     | `GET /rest/v3/paymenttypes` | `GET /api/fms/v4/paymenttypes` |
 
-    ## Citycodes / locaties (1:1)
+    ## Stallingscatalogus (1:1)
 
     | V3 | V4 |
     | --- | --- |
@@ -63,7 +66,7 @@ info:
 
     ## Writes die 410 geven (niet overzetten)
 
-    Blijven op ColdFusion V3. Niet opnieuw bouwen op Next.js.
+    Deze calls geven HTTP 410 in v4. Niet opnieuw implementeren.
 
     | V3 | V4 |
     | --- | --- |
@@ -81,17 +84,17 @@ info:
 
     | V4 | Toelichting |
     | --- | --- |
-    | `GET /api/fms/v4/clienttypes` | klanttypen-catalogus (was alleen V2) |
+    | `GET /api/fms/v4/clienttypes` | algemene catalogus: klanttypen (was alleen V2) |
     | `GET …/locations/{locationid}/bikes` | barcoderegister (was alleen V2 `getJsonBikes`) |
 
-    ## Niet beide hosts
+    ## Eén stalling, één versie
 
-    Een stalling is óf ColdFusion V3 óf Next.js V4. Dual-write
-    dupliceert `transacties` / `bezettingsdata`.
+    Gebruik voor één stalling óf v3 óf v4, niet beide. Anders kunnen
+    transacties en bezettingsdata dubbel binnenkomen.
   version: 4.0.0
 servers:
   - url: /api/fms
-    description: Next.js V4
+    description: FMS REST API v4
 paths:
   /v4:
     get:
@@ -99,9 +102,9 @@ paths:
       summary: Try-it-out staat op de V4-referentie
       description: |
         Deze pagina is alleen het migratiepad. Endpoints uitproberen:
-        [V4 API-referentie](/test/fms-api-docs-v4).
+        [V4 API-referentie](/docs/api/v4).
       security: []
       responses:
         '200':
-          description: Zie /test/fms-api-docs-v4
+          description: Zie /docs/api/v4
 

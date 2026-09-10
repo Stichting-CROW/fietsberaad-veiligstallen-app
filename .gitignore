@@ -89,6 +89,9 @@ logs/*
 #for now, do not check in prisma generated files
 /src/generated/prisma-client/**/*
 
+# generated OpenAPI markdown/pdf (`npm run docs:api` / prebuild)
+/public/api-docs/
+
 #local docs
 /docs/**
 !/docs/OSM*

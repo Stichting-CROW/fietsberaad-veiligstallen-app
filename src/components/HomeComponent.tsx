@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
-import type { ParkingDetailsType } from "~/types/parking";
 
 import {
   setIsParkingListVisible,
@@ -65,7 +64,7 @@ import { titleToSlug } from "~/utils/slug";
 import { type Session } from "next-auth";
 import ArticleComponent from "./ArticleComponent";
 import InfomodalComponent from "./InfomodalComponent";
-import { useAllFietsenstallingen } from "~/hooks/useAllFietsenstallingen";
+import { useAllFietsenstallingenCompact } from "~/hooks/useAllFietsenstallingenCompact";
 import { type VSContactGemeente } from "~/types/contacts";
 
 export interface HomeComponentProps {
@@ -80,7 +79,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const { query } = useRouter();
     const { data: session } = useSession();
 
-    const { fietsenstallingen: allparkingdata, isLoading: fietsenstallingenLoading, error: fietsenstallingenError, reloadAllFietsenstallingen } = useAllFietsenstallingen();
+    const { fietsenstallingen: allparkingdata } = useAllFietsenstallingenCompact();
 
     const currentLatLong = useSelector(
       (state: AppState) => state.map.currentLatLng,
@@ -91,10 +90,6 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     // const activeTypes = useSelector(
     //   (state: AppState) => state.filter.activeTypes,
     // );
-
-    const activeTypes2 = useSelector(
-      (state: AppState) => state.filter.activeTypes2
-    );
 
     // const activeTypesArticles = useSelector(
     //   (state: AppState) => state.filterArticles.activeTypes,
@@ -271,11 +266,6 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
       })();
     }, [currentLatLng, activeParkingId, router.query.stallingid]);
 
-    useEffect(() => {
-      console.debug("===> HomeComponent - activeTypes2 changed", activeTypes2);
-      reloadAllFietsenstallingen();
-    }, [activeTypes2]);
-    
     const renderLogo = () => {
       const activecontact = activeMunicipalityInfo;
   
