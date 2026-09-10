@@ -33,7 +33,7 @@ import useWindowDimensions from "~/hooks/useWindowDimensions";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Import map styles
 import nine3030 from "../mapStyles/nine3030";
-import type { ParkingDetailsType } from "~/types/parking";
+import type { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 import { COLORMATCHFORPARKINGTYPE } from "~/utils/theme";
 import { titleToSlug } from "~/utils/slug";
 
@@ -68,7 +68,7 @@ interface GeoJsonFeature {
   };
 }
 
-const createGeoJson = (input: ParkingDetailsType[]) => {
+const createGeoJson = (input: VSFietsenstallingLijst[]) => {
   const features: GeoJsonFeature[] = [];
 
   input.forEach((x) => {
@@ -104,7 +104,7 @@ function MapboxMap({
   initialCenter: defaultCenter,
   initialZoom: defaultZoom,
 }: {
-  fietsenstallingen?: ParkingDetailsType[];
+  fietsenstallingen?: VSFietsenstallingLijst[];
   initialCenter?: [number, number];
   initialZoom?: number;
 }) {

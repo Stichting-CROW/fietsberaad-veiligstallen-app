@@ -2,19 +2,25 @@ import React from "react";
 import moment from "moment";
 
 import type { DayPrefix } from "~/types/index";
-import type { ParkingDetailsType, UitzonderingenOpeningstijden } from "~/types/parking";
+import type { UitzonderingenOpeningstijden } from "~/types/parking";
 import {
   isOpenNow,
   formatTimeHHmm,
   type OpeningHoursSchedule,
 } from "~/utils/opening-hours";
 
-const getOpenTimeKey = (day: DayPrefix): keyof ParkingDetailsType => {
-  return ('Open_' + day) as keyof ParkingDetailsType;
+export type ParkingOpeningHoursSource = OpeningHoursSchedule & {
+  Type?: string | null;
+  EditorCreated?: string | null;
+  uitzonderingenopeningstijden?: UitzonderingenOpeningstijden | null;
+};
+
+const getOpenTimeKey = (day: DayPrefix): keyof OpeningHoursSchedule => {
+  return ('Open_' + day) as keyof OpeningHoursSchedule;
 }
 
-const getDichtTimeKey = (day: DayPrefix): keyof ParkingDetailsType => {
-  return ('Dicht_' + day) as keyof ParkingDetailsType;
+const getDichtTimeKey = (day: DayPrefix): keyof OpeningHoursSchedule => {
+  return ('Dicht_' + day) as keyof OpeningHoursSchedule;
 }
 
 /** Prisma `@db.Time` and ISO strings: use UTC components (same as `opening-hours`). */
@@ -40,7 +46,7 @@ const getExceptionTypes = () => {
 const DAYS: DayPrefix[] = ["zo", "ma", "di", "wo", "do", "vr", "za"];
 
 function buildSchedule(
-  parkingdata: ParkingDetailsType,
+  parkingdata: ParkingOpeningHoursSource,
   daytxt: DayPrefix,
   customOpenTime: string | Date | null | undefined,
   customCloseTime: string | Date | null | undefined
@@ -66,7 +72,7 @@ export type openingTodayType = {
 }
 
 // Get manually added exceptions
-const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopeningstijden: UitzonderingenOpeningstijden | null) => {
+const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopeningstijden?: UitzonderingenOpeningstijden | null) => {
   if (!uitzonderingenopeningstijden) {
     return [null, null];
   }
@@ -85,7 +91,7 @@ const getTodaysCustomOpeningTimes = (today: moment.Moment, uitzonderingenopening
   return [customOpenTime, customCloseTime];
 }
 
-export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: moment.Moment): openingTodayType => {
+export const formatOpeningToday = (parkingdata: ParkingOpeningHoursSource, thedate: moment.Moment): openingTodayType => {
   const dayidx = thedate.day();
   const daytxt = DAYS[dayidx] as DayPrefix;
 
@@ -135,7 +141,7 @@ export const formatOpeningToday = (parkingdata: ParkingDetailsType, thedate: mom
   return { isOpen: false, message: "gesloten" };
 };
 
-export const hasCustomOpeningTimesComingWeek = (parkingdata: ParkingDetailsType): boolean => {
+export const hasCustomOpeningTimesComingWeek = (parkingdata: ParkingOpeningHoursSource): boolean => {
   // Get custom opening times for today and the next 6 days
   for (let i = 0; i < 7; i++) {
     const day = moment().add(i, 'days');
@@ -148,7 +154,7 @@ export const hasCustomOpeningTimesComingWeek = (parkingdata: ParkingDetailsType)
 }
 
 export const formatOpeningTimes = (
-  parkingdata: ParkingDetailsType,
+  parkingdata: ParkingOpeningHoursSource,
   day: DayPrefix,
   label: string,
   isToday: boolean,

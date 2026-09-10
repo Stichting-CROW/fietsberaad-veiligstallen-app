@@ -5,7 +5,7 @@ import "keen-slider/keen-slider.min.css";
 import CardStyles from './Card.module.css';
 
 import ParkingFacilityBlock from './ParkingFacilityBlock';
-import { type ParkingDetailsType } from "~/types/parking";
+import { type VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
 export interface CardData {
   ID: string;
@@ -20,7 +20,7 @@ const Card: React.FC<CardData> = ({
   clickParking,
   showButtons = false
 }: {
-  parkingdata: ParkingDetailsType,
+  parkingdata: VSFietsenstallingLijst,
   compact: boolean,
   expandParking?: () => void,
   clickParking?: () => void,

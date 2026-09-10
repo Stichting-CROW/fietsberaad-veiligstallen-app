@@ -6,7 +6,7 @@ import Card from "./Card";
 import { useKeenSlider } from "keen-slider/react";
 import "keen-slider/keen-slider.min.css";
 import { type AppState } from "~/store/store";
-import type { ParkingDetailsType } from "~/types/parking";
+import type { VSFietsenstallingLijst } from "~/types/fietsenstallingen";
 
 import {
   setSelectedParkingId
@@ -48,7 +48,7 @@ const CardList: React.FC<Props> = ({
 }: Props) => {
   const dispatch = useDispatch();
 
-  const [visibleParkings, setVisibleParkings] = useState<ParkingDetailsType[]>(allparkingdata);
+  const [visibleParkings, setVisibleParkings] = useState<VSFietsenstallingLijst[]>(allparkingdata);
 
   const mapVisibleFeatures = useSelector(
     (state: AppState) => (state.map ).visibleFeatures as MapFeature[]
