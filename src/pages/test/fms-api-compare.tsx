@@ -1884,7 +1884,7 @@ const FmsApiComparePage: React.FC = () => {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nieuwe API url (basis) –{" "}
-            <Link href="/test/fms-api-docs-v4" className="text-blue-600 hover:underline">
+            <Link href="/docs/api/v4" className="text-blue-600 hover:underline">
               Swagger docs v4
             </Link>
           </label>

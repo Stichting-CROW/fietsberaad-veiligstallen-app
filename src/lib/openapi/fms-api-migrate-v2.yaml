@@ -2,27 +2,27 @@ openapi: 3.0.3
 info:
   title: FMS migratie V2 → V4
   description: |
-    Migratiepad van **ColdFusion V2** (`/REST/v1/...`, `/v2/REST/...`) naar
-    **Next.js V4** (`/api/fms/v4/...`).
+    Migratiepad van **FMS V2** (`/REST/v1/...`, `/v2/REST/...`) naar
+    **V4** (`/api/fms/v4/...`).
 
-    Next.js heeft geen `/api/fms/v2`. Bestaande stallingen blijven op ColdFusion
-    tot ze overgaan. Test/simulatie (testgemeente) is v4-only.
-
-    - [V4 API-referentie](/test/fms-api-docs-v4)
-    - [Migratie V3 → V4](/test/fms-api-docs-migrate-v3)
-    - [V2 + V3 (ColdFusion)](/test/fms-api-docs)
-
-    V4 volgt het **V3-contract** (kleine letters, resource-URL's), niet de V2
+    V4 gebruikt kleine letters en resource-URL's, niet de V2
     hoofdletter-keys (`BIKETYPEID`, `NAME`, …).
+
+    - [V4 API-referentie](/docs/api/v4)
+    - [Migratie V3 → V4](/test/fms-api-docs-migrate-v3)
+    - [V2 + V3](/test/fms-api-docs)
 
     ## Host en pad
 
-    | | V2 (ColdFusion) | V4 (Next.js) |
+    | | V2 | V4 |
     | --- | --- | --- |
-    | Host | `https://remote.veiligstallen.nl` | deze Next.js-app |
-    | Catalogus | `/REST/v1/getBikeTypes` e.d. | `/api/fms/v4/biketypes` e.d. |
-    | Stalling | `/v2/REST/getJson…/{bikeparkID}` | `/api/fms/v4/citycodes/{citycode}/locations/{locationid}/…` |
+    | Catalogus (algemeen) | `/REST/v1/getBikeTypes` e.d. | `/api/fms/v4/biketypes` e.d. |
+    | Stallingscatalogus | `/v2/REST/getJson…/{bikeparkID}` | `/api/fms/v4/citycodes/{citycode}/locations/{locationid}/…` |
     | Auth | HTTP Basic, `permit` per stalling | hetzelfde |
+
+    **Algemene catalogus** = keuzelijsten voor de hele dienst (fietstypen,
+    betalingstypen, klanttypen, servertijd). **Stallingscatalogus** = gemeenten,
+    locaties, secties, plekken, abonnementsvormen.
 
     `citycode` is de postcode/ZipID van de stalling (bijv. `9933` voor `9933_001`).
 
@@ -30,7 +30,7 @@ info:
 
     | V2 | V4 | Contract |
     | --- | --- | --- |
-    | `GET /REST/v1/getServerTime` of `/v2/getServerTime` | `GET /api/fms/v4/servertime` | ISO-achtige timestamp (niet de CF-locale-string) |
+    | `GET /REST/v1/getServerTime` of `/v2/getServerTime` | `GET /api/fms/v4/servertime` | ISO-achtige timestamp (niet de v2 locale-string) |
     | `GET /REST/v1/getBikeTypes` of `/v2/getJsonBikeTypes` | `GET /api/fms/v4/biketypes` | `{id, name, singular}` i.p.v. `{BIKETYPEID, NAME}` |
     | `GET /v2/getJsonBikeType/{id}` | `GET /api/fms/v4/biketypes` | filter op `id` (geen aparte single-id route) |
     | `GET /REST/v1/getPaymentTypes` of `/v2/getJsonPaymentTypes` | `GET /api/fms/v4/paymenttypes` | `{paymenttypeid, name, description}` i.p.v. hoofdletter-keys |
@@ -41,7 +41,7 @@ info:
     | `GET /v2/REST/getJsonBikeUpdates/{bikeparkID}?fromDate=` | `GET …/locations/{locationid}/bikeupdates?from=` | query `from` i.p.v. `fromDate` |
     | `GET /v2/REST/getJsonSubscriptors/{bikeparkID}` | `GET …/locations/{locationid}/subscriptions` | V3-vorm (operator) |
     | `GET /v2/REST/getLockerInfo/{bikeparkID}/{sectionID}/{placeID}` | `GET …/sections/{sectionid}/places/{placeid}` | plek-read blijft; locker-writes zijn 410 |
-    | `GET /v2/isAllowedToUse/…` | **410** — blijft op ColdFusion |
+    | `GET /v2/isAllowedToUse/…` | **410** — niet in v4 |
 
     ## Writes
 
@@ -54,20 +54,20 @@ info:
     | `POST /v2/reportOccupationData/…` | `POST …/sections/{sectionid}/occupation` (`data.occupation`) |
     | `POST /v2/syncSector/…` | `POST …/sections/{sectionid}/occupation` (`data.bikes`) |
     | `POST /v2/uploadJsonTransaction(s)/…` | **410** — gebruik `POST …/managedtransactions` |
-    | `POST`/`PUT` `updateLocker` | **410** — blijft op ColdFusion |
-    | `setUrlWebserviceForLocker` | **410** — blijft op ColdFusion |
+    | `POST`/`PUT` `updateLocker` | **410** — fietskluizen uitgefaseerd |
+    | `setUrlWebserviceForLocker` | **410** — fietskluizen uitgefaseerd |
 
-    Check-in/out op v4 is alleen **managedtransactions** (Wilmar). Bezetting is
-    **occupation** (Lumiguide). Niet beide hosts voor dezelfde stalling aanroepen.
+    Check-in/out op v4 is alleen **managedtransactions**. Bezetting is
+    **occupation**. Gebruik voor één stalling óf v2 óf v4, niet beide.
 
     ## Niet overzetten
 
     In/uit (`uploadJsonTransaction`) en fietskluizen-aansturing zijn bewust
-    uitgefaseerd. Die integraties blijven op ColdFusion V2.
+    uitgefaseerd in v4 (HTTP 410).
   version: 4.0.0
 servers:
   - url: /api/fms
-    description: Next.js V4
+    description: FMS REST API v4
 paths:
   /v4:
     get:
@@ -75,9 +75,9 @@ paths:
       summary: Try-it-out staat op de V4-referentie
       description: |
         Deze pagina is alleen het migratiepad. Endpoints uitproberen:
-        [V4 API-referentie](/test/fms-api-docs-v4).
+        [V4 API-referentie](/docs/api/v4).
       security: []
       responses:
         '200':
-          description: Zie /test/fms-api-docs-v4
+          description: Zie /docs/api/v4
 

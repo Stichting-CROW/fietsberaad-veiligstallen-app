@@ -2,21 +2,26 @@ openapi: 3.0.3
 info:
   title: FMS REST API
   description: |
-    Fietsenstallingen Management Service REST API (**ColdFusion V2 en V3**).
+    Fietsenstallingen Management Service REST API (**V2 en V3**).
 
-    Next.js dient **geen** `/api/fms/v2` of `/api/fms/v3` meer. Nieuwe integraties
-    gebruiken **v4** (`/api/fms/v4/...`, zie `/test/fms-api-docs-v4`).
-    Migratie: [V2 → V4](/test/fms-api-docs-migrate-v2),
-    [V3 → V4](/test/fms-api-docs-migrate-v3). Catalogus-aux
-    op v4 (`biketypes`, `paymenttypes`, `servertime`) volgt het V3-contract
-    (`/rest/v3/...`), niet V2 `/REST/v1/getBikeTypes` (hoofdletter-keys).
-    V2 `getJsonClientTypes` en `getJsonBikes` hebben V4-stubs
-    (`/v4/clienttypes`, `…/locations/{id}/bikes`). `getJsonBikeType/{id}` is
-    `GET /v4/biketypes` gefilterd op `id`.
+    Nieuwe integraties gebruiken **v4** (`/api/fms/v4/...`, zie
+    `/docs/api/v4`). Migratie: [V2 → V4](/test/fms-api-docs-migrate-v2),
+    [V3 → V4](/test/fms-api-docs-migrate-v3).
 
-    Pad-prefixes op ColdFusion: `/REST/v1/...`, `/v2/REST/...`, `/rest/v3/...`.
-    De paden hieronder zijn de historische Next.js-portvorm; Try-it-out tegen
-    `/api/fms` faalt voor v2/v3.
+    V2-paden: `/REST/v1/...`, `/v2/REST/...` (vaak hoofdletter-keys).
+    V3-paden: `/rest/v3/...` (kleine letters, resource-URL's).
+
+    ## Catalogus
+
+    **Catalogus** is naslagdata (geen mutaties).
+
+    - **Algemene catalogus** — keuzelijsten voor de hele dienst: servertijd,
+      fietstypen, betalingstypen, klanttypen.
+    - **Stallingscatalogus** — gemeenten, locaties, secties, plekken,
+      abonnementsvormen.
+
+    Op v4 volgt de algemene catalogus de V3-vorm (`{id, name, singular}`),
+    niet de V2 hoofdletter-keys (`BIKETYPEID`, `NAME`).
 
     Beheerde transacties voor nieuwe integraties staan op **v4**.
 
@@ -44,8 +49,8 @@ info:
     | `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |
     | `dataprovider.type2` | Afgeronde transacties + bezettingsdata |
 
-    - **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,
-      secties, plaatsen en abonnementsvormen.
+    - **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,
+      secties, plekken en abonnementsvormen.
     - **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder
       permit krijgt u een uitgeklede weergave (geen foutmelding).
     - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.
@@ -57,9 +62,9 @@ info:
 
 servers:
   - url: https://remote.veiligstallen.nl
-    description: ColdFusion (v2/v3 live)
+    description: FMS V2/V3
   - url: /api/fms
-    description: Next.js — v2/v3 routes verwijderd; gebruik /v4 (zie fms-api-docs-v4)
+    description: Deze host — v4; zie /docs/api/v4
 
 security:
   - basicAuth: []
@@ -69,13 +74,12 @@ paths:
     get:
       summary: Server tijd
       description: |
-        ColdFusion V2. Next.js implementeert dit pad niet meer.
-        Port naar `GET /api/fms/v4/servertime` (V3-contract `/rest/v3/servertime`).
+        V2. Op v4: `GET /api/fms/v4/servertime`.
       tags: [V2]
       security: []
       responses:
         '200':
-          description: ColdFusion V2 geeft een locale datetime-string, geen ISO 8601
+          description: V2 geeft een locale datetime-string, geen ISO 8601
           content:
             application/json:
               schema:
@@ -86,9 +90,8 @@ paths:
     get:
       summary: Alle fietstypen
       description: |
-        ColdFusion V2 (`/REST/v1/getBikeTypes`): keys `BIKETYPEID`, `NAME`.
-        Next.js implementeert dit pad niet meer. Port naar
-        `GET /api/fms/v4/biketypes` (V3-contract `{id, name, singular}`).
+        V2 (`/REST/v1/getBikeTypes`): keys `BIKETYPEID`, `NAME`.
+        Op v4: `GET /api/fms/v4/biketypes` (`{id, name, singular}`).
       tags: [V2]
       security: []
       responses:
@@ -105,7 +108,7 @@ paths:
     get:
       summary: Eén fietstype
       description: |
-        ColdFusion getJsonBikeType. Geen V3/V4 single-id stub;
+        V2 `getJsonBikeType`. In v4 is er geen `/biketypes/{id}`;
         gebruik `GET /api/fms/v4/biketypes` en filter op `id`.
       tags: [V2]
       security: []
@@ -133,9 +136,8 @@ paths:
     get:
       summary: Betalingstypen
       description: |
-        ColdFusion V2 (`/REST/v1/getPaymentTypes`): keys `PAYMENTTYPEID`, `NAME`, `DESCRIPTION`.
-        Next.js implementeert dit pad niet meer. Port naar
-        `GET /api/fms/v4/paymenttypes` (V3-contract `{paymenttypeid, name, description}`).
+        V2 (`/REST/v1/getPaymentTypes`): keys `PAYMENTTYPEID`, `NAME`, `DESCRIPTION`.
+        Op v4: `GET /api/fms/v4/paymenttypes` (`{paymenttypeid, name, description}`).
       tags: [V2]
       security: []
       responses:
@@ -152,7 +154,7 @@ paths:
     get:
       summary: Klanttypen
       description: |
-        ColdFusion V2 (`/REST/v1/getClientTypes`). Next.js-equivalent:
+        V2 (`/REST/v1/getClientTypes`). Op v4:
         `GET /api/fms/v4/clienttypes` (`id`, `name`).
       tags: [V2]
       security: []
@@ -221,7 +223,7 @@ paths:
     get:
       summary: Fietsen in stalling (operator)
       description: |
-        ColdFusion V2. Next.js-equivalent:
+        V2. Op v4:
         `GET /api/fms/v4/citycodes/{citycode}/locations/{locationid}/bikes`.
       tags: [V2 Protected]
       parameters:
@@ -845,9 +847,9 @@ paths:
 
   /v3/servertime:
     get:
-      summary: Server tijd (V3 aux)
+      summary: Server tijd (algemene catalogus)
       description: |
-        ColdFusion `/rest/v3/servertime`. Next.js-equivalent: `GET /api/fms/v4/servertime`.
+        V3. Op v4: `GET /api/fms/v4/servertime`.
       tags: [V3]
       security: []
       responses:
@@ -861,10 +863,9 @@ paths:
 
   /v3/biketypes:
     get:
-      summary: Alle fietstypen (V3 aux)
+      summary: Alle fietstypen (algemene catalogus)
       description: |
-        ColdFusion `/rest/v3/biketypes` (`id`, `name`, `singular`).
-        Next.js-equivalent: `GET /api/fms/v4/biketypes`.
+        V3 (`id`, `name`, `singular`). Op v4: `GET /api/fms/v4/biketypes`.
       tags: [V3]
       security: []
       responses:
@@ -886,9 +887,9 @@ paths:
 
   /v3/paymenttypes:
     get:
-      summary: Betalingstypen (V3 aux)
+      summary: Betalingstypen (algemene catalogus)
       description: |
-        ColdFusion `/rest/v3/paymenttypes`. Next.js-equivalent: `GET /api/fms/v4/paymenttypes`.
+        V3. Op v4: `GET /api/fms/v4/paymenttypes`.
       tags: [V3]
       security: []
       responses:
@@ -1559,8 +1560,8 @@ paths:
     get:
       summary: Locaties in gemeente als CSV-regels
       description: |
-        Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door ";"
-        (ColdFusion getLocationsCSV). Object- en array-velden worden overgeslagen.
+        Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door ";".
+        Object- en array-velden worden overgeslagen.
       tags: [V3]
       security: []
       parameters:
@@ -1608,8 +1609,8 @@ paths:
     get:
       summary: Mag ID-middel deze plek gebruiken (operator)
       description: |
-        Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken
-        (ColdFusion isAllowedToUse). Vereist operator Basic Auth.
+        Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken.
+        Vereist operator Basic Auth.
       tags: [V3 Protected]
       parameters:
         - $ref: '#/components/parameters/V3Citycode'
@@ -1710,7 +1711,7 @@ components:
 
     PlaceSummary:
       type: object
-      description: ColdFusion BaseRestService.getPlace (publieke velden).
+      description: Publieke velden van een plek.
       properties:
         id:
           type: integer
@@ -1748,7 +1749,7 @@ components:
 
     V2SubscriptionType:
       type: object
-      description: ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes)
+      description: Abonnementsvorm zoals in v2 `getJsonSubscriptionTypes`
       properties:
         subscriptionTypeID:
           type: integer

@@ -6,7 +6,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import handleCitycodes from "~/server/services/fms/fms-citycodes-router";
 
 const REMOVED_MESSAGE =
-  "Dit endpoint is verwijderd in API v4. Gebruik POST …/managedtransactions. Voor legacy in/out, completedtransactions of fietskluizen: gebruik v2/v3 op de ColdFusion-host.";
+  "Dit endpoint is verwijderd in API v4. Gebruik POST …/managedtransactions.";
 
 /** Legacy In/Uit, completedtransaction, locker writes, and unused place idcodes blocked on v4. */
 function isRemovedV4WritePath(path: string[], method: string | undefined): boolean {
