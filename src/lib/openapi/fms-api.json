@@ -2,17 +2,17 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FMS REST API",
-    "description": "Fietsenstallingen Management Service REST API (**ColdFusion V2 en V3**).\n\nNext.js dient **geen** `/api/fms/v2` of `/api/fms/v3` meer. Nieuwe integraties\ngebruiken **v4** (`/api/fms/v4/...`, zie `/test/fms-api-docs-v4`).\nMigratie: [V2 → V4](/test/fms-api-docs-migrate-v2),\n[V3 → V4](/test/fms-api-docs-migrate-v3). Catalogus-aux\nop v4 (`biketypes`, `paymenttypes`, `servertime`) volgt het V3-contract\n(`/rest/v3/...`), niet V2 `/REST/v1/getBikeTypes` (hoofdletter-keys).\nV2 `getJsonClientTypes` en `getJsonBikes` hebben V4-stubs\n(`/v4/clienttypes`, `…/locations/{id}/bikes`). `getJsonBikeType/{id}` is\n`GET /v4/biketypes` gefilterd op `id`.\n\nPad-prefixes op ColdFusion: `/REST/v1/...`, `/v2/REST/...`, `/rest/v3/...`.\nDe paden hieronder zijn de historische Next.js-portvorm; Try-it-out tegen\n`/api/fms` faalt voor v2/v3.\n\nBeheerde transacties voor nieuwe integraties staan op **v4**.\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v2/v3). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |\n| `dataprovider.type2` | Afgeronde transacties + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: het synchroniseren van check-ins/check-outs vereist\n  `operator` of `dataprovider.type1`; bezettingsdata (`occupation`) vereist\n  `operator` of `dataprovider.type2`.\n",
+    "description": "Fietsenstallingen Management Service REST API (**V2 en V3**).\n\nNieuwe integraties gebruiken **v4** (`/api/fms/v4/...`, zie\n`/docs/api/v4`). Migratie: [V2 → V4](/test/fms-api-docs-migrate-v2),\n[V3 → V4](/test/fms-api-docs-migrate-v3).\n\nV2-paden: `/REST/v1/...`, `/v2/REST/...` (vaak hoofdletter-keys).\nV3-paden: `/rest/v3/...` (kleine letters, resource-URL's).\n\n## Catalogus\n\n**Catalogus** is naslagdata (geen mutaties).\n\n- **Algemene catalogus** — keuzelijsten voor de hele dienst: servertijd,\n  fietstypen, betalingstypen, klanttypen.\n- **Stallingscatalogus** — gemeenten, locaties, secties, plekken,\n  abonnementsvormen.\n\nOp v4 volgt de algemene catalogus de V3-vorm (`{id, name, singular}`),\nniet de V2 hoofdletter-keys (`BIKETYPEID`, `NAME`).\n\nBeheerde transacties voor nieuwe integraties staan op **v4**.\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v2/v3). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Check-ins/check-outs + bezettingsdata |\n| `dataprovider.type2` | Afgeronde transacties + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,\n  secties, plekken en abonnementsvormen.\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: het synchroniseren van check-ins/check-outs vereist\n  `operator` of `dataprovider.type1`; bezettingsdata (`occupation`) vereist\n  `operator` of `dataprovider.type2`.\n",
     "version": "1.0.0"
   },
   "servers": [
     {
       "url": "https://remote.veiligstallen.nl",
-      "description": "ColdFusion (v2/v3 live)"
+      "description": "FMS V2/V3"
     },
     {
       "url": "/api/fms",
-      "description": "Next.js — v2/v3 routes verwijderd; gebruik /v4 (zie fms-api-docs-v4)"
+      "description": "Deze host — v4; zie /docs/api/v4"
     }
   ],
   "security": [
@@ -24,14 +24,14 @@
     "/v2/getServerTime": {
       "get": {
         "summary": "Server tijd",
-        "description": "ColdFusion V2. Next.js implementeert dit pad niet meer.\nPort naar `GET /api/fms/v4/servertime` (V3-contract `/rest/v3/servertime`).\n",
+        "description": "V2. Op v4: `GET /api/fms/v4/servertime`.\n",
         "tags": [
           "V2"
         ],
         "security": [],
         "responses": {
           "200": {
-            "description": "ColdFusion V2 geeft een locale datetime-string, geen ISO 8601",
+            "description": "V2 geeft een locale datetime-string, geen ISO 8601",
             "content": {
               "application/json": {
                 "schema": {
@@ -47,7 +47,7 @@
     "/v2/getJsonBikeTypes": {
       "get": {
         "summary": "Alle fietstypen",
-        "description": "ColdFusion V2 (`/REST/v1/getBikeTypes`): keys `BIKETYPEID`, `NAME`.\nNext.js implementeert dit pad niet meer. Port naar\n`GET /api/fms/v4/biketypes` (V3-contract `{id, name, singular}`).\n",
+        "description": "V2 (`/REST/v1/getBikeTypes`): keys `BIKETYPEID`, `NAME`.\nOp v4: `GET /api/fms/v4/biketypes` (`{id, name, singular}`).\n",
         "tags": [
           "V2"
         ],
@@ -72,7 +72,7 @@
     "/v2/getJsonBikeType/{bikeTypeID}": {
       "get": {
         "summary": "Eén fietstype",
-        "description": "ColdFusion getJsonBikeType. Geen V3/V4 single-id stub;\ngebruik `GET /api/fms/v4/biketypes` en filter op `id`.\n",
+        "description": "V2 `getJsonBikeType`. In v4 is er geen `/biketypes/{id}`;\ngebruik `GET /api/fms/v4/biketypes` en filter op `id`.\n",
         "tags": [
           "V2"
         ],
@@ -112,7 +112,7 @@
     "/v2/getJsonPaymentTypes": {
       "get": {
         "summary": "Betalingstypen",
-        "description": "ColdFusion V2 (`/REST/v1/getPaymentTypes`): keys `PAYMENTTYPEID`, `NAME`, `DESCRIPTION`.\nNext.js implementeert dit pad niet meer. Port naar\n`GET /api/fms/v4/paymenttypes` (V3-contract `{paymenttypeid, name, description}`).\n",
+        "description": "V2 (`/REST/v1/getPaymentTypes`): keys `PAYMENTTYPEID`, `NAME`, `DESCRIPTION`.\nOp v4: `GET /api/fms/v4/paymenttypes` (`{paymenttypeid, name, description}`).\n",
         "tags": [
           "V2"
         ],
@@ -137,7 +137,7 @@
     "/v2/getJsonClientTypes": {
       "get": {
         "summary": "Klanttypen",
-        "description": "ColdFusion V2 (`/REST/v1/getClientTypes`). Next.js-equivalent:\n`GET /api/fms/v4/clienttypes` (`id`, `name`).\n",
+        "description": "V2 (`/REST/v1/getClientTypes`). Op v4:\n`GET /api/fms/v4/clienttypes` (`id`, `name`).\n",
         "tags": [
           "V2"
         ],
@@ -240,7 +240,7 @@
     "/v2/getJsonBikes/{bikeparkID}": {
       "get": {
         "summary": "Fietsen in stalling (operator)",
-        "description": "ColdFusion V2. Next.js-equivalent:\n`GET /api/fms/v4/citycodes/{citycode}/locations/{locationid}/bikes`.\n",
+        "description": "V2. Op v4:\n`GET /api/fms/v4/citycodes/{citycode}/locations/{locationid}/bikes`.\n",
         "tags": [
           "V2 Protected"
         ],
@@ -1296,8 +1296,8 @@
     },
     "/v3/servertime": {
       "get": {
-        "summary": "Server tijd (V3 aux)",
-        "description": "ColdFusion `/rest/v3/servertime`. Next.js-equivalent: `GET /api/fms/v4/servertime`.\n",
+        "summary": "Server tijd (algemene catalogus)",
+        "description": "V3. Op v4: `GET /api/fms/v4/servertime`.\n",
         "tags": [
           "V3"
         ],
@@ -1319,8 +1319,8 @@
     },
     "/v3/biketypes": {
       "get": {
-        "summary": "Alle fietstypen (V3 aux)",
-        "description": "ColdFusion `/rest/v3/biketypes` (`id`, `name`, `singular`).\nNext.js-equivalent: `GET /api/fms/v4/biketypes`.\n",
+        "summary": "Alle fietstypen (algemene catalogus)",
+        "description": "V3 (`id`, `name`, `singular`). Op v4: `GET /api/fms/v4/biketypes`.\n",
         "tags": [
           "V3"
         ],
@@ -1355,8 +1355,8 @@
     },
     "/v3/paymenttypes": {
       "get": {
-        "summary": "Betalingstypen (V3 aux)",
-        "description": "ColdFusion `/rest/v3/paymenttypes`. Next.js-equivalent: `GET /api/fms/v4/paymenttypes`.\n",
+        "summary": "Betalingstypen (algemene catalogus)",
+        "description": "V3. Op v4: `GET /api/fms/v4/paymenttypes`.\n",
         "tags": [
           "V3"
         ],
@@ -2571,7 +2571,7 @@
     "/v3/citycodes/{citycode}/locationscsv": {
       "get": {
         "summary": "Locaties in gemeente als CSV-regels",
-        "description": "Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door \";\"\n(ColdFusion getLocationsCSV). Object- en array-velden worden overgeslagen.\n",
+        "description": "Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door \";\".\nObject- en array-velden worden overgeslagen.\n",
         "tags": [
           "V3"
         ],
@@ -2650,7 +2650,7 @@
     "/v3/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/idcodes/{idtype}/{idcode}": {
       "get": {
         "summary": "Mag ID-middel deze plek gebruiken (operator)",
-        "description": "Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken\n(ColdFusion isAllowedToUse). Vereist operator Basic Auth.\n",
+        "description": "Controleert of een ID-middel (idcode/idtype) de gegeven plek mag gebruiken.\nVereist operator Basic Auth.\n",
         "tags": [
           "V3 Protected"
         ],
@@ -2798,7 +2798,7 @@
       },
       "PlaceSummary": {
         "type": "object",
-        "description": "ColdFusion BaseRestService.getPlace (publieke velden).",
+        "description": "Publieke velden van een plek.",
         "properties": {
           "id": {
             "type": "integer"
@@ -2850,7 +2850,7 @@
       },
       "V2SubscriptionType": {
         "type": "object",
-        "description": "ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes)",
+        "description": "Abonnementsvorm zoals in v2 `getJsonSubscriptionTypes`",
         "properties": {
           "subscriptionTypeID": {
             "type": "integer"

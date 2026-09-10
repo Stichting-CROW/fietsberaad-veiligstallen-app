@@ -196,10 +196,10 @@ const TestIndexPage: React.FC = () => {
             className="py-6 px-8 text-center w-full"
             style={{ backgroundColor: '#3B82F6' }}
           >
-            FMS API documentatie v2 + v3 (ColdFusion, Swagger)
+            FMS API documentatie v2 + v3 (Swagger)
           </Button>
           <Button
-            onClick={() => handleNavigate('/test/fms-api-docs-v4')}
+            onClick={() => handleNavigate('/docs/api/v4')}
             className="py-6 px-8 text-center w-full"
             style={{ backgroundColor: '#3B82F6' }}
           >

@@ -16,7 +16,7 @@ Deze omgeving is bedoeld om jullie app van FMS **v2/v3** (ColdFusion) naar **v4*
 | Sectionid      | `9933_001_1`                                   |
 
 
-Interactieve referentie: `{basis-URL}/test/fms-api-docs-v4`  
+Interactieve referentie: `{basis-URL}/docs/api/v4`  
 Migratieoverzicht: `{basis-URL}/test/fms-api-docs-migrate-v2` en `…/fms-api-docs-migrate-v3`
 
 ## Wat verandert er

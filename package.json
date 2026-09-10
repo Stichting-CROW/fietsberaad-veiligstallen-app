@@ -7,11 +7,13 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
+    "docs:api": "node scripts/generate-openapi-docs.mjs",
+    "predev": "npm run docs:api",
     "prebuild": "([ -d mysql-db ] && mv mysql-db /tmp/mysql-db-veiligstallen-bak) || ([ -d .mysql-db.bak ] && mv .mysql-db.bak /tmp/mysql-db-veiligstallen-bak) || true",
     "build": "next build",
     "postbuild": "([ -d /tmp/mysql-db-veiligstallen-bak ] && mv /tmp/mysql-db-veiligstallen-bak mysql-db) || true",
     "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev",
-    "dev:turbo": "next dev --turbo",
+    "dev:turbo": "npm run docs:api && next dev --turbo",
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "start": "next start",

@@ -6,18 +6,36 @@ import "swagger-ui-react/swagger-ui.css";
 const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
 
 const FMS_DOCS_NAV = [
-  { href: "/test/fms-api-docs-v4", label: "V4 referentie" },
+  { href: "/docs/api/v4", label: "V4 referentie" },
   { href: "/test/fms-api-docs-migrate-v2", label: "Migratie V2 → V4" },
   { href: "/test/fms-api-docs-migrate-v3", label: "Migratie V3 → V4" },
-  { href: "/test/fms-api-docs", label: "V2 + V3 (ColdFusion)" },
+  { href: "/test/fms-api-docs", label: "V2 + V3" },
 ] as const;
 
 type FmsSwaggerDocsProps = {
   specUrl: string;
 };
 
+const specSlugFromUrl = (specUrl: string) => {
+  const name = specUrl.replace(/^\/api\/openapi\//, "");
+  return name === "fms-api" ? "fms-api-v2-v3" : name;
+};
+
+type DocsManifest = {
+  generatedAt?: string;
+  files?: Record<string, { md?: boolean; pdf?: boolean }>;
+};
+
 const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
   const [spec, setSpec] = useState<object | null>(null);
+  const [manifest, setManifest] = useState<DocsManifest | null>(null);
+  const specSlug = specSlugFromUrl(specUrl);
+  const cacheBust = manifest?.generatedAt
+    ? `?v=${encodeURIComponent(manifest.generatedAt)}`
+    : "";
+  const fileMeta = manifest?.files?.[specSlug];
+  const hasMarkdown = Boolean(fileMeta?.md);
+  const hasPdf = Boolean(fileMeta?.pdf);
 
   useEffect(() => {
     document.documentElement.classList.add("swagger-docs-page");
@@ -35,6 +53,21 @@ const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
       .catch(console.error);
   }, [specUrl]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api-docs/manifest.json", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: DocsManifest | null) => {
+        if (!cancelled) setManifest(data);
+      })
+      .catch(() => {
+        if (!cancelled) setManifest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!spec) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -51,6 +84,19 @@ const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
             {item.label}
           </a>
         ))}
+        {hasMarkdown && (
+          <>
+            <span className="text-gray-300">|</span>
+            <a href={`/api-docs/${specSlug}.md${cacheBust}`} className="text-blue-700 hover:underline">
+              Markdown
+            </a>
+          </>
+        )}
+        {hasPdf && (
+          <a href={`/api-docs/${specSlug}.pdf${cacheBust}`} className="text-blue-700 hover:underline">
+            PDF
+          </a>
+        )}
       </nav>
       <SwaggerUI
         spec={spec}

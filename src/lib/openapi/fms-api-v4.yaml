@@ -1,37 +1,79 @@
 openapi: 3.0.3
 info:
   title: FMS REST API v4
-  description: "Fietsenstallingen Management Service REST API (V4).\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP\
-    \ Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste\
-    \ recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials**\
-    \ (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben\
-    \ per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op\
-    \ basis van de rol van de gebruiker.\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus\
-    \ per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1`\
-    \ | Inventarisatie/sync (`occupation` met `bikes`) |\n| `dataprovider.type2` | `managedtransactions` + bezettingsdata |\n\n- **Openbaar\
-    \ leesbaar** (geen auth): catalogusdata zoals steden, locaties,\n  secties, plaatsen en abonnementsvormen.\n- **Beschermde\
-    \ velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n\
-    - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen\
-    \ het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`;\
-    \ sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n\n## Transacties (v4)\n\nStallingstransacties\
-    \ worden uitsluitend via `managedtransactions` aangeleverd. Legacy in/out (`transactions`), `completedtransactions`,\
-    \ fietskluizen-writes, `isAllowedToUse` en place-level koppelpas geven HTTP 410. Bestaande integraties blijven op v2/v3 op de ColdFusion-host.\n\n\
-    ## Next.js vs ColdFusion\n\nNext.js serveert alleen v4 (`/api/fms/v4/...`). Er zijn geen `/api/fms/v2`\
-    \ of `/api/fms/v3` routes. Catalogus-aux (`/v4/biketypes`, `/v4/paymenttypes`, `/v4/servertime`)\
-    \ volgt het V3-contract (`/rest/v3/...` op ColdFusion), niet V2 (`/REST/v1/getBikeTypes` enz.).\
-    \ V2 `getJsonClientTypes` en `getJsonBikes` hebben V4-stubs (`/v4/clienttypes`,\
-    \ `…/locations/{id}/bikes`). `getJsonBikeType/{id}` is `GET /v4/biketypes` gefilterd op `id`.\n\n\
-    ## Migratie\n\n- [V2 → V4](/test/fms-api-docs-migrate-v2)\n- [V3 → V4](/test/fms-api-docs-migrate-v3)\n"
+  description: |
+    Fietsenstallingen Management Service REST API (V4).
+
+    Basispad: `/api/fms/v4/...`.
+
+    ## Toegang (authenticatie)
+
+    De API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;
+    endpoints met een slotje vereisen geldige credentials én het juiste recht
+    (`permit`) voor de betreffende stalling.
+
+    Er zijn twee soorten accounts:
+
+    - **Dataleverancier-/operator-credentials** (per stalling/operator) voor de
+      FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*
+      en hebben per stalling een `permit`.
+    - **Gebruikersaccounts** (security_users) voor de datastandaard- en
+      rapportage-API, op basis van de rol van de gebruiker.
+
+    ## Rechten: lezen vs. schrijven
+
+    De FMS REST endpoints hanteren `permit`-niveaus per stalling:
+
+    | Permit | Betekenis |
+    | --- | --- |
+    | `operator` | Alle rechten (lezen én schrijven) |
+    | `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |
+    | `dataprovider.type2` | `managedtransactions` + bezettingsdata |
+
+    - **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,
+      secties, plekken en abonnementsvormen, plus de algemene keuzelijsten
+      (fietstypen, betalingstypen, klanttypen, servertijd).
+    - **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder
+      permit krijgt u een uitgeklede weergave (geen foutmelding).
+    - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.
+    - **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.
+      Uitzonderingen: `managedtransactions` en `occupation` vereisen
+      `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.
+
+    ## Catalogus
+
+    **Catalogus** is naslagdata: u vraagt op *wat er is*, niet om een check-in
+    of andere mutatie te doen.
+
+    - **Algemene catalogus** — keuzelijsten voor de hele dienst, niet gekoppeld
+      aan één stalling: `GET /v4/servertime`, `/v4/biketypes`,
+      `/v4/paymenttypes`, `/v4/clienttypes`.
+      JSON-keys zijn kleine letters (`id`, `name`, `singular`). Eén fietstype
+      ophalen: `GET /v4/biketypes` en filteren op `id` (er is geen
+      `/v4/biketypes/{id}`).
+    - **Stallingscatalogus** — de boom van een gemeente en haar stallingen:
+      `GET /v4/citycodes`, locaties, secties, plekken, abonnementsvormen.
+
+    ## Transacties (v4)
+
+    Stallingstransacties worden uitsluitend via `managedtransactions` aangeleverd.
+    Legacy in/out (`transactions`), `completedtransactions`, fietskluizen-writes,
+    `isAllowedToUse` en koppelpas op plek-niveau geven HTTP 410.
+
+    ## Migratie vanaf v2 of v3
+
+    - [V2 → V4](/test/fms-api-docs-migrate-v2)
+    - [V3 → V4](/test/fms-api-docs-migrate-v3)
   version: 4.0.0
 servers:
 - url: /api/fms
-  description: Next.js API
+  description: FMS REST API v4
 security:
 - basicAuth: []
 paths:
   /v4/servertime:
     get:
-      summary: Server tijd (V4 aux)
+      summary: Server tijd (algemene catalogus)
       tags:
       - V4
       security: []
@@ -45,17 +87,15 @@ paths:
                 format: date-time
   /v4/biketypes:
     get:
-      summary: Alle fietstypen (V4 aux)
+      summary: Alle fietstypen (algemene catalogus)
       tags:
       - V4
       security: []
       responses:
         '200':
           description: >
-            Array van fietstypen (id, name, singular). Legacy-pair is ColdFusion
-            /rest/v3/biketypes, niet V2 /REST/v1/getBikeTypes. Eén type ophalen
-            door te filteren op id (geen aparte /biketypes/{id}; dat was alleen
-            V2 getJsonBikeType).
+            Array van fietstypen (`id`, `name`, `singular`). Eén type ophalen
+            door te filteren op `id` (geen aparte `/biketypes/{id}`).
           content:
             application/json:
               schema:
@@ -71,7 +111,7 @@ paths:
                       type: string
   /v4/paymenttypes:
     get:
-      summary: Betalingstypen (V4 aux)
+      summary: Betalingstypen (algemene catalogus)
       tags:
       - V4
       security: []
@@ -93,11 +133,9 @@ paths:
                       type: string
   /v4/clienttypes:
     get:
-      summary: Klanttypen (V4 aux)
+      summary: Klanttypen (algemene catalogus)
       description: |
-        Catalogus van klanttypen (`id`, `name`). V2 `getJsonClientTypes` had
-        geen V3-twin; ColdFusion `/rest/v3/clienttypes` bestaat niet, dus geen
-        parity-compare.
+        Algemene catalogus van klanttypen (`id`, `name`).
       tags:
       - V4
       security: []
@@ -445,8 +483,8 @@ paths:
     get:
       summary: Geregistreerde fietsen (barcoderegister)
       description: |
-        V2 `getJsonBikes` had geen V3 GET. Geeft `{barcode, biketypeid}` voor de
-        gemeente van de stalling. Vereist operator Basic Auth.
+        Geeft `{barcode, biketypeid}` voor de gemeente van de stalling.
+        Vereist operator Basic Auth.
       tags:
       - V4 Protected
       parameters:
@@ -733,7 +771,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host.
+          description: Fietskluizen-writes zijn verwijderd in v4.
     post:
       summary: Verwijderd in v4 — fietskluizen (updatePost)
       tags:
@@ -745,7 +783,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host.
+          description: Fietskluizen-writes zijn verwijderd in v4.
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/logs:
     post:
       summary: Verwijderd in v4 — fietskluizen (logs)
@@ -758,7 +796,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host.
+          description: Fietskluizen-writes zijn verwijderd in v4.
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/actions:
     post:
       summary: Verwijderd in v4 — fietskluizen (actions)
@@ -771,7 +809,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host.
+          description: Fietskluizen-writes zijn verwijderd in v4.
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}/subscriptions:
     post:
       summary: Verwijderd in v4 — abonnement op kluisplek
@@ -784,7 +822,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen-writes zijn verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host.
+          description: Fietskluizen-writes zijn verwijderd in v4.
   /v4/citycodes/{citycode}/locations:
     get:
       summary: Locaties in gemeente
@@ -809,11 +847,9 @@ paths:
   /v4/citycodes/{citycode}/locationscsv:
     get:
       summary: Locaties in gemeente als CSV-regels
-      description: 'Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1), gescheiden door ";"
-
-        (ColdFusion getLocationsCSV). Object- en array-velden worden overgeslagen.
-
-        '
+      description: |
+        Geeft per locatie één regel met de enkelvoudige veldwaarden (depth=1),
+        gescheiden door ";". Object- en array-velden worden overgeslagen.
       tags:
       - V4
       security: []
@@ -869,7 +905,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Fietskluizen/buurt-toegang via FMS REST is verwijderd in v4. Gebruik v2/v3 op de ColdFusion-host, of Java /v1 voor buurtstallingen.
+          description: Fietskluizen/buurt-toegang via FMS REST is verwijderd in v4.
     post:
       summary: Verwijderd in v4 — koppelpas op kluisplek
       tags:
@@ -881,7 +917,7 @@ paths:
       - $ref: '#/components/parameters/V4Placeid'
       responses:
         '410':
-          description: Place-level koppelpas is verwijderd in v4. Gebruik POST …/locations/{id}/idcodes/… of v2/v3 op de ColdFusion-host.
+          description: Koppelpas op plek-niveau is verwijderd in v4. Gebruik POST …/locations/{id}/idcodes/….
 components:
   securitySchemes:
     basicAuth:
@@ -949,7 +985,7 @@ components:
           type: string
     PlaceSummary:
       type: object
-      description: ColdFusion BaseRestService.getPlace (publieke velden).
+      description: Publieke velden van een plek.
       properties:
         id:
           type: integer
@@ -984,7 +1020,7 @@ components:
           type: string
     V2SubscriptionType:
       type: object
-      description: ColdFusion proxy.SubscriptionType (v2 getJsonSubscriptionTypes)
+      description: Abonnementsvorm zoals in v2 `getJsonSubscriptionTypes`.
       properties:
         subscriptionTypeID:
           type: integer
