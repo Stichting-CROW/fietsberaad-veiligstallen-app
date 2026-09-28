@@ -3,7 +3,10 @@ import { prisma } from "~/server/db";
 import { parseStreetParts } from "~/utils/address";
 import { parseLatLng } from "~/utils/map/coordinates";
 import { titleToSlug } from "~/utils/slug";
-import { ALLOWED_STALLINGTYPE_NAMES_GOOGLE } from "~/pages/api/stalling-export-types";
+import {
+  ALLOWED_STALLINGTYPE_NAMES_GOOGLE,
+  getDatakwaliteitControleCutoffDate,
+} from "~/pages/api/stalling-export-types";
 
 type GooglePoiRow = {
   ID: string;
@@ -132,6 +135,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       tariefcodes.map((t) => [t.ID, t.Omschrijving ?? ""])
     );
 
+    const controleCutoff = getDatakwaliteitControleCutoffDate();
+
     const parkings = await prisma.fietsenstallingen.findMany({
       where: {
         Coordinaten: { not: null },
@@ -140,6 +145,15 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           is: {
             name: {
               in: [...ALLOWED_STALLINGTYPE_NAMES_GOOGLE],
+            },
+          },
+        },
+        contacts_fietsenstallingen_SiteIDTocontacts: {
+          is: {
+            contacts_datakwaliteitcontroles: {
+              some: {
+                createdAt: { gte: controleCutoff },
+              },
             },
           },
         },

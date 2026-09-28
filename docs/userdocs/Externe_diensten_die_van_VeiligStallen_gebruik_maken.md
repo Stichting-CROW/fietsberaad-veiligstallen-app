@@ -26,6 +26,8 @@ CROW heeft zich aangemeld bij het Google Maps Partner Program om data eenvoudig 
 
 - `https://beta.veiligstallen.nl/api/google/fietsenstallingen?format=google_poi`
 
+Alleen stallingen waarvan de data-eigenaar (SiteID) in de afgelopen 24 maanden een datakwaliteit-controle heeft uitgevoerd, worden opgenomen. Hetzelfde geldt voor de OSM-export (`/api/osm/fietsenstallingen`).
+
 en bevat de volgende velden:
 
 - `ID` (unieke interne ID van de stalling)
