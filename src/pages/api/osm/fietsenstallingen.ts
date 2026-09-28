@@ -3,7 +3,10 @@ import { prisma } from "~/server/db";
 import { parseStreetParts } from "~/utils/address";
 import { parseLatLng } from "~/utils/map/coordinates";
 import { titleToSlug } from "~/utils/slug";
-import { EXCLUDED_STALLINGTYPE_NAMES_OSM } from "~/pages/api/stalling-export-types";
+import {
+  EXCLUDED_STALLINGTYPE_NAMES_OSM,
+  getDatakwaliteitControleCutoffDate,
+} from "~/pages/api/stalling-export-types";
 
 type OSMFeature = {
   type: "Feature";
@@ -160,6 +163,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       tariefcodes.map((t) => [t.ID, t.Omschrijving ?? ""])
     );
 
+    const controleCutoff = getDatakwaliteitControleCutoffDate();
+
     const parkings = await prisma.fietsenstallingen.findMany({
       where: {
         Coordinaten: { not: null },
@@ -167,15 +172,16 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         fietsenstalling_type: {
           is: { name: { notIn: [...EXCLUDED_STALLINGTYPE_NAMES_OSM] } },
         },
-        ...(cbsCodeFilter !== undefined
-          ? {
-              contacts_fietsenstallingen_SiteIDTocontacts: {
-                is: {
-                  Gemeentecode: cbsCodeFilter,
-                },
+        contacts_fietsenstallingen_SiteIDTocontacts: {
+          is: {
+            ...(cbsCodeFilter !== undefined ? { Gemeentecode: cbsCodeFilter } : {}),
+            contacts_datakwaliteitcontroles: {
+              some: {
+                createdAt: { gte: controleCutoff },
               },
-            }
-          : {}),
+            },
+          },
+        },
         NOT: [
           { Coordinaten: "" },
           { Title: { contains: "Systeemstalling" } },
@@ -231,7 +237,10 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const lastControles = dataOwnerIds.length > 0
       ? await prisma.contacts_datakwaliteitcontroles.groupBy({
           by: ["contact_id"],
-          where: { contact_id: { in: dataOwnerIds } },
+          where: {
+            contact_id: { in: dataOwnerIds },
+            createdAt: { gte: controleCutoff },
+          },
           _max: { createdAt: true },
         })
       : [];
