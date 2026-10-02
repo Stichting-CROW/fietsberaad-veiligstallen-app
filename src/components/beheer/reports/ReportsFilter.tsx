@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import { FiBarChart2 } from "react-icons/fi";
+import { LuTable } from "react-icons/lu";
 import BikeparkSelect from './BikeparkSelect';
 import {
   getStartEndDT,
@@ -68,6 +70,8 @@ export const reportGroupingValues = [
 
 export type ReportRangeUnit = "range_all" | "range_year" | "range_month" | "range_quarter" | "range_week" | "range_custom"
 export const reportRangeUnitValues = ["range_all", "range_year", "range_month", "range_quarter", "range_week", "range_custom"]
+
+export type ReportResultView = "chart" | "table";
 // export type ReportUnit = "reportUnit_day" | "reportUnit_weekDay" | "reportUnit_week" | "range_month" | "reportUnit_quarter" | "reportUnit_year" // | "reportUnit_onequarter" | "reportUnit_oneyear"
 
 export type ReportBikepark = VSFietsenstallingLijst
@@ -141,6 +145,8 @@ interface ReportsFilterComponentProps {
   activeReportType?: ReportType;
   onStateChange: (newState: ReportState) => void;
   initialFilterState?: Partial<ReportState>;
+  resultView?: ReportResultView;
+  onResultViewChange?: (view: ReportResultView) => void;
 }
 
 export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
@@ -195,7 +201,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   showDetails = true,
   activeReportType,
   onStateChange,
-  initialFilterState
+  initialFilterState,
+  resultView = "chart",
+  onResultViewChange,
 }, ref) => {
   const selectClasses = "min-w-56 h-10 p-2 border-2 border-gray-300 rounded-md";
 
@@ -1109,6 +1117,43 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
               <option value="FMS">FMS</option>
               <option value="Lumiguide">Lumiguide</option>
             </select>
+          </div>
+        )}
+
+        {onResultViewChange && reportType !== "downloads" && (
+          <div
+            className="inline-flex h-10 rounded-md border border-gray-300 bg-white shadow-sm"
+            role="group"
+            aria-label="Weergave"
+          >
+            <button
+              type="button"
+              title="Grafiek"
+              aria-label="Grafiek"
+              aria-pressed={resultView === "chart"}
+              onClick={() => onResultViewChange("chart")}
+              className={`flex items-center justify-center px-3 rounded-l-md border-r border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:z-10 ${
+                resultView === "chart"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <FiBarChart2 className="h-5 w-5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              title="Tabel"
+              aria-label="Tabel"
+              aria-pressed={resultView === "table"}
+              onClick={() => onResultViewChange("table")}
+              className={`flex items-center justify-center px-3 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:z-10 ${
+                resultView === "table"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <LuTable className="h-5 w-5" aria-hidden />
+            </button>
           </div>
         )}
       </div>
