@@ -214,9 +214,9 @@ const ReportPage: React.FC<ReportPageProps> = () => {
         selectedOrganisatieID={selectedContactID}
         onOrganisatieSelect={handleSelectGemeente}
       />
-      <div className="flex">
+      <div className="flex min-h-0 flex-1">
         {leftMenuElement}
-        <div className="flex-1 overflow-auto px-5 py-6 lg:px-10 lg:py-8" style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-6 lg:px-10 lg:py-8">
           <ReportComponent
             showAbonnementenRapporten={showAbonnementenRapporten}
             firstDate={firstDate}
