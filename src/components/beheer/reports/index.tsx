@@ -6,6 +6,7 @@ import ReportsFilterComponent, {
   type ReportType,
   type PeriodPreset,
   type ReportsFilterHandle,
+  type ReportResultView,
   getAvailableReports
 } from "./ReportsFilter";
 import { type SeriesLabel } from "./WeekdaySelect";
@@ -19,6 +20,7 @@ import type { VSUserSecurityProfile } from "~/types/securityprofile";
 import type { VSContactGemeente } from "~/types/contacts";
 
 import Chart from './Chart';
+import ReportSeriesTable from './ReportSeriesTable';
 import PeriodSelector from "./PeriodSelector";
 import { useSession } from "next-auth/react";
 import { getXAxisFormatter, getTooltipFormatter } from "~/backend/services/reports/ReportAxisFunctions";
@@ -158,6 +160,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     [showAbonnementenRapporten]
   );
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
+  const [resultView, setResultView] = useState<ReportResultView>("chart");
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
 
   const selectedReportTitle = React.useMemo(() => {
@@ -418,7 +421,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   };
 
   return (
-    <div className="noPrint w-full h-full flex flex-col container mx-auto" id="ReportComponent">
+    <div className="noPrint flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
       <div className="flex w-full mb-4">
         {selectedReportType && (
           <div className="flex-1 mb-4">
@@ -437,9 +440,9 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
           />
         </div>
       </div>
-      <div className="flex w-full flex-1 flex-col">
-        <div className="flex-1 overflow-y-auto p-2 md:p-6 bg-white rounded-md border border-gray-300">
-          <div className="flex flex-col space-y-2 h-full">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-md border border-gray-300 bg-white p-2 md:p-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-2">
 
             {/* <div className="flex-none">
               <GemeenteFilter
@@ -461,6 +464,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 bikeparks={bikeparksWithData}
                 activeReportType={selectedReportType}
                 onStateChange={handleFilterChange}
+                resultView={resultView}
+                onResultViewChange={setResultView}
               />
             </div>
 
@@ -470,15 +475,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
             </div>
 
             {loading ? (
-              <div className="flex-grow flex items-center justify-center">
+              <div className="flex min-h-0 flex-1 items-center justify-center">
                 <div className="spinner">
                   <div className="loader"></div>
                 </div>
               </div>
             ) : (
-              <div className="flex-grow min-h-0">
+              <div className="relative min-h-0 flex-1 overflow-hidden">
                 {reportData ? (
-                  <div className="w-full h-full">
+                  <div className={resultView === "chart" ? "absolute inset-0" : "absolute inset-0 overflow-x-hidden overflow-y-auto"}>
                     {(() => {
                         const shouldRenderAbsoluteBezettingChart = (() => {
                           if (filterState?.reportType !== "absolute_bezetting") return true;
@@ -537,7 +542,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                               }
                             };
 
+                        const categories =
+                          reportData.options?.xaxis?.categories ?? [];
+
                         return (
+                          <>
+                          {resultView === "chart" ? (
                           <Chart
                             type={filterState?.reportType === 'stallingsduur' ? 'bar' : "line"}
                             options={{
@@ -677,6 +687,15 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                             }}
                             series={filteredSeries}
                           />
+                          ) : (
+                          <ReportSeriesTable
+                            series={filteredSeries}
+                            categories={categories}
+                            reportCategories={filterState?.reportCategories}
+                            csvFilename={`${moment().format('YYYY-MM-DD HH_mm')} VeiligStallen ${filterState?.reportType}`}
+                          />
+                          )}
+                          </>
                         );
                       })()}
                   </div>

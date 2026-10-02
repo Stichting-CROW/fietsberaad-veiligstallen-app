@@ -199,3 +199,49 @@ body, #__next, #__next > main {
     transform: rotate(360deg);
   }
 }
+
+/* Report data table (parity with FMS TBL_data / print_reports.css) */
+.TBL_data {
+  border: 1px solid #aaa;
+}
+
+.TBL_data th {
+  padding: 2px 5px;
+  color: #fff;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-align: left;
+  background-color: #aaa;
+}
+
+.TBL_data td {
+  margin: 0;
+  padding: 2px 5px;
+}
+
+.TBL_data td._label {
+  background-color: #dedede;
+  font-weight: bold;
+}
+
+.TBL_data.TBL_reports td._label {
+  width: auto;
+}
+
+.TBL_data td.data {
+  background-color: #efefef;
+}
+
+.TBL_data td.numeric {
+  text-align: right;
+}
+
+.TBL_data td.line_single {
+  margin: 0;
+  padding: 1px;
+  border-bottom: 1px solid #b2b2b2;
+}
+
+.TBL_data td.lineRight {
+  border-right: 1px solid #1f99d2;
+}
