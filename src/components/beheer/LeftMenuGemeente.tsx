@@ -21,6 +21,7 @@ interface LeftMenuGemeenteProps {
   onSelect: (component: VSMenuTopic) => void;
   hasAbonnementenModule: boolean;
   hasFmsModule: boolean;
+  hasBuurtstallingenModule: boolean;
 }
 
 import { LeftMenuItem } from './LeftMenuCommon';
@@ -31,6 +32,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   onSelect,
   hasAbonnementenModule,
   hasFmsModule,
+  hasBuurtstallingenModule,
 }) => {
   const router = useRouter();
   const isOnReportPage = router.pathname.startsWith('/beheer/report');
@@ -46,6 +48,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
   const hasFmsServices = userHasRight(securityProfile, VSSecurityTopic.fmsservices);
+  const hasBuurtstallingen = userHasRight(securityProfile, VSSecurityTopic.buurtstallingen_beheer);
 
   const handleReportClick = () => {
     router.push('/beheer/report/afgeronde-transacties');
@@ -103,10 +106,30 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
+        {hasBuurtstallingen && hasBuurtstallingenModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Buurtstallingen}
+            title={'Buurtstallingen / fietstrommels'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiMapPin}
+          />
+        )}
+
         {hasAbonnementsvormen && hasAbonnementenModule && (
           <LeftMenuItem
             component={VSMenuTopic.Abonnementsvormen}
             title={'Abonnementsvormen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiFileText}
+          />
+        )}
+
+        {hasAbonnementsvormen && (hasAbonnementenModule || hasBuurtstallingenModule) && (
+          <LeftMenuItem
+            component={VSMenuTopic.Documents}
+            title={'Documenten'}
             activecomponent={activecomponent}
             onSelect={onSelect}
             icon={FiFileText}
@@ -176,6 +199,13 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
                       </li>
                     );
                   })}
+                  {hasBuurtstallingen && hasBuurtstallingenModule && (
+                    <li>
+                      <a className="font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100" href="/api/protected/buurtstallingen?export=maand">
+                        Maandrapport buurtstallingen
+                      </a>
+                    </li>
+                  )}
                 </ul>
               )}
             </LeftMenuItem>

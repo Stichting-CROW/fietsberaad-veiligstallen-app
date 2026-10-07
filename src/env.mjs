@@ -23,6 +23,12 @@ const server = z.object({
   FMS_TEST_PASS: z.string().min(1).optional(),
   /** FMS v2/v3 mutations: set true / 1 / yes on acceptance or local; omit on production */
   ENABLE_WRITE_API: z.string().optional(),
+  /** Comma-separated SiteIDs whose buurtstallingen writes run in this app, or * */
+  BUURTSTALLINGEN_ENGINE_SITE_IDS: z.string().optional(),
+  BUURTSTALLINGEN_JOB_TOKEN: z.string().optional(),
+  BUURTSTALLINGEN_OPS_EMAIL: z.string().email().optional(),
+  /** Playwright writes skipped and sent buurtstallingen mail as JSON lines to this path. */
+  BUURTSTALLINGEN_MAIL_CAPTURE: z.string().optional(),
 });
 
 /**
@@ -62,6 +68,10 @@ const processEnv = {
   FMS_TEST_USER: process.env.FMS_TEST_USER,
   FMS_TEST_PASS: process.env.FMS_TEST_PASS,
   ENABLE_WRITE_API: process.env.ENABLE_WRITE_API,
+  BUURTSTALLINGEN_ENGINE_SITE_IDS: process.env.BUURTSTALLINGEN_ENGINE_SITE_IDS,
+  BUURTSTALLINGEN_JOB_TOKEN: process.env.BUURTSTALLINGEN_JOB_TOKEN,
+  BUURTSTALLINGEN_OPS_EMAIL: process.env.BUURTSTALLINGEN_OPS_EMAIL,
+  BUURTSTALLINGEN_MAIL_CAPTURE: process.env.BUURTSTALLINGEN_MAIL_CAPTURE,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 

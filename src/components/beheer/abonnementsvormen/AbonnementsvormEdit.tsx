@@ -145,6 +145,11 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
       setError('Selecteer minimaal één fietstype');
       return;
     }
+    const slotType = bikeparkTypeID === 'buurtstalling' || bikeparkTypeID === 'fietstrommel';
+    if (slotType && (!contractID || !paymentAuthorizationID)) {
+      setError('Voor een buurtstalling of fietstrommel zijn een contract en een machtiging verplicht');
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -159,18 +164,15 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
         prijs: Number(prijs),
         bikeparkTypeID,
         exploitantSiteID,
-        idmiddelen: idmiddelen,
+        idmiddelen: slotType ? 'sleutelhanger' : idmiddelen,
         isActief,
         conditionsID: conditionsID || null,
+        contractID: contractID || null,
+        paymentAuthorizationID: paymentAuthorizationID || null,
       };
 
-      // Only include biketypeIDs for new records
       if (isNew) {
         body.biketypeIDs = selectedBiketypeIDs;
-      } else {
-        // Only include contractID and paymentAuthorizationID when editing
-        body.contractID = contractID || null;
-        body.paymentAuthorizationID = paymentAuthorizationID || null;
       }
 
       const response = await fetch(url, {
@@ -284,7 +286,11 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
             <label className="block text-sm font-medium mb-1">Stallingstype:</label>
             <select
               value={bikeparkTypeID}
-              onChange={(e) => setBikeparkTypeID(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setBikeparkTypeID(next);
+                if (next === 'buurtstalling' || next === 'fietstrommel') setIdmiddelen('sleutelhanger');
+              }}
               className="w-full px-3 py-2 border rounded-md"
               disabled={!isNew}
               required
@@ -334,7 +340,7 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
           {/* ID-middel */}
           <div>
             <label className="block text-sm font-medium mb-1">ID-middel:</label>
-            {isNew ? (
+            {isNew && !isBuurtstallingType ? (
               <div className="flex space-x-4">
                 <label className="flex items-center">
                   <input

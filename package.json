@@ -16,6 +16,9 @@
     "dev:turbo": "npm run docs:api && next dev --turbo",
     "postinstall": "prisma generate",
     "lint": "eslint .",
+    "test:buurtstallingen": "tsx --test src/modules/buurtstallingen/domain/*.test.ts",
+    "test:engine-parity": "tsx e2e/engine-parity/compare.ts",
+    "test:e2e:buurtstallingen": "playwright test",
     "start": "next start",
     "migrate-db": "curl -X POST http://localhost:3000/api/protected/database/migrate",
     "migrate-db:acceptance": "curl -X POST https://vstfb-eu-acc-app01.azurewebsites.net/api/protected/database/migrate",
@@ -88,6 +91,7 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@prisma-korea/prisma-generator-proto": "^2.3.2",
     "@prisma/client": "^6.19.0",
     "@types/bcryptjs": "^2.4.6",
