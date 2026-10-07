@@ -12,6 +12,8 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 // TODO: convert these types to the types in the types/parking.tsx file
 import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
 import { generateUniqueSectionExternalId } from "~/server/services/section-external-id";
+import { assertStallingDeletable } from "~/modules/buurtstallingen/application/service";
+import { DomainError } from "~/modules/buurtstallingen/domain/types";
 
 export type FietsenstallingResponse = {
   data?: ParkingDetailsType;
@@ -614,6 +616,15 @@ export default async function handle(
         if (!stalling) {
           res.status(404).json({ error: "Stalling not found" });
           return;
+        }
+        try {
+          await assertStallingDeletable(stalling.ID);
+        } catch (error) {
+          if (error instanceof DomainError) {
+            res.status(400).json({ error: error.message });
+            return;
+          }
+          throw error;
         }
         const sectieIds = stalling.fietsenstalling_secties.map((s) => s.sectieId);
 

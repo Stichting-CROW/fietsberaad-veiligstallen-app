@@ -1,0 +1,26 @@
+# Throwaway MySQL for the Java WAR. Do not point this at the test, acceptance, or production database.
+services:
+  mysql:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: parity
+      MYSQL_DATABASE: bikepark
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+  mail:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "mailcatcher.mjs"]
+    volumes:
+      - ./mailcatcher.mjs:/app/mailcatcher.mjs:ro
+    ports:
+      - "8081:8081"
+  war:
+    image: buurtstallingen-war
+    depends_on:
+      - mysql
+      - mail
+    ports:
+      - "8088:8080"

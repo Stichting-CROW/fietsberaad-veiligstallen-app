@@ -31,6 +31,7 @@ export enum VSSecurityTopic {
   "rapportages" = "rapportages",
   "fmsservices" = "fmsservices",
   "wachtrij" = "wachtrij",
+  "buurtstallingen_beheer" = "buurtstallingen_beheer",
 }
 
 export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, description: string }[] = [

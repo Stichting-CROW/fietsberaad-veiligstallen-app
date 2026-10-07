@@ -147,6 +147,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
     exploitanten: exploitanten || [],
     onSelect: handleReportPageSelect,
     hasAbonnementenModule: true,
+    hasBuurtstallingenModule: true,
   });
 
   if (!hasRapportages) {

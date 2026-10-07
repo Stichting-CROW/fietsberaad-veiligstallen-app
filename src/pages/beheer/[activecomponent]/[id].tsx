@@ -25,6 +25,7 @@ import FaqComponent from '~/components/beheer/faq';
 import HomeInfoComponent from '~/components/beheer/home';
 import LogboekComponent from '~/components/beheer/logboek';
 import FietsenstallingenComponent from '~/components/beheer/fietsenstallingen';
+import BuurtstallingenComponent from '~/components/beheer/buurtstallingen';
 // import PresentationsComponent from '~/components/beheer/presentations';
 // import ProductsComponent from '~/components/beheer/producten';
 import ReportComponent from '~/components/beheer/reports';
@@ -163,6 +164,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const showAbonnementenRapporten = true;
   const [hasAbonnementenModule, setHasAbonnementenModule] = useState(false);
   const [hasFmsModule, setHasFmsModule] = useState(false);
+  const [hasBuurtstallingenModule, setHasBuurtstallingenModule] = useState(false);
 
   const firstDate = new Date("2018-03-01");
 
@@ -258,12 +260,14 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       if (!selectedContactID) {
         setHasAbonnementenModule(false);
         setHasFmsModule(false);
+        setHasBuurtstallingenModule(false);
         return;
       }
 
       if (selectedContactID === "1") {
         setHasAbonnementenModule(true);
         setHasFmsModule(true);
+        setHasBuurtstallingenModule(false);
         return;
       }
 
@@ -278,12 +282,14 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
           setHasFmsModule(modules.some(module => module.ModuleID === "fms"));
+          setHasBuurtstallingenModule(modules.some(module => module.ModuleID === "buurtstallingen"));
         }
       } catch (error) {
         if (!cancelled) {
           console.error("Error fetching modules for contact:", error);
           setHasAbonnementenModule(false);
           setHasFmsModule(false);
+          setHasBuurtstallingenModule(false);
         }
       }
     };
@@ -314,6 +320,8 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       const hasAbonnementsvormenAccess = hasAbonnementsvormenRights && hasAbonnementenModule;
       const hasFmsServices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
       const hasFmsPermitsAccess = hasFmsServices && hasFmsModule && selectedContactID !== "1";
+      const hasBuurtstallingenAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.buurtstallingen_beheer) && hasBuurtstallingenModule;
+      const hasDocumentenAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht) && (hasAbonnementenModule || hasBuurtstallingenModule);
       const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
       
       switch (activecomponent) {
@@ -410,7 +418,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Documents:
-          selectedComponent = <DocumentsComponent />;
+          selectedComponent = hasDocumentenAccess ? <DocumentsComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.ContactsGemeenten:
         case VSMenuTopic.Contactpersonen:
@@ -473,11 +481,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Buurtstallingen:
-          if (!hasFietsenstallingenAccess) {
-            selectedComponent = <AccessDenied />;
-          } else {
-            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
-          }
+          selectedComponent = hasBuurtstallingenAccess ? <BuurtstallingenComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.BarcodereeksenSleutelhangers: {
           const hasBarcodeAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
@@ -571,6 +575,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     onSelect: (componentKey: VSMenuTopic) => handleSelectComponent(componentKey),
     hasAbonnementenModule,
     hasFmsModule,
+    hasBuurtstallingenModule,
   });
 
   return (
