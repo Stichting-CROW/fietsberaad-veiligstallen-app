@@ -3,30 +3,33 @@ import { memoFetch } from "./memo";
 
 const FIETSWIN_TYPES = new Set(["Prijzenpot", "Winkansen"]);
 
+const STALLING_SLIDE_TYPES = new Set(["Bikepark", "Openingstijden", "Verwijssysteem"]);
+
+/** First active stalling for gemeente-level URLs without bikeparkID (e.g. diashow preview). */
+export async function resolvePresentationBikeparkId(
+  siteId: string,
+  bikeparkId?: string
+): Promise<string | undefined> {
+  if (bikeparkId) return bikeparkId;
+  const row = await prisma.fietsenstallingen.findFirst({
+    where: { SiteID: siteId, Status: "1" },
+    orderBy: { Title: "asc" },
+    select: { ID: true },
+  });
+  return row?.ID;
+}
+
 export async function getActivePresentations(siteId: string, bikeparkId?: string) {
   const slides = await prisma.presentations.findMany({
     where: { SiteID: siteId, Status: "1" },
     orderBy: { SortOrder: "asc" },
   });
 
-  let filtered = slides.filter((s) => !FIETSWIN_TYPES.has(s.ContentType ?? ""));
+  return slides.filter((s) => !FIETSWIN_TYPES.has(s.ContentType ?? ""));
+}
 
-  if (bikeparkId) {
-    const bikepark = await prisma.fietsenstallingen.findUnique({
-      where: { ID: bikeparkId },
-      select: { dia: true },
-    });
-    filtered = filtered.filter((s) => {
-      if (s.ContentType !== "Bikepark") return true;
-      return (bikepark?.dia?.length ?? 0) > 0;
-    });
-  } else {
-    filtered = filtered.filter(
-      (s) => s.ContentType !== "Bikepark" && s.ContentType !== "Openingstijden"
-    );
-  }
-
-  return filtered;
+export function presentationSlideNeedsBikepark(contentType: string | null | undefined): boolean {
+  return STALLING_SLIDE_TYPES.has(contentType ?? "");
 }
 
 export async function getPresentationBundle(siteId: string) {

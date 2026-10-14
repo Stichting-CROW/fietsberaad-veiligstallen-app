@@ -3,6 +3,7 @@ import React from 'react';
 import { useRouter } from 'next/router';
 import {
   FiBriefcase,
+  FiCalendar,
   FiCheckSquare,
   FiClock,
   FiDownload,
@@ -280,6 +281,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                     activecomponent={activecomponent}
                     onSelect={onSelect}
                     icon={FiShield}
+                  />
+                  <LeftMenuItem
+                    component={VSMenuTopic.DatabaseBulkreserveringen}
+                    title={'Bulkreserveringen'}
+                    compact={true}
+                    activecomponent={activecomponent}
+                    onSelect={onSelect}
+                    icon={FiCalendar}
                   />
                 </>
               )}

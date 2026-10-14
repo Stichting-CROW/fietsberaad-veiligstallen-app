@@ -23,6 +23,7 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 import ParkingEditAbonnementen from "~/components/parking/ParkingEditAbonnementen";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import SectiesManagementNew from "~/components/parking/SectiesManagementNew";
+import ParkingBulkReserveringen from "~/components/parking/ParkingBulkReserveringen";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
   type OpeningChangedType,
@@ -1512,8 +1513,16 @@ const ParkingEdit = ({
     );
   };
 
+  const showBulkReservationsPanel =
+    hasFmsModule &&
+    !isVoorstel &&
+    parkingdata.Type !== "fietskluizen" &&
+    parkingdata.Type !== "buurtstalling" &&
+    parkingdata.Type !== "fietstrommel";
+
   const renderTabCapaciteit = (visible = false) => {
     const canEditVerwijssysteemFlags = hasFietsberaadSuperadmin || canEditAllFields;
+    const canEditBulk = canEditAllFields || canEditLimitedFields;
     return (
       <div
         className="mt-10 flex w-full flex-col gap-8"
@@ -1533,6 +1542,12 @@ const ParkingEdit = ({
             setNewBronBezettingsdata={setNewBronBezettingsdata}
             newDia={newDia}
             setNewDia={setNewDia}
+          />
+        )}
+        {showBulkReservationsPanel && hasID && (
+          <ParkingBulkReserveringen
+            fietsenstallingId={parkingdata.ID}
+            canEdit={canEditBulk}
           />
         )}
         <SectiesManagementNew

@@ -32,6 +32,8 @@ const PresentationsComponent: React.FC = () => {
   const [showSlideForm, setShowSlideForm] = useState(false);
   const [form, setForm] = useState<Partial<Slide>>({ ContentType: "Article", Duration: 10, Status: "1" });
   const [tickerItem, setTickerItem] = useState("");
+  const [previewStallingId, setPreviewStallingId] = useState("");
+  const [stallingen, setStallingen] = useState<{ id: string; title: string }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +49,23 @@ const PresentationsComponent: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const siteId = session?.user?.activeContactId;
+
+  useEffect(() => {
+    if (!siteId) {
+      setStallingen([]);
+      setPreviewStallingId("");
+      return;
+    }
+    void fetch(`/api/protected/fietsenstallingencompact?GemeenteID=${encodeURIComponent(siteId)}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const list = (json.data ?? []) as { ID: string; Title: string | null }[];
+        setStallingen(list.map((s) => ({ id: s.ID, title: s.Title ?? s.ID })));
+      })
+      .catch(() => setStallingen([]));
+  }, [siteId]);
 
   if (!canEdit) {
     return <Typography>Geen rechten voor Diashow.</Typography>;
@@ -85,9 +104,14 @@ const PresentationsComponent: React.FC = () => {
     await load();
   };
 
-  const siteId = session?.user?.activeContactId;
+  const previewStalling = stallingen.find((s) => s.id === previewStallingId) ?? null;
   const previewUrl = siteId
-    ? buildDisplayUrls({ kind: "presentaties-frame", siteId, urlName: "preview" }).previewUrl
+    ? buildDisplayUrls({
+        kind: "presentaties-frame",
+        siteId,
+        urlName: "preview",
+        stalling: previewStalling ? { id: previewStalling.id, stallingsID: null, title: previewStalling.title } : null,
+      }).previewUrl
     : "#";
 
   return (
@@ -95,9 +119,32 @@ const PresentationsComponent: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         Diashow
       </Typography>
-      <Button href={previewUrl} target="_blank" rel="noreferrer" sx={{ mb: 2 }}>
-        Preview presentatie
-      </Button>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", mb: 2 }}>
+        {stallingen.length > 0 && (
+          <TextField
+            select
+            size="small"
+            label="Preview stalling"
+            value={previewStallingId}
+            onChange={(e) => setPreviewStallingId(e.target.value)}
+            sx={{ minWidth: 280 }}
+          >
+            <MenuItem value="">Eerste stalling (standaard)</MenuItem>
+            {stallingen.map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.title}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+        <Button href={previewUrl} target="_blank" rel="noreferrer">
+          Preview presentatie
+        </Button>
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Dia&apos;s van het type Openingstijden, Bikepark en Verwijssysteem tonen gegevens van een stalling. Op
+        stallingsschermen staat <code>bikeparkID</code> in de URL; in preview kunt u hier een stalling kiezen.
+      </Typography>
       <Tabs value={tab} onChange={(_, v) => setTab(v)}>
         <Tab label="Dia's" />
         <Tab label="Lichtkrant" />
@@ -160,6 +207,14 @@ const PresentationsComponent: React.FC = () => {
               )}
               {form.ContentType === "RSS" && (
                 <TextField label="RSS URL" value={form.RSS ?? ""} onChange={(e) => setForm({ ...form, RSS: e.target.value })} />
+              )}
+              {(form.ContentType === "Bikepark" ||
+                form.ContentType === "Openingstijden" ||
+                form.ContentType === "Verwijssysteem") && (
+                <Typography variant="body2" color="text.secondary">
+                  De inhoud komt uit de gekozen stalling (veld &quot;Dia&quot; / openingstijden / verwijssysteem op de
+                  stalling). Zonder <code>bikeparkID</code> in de URL wordt de eerste stalling alfabetisch gebruikt.
+                </Typography>
               )}
               <TextField
                 type="number"
