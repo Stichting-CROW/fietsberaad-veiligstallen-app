@@ -17,6 +17,8 @@
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "test:buurtstallingen": "tsx --test src/modules/buurtstallingen/domain/*.test.ts",
+    "test:display": "npx tsx --test src/server/display/display-rules.test.ts",
+    "test:e2e:displays": "playwright test --project=displays",
     "test:engine-parity": "tsx e2e/engine-parity/compare.ts",
     "test:e2e:buurtstallingen": "playwright test",
     "start": "next start",

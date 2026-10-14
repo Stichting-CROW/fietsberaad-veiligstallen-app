@@ -14,6 +14,7 @@ import {
   FiMail,
   FiMap,
   FiLink,
+  FiMonitor,
   FiMapPin,
   FiServer,
   FiSettings,
@@ -240,6 +241,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiLink}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Stallingsschermen}
+                title="Stallingsschermen"
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiMonitor}
               />
             </>
           </LeftMenuItem>

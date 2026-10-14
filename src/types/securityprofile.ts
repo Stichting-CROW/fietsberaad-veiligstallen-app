@@ -32,6 +32,7 @@ export enum VSSecurityTopic {
   "fmsservices" = "fmsservices",
   "wachtrij" = "wachtrij",
   "buurtstallingen_beheer" = "buurtstallingen_beheer",
+  "diashow_beheer" = "diashow_beheer",
 }
 
 export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, description: string }[] = [
@@ -199,6 +200,13 @@ export const SECURITY_TOPIC_INFO: { topic: VSSecurityTopic, name: string, descri
     description: [
       "Wachtrij voor betalingen, pasids, transacties en sync bekijken",
     ].join(",")
+  },
+  {
+    topic: VSSecurityTopic.diashow_beheer,
+    name: "Diashow (presentaties)",
+    description: [
+      "Dia's en lichtkrant voor gemeente-presentaties beheren",
+    ].join(","),
   },
 
 ]

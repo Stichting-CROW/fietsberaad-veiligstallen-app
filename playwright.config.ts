@@ -38,6 +38,11 @@ export default defineConfig({
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
+      name: "displays",
+      testDir: "e2e/displays",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       name: "harness",
       testMatch: /harness\.spec\.ts/,
       dependencies: ["setup"],

@@ -25,6 +25,7 @@ export type SectieDetailsType = {
   fietsenstallingsId: string | null;
   qualificatie: string | null;
   isactief: boolean;
+  NotaVerwijssysteem: string | null;
   secties_fietstype: SectieFietstypeType[];
 };
 
@@ -38,6 +39,7 @@ export const selectSectieDetailsType = {
   fietsenstallingsId: true,
   isactief: true,
   qualificatie: true,
+  NotaVerwijssysteem: true,
   secties_fietstype: {
     select: {
       SectionBiketypeID: true,

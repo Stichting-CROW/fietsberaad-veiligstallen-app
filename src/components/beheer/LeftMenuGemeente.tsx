@@ -49,6 +49,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
   const hasFmsServices = userHasRight(securityProfile, VSSecurityTopic.fmsservices);
   const hasBuurtstallingen = userHasRight(securityProfile, VSSecurityTopic.buurtstallingen_beheer);
+  const hasDiashow = userHasRight(securityProfile, VSSecurityTopic.diashow_beheer);
 
   const handleReportClick = () => {
     router.push('/beheer/report/afgeronde-transacties');
@@ -191,6 +192,17 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
             activecomponent={activecomponent}
             onSelect={onSelect}
             icon={FiHelpCircle}
+          />
+        )}
+
+        {hasDiashow && hasFmsModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Presentations}
+            title="Diashow"
+            compact={true}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiFileText}
           />
         )}
 
