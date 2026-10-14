@@ -29,6 +29,8 @@ const server = z.object({
   BUURTSTALLINGEN_OPS_EMAIL: z.string().email().optional(),
   /** Playwright writes skipped and sent buurtstallingen mail as JSON lines to this path. */
   BUURTSTALLINGEN_MAIL_CAPTURE: z.string().optional(),
+  /** Production privacy retention writes. Omit until the rehearsal is signed off. */
+  PRIVACY_RETENTION_WRITES: z.string().optional(),
 });
 
 /**
@@ -72,6 +74,7 @@ const processEnv = {
   BUURTSTALLINGEN_JOB_TOKEN: process.env.BUURTSTALLINGEN_JOB_TOKEN,
   BUURTSTALLINGEN_OPS_EMAIL: process.env.BUURTSTALLINGEN_OPS_EMAIL,
   BUURTSTALLINGEN_MAIL_CAPTURE: process.env.BUURTSTALLINGEN_MAIL_CAPTURE,
+  PRIVACY_RETENTION_WRITES: process.env.PRIVACY_RETENTION_WRITES,
   // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 };
 

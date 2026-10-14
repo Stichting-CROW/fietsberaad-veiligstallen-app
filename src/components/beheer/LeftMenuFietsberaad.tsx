@@ -18,6 +18,7 @@ import {
   FiMapPin,
   FiServer,
   FiSettings,
+  FiShield,
   FiTag,
   FiUsers,
 } from 'react-icons/fi';
@@ -263,14 +264,24 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           >
             <>
               {hasFietsberaadSuperadmin && (
-                <LeftMenuItem
-                  component={VSMenuTopic.Database}
-                  title={'Beheer'}
-                  compact={true}
-                  activecomponent={activecomponent}
-                  onSelect={onSelect}
-                  icon={FiSettings}
-                />
+                <>
+                  <LeftMenuItem
+                    component={VSMenuTopic.Database}
+                    title={'Beheer'}
+                    compact={true}
+                    activecomponent={activecomponent}
+                    onSelect={onSelect}
+                    icon={FiSettings}
+                  />
+                  <LeftMenuItem
+                    component={VSMenuTopic.PrivacyBeheer}
+                    title={'Retentie & Anonimisering'}
+                    compact={true}
+                    activecomponent={activecomponent}
+                    onSelect={onSelect}
+                    icon={FiShield}
+                  />
+                </>
               )}
               <LeftMenuItem
                 component={VSMenuTopic.Tariefcodes}

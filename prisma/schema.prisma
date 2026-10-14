@@ -2078,3 +2078,32 @@ model parkingsimulation_section_assignments {
   @@index([simulationConfigId, locationid, sectionid], map: "parkingsimulation_section_assignments_location_idx")
   @@index([bicycleId], map: "parkingsimulation_section_assignments_bicycleId_idx")
 }
+
+model privacy_retention_runs {
+  id             Int       @id @default(autoincrement())
+  mode           String    @db.VarChar(16)
+  status         String    @db.VarChar(16)
+  startedBy      String?   @db.VarChar(255)
+  startedAt      DateTime  @db.DateTime(0)
+  updatedAt      DateTime  @db.DateTime(0)
+  finishedAt     DateTime? @db.DateTime(0)
+  currentAction  String?   @db.VarChar(64)
+  cursorId       String?   @db.VarChar(64)
+  logText        String?   @db.MediumText
+  errorText      String?   @db.Text
+
+  @@index([status], map: "privacy_retention_runs_status")
+}
+
+model privacy_retention_actions {
+  id          Int     @id @default(autoincrement())
+  runId       Int
+  actionKey   String  @db.VarChar(64)
+  heading     String  @db.VarChar(255)
+  rowsMatched Int     @default(0)
+  rowsChanged Int     @default(0)
+  status      String  @db.VarChar(16)
+  detail      String? @db.Text
+
+  @@index([runId], map: "privacy_retention_actions_run")
+}

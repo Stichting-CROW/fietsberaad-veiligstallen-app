@@ -40,6 +40,7 @@ import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
 import StallingsschermenComponent from '~/components/beheer/stallingsschermen';
+import PrivacyBeheerComponent from '~/components/beheer/privacy';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -573,6 +574,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.Stallingsschermen:
           selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
             <StallingsschermenComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.PrivacyBeheer:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <PrivacyBeheerComponent />
           ) : (
             <AccessDenied />
           );
