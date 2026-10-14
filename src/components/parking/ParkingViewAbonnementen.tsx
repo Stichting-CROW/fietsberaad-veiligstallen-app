@@ -1,4 +1,5 @@
 import React, { Fragment } from "react";
+import { useRouter } from "next/router";
 
 import HorizontalDivider from "~/components/HorizontalDivider";
 import { Button } from "~/components/Button";
@@ -21,7 +22,16 @@ const renderGeenInfoBeschikbaar = () => {
   );
 };
 
+function opensNewAccountCheckout(): boolean {
+  if (process.env.NODE_ENV === "development") return true;
+  if (process.env.NEXT_PUBLIC_APP_ENV === "acceptance") return true;
+  if (typeof window !== "undefined" && window.location.hostname.includes("vstfb-eu-acc")) return true;
+  return false;
+}
+
 const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsType }) => {
+  const router = useRouter();
+  const accountCheckout = opensNewAccountCheckout();
 
   const { subscriptionTypes, isLoading: isLoadingSubscriptionTypes, error: errorSubscriptionTypes } = useSubscriptionTypesForParking(parkingdata?.ID||"");
   const { abonnementLink, isLoading: isLoadingAbonnementLink, error: errorAbonnementLink } = useAbonnementLink(parkingdata?.ID||"");
@@ -58,7 +68,19 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
         </div>
         <div className="text-right sm:text-center">
           <Button className="mt-4" onClick={() => {
-            window.open(abonnementLink.url, '_blank');
+            const type = parkingdata.Type ?? "";
+            if (accountCheckout && parkingdata.SiteID) {
+              const buurt = type === "buurtstalling" || type === "fietstrommel";
+              const params = new URLSearchParams({
+                siteId: parkingdata.SiteID,
+                parkingId: parkingdata.ID,
+              });
+              if (buurt) params.set("wizard", "fiets");
+              else if (type) params.set("type", type);
+              void router.push(`/account/abonnement?${params.toString()}`);
+              return;
+            }
+            window.open(abonnementLink.url, "_blank");
           }}>
             Koop abonnement
           </Button>

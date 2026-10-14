@@ -22,7 +22,7 @@ const Page = ({ council, facilities }: { council: { CompanyName: string | null; 
     <ul className="space-y-3">
       {facilities.map((facility) => (
         <li key={facility.id} className="rounded border bg-white p-4">
-          <Link className="text-lg font-medium text-sky-800" href={`/${council.UrlName}/buurtstallingen/${facility.id}`}>{facility.title}</Link>
+          <Link className="text-lg font-medium text-[#1f6f8b]" href={`/${council.UrlName}/buurtstallingen/${facility.stallingsId ?? facility.id}`}>{facility.title}</Link>
           <p className="text-sm text-gray-600">{facility.counts.free} vrije plekken</p>
         </li>
       ))}

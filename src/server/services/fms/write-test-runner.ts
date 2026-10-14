@@ -13,6 +13,7 @@
  */
 
 import { prisma } from "~/server/db";
+import { passAccountIds } from "~/server/services/queue/account-service";
 import { processQueuesForPassPrefix } from "~/server/services/queue/processor";
 import { TESTGEMEENTE_NAME } from "~/data/testgemeente-data";
 import {
@@ -129,15 +130,16 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
     where: { PasID: { startsWith: prefix } },
     select: { ID: true, AccountID: true },
   });
-  const accountIDs = Array.from(
-    new Set(synthPasids.map((p) => p.AccountID).filter((id): id is string => !!id))
-  );
+  const { councilIDs, accountIDs } = await passAccountIds(synthPasids.map((p) => p.AccountID));
 
   if (accountIDs.length > 0) {
     await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
   await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
   await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
+  if (councilIDs.length > 0) {
+    await prisma.gemeenteaccounts.deleteMany({ where: { ID: { in: councilIDs } } });
+  }
   if (accountIDs.length > 0) {
     await prisma.accounts.deleteMany({ where: { ID: { in: accountIDs } } });
   }

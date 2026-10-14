@@ -9,6 +9,8 @@ export const CONTACT = {
   ItemType: "organizations",
   CompanyName: TESTGEMEENTE_NAME,
   Status: "1",
+  ParentID: "0",
+  Status_website: "0",
   UrlName: "testgemeente-api",
   ZipID: "9933",
   ThemeColor1: "1f99d2",

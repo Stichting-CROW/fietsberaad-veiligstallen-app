@@ -126,6 +126,16 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
+        {hasAbonnementsvormen && hasAbonnementenModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Accounts}
+            title={'Accounts en abonnementen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiUsers}
+          />
+        )}
+
         {hasAbonnementsvormen && (hasAbonnementenModule || hasBuurtstallingenModule) && (
           <LeftMenuItem
             component={VSMenuTopic.Documents}

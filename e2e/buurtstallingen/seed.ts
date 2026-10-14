@@ -4,6 +4,9 @@ import { loadLocalEnv } from "./env";
 import {
   ACCOUNT_OCCUPANT,
   ACCOUNT_SECOND,
+  OCCUPANT_PASS,
+  PASS_OCCUPANT,
+  PORTAL_EMAIL,
   DOC_CONTRACT,
   DOC_MACHTIGING,
   DOC_STANDARD,
@@ -12,11 +15,13 @@ import {
   PASSWORD,
   SHORT_A,
   SHORT_B,
+  SHORT_BEWAAKT,
   SHORT_TROMMEL,
   SITE_A,
   SITE_B,
   STALL_A,
   STALL_B,
+  STALL_BEWAAKT,
   STALL_TROMMEL,
   URL_A,
   URL_B,
@@ -29,11 +34,11 @@ loadLocalEnv();
 
 const siteIds = [SITE_A, SITE_B];
 const contactIds = [SITE_A, SITE_B, EXPLOITANT];
-const stallingIds = [STALL_A, STALL_TROMMEL, STALL_B];
-const shortIds = [SHORT_A, SHORT_TROMMEL, SHORT_B];
+const stallingIds = [STALL_A, STALL_TROMMEL, STALL_B, STALL_BEWAAKT];
+const shortIds = [SHORT_A, SHORT_TROMMEL, SHORT_B, SHORT_BEWAAKT];
 const operatorIds = Object.values(users).map((user) => user.id);
 const accountIds = people.map((person) => person.id);
-const emails = [...people.map((person) => person.email), ...Object.values(users).map((user) => user.email)];
+const emails = [...people.map((person) => person.email), ...Object.values(users).map((user) => user.email), PORTAL_EMAIL];
 const documentIds = [DOC_CONTRACT, DOC_MACHTIGING, DOC_STANDARD];
 
 let passwordHash: string | undefined;
@@ -112,10 +117,29 @@ export async function resetFixture(prisma = client()): Promise<void> {
     }
     if (listIds.length) await prisma.wachtlijst.deleteMany({ where: { id: { in: listIds } } });
     if (ownedStallingIds.length) await prisma.fietsenstallingen.deleteMany({ where: { ID: { in: ownedStallingIds } } });
-    await prisma.gemeenteaccounts.deleteMany({
-      where: { OR: [{ SiteID: { in: siteIds } }, { AccountID: { in: accountIds } }] },
+    const extraAccounts = await prisma.accounts.findMany({
+      where: { Email: { in: [PORTAL_EMAIL] } },
+      select: { ID: true },
     });
-    await prisma.accounts.deleteMany({ where: { OR: [{ ID: { in: accountIds } }, { Email: { in: emails } }] } });
+    const cleanupIds = [...new Set([...accountIds, ...extraAccounts.map((row) => row.ID)])];
+    await prisma.financialtransactions.deleteMany({ where: { accountID: { in: cleanupIds } } });
+    const councilAccounts = await prisma.gemeenteaccounts.findMany({
+      where: { AccountID: { in: cleanupIds } },
+      select: { ID: true },
+    });
+    const ownedPasses = await prisma.accounts_pasids.findMany({
+      where: { AccountID: { in: [...cleanupIds, ...councilAccounts.map((row) => row.ID)] } },
+      select: { ID: true },
+    });
+    if (ownedPasses.length) {
+      await prisma.abonnementen.deleteMany({ where: { bikepassID: { in: ownedPasses.map((pass) => pass.ID) } } });
+      await prisma.accounts_pasids.deleteMany({ where: { ID: { in: ownedPasses.map((pass) => pass.ID) } } });
+    }
+    await prisma.producten.deleteMany({ where: { titel: "E2E tegoed" } });
+    await prisma.gemeenteaccounts.deleteMany({
+      where: { OR: [{ SiteID: { in: siteIds } }, { AccountID: { in: cleanupIds } }] },
+    });
+    await prisma.accounts.deleteMany({ where: { OR: [{ ID: { in: cleanupIds } }, { Email: { in: emails } }] } });
     await prisma.user_contact_role.deleteMany({
       where: { OR: [{ UserID: { in: operatorIds } }, { ContactID: { in: siteIds } }] },
     });
@@ -236,6 +260,10 @@ export async function seed(): Promise<void> {
             EncryptedPassword: passwordHash,
             FirstName: person.first,
             LastName: person.last,
+            Address: "Teststraat",
+            Address_Nr: "1",
+            Zip: "1234 AB",
+            City: "Teststad",
             Status: "1",
           },
         });
@@ -279,6 +307,30 @@ export async function seed(): Promise<void> {
       });
       await tx.abonnementsvorm_fietsenstalling.createMany({
         data: [STALL_A, STALL_TROMMEL].map((id) => ({ SubscriptiontypeID: product.ID, BikeparkID: id })),
+      });
+      const bewaakt = await tx.abonnementsvormen.create({
+        data: {
+          naam: "E2E bewaakt",
+          prijs: "15.00",
+          tijdsduur: 1,
+          siteID: SITE_A,
+          bikeparkTypeID: "bewaakt",
+          isActief: true,
+          idmiddelen: "sleutelhanger",
+          exploitantSiteID: EXPLOITANT,
+        },
+      });
+      await tx.fietsenstallingen.create({
+        data: { ID: STALL_BEWAAKT, StallingsID: SHORT_BEWAAKT, SiteID: SITE_A, Title: "E2E Bewaakte stalling", Type: "bewaakt", ...stalling },
+      });
+      await tx.abonnementsvorm_fietsenstalling.create({
+        data: { SubscriptiontypeID: bewaakt.ID, BikeparkID: STALL_BEWAAKT },
+      });
+      await tx.producten.create({
+        data: { titel: "E2E tegoed", omschrijving: "E2E opwaardering", prijs: "10.00", credit: "10.00", status: "1" },
+      });
+      await tx.accounts_pasids.create({
+        data: { ID: PASS_OCCUPANT, AccountID: ACCOUNT_OCCUPANT, SiteID: SITE_A, PasID: OCCUPANT_PASS, Pastype: "sleutelhanger" },
       });
       await addSection(tx as PrismaClient, { stallingId: STALL_A, title: "Onder", qualification: "UNDER", occupants: [null] });
       await addSection(tx as PrismaClient, { stallingId: STALL_A, title: "Boven", qualification: "ABOVE", occupants: [ACCOUNT_OCCUPANT, ACCOUNT_SECOND] });

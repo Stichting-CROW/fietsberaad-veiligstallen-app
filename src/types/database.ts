@@ -125,6 +125,9 @@ export const gemeenteSchema = z.object({
   Status: z.string()
     .nullable()
     .optional(),
+  Status_website: z.enum(["0", "1"])
+    .nullable()
+    .optional(),
 });
 
 export const gemeenteCreateSchema = gemeenteSchema.omit({ ID: true });
@@ -150,6 +153,7 @@ export const getDefaultNewGemeente = (naam = "Nieuwe gemeente")=> {
     CompanyLogo2: "",
     ThemeColor1: "#1f99d2",
     ThemeColor2: "#96c11f",
+    Status_website: "0" as const,
     modules_contacts: [],
   }
 }

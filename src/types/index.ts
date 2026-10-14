@@ -37,7 +37,7 @@ export enum VSMenuTopic {
     "Home" = "home",
     "Logboek" = "logboek",
     // // "Presentations" = "presentations",
-    // "Products" = "products",
+    "Products" = "products",
     "Report" = "report",
     "Settings" = "settings",
     "SettingsGemeente" = "settingsgemeente",

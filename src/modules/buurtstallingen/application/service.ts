@@ -131,10 +131,14 @@ async function loadEntries(wachtlijstId: bigint | null): Promise<WaitingListEntr
   }));
 }
 
+function stallingRefWhere(ref: string) {
+  return { OR: [{ ID: ref }, { StallingsID: ref }] };
+}
+
 async function requireStalling(siteId: string, stallingId: string) {
   const stalling = await prisma.fietsenstallingen.findFirst({
     where: {
-      ID: stallingId,
+      ...stallingRefWhere(stallingId),
       SiteID: siteId,
       Type: { in: TYPES },
       FMS: true,
@@ -220,6 +224,50 @@ export async function listFacilities(siteId: string, type?: StallingType) {
   return { engineEnabled: isBuurtstallingenEngineEnabled(siteId), facilities: result };
 }
 
+export async function accountWizardRedirectPath(
+  urlName: string,
+  stallingRef: string,
+  wizard: string,
+  query: Record<string, string | string[] | undefined>,
+): Promise<string | null> {
+  const detail = await getPublicDetail(urlName, stallingRef);
+  if (!detail) return null;
+  const stalling = await prisma.fietsenstallingen.findFirst({
+    where: { ...stallingRefWhere(stallingRef), SiteID: detail.council.ID },
+    select: { ID: true },
+  });
+  if (!stalling) return null;
+  const params = new URLSearchParams({
+    siteId: detail.council.ID,
+    parkingId: stalling.ID,
+    wizard,
+  });
+  for (const key of ["fiets", "rek", "soort", "tot", "plaats"] as const) {
+    const value = query[key];
+    if (typeof value === "string" && value) params.set(key, value);
+  }
+  return `/account/abonnement?${params.toString()}`;
+}
+
+export async function getPublicDetailForAccount(siteId: string, parkingId: string) {
+  const council = await prisma.contacts.findFirst({
+    where: { ID: siteId, Status: { not: "0" } },
+    select: { ID: true, CompanyName: true, UrlName: true },
+  });
+  if (!council) return null;
+  const stalling = await prisma.fietsenstallingen.findFirst({
+    where: {
+      ID: parkingId,
+      SiteID: council.ID,
+      Type: { in: TYPES },
+      FMS: true,
+      Status: "1",
+    },
+  });
+  if (!stalling) return null;
+  return buildPublicDetail(council, stalling);
+}
+
 export async function getPublicDetail(urlName: string, stallingId: string) {
   const council = await prisma.contacts.findFirst({
     where: { UrlName: urlName, Status: { not: "0" } },
@@ -227,15 +275,29 @@ export async function getPublicDetail(urlName: string, stallingId: string) {
   });
   if (!council) return null;
   const stalling = await prisma.fietsenstallingen.findFirst({
-    where: { ID: stallingId, SiteID: council.ID, Type: { in: TYPES }, FMS: true, Status: "1" },
+    where: {
+      ...stallingRefWhere(stallingId),
+      SiteID: council.ID,
+      Type: { in: TYPES },
+      FMS: true,
+      Status: "1",
+    },
   });
   if (!stalling) return null;
+  return buildPublicDetail(council, stalling);
+}
+
+async function buildPublicDetail(
+  council: { ID: string; CompanyName: string | null; UrlName: string | null },
+  stalling: { ID: string; StallingsID: string | null; Title: string | null; Type: string | null; Location: string | null; Plaats: string | null },
+) {
   const sections = await loadSections(stalling.ID);
   const bikeTypeIds = [...new Set(sections.flatMap((section) => section.places.flatMap((place) => place.bikeTypeIds)))];
+  const publicId = stalling.StallingsID ?? stalling.ID;
   return {
     council,
     engineEnabled: isBuurtstallingenEngineEnabled(council.ID),
-    stalling: { id: stalling.ID, title: stalling.Title, type: stalling.Type, address: stalling.Location, city: stalling.Plaats },
+    stalling: { id: publicId, title: stalling.Title, type: stalling.Type, address: stalling.Location, city: stalling.Plaats },
     qualifications: [...new Set(sections.map((section) => section.qualification))],
     freeByBikeType: bikeTypeIds.map((bikeTypeId) => ({ bikeTypeId, free: countFree(sections, bikeTypeId) })),
     subscriptionTypes: await linkedSubscriptionTypes(stalling.ID),

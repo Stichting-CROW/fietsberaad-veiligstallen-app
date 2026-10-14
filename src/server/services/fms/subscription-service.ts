@@ -7,7 +7,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
-import { getBikepassByPassId } from "../queue/account-service";
+import { councilAccountFor, getBikepassByPassId } from "../queue/account-service";
 import { passtype2string } from "./fms-idtypes";
 import { accounts_account_type } from "~/generated/prisma-client";
 
@@ -76,7 +76,7 @@ export async function addSubscription(
       bikepark.SiteID,
       pastype
     );
-    accountID = bikepass.AccountID ?? undefined;
+    accountID = bikepass.topAccountID ?? undefined;
     bikepassID = bikepass.ID;
   } else if (!accountID) {
     // Subscription purchased before pass is linked (subscribe flow).
@@ -195,7 +195,7 @@ export async function subscribe(
     bikepass = await prisma.accounts_pasids.create({
       data: {
         ID: bikepassID,
-        AccountID: accountID,
+        AccountID: await councilAccountFor(prisma, accountID, bikepark.SiteID),
         SiteID: bikepark.SiteID,
         PasID: passID,
         Pastype: pastype,

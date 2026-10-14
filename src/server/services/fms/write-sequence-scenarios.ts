@@ -5,6 +5,7 @@
  */
 
 import { prisma } from "~/server/db";
+import { passAccountIds, passTopAccountId } from "~/server/services/queue/account-service";
 import { processQueuesForPassPrefix } from "~/server/services/queue/processor";
 import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
 import {
@@ -150,12 +151,15 @@ async function teardownSequence(ctx: ApiWriteTestContext): Promise<void> {
     where: { PasID: { startsWith: prefix } },
     select: { AccountID: true },
   });
-  const accountIDs = [...new Set(pasids.map((p) => p.AccountID).filter((id): id is string => !!id))];
+  const { councilIDs, accountIDs } = await passAccountIds(pasids.map((p) => p.AccountID));
   if (accountIDs.length > 0) {
     await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
   await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
   await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
+  if (councilIDs.length > 0) {
+    await prisma.gemeenteaccounts.deleteMany({ where: { ID: { in: councilIDs } } });
+  }
   if (accountIDs.length > 0) {
     await prisma.accounts.deleteMany({ where: { ID: { in: accountIDs } } });
   }
@@ -371,8 +375,9 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
         where: { PasID: ctx.pass("saldo") },
         select: { AccountID: true },
       });
-      const acc = pasid?.AccountID
-        ? await prisma.accounts.findUnique({ where: { ID: pasid.AccountID }, select: { saldo: true } })
+      const saldoAccountID = await passTopAccountId(prisma, pasid?.AccountID ?? null);
+      const acc = saldoAccountID
+        ? await prisma.accounts.findUnique({ where: { ID: saldoAccountID }, select: { saldo: true } })
         : null;
       const saldo = acc != null ? Number(acc.saldo ?? 0) : null;
       return [

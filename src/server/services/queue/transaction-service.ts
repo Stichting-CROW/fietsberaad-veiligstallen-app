@@ -135,14 +135,14 @@ export async function putTransaction(
         },
       });
 
-      if (input.bikepass.AccountID && stallingskosten > 0) {
+      if (input.bikepass.topAccountID && stallingskosten > 0) {
         const acc = await accountsModel.findUnique({
-          where: { ID: input.bikepass.AccountID },
+          where: { ID: input.bikepass.topAccountID },
           select: { saldo: true },
         });
         if (acc) {
           await accountsModel.update({
-            where: { ID: input.bikepass.AccountID },
+            where: { ID: input.bikepass.topAccountID },
             data: {
               saldo: Number(acc.saldo ?? 0) - stallingskosten,
               dateLastSaldoUpdate: new Date(),
@@ -152,7 +152,7 @@ export async function putTransaction(
         await ftModel.create({
           data: {
             ID: crypto.randomUUID().replace(/-/g, ""),
-            accountID: input.bikepass.AccountID,
+            accountID: input.bikepass.topAccountID,
             amount: stallingskosten,
             transactionDate: input.transactionDate,
             siteID: input.siteID,
@@ -264,14 +264,14 @@ export async function putTransaction(
     },
   });
 
-  if (input.bikepass.AccountID && stallingskosten > 0) {
+  if (input.bikepass.topAccountID && stallingskosten > 0) {
     const acc = await accountsModel.findUnique({
-      where: { ID: input.bikepass.AccountID },
+      where: { ID: input.bikepass.topAccountID },
       select: { saldo: true },
     });
     if (acc) {
       await accountsModel.update({
-        where: { ID: input.bikepass.AccountID },
+        where: { ID: input.bikepass.topAccountID },
         data: {
           saldo: Number(acc.saldo ?? 0) - stallingskosten,
           dateLastSaldoUpdate: new Date(),
@@ -282,7 +282,7 @@ export async function putTransaction(
     await ftModel.create({
       data: {
         ID: crypto.randomUUID().replace(/-/g, ""),
-        accountID: input.bikepass.AccountID,
+        accountID: input.bikepass.topAccountID,
         amount: stallingskosten,
         transactionDate: input.transactionDate,
         siteID: input.siteID,

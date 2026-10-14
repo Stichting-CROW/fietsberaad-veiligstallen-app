@@ -1,0 +1,41 @@
+name: Abonnementen job
+
+on:
+  schedule:
+    # GitHub schedules are UTC. 01:30 and 02:30 cover 03:30 Europe/Amsterdam in winter and summer.
+    - cron: "30 1 * * *"
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Expire and warn about stalling subscriptions
+        run: |
+          set -e
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ "$(TZ=Europe/Amsterdam date +%z)" = "+0200" ]; then WANTED="30 1 * * *"; else WANTED="30 2 * * *"; fi
+            if [ "$EVENT_SCHEDULE" != "$WANTED" ]; then
+              echo "Abonnementen job skipped: the other schedule is 03:30 Europe/Amsterdam today"
+              exit 0
+            fi
+          fi
+          BASE_URL="${PROD_NEXTAUTH_URL%/}"
+          if [ -z "$CRON_SECRET" ] || [ -z "$BASE_URL" ]; then
+            echo "Abonnementen job skipped: URL or token is not configured"
+            exit 0
+          fi
+          CODE=$(curl -sS -o /tmp/abonnementen-job.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$BASE_URL/api/cron/abonnementen")
+          cat /tmp/abonnementen-job.json
+          echo
+          test "$CODE" = "200"
+        env:
+          PROD_NEXTAUTH_URL: ${{ secrets.PROD_NEXTAUTH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}

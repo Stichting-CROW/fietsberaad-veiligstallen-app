@@ -17,10 +17,12 @@ export const EXPLOITANT = fixedId("E2EBUURTEXPLOIT");
 export const STALL_A = fixedId("E2EBUURTPARKA");
 export const STALL_TROMMEL = fixedId("E2EBUURTPARKT");
 export const STALL_B = fixedId("E2EBUURTPARKB");
+export const STALL_BEWAAKT = fixedId("E2EBUURTPARKW");
 
 export const SHORT_A = "E2EA0001";
 export const SHORT_TROMMEL = "E2ET0001";
 export const SHORT_B = "E2EB0001";
+export const SHORT_BEWAAKT = "E2EW0001";
 
 export const USER_VIEWER = fixedId("E2EBUURTUSERV");
 export const USER_ADMIN = fixedId("E2EBUURTUSERA");
@@ -46,6 +48,9 @@ export const LINK_WAITER = fixedId("E2EBUURTLINKW");
 export const DOC_CONTRACT = fixedId("E2EBUURTDOCC");
 export const DOC_MACHTIGING = fixedId("E2EBUURTDOCM");
 export const DOC_STANDARD = fixedId("E2EBUURTDOCS");
+export const PASS_OCCUPANT = fixedId("E2EBUURTPASSO");
+export const OCCUPANT_PASS = "111122223333";
+export const PORTAL_EMAIL = "e2e-account-portal@example.test";
 
 export const EXPLOITANT_EMAIL = "e2e-buurt-exploitant@example.test";
 export const OCCUPANT_EMAIL = "e2e-buurt-occupant@example.test";

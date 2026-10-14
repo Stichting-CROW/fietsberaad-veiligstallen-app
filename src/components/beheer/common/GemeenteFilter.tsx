@@ -13,6 +13,7 @@ import {
   setShowGemeentenWithoutUsers,
   setShowGemeentenWithoutExploitanten,
   setSelectedModuleFilter,
+  setStatusWebsiteFilter,
   resetFilters,
   selectGemeenteFilters,
 } from '~/store/gemeenteFiltersSlice';
@@ -28,6 +29,7 @@ interface GemeenteFilterProps {
   showUsersFilter?: boolean;
   showExploitantenFilter?: boolean;
   showModulesFilter?: boolean;
+  showWebsiteFilter?: boolean;
 }
 
 const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
@@ -39,6 +41,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
   showUsersFilter = false,
   showExploitantenFilter = false,
   showModulesFilter = false,
+  showWebsiteFilter = false,
 }) => {
   const dispatch = useDispatch();
   const filters = useSelector(selectGemeenteFilters);
@@ -132,6 +135,16 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
             filters?.selectedModuleFilter.startsWith("wel_") && hasModule(gemeente.ID, filters.selectedModuleFilter.substring(4)) ||
             filters?.selectedModuleFilter.startsWith("geen_") && !hasModule(gemeente.ID, filters.selectedModuleFilter.substring(5)))
         );
+      })
+      .filter((gemeente) => {
+        if (!showWebsiteFilter || filters?.statusWebsiteFilter === "all" || !filters?.statusWebsiteFilter) {
+          return true;
+        }
+        const hasWebsite = gemeente.Status_website === "1";
+        if (filters.statusWebsiteFilter === "yes") {
+          return hasWebsite;
+        }
+        return !hasWebsite;
       });
 
     onFilterChange(filtered);
@@ -145,6 +158,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
     showUsersFilter,
     showExploitantenFilter,
     showModulesFilter,
+    showWebsiteFilter,
     onFilterChange
   ]);
 
@@ -160,7 +174,7 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
         />
       </div>
 
-      {(showStallingenFilter || showUsersFilter || showExploitantenFilter || showModulesFilter) && (
+      {(showStallingenFilter || showUsersFilter || showExploitantenFilter || showModulesFilter || showWebsiteFilter) && (
         <CollapsibleContent 
           buttonText="Extra filter opties"
           isOpen={
@@ -168,7 +182,8 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
             filters?.showGemeentenWithoutStallingen !== "yes" ||
             filters?.showGemeentenWithoutUsers !== "yes" ||
             filters?.showGemeentenWithoutExploitanten !== "yes" ||
-            filters?.selectedModuleFilter !== "all"
+            filters?.selectedModuleFilter !== "all" ||
+            (showWebsiteFilter && filters?.statusWebsiteFilter !== "all")
           }
         >
           <div className="p-4 space-y-4">
@@ -181,6 +196,23 @@ const GemeenteFilter: React.FC<GemeenteFilterProps> = ({
                 Reset Filters
               </button>
             </div>
+
+            {showWebsiteFilter && (
+              <div className="flex items-center">
+                <label htmlFor="statusWebsiteFilter" className="w-80 text-sm font-medium text-gray-700">Heeft eigen info website:</label>
+                <select
+                  id="statusWebsiteFilter"
+                  name="statusWebsiteFilter"
+                  value={filters?.statusWebsiteFilter || "all"}
+                  onChange={(e) => dispatch(setStatusWebsiteFilter(e.target.value as "all" | "yes" | "no"))}
+                  className="ml-2 p-2 border border-gray-300 rounded-md"
+                >
+                  <option value="all">Alle</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nee</option>
+                </select>
+              </div>
+            )}
 
             {showStallingenFilter && (
               <div className="flex items-center">
