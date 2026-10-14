@@ -25,9 +25,13 @@ export async function sendCitizenMail(input: {
   });
 }
 
-export async function sendOpsMail(subject: string, html: string): Promise<void> {
-  const to = process.env.BUURTSTALLINGEN_OPS_EMAIL ?? "veiligstallen@gmail.com";
+export async function sendOpsMail(subject: string, html: string): Promise<boolean> {
+  const to = process.env.BUURTSTALLINGEN_OPS_EMAIL?.trim();
+  if (!to) {
+    return false;
+  }
   await sendCitizenMail({ to, subject, html });
+  return true;
 }
 
 /** Absolute origin for links in mails sent outside a request (cron, webhook). */

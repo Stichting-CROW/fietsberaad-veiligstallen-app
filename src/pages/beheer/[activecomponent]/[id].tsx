@@ -38,6 +38,7 @@ import DatabaseModules from '~/components/beheer/database/DatabaseModules';
 import DatabaseCBSGemeentecodes from '~/components/beheer/database/DatabaseCBSGemeentecodes';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
+import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -558,6 +559,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         //   break;
         case VSMenuTopic.TestDatabaseApi:
           selectedComponent = <DatabaseApiTest />;
+          break;
+        case VSMenuTopic.NsKoppeling:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <NsKoppelingComponent />
+          ) : (
+            <AccessDenied />
+          );
           break;
         default:
           console.warn("unknown component", activecomponent);

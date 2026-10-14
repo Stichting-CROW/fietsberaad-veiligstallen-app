@@ -54,5 +54,6 @@ export enum VSMenuTopic {
     "TestDatabaseApi" = "testdatabaseapi",
     "OpenTransactiesOverzicht" = "opentransactiesoverzicht",
     "Wachtrij" = "wachtrij",
+    "NsKoppeling" = "nskoppeling",
 
 }

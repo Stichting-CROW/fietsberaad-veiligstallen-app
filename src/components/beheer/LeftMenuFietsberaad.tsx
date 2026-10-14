@@ -13,6 +13,7 @@ import {
   FiHome,
   FiMail,
   FiMap,
+  FiLink,
   FiMapPin,
   FiServer,
   FiSettings,
@@ -219,6 +220,26 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 activecomponent={activecomponent}
                 onSelect={onSelect}
                 icon={FiTag}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Achtergrondprocessen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.NsKoppeling}
+                title={'NS Koppeling'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiLink}
               />
             </>
           </LeftMenuItem>
