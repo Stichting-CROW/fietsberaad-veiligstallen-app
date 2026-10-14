@@ -133,6 +133,9 @@ const config = {
     const overzichtenRules = [{ source: "/:path*", destination: "/api/display/overzichten/:path*" }];
 
     const devDisplay = [
+      { source: "/presentatie.cfm", destination: "/api/display/presentaties/presentatie" },
+      { source: "/slide2.cfm", destination: "/api/display/presentaties/slide2" },
+      { source: "/slide.cfm", destination: "/api/display/presentaties/slide2" },
       { source: "/display/presentaties/index.cfm", destination: "/api/display/presentaties/index" },
       { source: "/display/presentaties/presentatie.cfm", destination: "/api/display/presentaties/presentatie" },
       { source: "/display/presentaties/slide2.cfm", destination: "/api/display/presentaties/slide2" },

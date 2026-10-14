@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { useSession } from "next-auth/react";
+import { buildDisplayUrls } from "~/utils/display-urls";
 
 type Slide = {
   ID: string;
@@ -85,7 +86,9 @@ const PresentationsComponent: React.FC = () => {
   };
 
   const siteId = session?.user?.activeContactId;
-  const previewUrl = siteId ? `/presentatie.cfm?siteID=${encodeURIComponent(siteId)}` : "#";
+  const previewUrl = siteId
+    ? buildDisplayUrls({ kind: "presentaties-frame", siteId, urlName: "preview" }).previewUrl
+    : "#";
 
   return (
     <Box sx={{ p: 2 }}>
