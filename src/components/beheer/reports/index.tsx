@@ -7,8 +7,12 @@ import ReportsFilterComponent, {
   type PeriodPreset,
   type ReportsFilterHandle,
   type ReportResultView,
-  getAvailableReports
+  getAvailableReports,
+  PANEL_REPORT_TYPES
 } from "./ReportsFilter";
+import FinancieelMaandoverzichtPanel from "./FinancieelMaandoverzichtPanel";
+import LaagSaldoPanel from "./LaagSaldoPanel";
+import MaandrapportBuurtstallingenPanel from "./MaandrapportBuurtstallingenPanel";
 import { type SeriesLabel } from "./WeekdaySelect";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
@@ -102,9 +106,15 @@ const getColorKeyForSeries = (name: string, reportType?: ReportType): string => 
 // Mapping between URL slugs and report types
 export const CHART_TYPE_MAP: Record<string, ReportType> = {
   'afgeronde-transacties': 'transacties_voltooid',
+  'inkomsten': 'inkomsten',
+  'abonnementswijzigingen': 'abonnementen',
+  'lopende-abonnementen': 'abonnementen_lopend',
   'procentuele-bezetting': 'bezetting',
   'absolute-bezetting': 'absolute_bezetting',
   'stallingsduur': 'stallingsduur',
+  'financieel-maandoverzicht': 'financieel_maandoverzicht',
+  'saldotekort': 'laag_saldo',
+  'maandrapport-buurtstallingen': 'maandrapport_buurtstallingen',
 };
 
 export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
@@ -113,15 +123,19 @@ export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
   'absolute_bezetting': 'absolute-bezetting',
   'stallingsduur': 'stallingsduur',
   'inkomsten': 'inkomsten',
-  'abonnementen': 'abonnementen',
-  'abonnementen_lopend': 'abonnementen_lopend',
+  'abonnementen': 'abonnementswijzigingen',
+  'abonnementen_lopend': 'lopende-abonnementen',
   'volmeldingen': 'volmeldingen',
   'gelijktijdig_vol': 'gelijktijdig_vol',
   'downloads': 'downloads',
+  'financieel_maandoverzicht': 'financieel-maandoverzicht',
+  'laag_saldo': 'saldotekort',
+  'maandrapport_buurtstallingen': 'maandrapport-buurtstallingen',
 };
 
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
+  showBuurtstallingenRapporten?: boolean;
   firstDate: Date;
   lastDate: Date;
   bikeparks: ReportBikepark[];
@@ -133,6 +147,7 @@ interface ReportComponentProps {
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
   showAbonnementenRapporten,
+  showBuurtstallingenRapporten = false,
   firstDate,
   lastDate,
   bikeparks,
@@ -156,8 +171,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   const [filterState, setFilterState] = useState<ReportState | undefined>(undefined);
   const availableReports = React.useMemo(
-    () => getAvailableReports(showAbonnementenRapporten),
-    [showAbonnementenRapporten]
+    () => getAvailableReports(showAbonnementenRapporten, showBuurtstallingenRapporten),
+    [showAbonnementenRapporten, showBuurtstallingenRapporten]
   );
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const [resultView, setResultView] = useState<ReportResultView>("chart");
@@ -167,6 +182,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     if (!selectedReportType) return '';
     return (
       availableReports.find(r => r.id === selectedReportType)?.title ||
+      (selectedReportType === "maandrapport_buurtstallingen" ? "Maandrapport buurtstallingen" : "") ||
       reportData?.title ||
       ''
     );
@@ -178,6 +194,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       setSelectedReportType(initialReportType);
     }
   }, [initialReportType]);
+
+  useEffect(() => {
+    if (selectedReportType === "abonnementen" || selectedReportType === "abonnementen_lopend") {
+      setResultView("table");
+    }
+  }, [selectedReportType]);
 
   const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
     filterComponentRef.current?.applyPreset(preset);
@@ -196,7 +218,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     const abortController = new AbortController();
 
     const fetchReportData = async () => {
-      if (undefined === filterState) {
+      if (undefined === filterState || PANEL_REPORT_TYPES.includes(filterState.reportType)) {
         return;
       }
 
@@ -420,6 +442,17 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     }
   };
 
+  if (selectedReportType && PANEL_REPORT_TYPES.includes(selectedReportType)) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
+        <h2 className="mb-4 text-2xl font-semibold text-gray-900">{selectedReportTitle}</h2>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-gray-300 bg-white p-2 md:p-6">
+          {selectedReportType === "financieel_maandoverzicht" ? <FinancieelMaandoverzichtPanel /> : selectedReportType === "laag_saldo" ? <LaagSaldoPanel /> : <MaandrapportBuurtstallingenPanel />}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="noPrint flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
       <div className="flex w-full mb-4">
@@ -459,6 +492,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               <ReportsFilterComponent
                 ref={filterComponentRef}
                 showAbonnementenRapporten={showAbonnementenRapporten}
+                showBuurtstallingenRapporten={showBuurtstallingenRapporten}
                 firstDate={firstDate}
                 lastDate={lastDate}
                 bikeparks={bikeparksWithData}
@@ -481,10 +515,25 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="relative min-h-0 flex-1 overflow-hidden">
+              <div
+                className={`relative min-h-0 flex-1 ${(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? "overflow-auto" : "overflow-hidden"}`}
+                style={(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? { minHeight: "24rem" } : undefined}
+              >
                 {reportData ? (
-                  <div className={resultView === "chart" ? "absolute inset-0" : "absolute inset-0 overflow-x-hidden overflow-y-auto"}>
+                  <div className={resultView === "chart" ? "absolute inset-0" : (filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") ? "overflow-auto" : "absolute inset-0 overflow-x-hidden overflow-y-auto"} style={(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? { minHeight: "24rem" } : undefined}>
                     {(() => {
+                        if (
+                          resultView === "table" &&
+                          (filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend")
+                        ) {
+                          return (
+                            <SubscriptionNumbersTable
+                              series={reportData.series}
+                              categories={reportData.options?.xaxis?.categories ?? []}
+                            />
+                          );
+                        }
+
                         const shouldRenderAbsoluteBezettingChart = (() => {
                           if (filterState?.reportType !== "absolute_bezetting") return true;
                           const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
@@ -710,6 +759,45 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         </div>
       </div>
     </div>
+  );
+};
+
+/** Plain numbers table for the subscription reports. Stays in normal flow so it is not clipped by the chart box. */
+const SubscriptionNumbersTable: React.FC<{
+  series: Array<{ name: string; data: number[] }>;
+  categories: string[];
+}> = ({ series, categories }) => {
+  const columnCount = Math.max(
+    categories.length,
+    ...series.map((s) => (Array.isArray(s.data) ? s.data.length : 0)),
+  );
+  const headers = Array.from({ length: columnCount }, (_, i) => categories[i] ?? String(i + 1));
+  if (series.length === 0 || columnCount === 0) {
+    return <p className="p-4 text-gray-800">Geen rijen voor deze periode.</p>;
+  }
+  return (
+    <table className="w-full border-collapse text-sm text-gray-900">
+      <thead>
+        <tr>
+          <th className="border border-gray-300 bg-gray-100 px-2 py-1 text-left"> </th>
+          {headers.map((label, i) => (
+            <th key={`${i}-${label}`} className="border border-gray-300 bg-gray-100 px-2 py-1 text-right">{label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {series.map((row) => (
+          <tr key={row.name}>
+            <td className="border border-gray-300 px-2 py-1">{row.name}</td>
+            {headers.map((_, i) => (
+              <td key={i} className="border border-gray-300 px-2 py-1 text-right tabular-nums">
+                {Number(row.data?.[i] ?? 0).toLocaleString("nl-NL")}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 };
 

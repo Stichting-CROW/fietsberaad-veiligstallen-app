@@ -20,12 +20,20 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   const { siteId } = access;
   try {
     if (req.method === "GET") {
-      const rows = await listManagedSubscriptions(siteId);
+      const rows = await listManagedSubscriptions(siteId, {
+        search: typeof req.query.q === "string" ? req.query.q : undefined,
+        runningOnly: req.query.alle === "1",
+      });
       res.status(200).json({
         data: rows.map((row) => ({
           id: row.ID,
           email: row.accounts?.Email ?? "",
           name: row.abonnementsvormen?.naam ?? "",
+          passName: row.accounts_pasids?.Naam ?? "",
+          passType: row.accounts_pasids?.Pastype ?? "",
+          passNumber: row.accounts_pasids?.PasID ?? "",
+          mollieId: row.mollieTransactionID,
+          paymentMethod: row.paymentMethod,
           start: row.ingangsdatum,
           end: row.afloopdatum,
           price: row.prijsInclBtw === null ? 0 : Number(row.prijsInclBtw),

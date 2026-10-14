@@ -20,6 +20,7 @@ import { useGemeentenInLijst } from '~/hooks/useGemeenten';
 import { useExploitanten } from '~/hooks/useExploitanten';
 import { useFietsenstallingenCompact } from '~/hooks/useFietsenstallingenCompact';
 import { CHART_TYPE_MAP } from '~/components/beheer/reports';
+import type { VSmodules_contacts } from "~/types/modules-contacts";
 
 export const getServerSideProps = async (context: GetServerSidePropsContext): Promise<GetServerSidePropsResult<ReportPageProps>> => {
   const session = await getServerSession(context.req, context.res, authOptions) as Session;
@@ -48,7 +49,31 @@ const ReportPage: React.FC<ReportPageProps> = () => {
   const { exploitanten } = useExploitanten(selectedContactID);
   const { fietsenstallingen: bikeparks } = useFietsenstallingenCompact(selectedContactID);
 
-  const showAbonnementenRapporten = true;
+  const [modules, setModules] = useState<{ abonnementen: boolean; fms: boolean; buurtstallingen: boolean }>({
+    abonnementen: false,
+    fms: false,
+    buurtstallingen: false,
+  });
+  useEffect(() => {
+    if (!selectedContactID) return;
+    let cancelled = false;
+    fetch(`/api/protected/modules_contacts?contactId=${selectedContactID}`)
+      .then(async (res) => (res.ok ? ((await res.json()) as VSmodules_contacts[]) : []))
+      .catch(() => [] as VSmodules_contacts[])
+      .then((list) => {
+        if (cancelled) return;
+        setModules({
+          abonnementen: list.some((m) => m.ModuleID === "abonnementen"),
+          fms: list.some((m) => m.ModuleID === "fms"),
+          buurtstallingen: list.some((m) => m.ModuleID === "buurtstallingen"),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedContactID]);
+
+  const showAbonnementenRapporten = modules.abonnementen;
 
   const firstDate = new Date("2018-03-01");
   // Use yesterday as the last date since there's no data for today in the cache
@@ -131,12 +156,14 @@ const ReportPage: React.FC<ReportPageProps> = () => {
   // Check if user has access to reports
   const hasRapportages = userHasRight(session?.user?.securityProfile, VSSecurityTopic.rapportages);
 
-  // For report page, only Gemeente should allow navigation, others use empty handler
+  // For report page, Gemeente and Exploitant allow navigation; Fietsberaad uses an empty handler
   const handleReportPageSelect = (componentKey: VSMenuTopic) => {
-    if (gemeenten.find(gemeente => gemeente.ID === selectedContactID)) {
+    if (
+      gemeenten.find(gemeente => gemeente.ID === selectedContactID) ||
+      exploitanten.find(exploitant => exploitant.ID === selectedContactID)
+    ) {
       handleSelectComponent(componentKey);
     }
-    // For Fietsberaad and Exploitant, do nothing (empty handler)
   };
 
   const leftMenuElement = renderLeftMenu({
@@ -146,8 +173,9 @@ const ReportPage: React.FC<ReportPageProps> = () => {
     gemeenten: gemeenten || [],
     exploitanten: exploitanten || [],
     onSelect: handleReportPageSelect,
-    hasAbonnementenModule: true,
-    hasBuurtstallingenModule: true,
+    hasAbonnementenModule: modules.abonnementen,
+    hasFmsModule: modules.fms,
+    hasBuurtstallingenModule: modules.buurtstallingen,
   });
 
   if (!hasRapportages) {
@@ -220,6 +248,7 @@ const ReportPage: React.FC<ReportPageProps> = () => {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-6 lg:px-10 lg:py-8">
           <ReportComponent
             showAbonnementenRapporten={showAbonnementenRapporten}
+            showBuurtstallingenRapporten={modules.buurtstallingen && userHasRight(session?.user?.securityProfile, VSSecurityTopic.buurtstallingen_beheer)}
             firstDate={firstDate}
             lastDate={lastDate}
             bikeparks={bikeparks || []}
