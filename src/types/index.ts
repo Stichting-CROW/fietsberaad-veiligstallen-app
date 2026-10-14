@@ -23,6 +23,7 @@ export enum VSMenuTopic {
     "ContactsGemeenten" = "contactsgemeenten",
     "DataApi" = "dataapi",
     "Database" = "database",
+    "PrivacyBeheer" = "privacybeheer",
     "DatabaseExport" = "databaseexport",
     "DatabaseModules" = "databasemodules",
     "DatabaseCBSGemeentecodes" = "databasecbsgemeentecodes",
