@@ -36,6 +36,7 @@ import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesT
 import DatabaseExport from '~/components/beheer/database/DatabaseExport';
 import DatabaseModules from '~/components/beheer/database/DatabaseModules';
 import DatabaseCBSGemeentecodes from '~/components/beheer/database/DatabaseCBSGemeentecodes';
+import BulkreserveringenTable from '~/components/beheer/database/BulkreserveringenTable';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
@@ -581,6 +582,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.PrivacyBeheer:
           selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
             <PrivacyBeheerComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.DatabaseBulkreserveringen:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <BulkreserveringenTable />
           ) : (
             <AccessDenied />
           );

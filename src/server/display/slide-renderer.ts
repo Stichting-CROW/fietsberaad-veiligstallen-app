@@ -1,5 +1,9 @@
 import { prisma } from "~/server/db";
-import { getActivePresentations, getParkedBikesCountForCouncilYear } from "./presentation";
+import {
+  getActivePresentations,
+  getParkedBikesCountForCouncilYear,
+  resolvePresentationBikeparkId,
+} from "./presentation";
 import { getBikeparkInfo, getBikeparkInfoFlat } from "./occupancy";
 import { renderOpeningstijdenTableHtml } from "./openingstijden-table";
 import { fetchRssFeed } from "./rss";
@@ -32,6 +36,7 @@ async function expandArticle(html: string, zipId: string | null): Promise<string
 export async function renderSlide2Html(siteId: string, bikeparkId?: string): Promise<{ html: string; totalDuration: number }> {
   const slides = await getActivePresentations(siteId, bikeparkId);
   const council = await getCouncilById(siteId);
+  const fallbackBikeparkId = await resolvePresentationBikeparkId(siteId, bikeparkId);
   const rounds = slides.length > 6 ? 1 : 2;
   let totalDuration = 0;
   const parts: string[] = [];
@@ -42,6 +47,7 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
       const duration = slide.Duration ?? 10;
       let inner = "";
       let valid = true;
+      const slideBikeparkId = bikeparkId ?? fallbackBikeparkId;
 
       switch (slide.ContentType) {
         case "Article": {
@@ -50,20 +56,23 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
           break;
         }
         case "Bikepark": {
-          if (!bikeparkId) {
+          if (!slideBikeparkId) {
             valid = false;
             break;
           }
-          const bp = await prisma.fietsenstallingen.findUnique({ where: { ID: bikeparkId }, select: { dia: true } });
+          const bp = await prisma.fietsenstallingen.findUnique({
+            where: { ID: slideBikeparkId },
+            select: { dia: true },
+          });
           inner = `<h1>${slide.Title ?? ""}</h1>${trustedHtml(bp?.dia ?? "")}`;
           break;
         }
         case "Openingstijden": {
-          if (!bikeparkId) {
+          if (!slideBikeparkId) {
             valid = false;
             break;
           }
-          const bp = await prisma.fietsenstallingen.findUnique({ where: { ID: bikeparkId } });
+          const bp = await prisma.fietsenstallingen.findUnique({ where: { ID: slideBikeparkId } });
           if (!bp) {
             valid = false;
             break;
@@ -82,19 +91,19 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
           break;
         }
         case "Verwijssysteem": {
-          if (!bikeparkId) {
+          if (!slideBikeparkId) {
             valid = false;
             break;
           }
           const bp = await prisma.fietsenstallingen.findUnique({
-            where: { ID: bikeparkId },
+            where: { ID: slideBikeparkId },
             include: { fietsenstalling_secties: { where: { isactief: true } } },
           });
           if (!bp?.Verwijssysteem || !bp.fietsenstalling_secties.length) {
             valid = false;
             break;
           }
-          const info = await getBikeparkInfo(bikeparkId);
+          const info = await getBikeparkInfo(slideBikeparkId);
           const n = info.length;
           const heightRule = n >= 3 ? `.big .item { height: calc(100% / ${n} - ${n} * 2px); }` : "";
           inner = `<h1>Aantal vrije plaatsen: </h1><div class="table"><div class="item_wrapper big tbl_cell"><style>${heightRule}</style>`;
@@ -117,7 +126,7 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
             where: { SiteID: siteId, Status: "1", Verwijssysteem: true },
             orderBy: { Title: "asc" },
           });
-          const rows = parks.filter((p) => !bikeparkId || p.ID !== bikeparkId);
+          const rows = parks.filter((p) => !slideBikeparkId || p.ID !== slideBikeparkId);
           if (rows.length === 0) {
             valid = false;
             break;

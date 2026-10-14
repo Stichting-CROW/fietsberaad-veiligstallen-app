@@ -55,6 +55,13 @@ const StallingsschermenComponent: React.FC = () => {
   const [overzichtPage, setOverzichtPage] = useState<OverzichtenPage>("VrijePlekken");
   const [loading, setLoading] = useState(true);
   const [iframeKey, setIframeKey] = useState(0);
+  const [appOrigin, setAppOrigin] = useState("");
+
+  const isDev = process.env.NODE_ENV === "development";
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setAppOrigin(window.location.origin);
+  }, []);
 
   const loadGemeenten = useCallback(async () => {
     const res = await fetch("/api/protected/stallingsschermen");
@@ -111,9 +118,16 @@ const StallingsschermenComponent: React.FC = () => {
     selectedGemeente?.urlName &&
     (!tabNeedsStalling || selectedStalling?.stallingsID);
 
+  const devUrl = urls.previewUrl && appOrigin ? `${appOrigin}${urls.previewUrl}` : urls.previewUrl;
+
   const copyProduction = async () => {
     if (!urls.productionUrl) return;
     await navigator.clipboard.writeText(urls.productionUrl);
+  };
+
+  const copyDev = async () => {
+    if (!devUrl) return;
+    await navigator.clipboard.writeText(devUrl);
   };
 
   if (!isSuperadmin) {
@@ -198,6 +212,26 @@ const StallingsschermenComponent: React.FC = () => {
         }}
         sx={{ mb: 2 }}
       />
+
+      {isDev && urls.previewUrl ? (
+        <TextField
+          label="Link lokaal testen (dev)"
+          value={devUrl}
+          fullWidth
+          InputProps={{
+            readOnly: true,
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={() => void copyDev()} disabled={!devUrl} aria-label="Kopiëren dev-link">
+                  <FiCopy />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+          sx={{ mb: 2 }}
+          helperText="Zelfde pagina als de preview hieronder; pad onder /display/… op deze dev-server."
+        />
+      ) : null}
 
       <Tabs
         value={mainTab}
