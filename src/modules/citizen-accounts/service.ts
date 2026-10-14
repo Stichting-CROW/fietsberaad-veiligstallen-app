@@ -1884,21 +1884,58 @@ export async function assertManagedAccount(accountId: string, siteId: string) {
   if (!link) throw new AccountError("Account niet gevonden");
 }
 
-export async function listManagedSubscriptions(siteId: string) {
-  return prisma.abonnementen.findMany({
+/**
+ * `fms/secure/abonnementen/abonnementen/list.cfm`: paid subscriptions outside buurtstallingen and fietstrommels,
+ * newest first. Search on pass ID, pass name or e-mail. `runningOnly` is "Toon alle resultaten": running ones, no limit.
+ */
+export async function listManagedSubscriptions(
+  siteId: string,
+  options: { search?: string; runningOnly?: boolean } = {},
+) {
+  const search = options.search?.trim();
+  const rows = await prisma.abonnementen.findMany({
     where: {
       type: "abonnement",
+      isBetaald: true,
+      abonnementsvormen: { is: { bikeparkTypeID: { notIn: ["buurtstalling", "fietstrommel"] } } },
       ...(siteId === "1" ? {} : { OR: [{ siteID: siteId }, { exploitantID: siteId }] }),
+      ...(options.runningOnly ? { afloopdatum: { gt: new Date() } } : {}),
+      ...(search
+        ? {
+            AND: [
+              {
+                OR: [
+                  { accounts_pasids: { is: { PasID: { contains: search } } } },
+                  { accounts_pasids: { is: { Naam: { contains: search } } } },
+                  { accounts: { is: { Email: { contains: search } } } },
+                ],
+              },
+            ],
+          }
+        : {}),
     },
     omit: { sectionID: true },
     include: {
       abonnementsvormen: { select: { naam: true } },
       accounts: { select: { Email: true } },
-      accounts_pasids: { select: { PasID: true, Pastype: true } },
+      accounts_pasids: { select: { PasID: true, Pastype: true, Naam: true } },
     },
     orderBy: { dateCreated: "desc" },
-    take: 100,
+    ...(options.runningOnly ? {} : { take: 100 }),
   });
+
+  const payments = rows.length
+    ? await prisma.financialtransactions.findMany({
+        where: { subscriptionID: { in: rows.map((r) => r.ID) }, status: "ok", mollieTransactionID: { not: null } },
+        select: { subscriptionID: true, mollieTransactionID: true, paymentMethod: true },
+      })
+    : [];
+  const paymentBySubscription = new Map(payments.map((p) => [p.subscriptionID, p]));
+  return rows.map((row) => ({
+    ...row,
+    mollieTransactionID: paymentBySubscription.get(row.ID)?.mollieTransactionID ?? null,
+    paymentMethod: paymentBySubscription.get(row.ID)?.paymentMethod ?? null,
+  }));
 }
 
 /** actions.cfm PlusPlus: +1 on a digit string of any length (numbers above 17 digits lose precision as Number). */

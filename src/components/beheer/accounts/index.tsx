@@ -16,7 +16,12 @@ type SubscriptionRow = {
   formId: number | null;
   passId: string | null;
   pass: string;
+  passName: string;
+  passType: string;
+  passNumber: string;
   barcode: string | null;
+  mollieId: string | null;
+  paymentMethod: string | null;
 };
 type FormOption = { ID: number; naam: string | null };
 
@@ -243,9 +248,14 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [forms, setForms] = useState<FormOption[]>([]);
   const [editing, setEditing] = useState<SubscriptionRow | null>(null);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
-  async function loadSubscriptions() {
-    const response = await fetch("/api/protected/abonnementen-records");
+  async function loadSubscriptions(search = query, all = showAll) {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("q", search.trim());
+    if (all) params.set("alle", "1");
+    const response = await fetch(`/api/protected/abonnementen-records?${params.toString()}`);
     const data = await response.json();
     if (!response.ok) onMessage(data.error ?? "Laden mislukt");
     setSubscriptions(data.data ?? []);
@@ -303,26 +313,69 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
 
   return (
     <div className="space-y-4">
+      <form
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void loadSubscriptions();
+        }}
+      >
+        <input
+          className={inputClass}
+          placeholder="Pasnummer, naam op pas of e-mail"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button className={buttonClass} type="submit">Zoek</button>
+        <label className="flex items-center gap-1 text-sm">
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(event) => {
+              setShowAll(event.target.checked);
+              void loadSubscriptions(query, event.target.checked);
+            }}
+          />
+          Toon alle resultaten (alleen lopende abonnementen)
+        </label>
+      </form>
+      <p className="text-xs text-gray-600">
+        Betaalde abonnementen, nieuwste eerst{showAll ? "" : " (laatste 100)"}. Buurtstallingen en fietstrommels staan bij Buurtstallingen.
+      </p>
       <table className="w-full text-sm">
         <thead>
           <tr>
-            <th className="text-left">Abonnement</th><th className="text-left">Account</th><th className="text-left">Pas</th>
-            <th>Van</th><th>Tot</th><th className="text-right">Prijs</th><th>Betaald</th><th />
+            <th className="text-left">Naam</th><th className="text-left">E-mail</th><th className="text-left">Pastype</th>
+            <th className="text-left">Pas ID</th><th className="text-right">Prijs</th><th>Van</th><th>Tot</th>
+            <th className="text-left">Mollie ID</th><th />
           </tr>
         </thead>
         <tbody>
-          {subscriptions.map((row) => (
-            <tr key={row.id}>
-              <td>{row.name}</td>
-              <td>{row.email}</td>
-              <td>{row.pass || (row.barcode ? `barcode ${row.barcode}` : "")}</td>
-              <td>{displayDate(row.start)}</td>
-              <td>{displayDate(row.end)}</td>
-              <td className="text-right">{row.price.toFixed(2)}</td>
-              <td className="text-center">{row.paid ? "ja" : "nee"}</td>
-              <td><button type="button" className="underline" onClick={() => setEditing(row)}>Wijzig</button></td>
-            </tr>
-          ))}
+          {subscriptions.length === 0 && (
+            <tr><td colSpan={9} className="py-2 text-gray-600">Geen abonnementen gevonden.</td></tr>
+          )}
+          {subscriptions.map((row) => {
+            const expired = row.end ? new Date(row.end).getTime() < Date.now() : false;
+            return (
+              <tr key={row.id} className={expired ? "text-gray-400" : ""}>
+                <td>{row.name}</td>
+                <td>{row.email}</td>
+                <td>{row.passType}</td>
+                <td>
+                  {row.passNumber || (row.barcode ? `barcode ${row.barcode}` : "")}
+                  {row.passName ? <span className="text-gray-500"> ({row.passName})</span> : null}
+                </td>
+                <td className="text-right">€ {row.price.toFixed(2)}</td>
+                <td>{displayDate(row.start)}</td>
+                <td>{displayDate(row.end)}</td>
+                <td>
+                  {row.mollieId ?? ""}
+                  {row.mollieId && row.paymentMethod ? <span className="text-gray-500"> ({row.paymentMethod})</span> : null}
+                </td>
+                <td><button type="button" className="underline" onClick={() => setEditing(row)}>Wijzig</button></td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

@@ -24,25 +24,35 @@ export type ReportType =
   | "stallingsduur"
   | "volmeldingen"
   | "gelijktijdig_vol"
-  | "downloads";
+  | "downloads"
+  | "financieel_maandoverzicht"
+  | "laag_saldo"
+  | "maandrapport_buurtstallingen";
 export const reportTypeValues: [string, ...string[]] = [
   "transacties_voltooid",
-  "inkomsten",
-  "abonnementen",
-  "abonnementen_lopend",
   "bezetting",
   "absolute_bezetting",
   "stallingsduur",
+  "maandrapport_buurtstallingen",
+  "inkomsten",
+  "abonnementen",
+  "abonnementen_lopend",
   "volmeldingen",
   "gelijktijdig_vol",
-  "downloads"
+  "downloads",
+  "financieel_maandoverzicht",
+  "laag_saldo"
 ];
+
+/** Report types rendered as their own panel instead of the chart with the period filter. */
+export const PANEL_REPORT_TYPES: ReportType[] = ["financieel_maandoverzicht", "laag_saldo", "maandrapport_buurtstallingen"];
+export const ABONNEMENTEN_REPORT_TYPES: ReportType[] = ["abonnementen", "abonnementen_lopend"];
 
 export type ReportDatatype = "bezettingsdata" | "ruwedata"
 export const reportDatatypeValues = ["bezettingsdata", "ruwedata"]
 
-export type ReportCategories = "none" | "per_stalling" | "per_weekday" | "per_section" | "per_type_klant"
-export const reportCategoriesValues = ["none", "per_stalling", "per_weekday", "per_section", "per_type_klant"]
+export type ReportCategories = "none" | "per_stalling" | "per_weekday" | "per_section" | "per_type_klant" | "per_abonnementsvorm"
+export const reportCategoriesValues = ["none", "per_stalling", "per_weekday", "per_section", "per_type_klant", "per_abonnementsvorm"]
 
 export type ReportGrouping =
   | "per_hour"
@@ -138,6 +148,7 @@ export const defaultReportState: ReportState = {
 
 interface ReportsFilterComponentProps {
   showAbonnementenRapporten: boolean;
+  showBuurtstallingenRapporten?: boolean;
   firstDate: Date;
   lastDate: Date;
   bikeparks: ReportBikepark[];
@@ -149,17 +160,22 @@ interface ReportsFilterComponentProps {
   onResultViewChange?: (view: ReportResultView) => void;
 }
 
-export const getAvailableReports = (showAbonnementenRapporten: boolean) => {
-  const availableReports = [];
+export const getAvailableReports = (showAbonnementenRapporten: boolean, showBuurtstallingenRapporten = false) => {
+  const availableReports: Array<{ id: ReportType; title: string }> = [];
   availableReports.push({ id: "transacties_voltooid", title: "Afgeronde transacties" });
-  // availableReports.push({ id: "inkomsten", title: "Inkomsten (€)" });
-  // if(showAbonnementenRapporten) {
-  //     availableReports.push({ id: "abonnementen", title: "Abonnementswijzigingen" });
-  //     availableReports.push({ id: "abonnementen_lopend", title: "Lopende abonnementen" });
-  // }
   availableReports.push({ id: "bezetting", title: "Procentuele bezetting" });
   availableReports.push({ id: "absolute_bezetting", title: "Absolute bezetting" });
   availableReports.push({ id: "stallingsduur", title: "Stallingsduur" });
+  if (showBuurtstallingenRapporten) {
+    availableReports.push({ id: "maandrapport_buurtstallingen", title: "Maandrapport buurtstallingen" });
+  }
+  availableReports.push({ id: "inkomsten", title: "Inkomsten (€)" });
+  if (showAbonnementenRapporten) {
+    availableReports.push({ id: "abonnementen", title: "Abonnementswijzigingen" });
+    availableReports.push({ id: "abonnementen_lopend", title: "Lopende abonnementen" });
+  }
+  availableReports.push({ id: "financieel_maandoverzicht", title: "Financieel maandoverzicht" });
+  availableReports.push({ id: "laag_saldo", title: "Saldotekort" });
   // availableReports.push({ id: "volmeldingen", title: "Drukke en rustige momenten" });
   // availableReports.push({ id: "gelijktijdig_vol", title: "Gelijktijdig vol" });
   // availableReports.push({ id: "downloads", title: "Download data" });
@@ -195,6 +211,7 @@ const PRESETS_USING_CUSTOM_RANGE: PeriodPreset[] = ["afgelopen_7_dagen", "afgelo
 
 const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComponentProps>(({
   showAbonnementenRapporten,
+  showBuurtstallingenRapporten = false,
   firstDate,
   lastDate,
   bikeparks,
@@ -419,7 +436,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     }
   }));
 
-  const availableReports = getAvailableReports(showAbonnementenRapporten);
+  const availableReports = getAvailableReports(showAbonnementenRapporten, showBuurtstallingenRapporten);
 
   useEffect(() => {
     if (activeReportType && activeReportType !== reportType) {
@@ -691,6 +708,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
             setReportGrouping("per_bucket");
             setReportCategories("per_type_klant");
             break;
+          case "abonnementen":
+          case "abonnementen_lopend":
+            setReportGrouping("per_month");
+            setReportCategories("none");
+            break;
           default:
             setReportGrouping("per_week");
             setReportCategories("per_stalling");
@@ -704,7 +726,10 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
         return;
       }
 
-      if (null === previousStateRef.current || newState.reportRangeUnit !== previousStateRef.current.reportRangeUnit) {
+      if (
+        !ABONNEMENTEN_REPORT_TYPES.includes(newState.reportType) &&
+        (null === previousStateRef.current || newState.reportRangeUnit !== previousStateRef.current.reportRangeUnit)
+      ) {
         switch (newState.reportRangeUnit) {
           case "range_year":
             if (newState.reportGrouping === "per_year") {
@@ -807,7 +832,11 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showIntervalBucket = isStallingsduurReport;
 
     const xAxisOptions: Array<{ value: ReportGrouping; label: string; disabled?: boolean }> = [];
-    if (isAbsoluteBezettingReport) {
+    if (ABONNEMENTEN_REPORT_TYPES.includes(reportType)) {
+      xAxisOptions.push({ value: "per_year", label: "Jaar" });
+      xAxisOptions.push({ value: "per_quarter", label: "Kwartaal" });
+      if (showIntervalMonth) xAxisOptions.push({ value: "per_month", label: "Maand" });
+    } else if (isAbsoluteBezettingReport) {
       xAxisOptions.push({
         value: "per_hour_time",
         label: isHourDisabled ? "Uur (max. 14 dagen)" : "Uur",
@@ -861,6 +890,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const periodInDays = isValidPeriod ? Math.floor((endDT.getTime() - startDT.getTime()) / DAY_IN_MS) + 1 : 0;
 
     if(! isValidPeriod) return;
+    if (ABONNEMENTEN_REPORT_TYPES.includes(reportType)) return;
 
     if(periodInDays <= 100) {
       // Do nothing
@@ -942,15 +972,19 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     const showCategorySection = ["bezetting"].includes(reportType);
     const showCategoryPerTypeKlant = ["stallingsduur"].includes(reportType);
 
-    // Show the generic BikeparkSelect for all reports, including absolute_bezetting
-    const showBikeparkSelect = true;
+    const isAbonnementenReport = ABONNEMENTEN_REPORT_TYPES.includes(reportType);
+    // Subscriptions belong to the municipality, not to a bike park
+    const showBikeparkSelect = !isAbonnementenReport;
 
     // Build available X-axis options using the helper function
     const xAxisOptions = getAvailableXAxisOptions();
 
     // Build available Legenda options
     const legendaOptions: Array<{ value: ReportCategories; label: string }> = [];
-    if (!isStallingsduurReport && !isBezettingReport) {
+    if (isAbonnementenReport) {
+      legendaOptions.push({ value: "none", label: "Geen" });
+      legendaOptions.push({ value: "per_abonnementsvorm", label: "Per abonnementsvorm" });
+    } else if (!isStallingsduurReport && !isBezettingReport) {
       legendaOptions.push({ value: "none", label: "Geen" });
       legendaOptions.push({ value: "per_stalling", label: "Per stalling" });
     }
@@ -1160,21 +1194,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     );
   };
 
-  const renderAbonnementenSelect = (): React.ReactNode => {
-    return (
-      <div>
-        <select
-          value={grouped}
-          onChange={(e) => setGrouped(e.target.value)}
-          className={selectClasses}
-          id="grouped"
-        >
-          <option value="0">Alle abonnementen</option>
-          <option value="1">Per abonnement</option>
-        </select>
-      </div>)
-  }
-
   const renderVolmeldingenSelect = (): React.ReactNode => {
     return (
       <>
@@ -1234,12 +1253,6 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
       <div className="flex flex-col space-y-4">
         <div>
           {renderUnitSelect()}
-
-          {reportType === "abonnementen" && (
-            <div>
-              {renderAbonnementenSelect()}
-            </div>
-          )}
 
           {reportType === "volmeldingen" && (
             <div>

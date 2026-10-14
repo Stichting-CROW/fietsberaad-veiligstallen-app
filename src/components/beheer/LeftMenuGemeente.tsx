@@ -59,6 +59,22 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
     { slug: 'procentuele-bezetting', title: 'Procentuele bezetting' },
     { slug: 'absolute-bezetting', title: 'Absolute bezetting' },
     { slug: 'stallingsduur', title: 'Stallingsduur' },
+    ...(hasBuurtstallingen && hasBuurtstallingenModule
+      ? [{ slug: 'maandrapport-buurtstallingen', title: 'Maandrapport buurtstallingen' }]
+      : []),
+    { slug: 'inkomsten', title: 'Inkomsten (€)' },
+    ...(hasAbonnementenModule
+      ? [
+          { slug: 'abonnementswijzigingen', title: 'Abonnementswijzigingen' },
+          { slug: 'lopende-abonnementen', title: 'Lopende abonnementen' },
+        ]
+      : []),
+    ...(hasFmsModule
+      ? [
+          { slug: 'financieel-maandoverzicht', title: 'Financieel maandoverzicht' },
+          { slug: 'saldotekort', title: 'Saldotekort' },
+        ]
+      : []),
   ];
 
   return (
@@ -209,13 +225,6 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
                       </li>
                     );
                   })}
-                  {hasBuurtstallingen && hasBuurtstallingenModule && (
-                    <li>
-                      <a className="font-poppinsmedium flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100" href="/api/protected/buurtstallingen?export=maand">
-                        Maandrapport buurtstallingen
-                      </a>
-                    </li>
-                  )}
                 </ul>
               )}
             </LeftMenuItem>
