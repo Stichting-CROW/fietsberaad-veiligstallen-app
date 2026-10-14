@@ -1,10 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
-import { signInCitizen } from "~/modules/buurtstallingen/application/citizen";
+import { citizenProfile, signInCitizen } from "~/modules/buurtstallingen/application/citizen";
 import { sendBuurtstallingenError } from "~/modules/buurtstallingen/application/http";
-import { CITIZEN_COOKIE } from "~/modules/buurtstallingen/auth";
+import { CITIZEN_COOKIE, readCitizenSession, readCookie } from "~/modules/buurtstallingen/auth";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    const session = readCitizenSession(readCookie(req.headers.cookie, CITIZEN_COOKIE));
+    const profile = session ? await citizenProfile(session.accountId) : null;
+    if (!profile) {
+      res.status(401).json({ error: "Log eerst in" });
+      return;
+    }
+    res.status(200).json({ profile });
+    return;
+  }
   if (req.method !== "POST") {
     res.status(405).json({ error: "Methode niet toegestaan" });
     return;

@@ -819,7 +819,7 @@ model fietstypen {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model financialtransactions {
   ID                  String    @id @db.VarChar(35)
-  mollieTransactionID String?   @db.VarChar(20)
+  mollieTransactionID String?   @db.VarChar(32)
   amount              Decimal?  @db.Decimal(8, 2)
   btw                 Decimal?  @db.Decimal(8, 2)
   btwPercentage       Float?

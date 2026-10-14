@@ -7,6 +7,7 @@ interface GemeenteFiltersState {
   showGemeentenWithoutUsers: "yes" | "no" | "only";
   showGemeentenWithoutExploitanten: "yes" | "no" | "only";
   selectedModuleFilter: string; // "all", "none", "wel_<moduleId>", or "geen_<moduleId>"
+  statusWebsiteFilter: "all" | "yes" | "no";
 }
 
 // Load initial state from session storage if available
@@ -15,7 +16,15 @@ const loadInitialState = (): GemeenteFiltersState => {
     const savedState = sessionStorage.getItem('gemeente-filters');
     if (savedState) {
       try {
-        return JSON.parse(savedState);
+        const parsed = JSON.parse(savedState) as Partial<GemeenteFiltersState>;
+        return {
+          nameFilter: parsed.nameFilter ?? "",
+          showGemeentenWithoutStallingen: parsed.showGemeentenWithoutStallingen ?? "yes",
+          showGemeentenWithoutUsers: parsed.showGemeentenWithoutUsers ?? "yes",
+          showGemeentenWithoutExploitanten: parsed.showGemeentenWithoutExploitanten ?? "yes",
+          selectedModuleFilter: parsed.selectedModuleFilter ?? "all",
+          statusWebsiteFilter: parsed.statusWebsiteFilter ?? "all",
+        };
       } catch (e) {
         console.error('Error parsing saved filters:', e);
       }
@@ -27,6 +36,7 @@ const loadInitialState = (): GemeenteFiltersState => {
     showGemeentenWithoutUsers: "yes",
     showGemeentenWithoutExploitanten: "yes",
     selectedModuleFilter: "all",
+    statusWebsiteFilter: "all",
   };
 };
 
@@ -76,12 +86,21 @@ export const gemeenteFiltersSlice = createSlice({
         console.error('Error saving filters to session storage:', e);
       }
     },
+    setStatusWebsiteFilter: (state, action: PayloadAction<"all" | "yes" | "no">) => {
+      state.statusWebsiteFilter = action.payload;
+      try {
+        sessionStorage.setItem('gemeente-filters', JSON.stringify(state));
+      } catch (e) {
+        console.error('Error saving filters to session storage:', e);
+      }
+    },
     resetFilters: (state) => {
       state.nameFilter = "";
       state.showGemeentenWithoutStallingen = "no";
       state.showGemeentenWithoutUsers = "no";
       state.showGemeentenWithoutExploitanten = "yes";
       state.selectedModuleFilter = "all";
+      state.statusWebsiteFilter = "all";
       try {
         sessionStorage.setItem('gemeente-filters', JSON.stringify(state));
       } catch (e) {
@@ -97,6 +116,7 @@ export const {
   setShowGemeentenWithoutUsers,
   setShowGemeentenWithoutExploitanten,
   setSelectedModuleFilter,
+  setStatusWebsiteFilter,
   resetFilters,
 } = gemeenteFiltersSlice.actions;
 

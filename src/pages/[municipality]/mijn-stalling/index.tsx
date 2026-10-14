@@ -42,7 +42,7 @@ const Page = ({ council, mine }: { council: { CompanyName: string | null; UrlNam
   }
 
   return (
-    <main className="mx-auto my-6 max-w-xl space-y-4 rounded bg-white p-6 text-gray-900">
+    <main className="mx-auto my-6 max-w-xl space-y-4 rounded bg-white p-6 text-[#1c2b33]">
       <h1 className="text-2xl font-semibold">Mijn stalling</h1>
       <p>{council.CompanyName}</p>
       {message && <p>{message}</p>}
@@ -53,7 +53,7 @@ const Page = ({ council, mine }: { council: { CompanyName: string | null; UrlNam
             {mine.places.map((place) => (
               <li key={place.placeId} className="rounded border p-3">
                 <strong>{place.stallingTitle}</strong>
-                <p>{place.placeTitle} — {place.status}</p>
+                <p>{place.placeTitle} — {statusLabel(place.status ?? "")}</p>
                 <div className="mt-2 flex gap-3 text-sm">
                   {place.status === "PROPOSED" && (
                     <>
@@ -94,5 +94,13 @@ const Page = ({ council, mine }: { council: { CompanyName: string | null; UrlNam
     </main>
   );
 };
+
+function statusLabel(status: string): string {
+  if (status === "PROPOSED") return "Aangeboden";
+  if (status === "RESERVED") return "Gereserveerd";
+  if (status === "OCCUPIED") return "In gebruik";
+  if (status === "CANCELLED") return "Opgezegd";
+  return status;
+}
 
 export default Page;

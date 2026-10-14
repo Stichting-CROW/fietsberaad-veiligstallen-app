@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { buttonClass } from "~/components/citizen/CitizenShell";
 import { BIKE_TYPES } from "~/modules/buurtstallingen/domain/types";
+import { publicWizardNav, type WizardNav } from "~/utils/buurt-wizard-nav";
 
 export type PublicDetail = {
-  council: { UrlName: string | null; CompanyName: string | null };
+  council: { ID: string; UrlName: string | null; CompanyName: string | null };
   engineEnabled: boolean;
   stalling: { id: string; title: string | null; type: string | null; address: string | null; city: string | null };
   qualifications: string[];
@@ -33,9 +35,18 @@ function dateLabel(iso: string): string {
   return date.toLocaleDateString("nl-NL");
 }
 
-const PublicFlow: React.FC<{ detail: PublicDetail; step: WizardStep }> = ({ detail, step }) => {
+const primaryBtn = `${buttonClass} inline-block`;
+const stepActive = "font-semibold text-[var(--vs-theme1)]";
+
+const PublicFlow: React.FC<{
+  detail: PublicDetail;
+  step: WizardStep;
+  authenticated?: boolean;
+  embedded?: boolean;
+  nav?: WizardNav;
+}> = ({ detail, step, authenticated = false, embedded = false, nav: navProp }) => {
   const router = useRouter();
-  const base = stallingBase(detail);
+  const nav = navProp ?? publicWizardNav(stallingBase(detail), detail.council.UrlName);
   const rek = needsRek(detail);
   const bikeTypeId = Number(queryValue(router.query.fiets)) || detail.freeByBikeType[0]?.bikeTypeId || 0;
   const free = detail.freeByBikeType.find((row) => row.bikeTypeId === bikeTypeId)?.free ?? 0;
@@ -47,36 +58,55 @@ const PublicFlow: React.FC<{ detail: PublicDetail; step: WizardStep }> = ({ deta
     { id: "bevestiging", label: "Bevestiging" },
   ];
 
-  return (
-    <main className="mx-auto my-6 max-w-xl space-y-4 rounded bg-white p-6 text-gray-900">
-      <p className="text-sm text-gray-600">{detail.council.CompanyName}</p>
-      <h1 className="text-2xl font-semibold">{detail.stalling.title}</h1>
-      <p>{[detail.stalling.address, detail.stalling.city].filter(Boolean).join(", ")}</p>
-      <ol className="flex gap-3 text-sm text-gray-500">
+  const body = (
+    <>
+      {!embedded && <p className="text-sm text-gray-600">{detail.council.CompanyName}</p>}
+      <h2 className={embedded ? "text-lg font-semibold text-[var(--vs-theme1)]" : "text-2xl font-semibold"}>
+        Abonnement {detail.stalling.title}
+      </h2>
+      <p className="text-sm text-gray-700">{[detail.stalling.address, detail.stalling.city].filter(Boolean).join(", ")}</p>
+      <ol className="flex flex-wrap gap-3 text-sm text-gray-500">
         {steps.map((item) => (
-          <li key={item.id} className={item.id === step ? "font-semibold text-sky-800" : ""}>{item.label}</li>
+          <li key={item.id} className={item.id === step ? stepActive : ""}>{item.label}</li>
         ))}
       </ol>
       {!detail.engineEnabled && <p className="rounded bg-amber-50 p-3 text-sm">Aanvragen lopen nog via de bestaande reserveringsservice.</p>}
-      {step === "fiets" && <FietsStep detail={detail} base={base} />}
-      {step === "rek" && <RekStep detail={detail} base={base} bikeTypeId={bikeTypeId} />}
+      {step === "fiets" && <FietsStep detail={detail} nav={nav} />}
+      {step === "rek" && <RekStep nav={nav} bikeTypeId={bikeTypeId} />}
       {step === "gegevens" && (
-        <GegevensStep detail={detail} base={base} bikeTypeId={bikeTypeId} free={free} qualification={qualification} />
+        <GegevensStep
+          detail={detail}
+          nav={nav}
+          bikeTypeId={bikeTypeId}
+          free={free}
+          qualification={qualification}
+          authenticated={authenticated}
+        />
       )}
-      {step === "bevestiging" && <BevestigingStep detail={detail} base={base} />}
+      {step === "bevestiging" && <BevestigingStep detail={detail} nav={nav} />}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-4">{body}</div>;
+  }
+  return (
+    <main className="mx-auto my-6 max-w-xl space-y-4 rounded bg-white p-6 text-[#1c2b33]">
+      {body}
     </main>
   );
 };
 
-const FietsStep: React.FC<{ detail: PublicDetail; base: string }> = ({ detail, base }) => {
+const FietsStep: React.FC<{ detail: PublicDetail; nav: WizardNav }> = ({ detail, nav }) => {
   const [bikeTypeId, setBikeTypeId] = useState(detail.freeByBikeType[0]?.bikeTypeId ?? 1);
   const free = detail.freeByBikeType.find((row) => row.bikeTypeId === bikeTypeId)?.free ?? 0;
-  const next = needsRek(detail) ? `${base}/rek?fiets=${bikeTypeId}` : `${base}/gegevens?fiets=${bikeTypeId}`;
+  const next = needsRek(detail) ? nav.step("rek", { fiets: bikeTypeId }) : nav.step("gegevens", { fiets: bikeTypeId });
   if (detail.freeByBikeType.length === 0) {
     return <p>Deze stalling heeft geen plekken voor een fietstype.</p>;
   }
   return (
     <div className="space-y-3">
+      <h3 className="text-base font-semibold">Wat voor soort fiets heeft u?</h3>
       <label className="block text-sm">Fiets
         <select className="mt-1 w-full rounded border p-2" value={bikeTypeId} onChange={(event) => setBikeTypeId(Number(event.target.value))}>
           {detail.freeByBikeType.map((row) => (
@@ -85,11 +115,11 @@ const FietsStep: React.FC<{ detail: PublicDetail; base: string }> = ({ detail, b
         </select>
       </label>
       {detail.engineEnabled ? (
-        <Link className="inline-block rounded bg-sky-700 px-4 py-2 text-white" href={next}>
+        <Link className={primaryBtn} href={next}>
           {free === 0 ? "Plaats mij op de wachtlijst" : "Koop abonnement"}
         </Link>
       ) : (
-        <button className="rounded bg-sky-700 px-4 py-2 text-white" type="button" disabled>
+        <button className={`${primaryBtn} opacity-60`} type="button" disabled>
           {free === 0 ? "Plaats mij op de wachtlijst" : "Koop abonnement"}
         </button>
       )}
@@ -97,53 +127,53 @@ const FietsStep: React.FC<{ detail: PublicDetail; base: string }> = ({ detail, b
   );
 };
 
-const RekStep: React.FC<{ detail: PublicDetail; base: string; bikeTypeId: number }> = ({ base, bikeTypeId }) => (
+const RekStep: React.FC<{ nav: WizardNav; bikeTypeId: number }> = ({ nav, bikeTypeId }) => (
   <div className="space-y-3">
     <p>Heeft u bezwaar tegen een plek in een bovenrek?</p>
-    <div className="flex gap-3">
-      <Link className="rounded border px-4 py-2" href={`${base}/gegevens?fiets=${bikeTypeId}&rek=UNDER`}>Ja, alleen een onderrek</Link>
-      <Link className="rounded bg-sky-700 px-4 py-2 text-white" href={`${base}/gegevens?fiets=${bikeTypeId}&rek=NONE`}>Nee</Link>
+    <div className="flex flex-wrap gap-3">
+      <Link className="rounded border px-4 py-2 hover:bg-gray-50" href={nav.step("gegevens", { fiets: bikeTypeId, rek: "UNDER" })}>Ja, alleen een onderrek</Link>
+      <Link className={primaryBtn} href={nav.step("gegevens", { fiets: bikeTypeId, rek: "NONE" })}>Nee</Link>
     </div>
   </div>
 );
 
 const GegevensStep: React.FC<{
   detail: PublicDetail;
-  base: string;
+  nav: WizardNav;
   bikeTypeId: number;
   free: number;
   qualification: "NONE" | "UNDER";
-}> = ({ detail, base, bikeTypeId, free, qualification }) => {
+  authenticated: boolean;
+}> = ({ detail, nav, bikeTypeId, free, qualification, authenticated }) => {
   const router = useRouter();
   const [subscriptionTypeId, setSubscriptionTypeId] = useState(String(detail.subscriptionTypes[0]?.id ?? ""));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [register, setRegister] = useState(false);
+  const [signedIn, setSignedIn] = useState(authenticated);
+  const [profileLoaded, setProfileLoaded] = useState(!authenticated);
   const [profile, setProfile] = useState({
-    sex: "M", firstName: "", middleName: "", lastName: "", address: "", addressNr: "", zip: "", city: "", phone: "", mobile: "",
+    sex: "", firstName: "", middleName: "", lastName: "", address: "", addressNr: "", zip: "", city: "", phone: "", mobile: "",
   });
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const waiting = free === 0;
   const knownBike = detail.freeByBikeType.some((row) => row.bikeTypeId === bikeTypeId);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setMessage("");
-    const session = await fetch("/api/buurtstallingen/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        urlName: detail.council.UrlName,
-        email,
-        password,
-        register: register ? profile : undefined,
-      }),
-    });
-    const sessionData = await session.json();
-    if (!session.ok) {
-      setMessage(sessionData.error ?? "Inloggen mislukt");
-      return;
-    }
+  async function loadProfile() {
+    const response = await fetch("/api/buurtstallingen/session");
+    if (!response.ok) return false;
+    const data = await response.json();
+    setProfile((current) => ({ ...current, ...data.profile }));
+    setProfileLoaded(true);
+    return true;
+  }
+
+  useEffect(() => {
+    if (authenticated) void loadProfile();
+  }, [authenticated]);
+
+  async function submitAanvraag() {
     const response = await fetch("/api/buurtstallingen/aanvraag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -154,6 +184,7 @@ const GegevensStep: React.FC<{
         qualification,
         subscriptionTypeId: waiting ? null : subscriptionTypeId || null,
         wait: waiting,
+        profile,
       }),
     });
     const data = await response.json();
@@ -161,14 +192,49 @@ const GegevensStep: React.FC<{
       setMessage(data.error ?? "Aanvraag mislukt");
       return;
     }
-    const query = data.kind === "waiting"
-      ? `soort=wachtlijst&plaats=${data.sequence ?? ""}`
-      : `soort=reservering&tot=${encodeURIComponent(data.expiry ?? "")}`;
-    await router.push(`${base}/bevestiging?${query}`);
+    const extra = data.kind === "waiting"
+      ? { soort: "wachtlijst", plaats: String(data.sequence ?? "") }
+      : { soort: "reservering", tot: data.expiry ?? "" };
+    await router.push(nav.step("bevestiging", extra));
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (submitting) return;
+    setMessage("");
+    setSubmitting(true);
+    try {
+      if (!signedIn) {
+        const session = await fetch("/api/buurtstallingen/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            urlName: detail.council.UrlName,
+            email,
+            password,
+            register: register ? profile : undefined,
+          }),
+        });
+        const sessionData = await session.json();
+        if (!session.ok) {
+          setMessage(sessionData.error ?? "Inloggen mislukt");
+          return;
+        }
+        setSignedIn(true);
+        if (!register) {
+          await loadProfile();
+          setMessage("U bent ingelogd. Controleer uw naam en adres; deze komen op het contract en de machtiging.");
+          return;
+        }
+      }
+      await submitAanvraag();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (!knownBike) {
-    return <p>Kies eerst een fiets. <Link className="underline" href={base}>Terug</Link></p>;
+    return <p>Kies eerst een fiets. <Link className="underline text-[var(--vs-theme1)]" href={nav.start()}>Terug</Link></p>;
   }
 
   return (
@@ -183,43 +249,52 @@ const GegevensStep: React.FC<{
           </select>
         </label>
       )}
-      <label className="block text-sm">E-mail<input className="mt-1 w-full rounded border p-2" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-      <label className="block text-sm">Wachtwoord<input className="mt-1 w-full rounded border p-2" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={register} onChange={(event) => setRegister(event.target.checked)} /> Ik heb nog geen account</label>
-      {register && (
-        <div className="grid gap-2 md:grid-cols-2">
-          <label className="text-sm">Geslacht
-            <select className="mt-1 w-full rounded border p-2" value={profile.sex} onChange={(event) => setProfile({ ...profile, sex: event.target.value })}>
-              <option value="M">Man</option>
-              <option value="V">Vrouw</option>
-            </select>
-          </label>
-          {([
-            ["firstName", "Voornaam"],
-            ["middleName", "Tussenvoegsel"],
-            ["lastName", "Achternaam"],
-            ["address", "Straat"],
-            ["addressNr", "Huisnummer"],
-            ["zip", "Postcode"],
-            ["city", "Plaats"],
-            ["phone", "Telefoon"],
-            ["mobile", "Mobiel"],
-          ] as const).map(([key, label]) => (
-            <label key={key} className="text-sm">{label}
-              <input className="mt-1 w-full rounded border p-2" required={key !== "middleName" && key !== "phone" && key !== "mobile"} value={profile[key]} onChange={(event) => setProfile({ ...profile, [key]: event.target.value })} />
-            </label>
-          ))}
-        </div>
+      {!signedIn && (
+        <>
+          <label className="block text-sm">E-mail<input className="mt-1 w-full rounded border p-2" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label className="block text-sm">Wachtwoord<input className="mt-1 w-full rounded border p-2" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={register} onChange={(event) => setRegister(event.target.checked)} /> Ik heb nog geen account</label>
+        </>
       )}
-      <button className="rounded bg-sky-700 px-4 py-2 text-white" type="submit" disabled={!detail.engineEnabled}>
-        {waiting ? "Op de wachtlijst" : "Reserveer een plek"}
+      {(signedIn || register) && (
+        <fieldset className="space-y-2">
+          <legend className="text-base font-semibold">Uw gegevens</legend>
+          <p className="text-sm text-gray-600">Deze gegevens komen op het contract en de machtiging.</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            <label className="text-sm">Geslacht
+              <select className="mt-1 w-full rounded border p-2" value={profile.sex} onChange={(event) => setProfile({ ...profile, sex: event.target.value })}>
+                <option value="">—</option>
+                <option value="man">Man</option>
+                <option value="vrouw">Vrouw</option>
+              </select>
+            </label>
+            {([
+              ["firstName", "Voornaam"],
+              ["middleName", "Tussenvoegsel"],
+              ["lastName", "Achternaam"],
+              ["address", "Straat"],
+              ["addressNr", "Huisnummer"],
+              ["zip", "Postcode"],
+              ["city", "Plaats"],
+              ["phone", "Telefoon"],
+              ["mobile", "Mobiel"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="text-sm">{label}
+                <input className="mt-1 w-full rounded border p-2" required={key !== "middleName" && key !== "phone" && key !== "mobile"} value={profile[key]} onChange={(event) => setProfile({ ...profile, [key]: event.target.value })} />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <button className={`${primaryBtn} disabled:opacity-60`} type="submit" disabled={!detail.engineEnabled || submitting || !profileLoaded}>
+        {submitting ? "Bezig…" : waiting ? "Op de wachtlijst" : "Reserveer een plek"}
       </button>
       {message && <p>{message}</p>}
     </form>
   );
 };
 
-const BevestigingStep: React.FC<{ detail: PublicDetail; base: string }> = ({ detail, base }) => {
+const BevestigingStep: React.FC<{ detail: PublicDetail; nav: WizardNav }> = ({ detail, nav }) => {
   const router = useRouter();
   const soort = queryValue(router.query.soort);
   const tot = dateLabel(queryValue(router.query.tot));
@@ -228,7 +303,7 @@ const BevestigingStep: React.FC<{ detail: PublicDetail; base: string }> = ({ det
     return (
       <div className="space-y-3">
         <p>U staat op plaats {plaats || "?"} van de wachtlijst van {detail.stalling.title}.</p>
-        <Link className="underline" href={`/${detail.council.UrlName}/mijn-stalling`}>Mijn stalling</Link>
+        <Link className="underline text-[var(--vs-theme1)]" href={nav.mijnStalling()}>Mijn stalling</Link>
       </div>
     );
   }
@@ -236,11 +311,11 @@ const BevestigingStep: React.FC<{ detail: PublicDetail; base: string }> = ({ det
     return (
       <div className="space-y-3">
         <p>Uw plek is gereserveerd{tot ? ` tot ${tot}` : ""}. Haal de sleutel op vóór die datum. Neem het contract, de machtiging en een identiteitsbewijs mee.</p>
-        <Link className="underline" href={`/${detail.council.UrlName}/mijn-stalling`}>Mijn stalling</Link>
+        <Link className="underline text-[var(--vs-theme1)]" href={nav.mijnStalling()}>Mijn stalling</Link>
       </div>
     );
   }
-  return <p>Er is nog geen aanvraag afgerond. <Link className="underline" href={base}>Begin bij de fiets</Link></p>;
+  return <p>Er is nog geen aanvraag afgerond. <Link className="underline text-[var(--vs-theme1)]" href={nav.start()}>Begin bij de fiets</Link></p>;
 };
 
 export default PublicFlow;

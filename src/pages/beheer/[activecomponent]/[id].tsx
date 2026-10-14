@@ -538,7 +538,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = hasAbonnementsvormenAccess ? <AbonnementsvormenComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.Accounts:
-          selectedComponent = <AccountsComponent />;
+          selectedComponent = hasAbonnementsvormenAccess ? <AccountsComponent mode="gemeente" /> : <AccessDenied />;
+          break;
+        case VSMenuTopic.Products:
+          selectedComponent =
+            userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) && selectedContactID === "1"
+              ? <AccountsComponent mode="producten" />
+              : <AccessDenied />;
           break;
         case VSMenuTopic.ApisGekoppeldeLocaties:
           selectedComponent = hasFmsPermitsAccess ? (

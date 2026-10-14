@@ -73,7 +73,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       Modules: string,
       selectedModules: string[],
       ThemeColor1: string|null,
-      ThemeColor2: string|null
+      ThemeColor2: string|null,
+      hasEigenInfoWebsite: boolean,
     }
   
     const isNew = props.id === "new";
@@ -98,6 +99,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
     const [errorMessage, setErrorMessage] = useState<string|null>(null);
     const [ThemeColor1, setThemeColor1] = useState<string|null>(null);
     const [ThemeColor2, setThemeColor2] = useState<string|null>(null);
+    const [hasEigenInfoWebsite, setHasEigenInfoWebsite] = useState(false);
   
     const cDefaultCoordinaten = [52.1326, 5.2913].join(","); // center of NL by default 
   
@@ -121,6 +123,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
       selectedModules: [],
       ThemeColor1: null,
       ThemeColor2: null,
+      hasEigenInfoWebsite: false,
     });
 
     useEffect(() => {
@@ -164,6 +167,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 selectedModules: [],
                 ThemeColor1: DEFAULTGEMEENTE.ThemeColor1 ? DEFAULTGEMEENTE.ThemeColor1.replace('#', '') : '1f99d2',
                 ThemeColor2: DEFAULTGEMEENTE.ThemeColor2 ? DEFAULTGEMEENTE.ThemeColor2.replace('#', '') : '96c11f',
+                hasEigenInfoWebsite: DEFAULTGEMEENTE.Status_website === "1",
             };
 
             setCompanyName(initial.CompanyName);
@@ -183,6 +187,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             setSelectedModules([]);
             setThemeColor1(initial.ThemeColor1);
             setThemeColor2(initial.ThemeColor2);
+            setHasEigenInfoWebsite(initial.hasEigenInfoWebsite);
 
             setInitialData(initial);
         } else {
@@ -212,6 +217,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     selectedModules: currentModules,
                     ThemeColor1: activecontact.ThemeColor1 || initialData.ThemeColor1,
                     ThemeColor2: activecontact.ThemeColor2 || initialData.ThemeColor2,
+                    hasEigenInfoWebsite: activecontact.Status_website === "1",
                 };
         
                 setCompanyName(initial.CompanyName);
@@ -230,6 +236,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                 setDateRegistration(initial.DateRegistration);
                 setThemeColor1(initial.ThemeColor1);
                 setThemeColor2(initial.ThemeColor2);
+                setHasEigenInfoWebsite(initial.hasEigenInfoWebsite);
         
                 setInitialData(initial);
                 
@@ -273,7 +280,8 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           selectedModules.some(module => !initialData.selectedModules.includes(module)) ||
           initialData.selectedModules.some(module => !selectedModules.includes(module)) ||
           ThemeColor1 !== initialData.ThemeColor1 ||
-          ThemeColor2 !== initialData.ThemeColor2
+          ThemeColor2 !== initialData.ThemeColor2 ||
+          hasEigenInfoWebsite !== initialData.hasEigenInfoWebsite
       );
     };
 
@@ -388,6 +396,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
             DateRegistration: DateRegistration,
             ThemeColor1: ThemeColor1 || undefined,
             ThemeColor2: ThemeColor2 || undefined,
+            Status_website: hasEigenInfoWebsite ? "1" : "0",
           }
 
           const urlValidate = `/api/protected/gemeenten/validate/`;
@@ -443,6 +452,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
               DateRegistration: DateRegistration || prev.DateRegistration,
               ThemeColor1: ThemeColor1 || prev.ThemeColor1,
               ThemeColor2: ThemeColor2 || prev.ThemeColor2,
+              hasEigenInfoWebsite,
             }));
             
             // Reset state to use initialData values (consolidate changes)
@@ -487,6 +497,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setContactID(null);
           setThemeColor1(null);
           setThemeColor2(null);
+          setHasEigenInfoWebsite(false);
         } else {
           setCompanyName(initialData.CompanyName);
           setAlternativeCompanyName(initialData.AlternativeCompanyName);
@@ -505,6 +516,7 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
           setContactID(initialData.contactID);
           setThemeColor1(initialData.ThemeColor1);
           setThemeColor2(initialData.ThemeColor2);
+          setHasEigenInfoWebsite(initialData.hasEigenInfoWebsite);
           if (modulesContacts) {
             const moduleIds = modulesContacts.map(mc => mc.ModuleID);
             setSelectedModules(moduleIds);
@@ -673,6 +685,17 @@ const GemeenteEdit = (props: GemeenteEditProps) => {
                     />
                     <br />
                   </>}
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={hasEigenInfoWebsite}
+                        onChange={(e) => setHasEigenInfoWebsite(e.target.checked)}
+                        disabled={!isEditing}
+                      />
+                    }
+                    label="Heeft eigen info website"
+                  />
+                  <br />
                   {!isDataOwnerEdit && (
                     <>
                       <FormInput 

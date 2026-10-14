@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
 import { CITIZEN_COOKIE, readCitizenSession, readCookie } from "~/modules/buurtstallingen/auth";
+import { ensureCitizenCouncilLink, updateCitizenProfile } from "~/modules/buurtstallingen/application/citizen";
 import { joinWaitingList, reservePlace } from "~/modules/buurtstallingen/application/service";
 import { sendBuurtstallingenError } from "~/modules/buurtstallingen/application/http";
 import type { Qualification } from "~/modules/buurtstallingen/domain/types";
@@ -24,6 +25,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       res.status(404).json({ error: "Gemeente niet gevonden" });
       return;
     }
+    await ensureCitizenCouncilLink(council.ID, session.accountId);
+    if (req.body?.profile) await updateCitizenProfile(session.accountId, req.body.profile);
     const qualification: Qualification = req.body?.qualification === "UNDER" || req.body?.qualification === "ABOVE" ? req.body.qualification : "NONE";
     if (req.body?.wait) {
       const joined = await joinWaitingList({

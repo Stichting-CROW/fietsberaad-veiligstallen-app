@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "~/server/db";
+import { passTopAccountId } from "~/server/services/queue/account-service";
 import {
   addBikeToWachtrij,
   addManagedTransactionToWachtrij,
@@ -232,9 +233,10 @@ async function saldoForPass(passID: string): Promise<number | null> {
     where: { PasID: passID },
     select: { AccountID: true },
   });
-  if (!pasid?.AccountID) return null;
+  const accountID = await passTopAccountId(prisma, pasid?.AccountID ?? null);
+  if (!accountID) return null;
   const acc = await prisma.accounts.findUnique({
-    where: { ID: pasid.AccountID },
+    where: { ID: accountID },
     select: { saldo: true },
   });
   return acc ? Number(acc.saldo ?? 0) : null;

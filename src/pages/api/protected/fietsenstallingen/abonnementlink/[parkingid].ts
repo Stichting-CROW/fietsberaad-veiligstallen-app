@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "~/server/db";
+import { getBaseUrl } from "~/utils/server/database-tools";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { parkingid } = req.query;
@@ -36,21 +37,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!municipality || !municipality.UrlName || !subscriptionTypes || subscriptionTypes.length === 0) {
     res.status(200).json({ status: true, url: "" });
   } else {
-    let url = "";
+    const base = getBaseUrl(req).replace(/\/$/, "");
+    const ref = parking.StallingsID ?? "";
+    let path = "";
     switch (parking.Type) {
       case "fietskluizen":
-        url = `https://veiligstallen.nl/${municipality.UrlName}/fietskluizen/${parking.StallingsID}#${parking.StallingsID}`;
+        path = `/${municipality.UrlName}/fietskluizen/${ref}#${ref}`;
         break;
       case "fietstrommel":
-        url = `https://veiligstallen.nl/${municipality.UrlName}/fietstrommels/${parking.StallingsID}#${parking.StallingsID}`;
+        path = `/${municipality.UrlName}/fietstrommels/${ref}#${ref}`;
         break;
       case "buurtstalling":
-        url = `https://veiligstallen.nl/${municipality.UrlName}/buurtstallingen/${parking.StallingsID}#${parking.StallingsID}`;
+        path = `/${municipality.UrlName}/buurtstallingen/${ref}#${ref}`;
         break;
       default:
-        url = `https://veiligstallen.nl/${municipality.UrlName}/stallingen/${parking.StallingsID}#${parking.StallingsID}`;
+        path = `/${municipality.UrlName}/stallingen/${ref}#${ref}`;
         break;
     }
-    res.status(200).json({ status: true, url });
+    res.status(200).json({ status: true, url: `${base}${path}` });
   }
 }

@@ -55,6 +55,21 @@ export function capturedMails(): CapturedMail[] {
   }
 }
 
+/** Polls the mail capture file until a matching line appears (async mail / separate dev process). */
+export async function waitForCapturedMail(
+  predicate: (mail: CapturedMail) => boolean,
+  timeoutMs = 20_000,
+): Promise<CapturedMail> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const mail = capturedMails().find(predicate);
+    if (mail) return mail;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  const subjects = capturedMails().map((item) => item.subject ?? "(geen onderwerp)").join("; ") || "(geen mails)";
+  throw new Error(`Geen mail gevonden binnen ${timeoutMs}ms. Gevangen onderwerpen: ${subjects}`);
+}
+
 function parseCsvLine(line: string): string[] {
   const cells: string[] = [];
   let current = "";
