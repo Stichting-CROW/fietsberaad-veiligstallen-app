@@ -184,6 +184,8 @@ export const getRoleRights = (
           : allowNone
     currentTopics[VSSecurityTopic.fmsservices] = isRootAdmin ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.wachtrij] = isRootAdminFietsberaad ? allowCRUD : (isAdminFietsberaad ? allowRead : allowNone)
+    currentTopics[VSSecurityTopic.diashow_beheer] =
+      isAdminFietsberaad || isAdminDataEigenaar ? allowCRUD : allowNone
 
     return currentTopics;        
 };

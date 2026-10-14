@@ -42,6 +42,7 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
 import ParkingEditLogs from "~/components/parking/ParkingEditLogs";
 import ParkingEditTarieven from "~/components/parking/ParkingEditTarieven";
+import ParkingEditVerwijssysteem from "~/components/parking/ParkingEditVerwijssysteem";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -72,6 +73,11 @@ export type ParkingEditUpdateStructure = {
   OmschrijvingTarieven?: string | null;
   ExtraServices?: string | null;
   BerekentStallingskosten?: boolean;
+  Verwijssysteem?: boolean;
+  VerwijssysteemOverzichten?: boolean;
+  NotaVerwijssysteem?: string | null;
+  BronBezettingsdata?: string | null;
+  dia?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -166,6 +172,13 @@ const ParkingEdit = ({
   const [newFMS, setNewFMS] = React.useState<boolean | undefined>(
     undefined,
   );
+
+  const [newVerwijssysteem, setNewVerwijssysteem] = React.useState<boolean | undefined>(undefined);
+  const [newVerwijssysteemOverzichten, setNewVerwijssysteemOverzichten] = React.useState<boolean | undefined>(undefined);
+  const [newNotaVerwijssysteem, setNewNotaVerwijssysteem] = React.useState<string | undefined>(undefined);
+  const [newBronBezettingsdata, setNewBronBezettingsdata] = React.useState<string | undefined>(undefined);
+  const [newDia, setNewDia] = React.useState<string | undefined>(undefined);
+  const [hasFmsModule, setHasFmsModule] = React.useState(false);
 
   const [newStatus, setNewStatus] = React.useState<ParkingStatus | undefined>(
     undefined,
@@ -303,11 +316,13 @@ const ParkingEdit = ({
     const fetchModules = async () => {
       if (!siteIdForModules) {
         setHasAbonnementenModule(false);
+        setHasFmsModule(false);
         return;
       }
 
       if (siteIdForModules === "1") {
         setHasAbonnementenModule(true);
+        setHasFmsModule(true);
         return;
       }
 
@@ -320,11 +335,13 @@ const ParkingEdit = ({
         if (!cancelled) {
           const hasModule = Array.isArray(modules) && modules.some((module: { ModuleID?: string }) => module.ModuleID === "abonnementen");
           setHasAbonnementenModule(hasModule);
+          setHasFmsModule(Array.isArray(modules) && modules.some((module: { ModuleID?: string }) => module.ModuleID === "fms"));
         }
       } catch (error) {
         console.error("Error fetching modules for contact:", error);
         if (!cancelled) {
           setHasAbonnementenModule(false);
+          setHasFmsModule(false);
         }
       }
     };
@@ -619,6 +636,12 @@ const ParkingEdit = ({
         update.IsPopup = newIsPopup;
       }
     }
+
+    if (newVerwijssysteem !== undefined) update.Verwijssysteem = newVerwijssysteem;
+    if (newVerwijssysteemOverzichten !== undefined) update.VerwijssysteemOverzichten = newVerwijssysteemOverzichten;
+    if (newNotaVerwijssysteem !== undefined) update.NotaVerwijssysteem = newNotaVerwijssysteem.slice(0, 100) || null;
+    if (newBronBezettingsdata !== undefined) update.BronBezettingsdata = newBronBezettingsdata;
+    if (newDia !== undefined) update.dia = newDia || null;
 
     // Set DateCreated and DateModified
     const today = new Date();
@@ -1490,11 +1513,28 @@ const ParkingEdit = ({
   };
 
   const renderTabCapaciteit = (visible = false) => {
+    const canEditVerwijssysteemFlags = hasFietsberaadSuperadmin || canEditAllFields;
     return (
       <div
-        className="mt-10 flex w-full justify-between"
+        className="mt-10 flex w-full flex-col gap-8"
         style={{ display: visible ? "flex" : "none" }}
       >
+        {hasFmsModule && !isVoorstel && (
+          <ParkingEditVerwijssysteem
+            parkingdata={parkingdata}
+            canEditFlags={canEditVerwijssysteemFlags}
+            newVerwijssysteem={newVerwijssysteem}
+            setNewVerwijssysteem={setNewVerwijssysteem}
+            newVerwijssysteemOverzichten={newVerwijssysteemOverzichten}
+            setNewVerwijssysteemOverzichten={setNewVerwijssysteemOverzichten}
+            newNotaVerwijssysteem={newNotaVerwijssysteem}
+            setNewNotaVerwijssysteem={setNewNotaVerwijssysteem}
+            newBronBezettingsdata={newBronBezettingsdata}
+            setNewBronBezettingsdata={setNewBronBezettingsdata}
+            newDia={newDia}
+            setNewDia={setNewDia}
+          />
+        )}
         <SectiesManagementNew
           fietsenstallingId={parkingdata.ID}
           fietsenstallingType={parkingdata.Type}

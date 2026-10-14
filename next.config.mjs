@@ -92,9 +92,61 @@ const config = {
     return config;
   },
   async rewrites() {
+    const presentatieHosts = [
+      "presentaties.veiligstallen.nl",
+      "presentaties.fiets-en-win.nl",
+      "presentaties.fietsenwin.nl",
+    ];
+    const verwijssysteemHosts = [
+      "verwijssysteem.veiligstallen.nl",
+      "verwijssysteem.fiets-en-win.nl",
+      "verwijssysteem.fietsenwin.nl",
+    ];
+    const overzichtenHosts = [
+      "overzichten.veiligstallen.nl",
+      "overzichten.fiets-en-win.nl",
+      "overzichten.fietsenwin.nl",
+    ];
+
+    /** @param {string[]} hosts @param {{ source: string, destination: string }[]} rules */
+    const byHost = (hosts, rules) =>
+      hosts.flatMap((host) =>
+        rules.map((rule) => ({
+          ...rule,
+          has: [{ type: "host", value: host }],
+        }))
+      );
+
+    const presentatieRules = [
+      { source: "/", destination: "/api/display/presentaties/index" },
+      { source: "/index.cfm", destination: "/api/display/presentaties/index" },
+      { source: "/presentatie.cfm", destination: "/api/display/presentaties/presentatie" },
+      { source: "/slide2.cfm", destination: "/api/display/presentaties/slide2" },
+      { source: "/slide.cfm", destination: "/api/display/presentaties/slide2" },
+    ];
+
+    const verwijssysteemRules = [
+      { source: "/remote/Webservice.cfc", destination: "/api/display/webservice" },
+      { source: "/:path*", destination: "/api/display/verwijssysteem/:path*" },
+    ];
+
+    const overzichtenRules = [{ source: "/:path*", destination: "/api/display/overzichten/:path*" }];
+
+    const devDisplay = [
+      { source: "/display/presentaties/index.cfm", destination: "/api/display/presentaties/index" },
+      { source: "/display/presentaties/presentatie.cfm", destination: "/api/display/presentaties/presentatie" },
+      { source: "/display/presentaties/slide2.cfm", destination: "/api/display/presentaties/slide2" },
+      { source: "/display/verwijssysteem/:path*", destination: "/api/display/verwijssysteem/:path*" },
+      { source: "/display/overzichten/:path*", destination: "/api/display/overzichten/:path*" },
+    ];
+
     return [
       { source: "/sitemap.xml", destination: "/api/sitemap.xml" },
       { source: "/robots.txt", destination: "/api/robots" },
+      ...devDisplay,
+      ...byHost(presentatieHosts, presentatieRules),
+      ...byHost(verwijssysteemHosts, verwijssysteemRules),
+      ...byHost(overzichtenHosts, overzichtenRules),
     ];
   },
 };

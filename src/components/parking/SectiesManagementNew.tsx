@@ -388,6 +388,17 @@ const SectiesManagementNew: React.FC<SectiesManagementNewProps> = ({
 
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nota verwijssysteem (max 100):</label>
+                  <FormInput
+                    type="text"
+                    maxLength={100}
+                    value={editedSection.NotaVerwijssysteem ?? ""}
+                    onChange={(e) => updateEditedSection("NotaVerwijssysteem", e.target.value)}
+                    className="border-gray-700 rounded-full"
+                  />
+                </div>
+
                 {/* Row 3: Capaciteit */}
                 <div>
                   <label className="block text-sm font-medium mb-1">

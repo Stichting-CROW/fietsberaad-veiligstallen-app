@@ -306,6 +306,10 @@ export default async function handle(
           kleur: req.body.kleur || "00FF00",
           qualificatie: req.body.qualificatie || "NONE",
           isactief: req.body.isactief !== undefined ? req.body.isactief : true,
+          NotaVerwijssysteem:
+            req.body.NotaVerwijssysteem != null
+              ? String(req.body.NotaVerwijssysteem).slice(0, 100)
+              : undefined,
         },
         select: selectSectieDetailsType
       });

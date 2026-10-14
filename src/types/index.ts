@@ -36,7 +36,7 @@ export enum VSMenuTopic {
     "Fietskluizen" = "fietskluizen",
     "Home" = "home",
     "Logboek" = "logboek",
-    // // "Presentations" = "presentations",
+    "Presentations" = "presentations",
     "Products" = "products",
     "Report" = "report",
     "Settings" = "settings",
@@ -55,5 +55,6 @@ export enum VSMenuTopic {
     "OpenTransactiesOverzicht" = "opentransactiesoverzicht",
     "Wachtrij" = "wachtrij",
     "NsKoppeling" = "nskoppeling",
+    "Stallingsschermen" = "stallingsschermen",
 
 }

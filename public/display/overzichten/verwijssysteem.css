@@ -1,0 +1,66 @@
+.tbl {
+	display: table;
+}
+.tbl_row {
+	display: table-row;
+}
+.tbl_cell {
+	display: table-cell;
+}
+
+.item_wrapper { }
+
+/* generic */
+	.item {
+		display: table;
+		width: 100%;
+		height: 100px !important;
+		margin-bottom: 16px;
+		background-color: #1d99d7;
+	}
+	.col_color { 
+		width: 25px !important; 
+	}
+	.col_text {  /* is table cell */
+		vertical-align: middle;
+		padding: 20px;
+	}
+	.col_text h2, .col_text p {
+		color: #fff;
+	}
+	.col_text h2 {
+		margin: 0;
+		padding: 0;
+		font-size: 20px;
+		font-weight: normal;
+	}
+	.col_text p {
+		margin: 0;
+		padding: 0;
+		font-size: 14px;
+		font-weight: normal;
+	}
+	.col_plaatsen {  /* is table cell */
+		width: 100px !important;
+		text-align: center;
+		vertical-align: middle;
+		font-size: 36px;
+		color: #96c11f;
+		background-color: #000;
+	}
+
+/* small */
+	.small .item {
+		float: left;
+		vertical-align: top; 
+		width: calc(50% - 8px);
+		margin-right: 16px;
+		height: 50px;
+		}
+		.small .item.last { margin-right: 0; }
+
+/* big */
+	.big .item {
+		width: 100%;
+	}
+ 

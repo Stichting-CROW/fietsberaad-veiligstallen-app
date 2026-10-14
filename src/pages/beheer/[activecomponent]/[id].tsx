@@ -26,7 +26,7 @@ import HomeInfoComponent from '~/components/beheer/home';
 import LogboekComponent from '~/components/beheer/logboek';
 import FietsenstallingenComponent from '~/components/beheer/fietsenstallingen';
 import BuurtstallingenComponent from '~/components/beheer/buurtstallingen';
-// import PresentationsComponent from '~/components/beheer/presentations';
+import PresentationsComponent from '~/components/beheer/presentations';
 // import ProductsComponent from '~/components/beheer/producten';
 import ReportComponent from '~/components/beheer/reports';
 import SettingsComponent from '~/components/beheer/settings';
@@ -39,6 +39,7 @@ import DatabaseCBSGemeentecodes from '~/components/beheer/database/DatabaseCBSGe
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
 import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
+import StallingsschermenComponent from '~/components/beheer/stallingsschermen';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -504,9 +505,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         }
-        // case VSMenuTopic.Presentations:
-        //   selectedComponent = <PresentationsComponent />;
-        //   break;
+        case VSMenuTopic.Presentations: {
+          const hasDiashow = userHasRight(session?.user?.securityProfile, VSSecurityTopic.diashow_beheer);
+          selectedComponent = hasDiashow ? <PresentationsComponent /> : <AccessDenied />;
+          break;
+        }
         case VSMenuTopic.Settings:
           selectedComponent = <SettingsComponent />;
           break;
@@ -563,6 +566,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.NsKoppeling:
           selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
             <NsKoppelingComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.Stallingsschermen:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <StallingsschermenComponent />
           ) : (
             <AccessDenied />
           );
