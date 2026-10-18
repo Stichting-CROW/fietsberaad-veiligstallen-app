@@ -27,6 +27,7 @@ export type ReportType =
   | "downloads"
   | "financieel_maandoverzicht"
   | "laag_saldo"
+  | "pas"
   | "maandrapport_buurtstallingen";
 export const reportTypeValues: [string, ...string[]] = [
   "transacties_voltooid",
@@ -41,11 +42,12 @@ export const reportTypeValues: [string, ...string[]] = [
   "gelijktijdig_vol",
   "downloads",
   "financieel_maandoverzicht",
-  "laag_saldo"
+  "laag_saldo",
+  "pas"
 ];
 
 /** Report types rendered as their own panel instead of the chart with the period filter. */
-export const PANEL_REPORT_TYPES: ReportType[] = ["financieel_maandoverzicht", "laag_saldo", "maandrapport_buurtstallingen"];
+export const PANEL_REPORT_TYPES: ReportType[] = ["financieel_maandoverzicht", "laag_saldo", "pas", "maandrapport_buurtstallingen"];
 export const ABONNEMENTEN_REPORT_TYPES: ReportType[] = ["abonnementen", "abonnementen_lopend"];
 
 export type ReportDatatype = "bezettingsdata" | "ruwedata"
@@ -176,6 +178,7 @@ export const getAvailableReports = (showAbonnementenRapporten: boolean, showBuur
   }
   availableReports.push({ id: "financieel_maandoverzicht", title: "Financieel maandoverzicht" });
   availableReports.push({ id: "laag_saldo", title: "Saldotekort" });
+  availableReports.push({ id: "pas", title: "Pas" });
   // availableReports.push({ id: "volmeldingen", title: "Drukke en rustige momenten" });
   // availableReports.push({ id: "gelijktijdig_vol", title: "Gelijktijdig vol" });
   // availableReports.push({ id: "downloads", title: "Download data" });

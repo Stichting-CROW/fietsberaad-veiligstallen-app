@@ -74,6 +74,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
       ? [
           { slug: 'financieel-maandoverzicht', title: 'Financieel maandoverzicht' },
           { slug: 'saldotekort', title: 'Saldotekort' },
+          { slug: 'pas', title: 'Pas' },
         ]
       : []),
   ];
