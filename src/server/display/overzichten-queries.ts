@@ -110,20 +110,41 @@ export async function resolveLangstallersLabels(params: {
   return params.counts.map((c) => ({ title: byId.get(c.key) ?? c.key, n: c.n }));
 }
 
-export async function getPasOverzichtHtml(params: {
-  councilSiteId: string;
+export type PasTransactie = {
+  checkin: string;
+  checkout: string | null;
+  typeCheckin: string | null;
+  typeCheckout: string | null;
+  stallingsId: string;
+  amount: number;
+};
+
+export type PasOverzicht = {
+  found: boolean;
+  email: string;
+  gemeente: string;
+  transactions: PasTransactie[];
+};
+
+/** Pass lookup from overzichten `Pas.cfm`: last 30 days of parking transactions for one pass. */
+export async function getPasOverzicht(params: {
+  siteIds: string[];
   pasId: string;
-}): Promise<string> {
+}): Promise<PasOverzicht> {
+  const empty: PasOverzicht = { found: false, email: "", gemeente: "", transactions: [] };
   const pas = params.pasId.trim();
-  if (!pas) return "";
+  const siteIds = params.siteIds.filter(Boolean);
+  if (!pas || siteIds.length === 0) return empty;
 
   const row = await prisma.accounts_pasids.findFirst({
-    where: { SiteID: params.councilSiteId, PasID: pas },
-    select: { AccountID: true },
+    where: { SiteID: { in: siteIds }, PasID: pas },
+    select: { AccountID: true, SiteID: true },
   });
-  if (!row) {
-    return `<p>Pas niet gevonden in deze gemeente.</p>`;
-  }
+  if (!row) return empty;
+
+  const gemeente = row.SiteID
+    ? (await prisma.contacts.findUnique({ where: { ID: row.SiteID }, select: { CompanyName: true } }))?.CompanyName ?? ""
+    : "";
 
   let email = "";
   const ga = row.AccountID
@@ -140,10 +161,6 @@ export async function getPasOverzichtHtml(params: {
     });
     email = account?.email ?? "";
   }
-
-  const linkText = email
-    ? `Pas gekoppeld aan account van ${email}`
-    : "Pas niet gekoppeld aan een account";
 
   const since = new Date();
   since.setDate(since.getDate() - 30);
@@ -162,23 +179,56 @@ export async function getPasOverzichtHtml(params: {
     },
   });
 
-  const fmtDate = (d: Date) => {
+  return {
+    found: true,
+    email,
+    gemeente,
+    transactions: tx.map((t) => ({
+      checkin: t.Date_checkin.toISOString(),
+      checkout: t.Date_checkout ? t.Date_checkout.toISOString() : null,
+      typeCheckin: t.Type_checkin,
+      typeCheckout: t.Type_checkout,
+      stallingsId: t.FietsenstallingID,
+      amount: t.Stallingskosten != null ? Number(t.Stallingskosten) : 0,
+    })),
+  };
+}
+
+export async function getPasOverzichtHtml(params: {
+  councilSiteId: string;
+  pasId: string;
+}): Promise<string> {
+  const pas = params.pasId.trim();
+  if (!pas) return "";
+
+  const result = await getPasOverzicht({ siteIds: [params.councilSiteId], pasId: pas });
+  if (!result.found) {
+    return `<p>Pas niet gevonden in deze gemeente.</p>`;
+  }
+
+  const linkText = result.email
+    ? `Pas gekoppeld aan account van ${result.email}`
+    : "Pas niet gekoppeld aan een account";
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
     const today = new Date();
     if (d.toDateString() === today.toDateString()) return "Vandaag";
     return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
   };
-  const fmtTime = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
 
-  const rows = tx
+  const rows = result.transactions
     .map((t) => {
-      const amount = t.Stallingskosten != null ? Number(t.Stallingskosten) : 0;
-      const color = amount >= 0 ? "green" : "red";
-      const cin = t.Type_checkin && t.Type_checkin !== "user" ? ` (${t.Type_checkin})` : "";
-      const cout =
-        t.Date_checkout && t.Type_checkout && t.Type_checkout !== "user" ? ` (${t.Type_checkout})` : "";
-      return `<tr><td>${fmtDate(t.Date_checkin)} ${fmtTime(t.Date_checkin)}${cin}</td><td>${
-        t.Date_checkout ? `${fmtDate(t.Date_checkout)} ${fmtTime(t.Date_checkout)}${cout}` : "—"
-      }</td><td>${t.FietsenstallingID}</td><td style="color:${color}">€ ${amount.toFixed(2)}</td></tr>`;
+      const color = t.amount >= 0 ? "green" : "red";
+      const cin = t.typeCheckin && t.typeCheckin !== "user" ? ` (${t.typeCheckin})` : "";
+      const cout = t.checkout && t.typeCheckout && t.typeCheckout !== "user" ? ` (${t.typeCheckout})` : "";
+      return `<tr><td>${fmtDate(t.checkin)} ${fmtTime(t.checkin)}${cin}</td><td>${
+        t.checkout ? `${fmtDate(t.checkout)} ${fmtTime(t.checkout)}${cout}` : "—"
+      }</td><td>${t.stallingsId}</td><td style="color:${color}">€ ${t.amount.toFixed(2)}</td></tr>`;
     })
     .join("");
 

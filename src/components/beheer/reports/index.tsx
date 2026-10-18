@@ -12,6 +12,7 @@ import ReportsFilterComponent, {
 } from "./ReportsFilter";
 import FinancieelMaandoverzichtPanel from "./FinancieelMaandoverzichtPanel";
 import LaagSaldoPanel from "./LaagSaldoPanel";
+import PasPanel from "./PasPanel";
 import MaandrapportBuurtstallingenPanel from "./MaandrapportBuurtstallingenPanel";
 import { type SeriesLabel } from "./WeekdaySelect";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
@@ -114,6 +115,7 @@ export const CHART_TYPE_MAP: Record<string, ReportType> = {
   'stallingsduur': 'stallingsduur',
   'financieel-maandoverzicht': 'financieel_maandoverzicht',
   'saldotekort': 'laag_saldo',
+  'pas': 'pas',
   'maandrapport-buurtstallingen': 'maandrapport_buurtstallingen',
 };
 
@@ -130,6 +132,7 @@ export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
   'downloads': 'downloads',
   'financieel_maandoverzicht': 'financieel-maandoverzicht',
   'laag_saldo': 'saldotekort',
+  'pas': 'pas',
   'maandrapport_buurtstallingen': 'maandrapport-buurtstallingen',
 };
 
@@ -447,7 +450,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       <div className="flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
         <h2 className="mb-4 text-2xl font-semibold text-gray-900">{selectedReportTitle}</h2>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-gray-300 bg-white p-2 md:p-6">
-          {selectedReportType === "financieel_maandoverzicht" ? <FinancieelMaandoverzichtPanel /> : selectedReportType === "laag_saldo" ? <LaagSaldoPanel /> : <MaandrapportBuurtstallingenPanel />}
+          {selectedReportType === "financieel_maandoverzicht" && <FinancieelMaandoverzichtPanel />}
+          {selectedReportType === "laag_saldo" && <LaagSaldoPanel />}
+          {selectedReportType === "pas" && <PasPanel />}
+          {selectedReportType === "maandrapport_buurtstallingen" && <MaandrapportBuurtstallingenPanel />}
         </div>
       </div>
     );

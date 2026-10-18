@@ -8,6 +8,7 @@ import { getReportScope } from "~/backend/services/reports/scope";
 import { getAbonnementswijzigingen, getLopendeAbonnementen } from "~/backend/services/reports/abonnementen";
 import { getFinancieelMaandoverzicht } from "~/backend/services/reports/financieelMaandoverzicht";
 import { getLaagSaldo } from "~/backend/services/reports/laagSaldo";
+import { getPasOverzicht } from "~/server/display/overzichten-queries";
 import { monthlyReport } from "~/modules/buurtstallingen/application/service";
 import { prisma } from "~/server/db";
 
@@ -147,6 +148,27 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             periodeEind: formatDay(period.end),
             rows,
           });
+        } catch (error) {
+          console.error(error);
+          res.status(500).end();
+        }
+        break;
+      }
+      case "pas": {
+        const scope = await getReportScope(session.user.activeContactId ?? "");
+        const pas = typeof req.body?.pas === "string" ? req.body.pas.trim() : "";
+        if (!scope || !pas) {
+          res.status(400).json({ error: "Kies een organisatie en een pasnummer" });
+          return;
+        }
+        const siteIds = scope.kind === "gemeente"
+          ? [scope.contactId]
+          : (await prisma.contact_contact.findMany({
+              where: { parentSiteID: scope.contactId },
+              select: { childSiteID: true },
+            })).map((link) => link.childSiteID);
+        try {
+          res.json(await getPasOverzicht({ siteIds, pasId: pas }));
         } catch (error) {
           console.error(error);
           res.status(500).end();
