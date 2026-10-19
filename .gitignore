@@ -78,6 +78,9 @@ mysql-db/persist-db/
 /data/checkpoints*
 /data/ns
 
+# Local Azure cost snapshots. Resource names, App Service plans, and billing stay out of git.
+/data/azure-costs/
+
 #auto generated test scripts
 scripts/*.sql
 

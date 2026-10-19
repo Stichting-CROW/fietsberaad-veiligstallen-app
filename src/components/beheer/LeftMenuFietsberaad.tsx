@@ -186,6 +186,16 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 onSelect={onSelect}
                 icon={FiHelpCircle}
               />
+              {hasFietsberaadSuperadmin && (
+                <LeftMenuItem
+                  component={VSMenuTopic.Stallingsschermen}
+                  title="Stallingsschermen"
+                  compact={true}
+                  activecomponent={activecomponent}
+                  onSelect={onSelect}
+                  icon={FiMonitor}
+                />
+              )}
             </>
           </LeftMenuItem>
         )}
@@ -245,12 +255,20 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 icon={FiLink}
               />
               <LeftMenuItem
-                component={VSMenuTopic.Stallingsschermen}
-                title="Stallingsschermen"
+                component={VSMenuTopic.PrivacyBeheer}
+                title={'Retentie & Anonimisering'}
                 compact={true}
                 activecomponent={activecomponent}
                 onSelect={onSelect}
-                icon={FiMonitor}
+                icon={FiShield}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.DatabaseBulkreserveringen}
+                title={'Bulkreserveringen'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiCalendar}
               />
             </>
           </LeftMenuItem>
@@ -275,20 +293,12 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                     icon={FiSettings}
                   />
                   <LeftMenuItem
-                    component={VSMenuTopic.PrivacyBeheer}
-                    title={'Retentie & Anonimisering'}
+                    component={VSMenuTopic.AzureKosten}
+                    title={'Azure-kosten'}
                     compact={true}
                     activecomponent={activecomponent}
                     onSelect={onSelect}
-                    icon={FiShield}
-                  />
-                  <LeftMenuItem
-                    component={VSMenuTopic.DatabaseBulkreserveringen}
-                    title={'Bulkreserveringen'}
-                    compact={true}
-                    activecomponent={activecomponent}
-                    onSelect={onSelect}
-                    icon={FiCalendar}
+                    icon={FiServer}
                   />
                 </>
               )}
@@ -366,6 +376,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
             </>
           </LeftMenuItem>
         )}
+
       </ul>
     </nav>
   );

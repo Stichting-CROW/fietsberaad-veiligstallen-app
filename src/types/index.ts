@@ -58,5 +58,6 @@ export enum VSMenuTopic {
     "Wachtrij" = "wachtrij",
     "NsKoppeling" = "nskoppeling",
     "Stallingsschermen" = "stallingsschermen",
+    "AzureKosten" = "azurekosten",
 
 }
