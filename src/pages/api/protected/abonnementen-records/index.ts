@@ -41,6 +41,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           paid: row.isBetaald,
           accountId: row.AccountID,
           formId: row.subscriptiontypeID,
+          bikeparkTypeID: row.abonnementsvormen?.bikeparkTypeID ?? null,
           passId: row.bikepassID,
           pass: row.accounts_pasids ? `${row.accounts_pasids.Pastype}: ${row.accounts_pasids.PasID}` : "",
           barcode: row.barcode,
@@ -73,6 +74,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         start: String(req.body?.start ?? ""),
         end: String(req.body?.end ?? ""),
         extraCost: optionalNumber(req.body?.extraCost),
+        formId: optionalNumber(req.body?.formId),
         bikepass: String(req.body?.bikepass ?? ""),
       });
       res.status(200).json({ id });

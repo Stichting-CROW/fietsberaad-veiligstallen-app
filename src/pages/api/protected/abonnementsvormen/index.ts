@@ -43,19 +43,24 @@ export default async function handle(
         const parkingTypeFilter = typeof req.query.parkingType === "string"
           ? req.query.parkingType
           : undefined;
+        const forSubscription = req.query.subscription === "1";
 
         const [abonnementsvormen, fietsenstallingtypen] = await Promise.all([
           prisma.abonnementsvormen.findMany({
             where: {
-              siteID: activeContactId,
-              ...(parkingTypeFilter
-                ? {
-                    OR: [
-                      { bikeparkTypeID: null },
-                      { bikeparkTypeID: parkingTypeFilter }
-                    ]
-                  }
-                : {})
+              AND: [
+                forSubscription
+                  ? { OR: [{ siteID: activeContactId }, { exploitantSiteID: activeContactId }] }
+                  : { siteID: activeContactId },
+                ...(parkingTypeFilter
+                  ? [{
+                      OR: [
+                        { bikeparkTypeID: null },
+                        { bikeparkTypeID: parkingTypeFilter },
+                      ],
+                    }]
+                  : []),
+              ],
             },
             include: {
               abonnementen: {
@@ -134,6 +139,7 @@ export default async function handle(
             naam: av.naam,
             tijdsduur: av.tijdsduur,
             prijs: av.prijs ? Number(av.prijs) : null,
+            bikeparkTypeID: av.bikeparkTypeID,
             bikeparkTypeName: av.bikeparkTypeID 
               ? (bikeparkTypeMap.get(av.bikeparkTypeID) || `Stallingtype ${av.bikeparkTypeID}`)
               : null,

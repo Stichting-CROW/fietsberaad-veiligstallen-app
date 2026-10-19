@@ -1904,13 +1904,15 @@ export async function assertManagedAccount(accountId: string, siteId: string) {
 
 /**
  * `fms/secure/abonnementen/abonnementen/list.cfm`: paid subscriptions outside buurtstallingen and fietstrommels,
- * newest first. Search on pass ID, pass name or e-mail. `runningOnly` is "Toon alle resultaten": running ones, no limit.
+ * newest first. Search on pass ID, pass name, e-mail, or the subscription number shown in the financial table.
+ * `runningOnly` is "Toon alle resultaten": running ones, no limit.
  */
 export async function listManagedSubscriptions(
   siteId: string,
   options: { search?: string; runningOnly?: boolean } = {},
 ) {
   const search = options.search?.trim();
+  const subscriptionId = search && /^\d+$/.test(search) ? Number(search) : null;
   const rows = await prisma.abonnementen.findMany({
     where: {
       type: "abonnement",
@@ -1926,6 +1928,7 @@ export async function listManagedSubscriptions(
                   { accounts_pasids: { is: { PasID: { contains: search } } } },
                   { accounts_pasids: { is: { Naam: { contains: search } } } },
                   { accounts: { is: { Email: { contains: search } } } },
+                  ...(subscriptionId != null && Number.isSafeInteger(subscriptionId) ? [{ ID: subscriptionId }] : []),
                 ],
               },
             ],
@@ -1934,7 +1937,7 @@ export async function listManagedSubscriptions(
     },
     omit: { sectionID: true },
     include: {
-      abonnementsvormen: { select: { naam: true } },
+      abonnementsvormen: { select: { naam: true, bikeparkTypeID: true } },
       accounts: { select: { Email: true } },
       accounts_pasids: { select: { PasID: true, Pastype: true, Naam: true } },
     },
@@ -2124,6 +2127,7 @@ export async function updateManagedSubscription(input: {
   start: string;
   end: string;
   extraCost?: number | null;
+  formId?: number | null;
   bikepass: "" | "new_temp_pass" | string;
 }) {
   const subscription = await prisma.abonnementen.findUnique({
@@ -2134,7 +2138,7 @@ export async function updateManagedSubscription(input: {
   if (input.siteId !== "1" && subscription.siteID !== input.siteId && subscription.exploitantID !== input.siteId) {
     throw new AccountError("Abonnement niet gevonden");
   }
-  const form = await prisma.abonnementsvormen.findUnique({ where: { ID: subscription.subscriptiontypeID } });
+  let form = await prisma.abonnementsvormen.findUnique({ where: { ID: subscription.subscriptiontypeID } });
   if (!form) throw new AccountError("Abonnementsvorm niet gevonden");
   const errors: string[] = [];
   let start: Date | null = null;
@@ -2142,7 +2146,15 @@ export async function updateManagedSubscription(input: {
   try { start = beheerDay(input.start, "Aanvangsdatum"); } catch (error) { errors.push((error as Error).message); }
   try { end = beheerDay(input.end, "Afloopdatum"); } catch (error) { errors.push((error as Error).message); }
 
-  const data: { ingangsdatum?: Date; afloopdatum?: Date; bikepassID?: string | null; AccountID?: string | null; prijsInclBtw?: number } = {};
+  const data: { ingangsdatum?: Date; afloopdatum?: Date; bikepassID?: string | null; AccountID?: string | null; prijsInclBtw?: number; subscriptiontypeID?: number } = {};
+  if (input.formId && input.formId !== subscription.subscriptiontypeID) {
+    const next = await managedForm(input.formId, input.siteId);
+    if ((next.bikeparkTypeID ?? null) !== (form.bikeparkTypeID ?? null)) {
+      throw new AccountError("Kies een abonnementsvorm van hetzelfde type");
+    }
+    data.subscriptiontypeID = next.ID;
+    form = next;
+  }
   const currentOwner = subscription.bikepassID
     ? await passTopAccountId((await prisma.accounts_pasids.findUnique({ where: { ID: subscription.bikepassID }, select: { AccountID: true } }))?.AccountID ?? null)
     : null;

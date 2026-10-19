@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Modal from "~/components/Modal";
 
 type AccountRow = { id: string; email: string | null; firstName: string | null; lastName: string | null; city: string | null; saldo: number };
 type SaldoRow = AccountRow & { passes: Array<{ pasId: string; type: string | null }> };
@@ -14,6 +15,7 @@ type SubscriptionRow = {
   paid: boolean;
   accountId: string | null;
   formId: number | null;
+  bikeparkTypeID: string | null;
   passId: string | null;
   pass: string;
   passName: string;
@@ -23,7 +25,20 @@ type SubscriptionRow = {
   mollieId: string | null;
   paymentMethod: string | null;
 };
-type FormOption = { ID: number; naam: string | null };
+type FormOption = {
+  ID: number;
+  naam: string | null;
+  prijs: number | null;
+  isActief: boolean;
+  bikeparkTypeID: string | null;
+};
+
+const otherSubscriptionScreens = new Set(["buurtstalling", "fietstrommel", "fietskluizen"]);
+
+function formLabel(form: FormOption): string {
+  const price = form.prijs != null ? ` (€ ${form.prijs.toFixed(2)})` : "";
+  return `${form.naam ?? form.ID}${price}`;
+}
 
 const inputClass = "rounded border px-2 py-1";
 const buttonClass = "rounded border px-3 py-1";
@@ -247,9 +262,23 @@ const SaldoTab: React.FC<{ onMessage: (message: string) => void }> = ({ onMessag
 const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ onMessage }) => {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [forms, setForms] = useState<FormOption[]>([]);
-  const [editing, setEditing] = useState<SubscriptionRow | null>(null);
+  const [dialog, setDialog] = useState<SubscriptionRow | "create" | null>(null);
+  const editing = dialog !== null && dialog !== "create" ? dialog : null;
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const formChoices = forms.filter((form) => {
+    if (editing) return form.isActief && form.bikeparkTypeID === editing.bikeparkTypeID;
+    return form.isActief && !otherSubscriptionScreens.has(form.bikeparkTypeID ?? "");
+  });
+  if (editing?.formId != null && !formChoices.some((form) => form.ID === editing.formId)) {
+    formChoices.unshift({
+      ID: editing.formId,
+      naam: editing.name,
+      prijs: editing.price,
+      isActief: false,
+      bikeparkTypeID: editing.bikeparkTypeID,
+    });
+  }
 
   async function loadSubscriptions(search = query, all = showAll) {
     const params = new URLSearchParams();
@@ -263,7 +292,7 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
 
   useEffect(() => {
     void loadSubscriptions();
-    void fetch("/api/protected/abonnementsvormen")
+    void fetch("/api/protected/abonnementsvormen?subscription=1")
       .then((response) => response.json())
       .then((data: { data?: FormOption[] }) => setForms(data.data ?? []))
       .catch(() => setForms([]));
@@ -287,7 +316,7 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
     const created = Array.isArray(data.ids) ? data.ids.length : 0;
     onMessage(ok ? `${created} abonnement(en) aangemaakt` : data.error ?? "Abonnement niet opgeslagen");
     if (ok) {
-      target.reset();
+      setDialog(null);
       await loadSubscriptions();
     }
   }
@@ -302,11 +331,12 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
       start: String(form.get("start") ?? ""),
       end: String(form.get("end") ?? ""),
       extraCost: String(form.get("extraCost") ?? ""),
+      formId: Number(form.get("formId")),
       bikepass: choice === "keep" ? editing.passId ?? "" : choice,
     });
     onMessage(ok ? "Abonnement opgeslagen" : data.error ?? "Abonnement niet opgeslagen");
     if (ok) {
-      setEditing(null);
+      setDialog(null);
       await loadSubscriptions();
     }
   }
@@ -322,7 +352,7 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
       >
         <input
           className={inputClass}
-          placeholder="Pasnummer, naam op pas of e-mail"
+          placeholder="Pasnummer, naam op pas, e-mail of abonnementsnummer"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -338,6 +368,9 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
           />
           Toon alle resultaten (alleen lopende abonnementen)
         </label>
+        <button className={`${buttonClass} ml-auto`} type="button" onClick={() => setDialog("create")}>
+          Nieuw Abonnement
+        </button>
       </form>
       <p className="text-xs text-gray-600">
         Betaalde abonnementen, nieuwste eerst{showAll ? "" : " (laatste 100)"}. Buurtstallingen en fietstrommels staan bij Buurtstallingen.
@@ -345,19 +378,24 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
       <table className="w-full text-sm">
         <thead>
           <tr>
+            <th className="text-left">Nummer</th>
             <th className="text-left">Naam</th><th className="text-left">E-mail</th><th className="text-left">Pastype</th>
-            <th className="text-left">Pas ID</th><th className="text-right">Prijs</th><th>Van</th><th>Tot</th>
+            <th className="text-left">Pas ID</th>
+            <th className="text-right pr-8">Prijs</th>
+            <th className="text-left pl-4">Van</th>
+            <th>Tot</th>
             <th className="text-left">Mollie ID</th><th />
           </tr>
         </thead>
         <tbody>
           {subscriptions.length === 0 && (
-            <tr><td colSpan={9} className="py-2 text-gray-600">Geen abonnementen gevonden.</td></tr>
+            <tr><td colSpan={10} className="py-2 text-gray-600">Geen abonnementen gevonden.</td></tr>
           )}
           {subscriptions.map((row) => {
             const expired = row.end ? new Date(row.end).getTime() < Date.now() : false;
             return (
               <tr key={row.id} className={expired ? "text-gray-400" : ""}>
+                <td className="font-mono text-xs">{row.id}</td>
                 <td>{row.name}</td>
                 <td>{row.email}</td>
                 <td>{row.passType}</td>
@@ -365,76 +403,88 @@ const SubscriptionsTab: React.FC<{ onMessage: (message: string) => void }> = ({ 
                   {row.passNumber || (row.barcode ? `barcode ${row.barcode}` : "")}
                   {row.passName ? <span className="text-gray-500"> ({row.passName})</span> : null}
                 </td>
-                <td className="text-right">€ {row.price.toFixed(2)}</td>
-                <td>{displayDate(row.start)}</td>
+                <td className="whitespace-nowrap text-right pr-8">€ {row.price.toFixed(2)}</td>
+                <td className="whitespace-nowrap pl-4">{displayDate(row.start)}</td>
                 <td>{displayDate(row.end)}</td>
                 <td>
                   {row.mollieId ?? ""}
                   {row.mollieId && row.paymentMethod ? <span className="text-gray-500"> ({row.paymentMethod})</span> : null}
                 </td>
-                <td><button type="button" className="underline" onClick={() => setEditing(row)}>Wijzig</button></td>
+                <td><button type="button" className="underline" onClick={() => setDialog(row)}>Wijzig</button></td>
               </tr>
             );
           })}
         </tbody>
       </table>
 
-      {editing && (
-        <form className="grid max-w-lg gap-2" key={editing.id} onSubmit={(event) => void updateSubscription(event)}>
-          <h2 className="font-semibold">Abonnement {editing.name} ({editing.email})</h2>
-          <label className="text-sm">Aanvangsdatum
-            <input className={`${inputClass} block`} name="start" type="date" defaultValue={dateInput(editing.start)} required />
-          </label>
-          <label className="text-sm">Afloopdatum
-            <input className={`${inputClass} block`} name="end" type="date" defaultValue={dateInput(editing.end)} required />
-          </label>
-          <label className="text-sm">Extra kosten (€, negatief voor restitutie)
-            <input className={`${inputClass} block`} name="extraCost" type="number" step="0.01" />
-          </label>
-          <label className="text-sm">Pas
-            <select className={`${inputClass} block`} name="bikepass" defaultValue="keep">
-              <option value="keep">{editing.pass ? `Huidige pas houden (${editing.pass})` : "Geen pas"}</option>
-              <option value="">Pas ontkoppelen</option>
-              <option value="new_temp_pass">Nieuwe tijdelijke pas</option>
-            </select>
-          </label>
-          <div className="flex gap-2">
-            <button className="rounded bg-sky-800 px-3 py-1 text-white" type="submit">Opslaan</button>
-            <button className={buttonClass} type="button" onClick={() => setEditing(null)}>Annuleren</button>
-          </div>
-        </form>
+      {dialog && (
+        <Modal onClose={() => setDialog(null)} clickOutsideClosesDialog={false}>
+          {editing ? (
+            <form className="grid max-w-lg gap-2" key={editing.id} onSubmit={(event) => void updateSubscription(event)}>
+              <h2 className="font-semibold">Abonnement {editing.id} — {editing.name} ({editing.email})</h2>
+              <label className="text-sm">Abonnementsvorm
+                <select className={`${inputClass} block`} name="formId" defaultValue={editing.formId ?? ""} required>
+                  {formChoices.map((form) => <option key={form.ID} value={form.ID}>{formLabel(form)}</option>)}
+                </select>
+              </label>
+              <label className="text-sm">Aanvangsdatum
+                <input className={`${inputClass} block`} name="start" type="date" defaultValue={dateInput(editing.start)} required />
+              </label>
+              <label className="text-sm">Afloopdatum
+                <input className={`${inputClass} block`} name="end" type="date" defaultValue={dateInput(editing.end)} required />
+              </label>
+              <label className="text-sm">Extra kosten (€, negatief voor restitutie)
+                <input className={`${inputClass} block`} name="extraCost" type="number" step="0.01" />
+              </label>
+              <label className="text-sm">Pas
+                <select className={`${inputClass} block`} name="bikepass" defaultValue="keep">
+                  <option value="keep">{editing.pass ? `Huidige pas houden (${editing.pass})` : "Geen pas"}</option>
+                  <option value="">Pas ontkoppelen</option>
+                  <option value="new_temp_pass">Nieuwe tijdelijke pas</option>
+                </select>
+              </label>
+              <div className="flex gap-2">
+                <button className="rounded bg-sky-800 px-3 py-1 text-white" type="submit">Opslaan</button>
+                <button className={buttonClass} type="button" onClick={() => setDialog(null)}>Annuleren</button>
+              </div>
+            </form>
+          ) : (
+            <form className="grid max-w-lg gap-2" onSubmit={(event) => void createSubscription(event)}>
+              <h2 className="font-semibold">Nieuw abonnement</h2>
+              <label className="text-sm">Abonnementsvorm
+                <select className={`${inputClass} block`} name="formId" required>
+                  {formChoices.map((form) => <option key={form.ID} value={form.ID}>{formLabel(form)}</option>)}
+                </select>
+              </label>
+              <label className="text-sm">Account-id (leeg met pasnummer: systeemaccount op de pas)
+                <input className={`${inputClass} block`} name="accountId" />
+              </label>
+              <label className="text-sm">Aanvangsdatum
+                <input className={`${inputClass} block`} name="start" type="date" required />
+              </label>
+              <label className="text-sm">Afloopdatum
+                <input className={`${inputClass} block`} name="end" type="date" required />
+              </label>
+              <label className="text-sm">Kosten (€, leeg: prijs van de abonnementsvorm)
+                <input className={`${inputClass} block`} name="cost" type="number" step="0.01" />
+              </label>
+              <label className="text-sm">Pasnummer (eerste van de reeks)
+                <input className={`${inputClass} block`} name="passNumber" />
+              </label>
+              <label className="text-sm">Barcode (zonder pasnummer, max. 12 tekens)
+                <input className={`${inputClass} block`} name="barcode" maxLength={12} />
+              </label>
+              <label className="text-sm">Aantal (max. 10)
+                <input className={`${inputClass} block`} name="count" type="number" min={1} max={10} defaultValue={1} />
+              </label>
+              <div className="flex gap-2">
+                <button className={buttonClass} type="submit">Aanmaken</button>
+                <button className={buttonClass} type="button" onClick={() => setDialog(null)}>Annuleren</button>
+              </div>
+            </form>
+          )}
+        </Modal>
       )}
-
-      <form className="grid max-w-lg gap-2" onSubmit={(event) => void createSubscription(event)}>
-        <h2 className="font-semibold">Abonnement aanmaken</h2>
-        <label className="text-sm">Abonnementsvorm
-          <select className={`${inputClass} block`} name="formId" required>
-            {forms.map((form) => <option key={form.ID} value={form.ID}>{form.naam ?? form.ID}</option>)}
-          </select>
-        </label>
-        <label className="text-sm">Account-id (leeg met pasnummer: systeemaccount op de pas)
-          <input className={`${inputClass} block`} name="accountId" />
-        </label>
-        <label className="text-sm">Aanvangsdatum
-          <input className={`${inputClass} block`} name="start" type="date" required />
-        </label>
-        <label className="text-sm">Afloopdatum
-          <input className={`${inputClass} block`} name="end" type="date" required />
-        </label>
-        <label className="text-sm">Kosten (€, leeg: prijs van de abonnementsvorm)
-          <input className={`${inputClass} block`} name="cost" type="number" step="0.01" />
-        </label>
-        <label className="text-sm">Pasnummer (eerste van de reeks)
-          <input className={`${inputClass} block`} name="passNumber" />
-        </label>
-        <label className="text-sm">Barcode (zonder pasnummer, max. 12 tekens)
-          <input className={`${inputClass} block`} name="barcode" maxLength={12} />
-        </label>
-        <label className="text-sm">Aantal (max. 10)
-          <input className={`${inputClass} block`} name="count" type="number" min={1} max={10} defaultValue={1} />
-        </label>
-        <button className={buttonClass} type="submit">Aanmaken</button>
-      </form>
     </div>
   );
 };
