@@ -42,6 +42,7 @@ import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorCompo
 import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
 import StallingsschermenComponent from '~/components/beheer/stallingsschermen';
 import PrivacyBeheerComponent from '~/components/beheer/privacy';
+import AzureKostenComponent from '~/components/beheer/azure-kosten';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -589,6 +590,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.DatabaseBulkreserveringen:
           selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
             <BulkreserveringenTable />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.AzureKosten:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <AzureKostenComponent />
           ) : (
             <AccessDenied />
           );
