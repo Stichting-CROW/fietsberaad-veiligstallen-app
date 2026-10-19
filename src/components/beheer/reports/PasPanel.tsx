@@ -1,5 +1,8 @@
 import React, { useState } from "react";
+import { useSession } from "next-auth/react";
 import type { PasOverzicht } from "~/server/display/overzichten-queries";
+import { userHasRight } from "~/types/utils";
+import { VSSecurityTopic } from "~/types/securityprofile";
 
 function formatWhen(iso: string, withType: string | null): string {
   const d = new Date(iso);
@@ -13,6 +16,9 @@ function formatWhen(iso: string, withType: string | null): string {
 }
 
 const PasPanel: React.FC = () => {
+  const { data: session } = useSession();
+  const isFietsberaad = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin)
+    || userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
   const [pas, setPas] = useState("");
   const [data, setData] = useState<PasOverzicht | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +49,9 @@ const PasPanel: React.FC = () => {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       <p className="text-sm text-gray-600">
-        Stallingen van een pas in de afgelopen 30 dagen, binnen de actieve organisatie.
+        {isFietsberaad
+          ? "Alle stallingen voor deze pas. Een fietsberaad-superadmin zoekt in alle gemeenten."
+          : "Stallingen voor deze pas in de afgelopen 30 dagen."}
       </p>
       <form
         className="flex flex-wrap items-end gap-4"
@@ -73,7 +81,7 @@ const PasPanel: React.FC = () => {
       {loading && <div className="spinner"><div className="loader"></div></div>}
 
       {!loading && data && !data.found && (
-        <div className="text-gray-600">Pas niet gevonden in deze organisatie.</div>
+        <div className="text-gray-600">Pas niet gevonden.</div>
       )}
 
       {!loading && data?.found && (
@@ -85,15 +93,19 @@ const PasPanel: React.FC = () => {
             {data.gemeente ? ` Gemeente: ${data.gemeente}.` : ""}
           </p>
           {data.transactions.length === 0 ? (
-            <div className="text-gray-600">Geen transacties in de laatste 30 dagen.</div>
+            <div className="text-gray-600">
+              {data.days == null
+                ? "Geen transacties gevonden voor deze pas."
+                : "Geen transacties gevonden voor deze pas in de afgelopen 30 dagen."}
+            </div>
           ) : (
             <table className="w-full max-w-4xl text-sm">
               <thead>
                 <tr>
                   <th className="border-b border-gray-400 px-3 py-1 text-left">Check in</th>
                   <th className="border-b border-gray-400 px-3 py-1 text-left">Check uit</th>
-                  <th className="border-b border-gray-400 px-3 py-1 text-left">Stalling</th>
-                  <th className="border-b border-gray-400 px-3 py-1 text-right">Bedrag</th>
+                  <th className="border-b border-gray-400 px-3 py-1 text-left">Omschrijving</th>
+                  <th className="border-b border-gray-400 px-3 py-1 text-right">Bij- en afschrijvingen</th>
                 </tr>
               </thead>
               <tbody>
@@ -101,8 +113,8 @@ const PasPanel: React.FC = () => {
                   <tr key={`${t.checkin}-${t.stallingsId}-${i}`} className="border-b border-gray-100">
                     <td className="px-3 py-1 whitespace-nowrap">{formatWhen(t.checkin, t.typeCheckin)}</td>
                     <td className="px-3 py-1 whitespace-nowrap">{t.checkout ? formatWhen(t.checkout, t.typeCheckout) : "—"}</td>
-                    <td className="px-3 py-1">{t.stallingsId}</td>
-                    <td className={`px-3 py-1 text-right tabular-nums ${t.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    <td className="px-3 py-1">{t.description}</td>
+                    <td className={`px-3 py-1 text-right tabular-nums ${t.amount > 0 ? "text-green-700" : t.amount < 0 ? "text-red-700" : ""}`}>
                       € {t.amount.toFixed(2)}
                     </td>
                   </tr>
@@ -110,6 +122,9 @@ const PasPanel: React.FC = () => {
               </tbody>
             </table>
           )}
+          <p className="mt-3 text-xs text-gray-500">
+            Bezoeken ouder dan 18 maanden zijn verwijderd vanwege de bewaartermijn voor privacy.
+          </p>
         </>
       )}
     </div>

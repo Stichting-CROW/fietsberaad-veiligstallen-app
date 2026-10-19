@@ -1,7 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
-import { prisma } from "~/server/db";
 import { VSSecurityTopic } from "~/types/securityprofile";
 import { userHasRight } from "~/types/utils";
 
@@ -46,24 +45,6 @@ export const TRANSACTIES_SELECT = {
   dateCreated: true,
 } as const;
 
-export const ARCHIEF_SELECT = {
-  ID: true,
-  locationid: true,
-  sectionid: true,
-  sectionid_out: true,
-  placeid: true,
-  externalplaceid: true,
-  checkindate: true,
-  checkoutdate: true,
-  checkintype: true,
-  checkouttype: true,
-  price: true,
-  biketypeid: true,
-  clienttypeid: true,
-  exploitantid: true,
-  created: true,
-} as const;
-
 export type TransactieSelectRow = {
   ID: number;
   FietsenstallingID: string;
@@ -85,24 +66,6 @@ export type TransactieSelectRow = {
   ClientTypeID: number;
   ExploitantID: string | null;
   dateCreated: Date;
-};
-
-export type ArchiefSelectRow = {
-  ID: number;
-  locationid: string;
-  sectionid: string;
-  sectionid_out: string | null;
-  placeid: number | null;
-  externalplaceid: string | null;
-  checkindate: Date;
-  checkoutdate: Date | null;
-  checkintype: string;
-  checkouttype: string | null;
-  price: { toNumber?: () => number } | number;
-  biketypeid: number;
-  clienttypeid: number;
-  exploitantid: string | null;
-  created: Date;
 };
 
 export type StallingSourceRow = TransactieSelectRow & { source: "transacties" | "archief" };
@@ -127,70 +90,6 @@ export type PasidSelectRow = {
 
 export function normalizeBarcodeInput(input: string): string {
   return input.replace(/\s+/g, "");
-}
-
-function computeStallingsduurMinutes(checkin: Date, checkout: Date | null): number | null {
-  if (!checkout) return null;
-  return Math.round((checkout.getTime() - checkin.getTime()) / 60_000);
-}
-
-export function mapArchiefToStallingRow(archief: ArchiefSelectRow, pasId: string): StallingSourceRow {
-  return {
-    source: "archief",
-    ID: archief.ID,
-    FietsenstallingID: archief.locationid,
-    SectieID: archief.sectionid,
-    SectieID_uit: archief.sectionid_out,
-    PlaceID: archief.placeid != null ? BigInt(archief.placeid) : null,
-    ExternalPlaceID: archief.externalplaceid,
-    PasID: pasId,
-    Pastype: null,
-    BarcodeFiets_in: null,
-    BarcodeFiets_uit: null,
-    Date_checkin: archief.checkindate,
-    Date_checkout: archief.checkoutdate,
-    Stallingsduur: computeStallingsduurMinutes(archief.checkindate, archief.checkoutdate),
-    Type_checkin: archief.checkintype,
-    Type_checkout: archief.checkouttype,
-    Stallingskosten: archief.price,
-    BikeTypeID: archief.biketypeid,
-    ClientTypeID: archief.clienttypeid,
-    ExploitantID: archief.exploitantid,
-    dateCreated: archief.created,
-  };
-}
-
-export async function loadArchiefRecords(
-  accountIds: string[],
-  liveTransactieIds: Set<number>,
-  primaryPasId: string
-): Promise<StallingSourceRow[]> {
-  if (accountIds.length === 0) return [];
-
-  const archiefCandidateIds = [
-    ...new Set(
-      (
-        await prisma.financialtransactions.findMany({
-          where: {
-            accountID: { in: accountIds },
-            transactionID: { not: null },
-          },
-          select: { transactionID: true },
-        })
-      )
-        .map((r) => r.transactionID!)
-        .filter((id) => !liveTransactieIds.has(id))
-    ),
-  ];
-
-  if (archiefCandidateIds.length === 0) return [];
-
-  const archiefRecords = await prisma.transacties_archief.findMany({
-    where: { ID: { in: archiefCandidateIds } },
-    select: ARCHIEF_SELECT,
-  });
-
-  return archiefRecords.map((r) => mapArchiefToStallingRow(r, primaryPasId));
 }
 
 export async function ensurePassReportAccess(

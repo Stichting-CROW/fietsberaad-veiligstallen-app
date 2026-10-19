@@ -155,20 +155,29 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         break;
       }
       case "pas": {
-        const scope = await getReportScope(session.user.activeContactId ?? "");
         const pas = typeof req.body?.pas === "string" ? req.body.pas.trim() : "";
-        if (!scope || !pas) {
-          res.status(400).json({ error: "Kies een organisatie en een pasnummer" });
+        if (!pas) {
+          res.status(400).json({ error: "Vul een pasnummer in" });
           return;
         }
-        const siteIds = scope.kind === "gemeente"
-          ? [scope.contactId]
-          : (await prisma.contact_contact.findMany({
-              where: { parentSiteID: scope.contactId },
-              select: { childSiteID: true },
-            })).map((link) => link.childSiteID);
+        const isSuperadmin = userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+        const isFietsberaad = isSuperadmin || userHasRight(session.user.securityProfile, VSSecurityTopic.fietsberaad_admin);
+        let siteIds: string[] = [];
+        if (!isSuperadmin) {
+          const scope = await getReportScope(session.user.activeContactId ?? "");
+          if (!scope) {
+            res.status(400).json({ error: "Kies een organisatie en een pasnummer" });
+            return;
+          }
+          siteIds = scope.kind === "gemeente"
+            ? [scope.contactId]
+            : (await prisma.contact_contact.findMany({
+                where: { parentSiteID: scope.contactId },
+                select: { childSiteID: true },
+              })).map((link) => link.childSiteID);
+        }
         try {
-          res.json(await getPasOverzicht({ siteIds, pasId: pas }));
+          res.json(await getPasOverzicht({ siteIds, pasId: pas, allHistory: isFietsberaad }));
         } catch (error) {
           console.error(error);
           res.status(500).end();

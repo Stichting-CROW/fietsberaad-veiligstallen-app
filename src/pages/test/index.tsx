@@ -70,26 +70,6 @@ const TestIndexPage: React.FC = () => {
           </Button>
 
           <Button
-            onClick={() => handleNavigate('/test/tag-report')}
-            className="py-6 px-8 text-center w-full"
-            style={{
-              backgroundColor: '#3B82F6',
-            }}
-          >
-            Tag rapport
-          </Button>
-
-          <Button
-            onClick={() => handleNavigate('/test/account-report')}
-            className="py-6 px-8 text-center w-full"
-            style={{
-              backgroundColor: '#3B82F6',
-            }}
-          >
-            Account rapport
-          </Button>
-
-          <Button
             onClick={() => handleNavigate('/test/saldo-overzicht')}
             className="py-6 px-8 text-center w-full"
             style={{
@@ -99,16 +79,6 @@ const TestIndexPage: React.FC = () => {
             Saldo overzicht
           </Button>
 
-          <Button
-            onClick={() => handleNavigate('/test/barcode-report')}
-            className="py-6 px-8 text-center w-full"
-            style={{
-              backgroundColor: '#3B82F6',
-            }}
-          >
-            Barcode rapport
-          </Button>
-          
           <Button
             onClick={() => handleNavigate('/test/wachtrij')}
             className="py-6 px-8 text-center w-full"
@@ -211,6 +181,17 @@ const TestIndexPage: React.FC = () => {
             FMS migratie V3 → V4 (Swagger)
           </Button>
           
+        </div>
+
+        <h2 className="text-xl font-bold text-gray-900 mt-10 mb-4">Reports</h2>
+        <div className="grid grid-cols-1 gap-6">
+          <Button
+            onClick={() => handleNavigate('/beheer/report/pas')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            Operator Report
+          </Button>
         </div>
 
         {hasFietsberaadSuperadmin && (

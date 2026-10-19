@@ -4,7 +4,6 @@ import { assemblePassReport } from "~/server/services/test/pass-report-assembler
 import {
   ACCOUNTS_PASIDS_SELECT,
   ensurePassReportAccess,
-  loadArchiefRecords,
   mergeStallingRecords,
   normalizeBarcodeInput,
   TRANSACTIES_SELECT,
@@ -18,6 +17,7 @@ import type {
   TagReportAccountInfo,
   TagReportFinancialRecord,
   TagReportStallingRecord,
+  TagReportUsedSubscription,
 } from "~/pages/api/protected/test/tag-report";
 
 export type { BarcodeReportWachtrijRow };
@@ -25,6 +25,7 @@ export type { BarcodeReportWachtrijRow };
 export type BarcodeReportResponse = {
   barcodeFiets: string;
   accountInfo: TagReportAccountInfo[];
+  usedSubscriptions: TagReportUsedSubscription[];
   stallingTransacties: TagReportStallingRecord[];
   financialTransacties: TagReportFinancialRecord[];
   wachtrijRows?: BarcodeReportWachtrijRow[];
@@ -78,20 +79,9 @@ export default async function handler(
       });
     }
 
-    const accountIds = [
-      ...new Set(pasids.map((r) => r.AccountID).filter((id): id is string => !!id)),
-    ];
-    const primaryPasId = pasids[0]?.PasID ?? transactieRecords[0]?.PasID ?? "—";
-    const liveTransactieIds = new Set(transactieRecords.map((r) => r.ID));
+    const records = mergeStallingRecords(transactieRecords, []);
 
-    const archiefRecords = await loadArchiefRecords(
-      accountIds,
-      liveTransactieIds,
-      primaryPasId
-    );
-    const records = mergeStallingRecords(transactieRecords, archiefRecords);
-
-    const { accountInfo, stallingTransacties, financialTransacties } = await assemblePassReport(
+    const { accountInfo, usedSubscriptions, stallingTransacties, financialTransacties } = await assemblePassReport(
       pasids,
       records
     );
@@ -103,6 +93,7 @@ export default async function handler(
     return res.status(200).json({
       barcodeFiets,
       accountInfo,
+      usedSubscriptions,
       stallingTransacties,
       financialTransacties,
       ...(wachtrijRows !== undefined ? { wachtrijRows } : {}),

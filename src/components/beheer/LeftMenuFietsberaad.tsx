@@ -274,6 +274,49 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           </LeftMenuItem>
         )}
 
+
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Support'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Tag rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/tag-report')}
+                isActive={router.asPath.startsWith('/test/tag-report')}
+                icon={FiTag}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Barcode rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/barcode-report')}
+                isActive={router.asPath.startsWith('/test/barcode-report')}
+                icon={FiLink}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Account rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/account-report')}
+                isActive={router.asPath.startsWith('/test/account-report')}
+                icon={FiUsers}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
         {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
           <LeftMenuItem
             component={false}

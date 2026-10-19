@@ -67,10 +67,21 @@ export type AccountReportStalling = {
   gemeente: string | null;
 };
 
+export type AccountReportSubscription = {
+  key: string;
+  number: number | null;
+  name: string;
+  gemeente: string | null;
+  status: "Actief" | "Verlopen" | null;
+  pasID: string | null;
+};
+
 export type AccountReport = {
   account: AccountReportAccount;
   financial: AccountReportFinancial[];
   stalling: AccountReportStalling[];
+  linkedSubscriptions: AccountReportSubscription[];
+  usedSubscriptions: AccountReportSubscription[];
   /** Set when the report was opened from a pas / sleutelhanger. */
   matchedPasId?: string;
 };
@@ -231,8 +242,13 @@ export async function loadAccountReport(accountId: string): Promise<AccountRepor
   const subscriptionTypeIds = [
     ...new Set(financialRows.map((r) => r.subscriptiontypeID).filter((id): id is number => id != null)),
   ];
+  const passRowIds = passes.map((p) => p.ID);
+  const usedSubscriptionIds = [
+    ...new Set(financialRows.map((r) => r.subscriptionID).filter((id): id is number => id != null)),
+  ];
 
-  const [stallingen, secties, plekken, contacts, abonnementsvormen] = await Promise.all([
+  const [stallingen, secties, plekken, contacts, abonnementsvormen, linkedSubscriptionRows, usedSubscriptionRows] =
+    await Promise.all([
     stallingsIds.length > 0
       ? prisma.fietsenstallingen.findMany({
           where: { OR: [{ StallingsID: { in: stallingsIds } }, { ID: { in: stallingsIds } }] },
@@ -261,6 +277,27 @@ export async function loadAccountReport(accountId: string): Promise<AccountRepor
       ? prisma.abonnementsvormen.findMany({
           where: { ID: { in: subscriptionTypeIds } },
           select: { ID: true, naam: true },
+        })
+      : Promise.resolve([]),
+    prisma.abonnementen.findMany({
+      where: {
+        OR: [
+          { AccountID: account.ID },
+          ...(passRowIds.length > 0 ? [{ bikepassID: { in: passRowIds } }] : []),
+        ],
+      },
+      select: {
+        ID: true,
+        isActief: true,
+        siteID: true,
+        abonnementsvormen: { select: { naam: true } },
+        accounts_pasids: { select: { PasID: true } },
+      },
+    }),
+    usedSubscriptionIds.length > 0
+      ? prisma.abonnementen.findMany({
+          where: { ID: { in: usedSubscriptionIds } },
+          select: { ID: true, isActief: true, siteID: true, abonnementsvormen: { select: { naam: true } } },
         })
       : Promise.resolve([]),
   ]);
@@ -360,6 +397,65 @@ export async function loadAccountReport(accountId: string): Promise<AccountRepor
     };
   });
 
+  const subscriptionSiteIds = [
+    ...new Set(
+      [...linkedSubscriptionRows, ...usedSubscriptionRows]
+        .map((row) => row.siteID)
+        .filter((id): id is string => !!id && !contactName.has(id))
+    ),
+  ];
+  if (subscriptionSiteIds.length > 0) {
+    const extraContacts = await prisma.contacts.findMany({
+      where: { ID: { in: subscriptionSiteIds } },
+      select: { ID: true, CompanyName: true },
+    });
+    for (const contact of extraContacts) contactName.set(contact.ID, contact.CompanyName);
+  }
+  const gemeenteName = (siteId: string | null | undefined): string | null => {
+    if (!siteId) return null;
+    return contactName.get(siteId) ?? null;
+  };
+
+  const linkedSubscriptions: AccountReportSubscription[] = linkedSubscriptionRows.map((row) => ({
+    key: `id:${row.ID}`,
+    number: row.ID,
+    name: row.abonnementsvormen?.naam ?? `Abonnement ${row.ID}`,
+    gemeente: gemeenteName(row.siteID),
+    status: row.isActief ? "Actief" : "Verlopen",
+    pasID: row.accounts_pasids?.PasID ?? null,
+  }));
+  const usedById = new Map(usedSubscriptionRows.map((row) => [row.ID, row]));
+  const usedSubscriptions: AccountReportSubscription[] = [];
+  const seenSubscriptions = new Set<string>();
+  for (const row of financialRows) {
+    if (row.subscriptionID != null) {
+      const key = `id:${row.subscriptionID}`;
+      if (seenSubscriptions.has(key)) continue;
+      seenSubscriptions.add(key);
+      const subscription = usedById.get(row.subscriptionID);
+      usedSubscriptions.push({
+        key,
+        number: row.subscriptionID,
+        name: subscription?.abonnementsvormen?.naam ?? `Abonnement ${row.subscriptionID}`,
+        gemeente: gemeenteName(subscription?.siteID) ?? gemeenteName(row.siteID),
+        status: subscription ? (subscription.isActief ? "Actief" : "Verlopen") : null,
+        pasID: null,
+      });
+    } else if (row.subscriptiontypeID != null) {
+      const key = `type:${row.subscriptiontypeID}:${row.siteID ?? ""}`;
+      if (seenSubscriptions.has(key)) continue;
+      seenSubscriptions.add(key);
+      usedSubscriptions.push({
+        key,
+        number: null,
+        name: abonnementNaam.get(row.subscriptiontypeID) ?? "Abonnement",
+        gemeente: gemeenteName(row.siteID),
+        status: null,
+        pasID: null,
+      });
+    }
+  }
+
   return {
     account: {
       ID: account.ID,
@@ -384,5 +480,7 @@ export async function loadAccountReport(accountId: string): Promise<AccountRepor
     },
     financial,
     stalling,
+    linkedSubscriptions,
+    usedSubscriptions,
   };
 }

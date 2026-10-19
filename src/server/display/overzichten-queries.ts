@@ -1,5 +1,6 @@
 import { Prisma } from "~/generated/prisma-client";
 import { prisma } from "~/server/db";
+import { escapeHtml } from "~/server/display/render";
 
 export async function getLangstallersCounts(params: {
   councilSiteId: string;
@@ -116,6 +117,8 @@ export type PasTransactie = {
   typeCheckin: string | null;
   typeCheckout: string | null;
   stallingsId: string;
+  description: string;
+  /** Minus stallingskosten, as in overzichten Pas.cfm. */
   amount: number;
 };
 
@@ -123,52 +126,68 @@ export type PasOverzicht = {
   found: boolean;
   email: string;
   gemeente: string;
+  /** Null means the full history was returned. */
+  days: number | null;
   transactions: PasTransactie[];
 };
 
-/** Pass lookup from overzichten `Pas.cfm`: last 30 days of parking transactions for one pass. */
+/**
+ * Pass lookup from overzichten `Pas.cfm`.
+ * An empty siteIds list does not filter municipalities (fietsberaad superadmin).
+ * Visits are the last 30 days, unless allHistory is set. The amount is minus stallingskosten.
+ */
 export async function getPasOverzicht(params: {
   siteIds: string[];
   pasId: string;
+  allHistory?: boolean;
 }): Promise<PasOverzicht> {
-  const empty: PasOverzicht = { found: false, email: "", gemeente: "", transactions: [] };
+  const empty: PasOverzicht = { found: false, email: "", gemeente: "", days: params.allHistory ? null : 30, transactions: [] };
   const pas = params.pasId.trim();
   const siteIds = params.siteIds.filter(Boolean);
-  if (!pas || siteIds.length === 0) return empty;
+  if (!pas) return empty;
 
-  const row = await prisma.accounts_pasids.findFirst({
-    where: { SiteID: { in: siteIds }, PasID: pas },
-    select: { AccountID: true, SiteID: true },
+  const rows = await prisma.accounts_pasids.findMany({
+    where: {
+      PasID: pas,
+      ...(siteIds.length > 0 ? { SiteID: { in: siteIds } } : {}),
+    },
+    select: { AccountID: true, SiteID: true, Naam: true },
   });
-  if (!row) return empty;
+  if (rows.length === 0) return empty;
 
-  const gemeente = row.SiteID
-    ? (await prisma.contacts.findUnique({ where: { ID: row.SiteID }, select: { CompanyName: true } }))?.CompanyName ?? ""
-    : "";
+  const siteNameRows = await prisma.contacts.findMany({
+    where: { ID: { in: [...new Set(rows.map((row) => row.SiteID).filter((id): id is string => !!id))] } },
+    select: { ID: true, CompanyName: true },
+  });
+  const siteName = new Map(siteNameRows.map((site) => [site.ID, site.CompanyName ?? ""]));
+  const gemeente = [...new Set(rows.map((row) => (row.SiteID ? siteName.get(row.SiteID) ?? "" : "")).filter(Boolean))].join(", ");
 
   let email = "";
-  const ga = row.AccountID
-    ? await prisma.gemeenteaccounts.findUnique({
-        where: { ID: row.AccountID },
-        select: { AccountID: true },
-      })
-    : null;
-  const accountId = ga?.AccountID ?? row.AccountID;
-  if (accountId) {
+  for (const row of rows) {
+    const ga = row.AccountID
+      ? await prisma.gemeenteaccounts.findUnique({
+          where: { ID: row.AccountID },
+          select: { AccountID: true },
+        })
+      : null;
+    const accountId = ga?.AccountID ?? row.AccountID;
+    if (!accountId) continue;
     const account = await prisma.accounts.findUnique({
       where: { ID: accountId },
-      select: { email: true },
+      select: { Email: true, account_type: true },
     });
-    email = account?.email ?? "";
+    if (account && account.account_type !== "SYSTEM" && account.Email) {
+      email = account.Email;
+      break;
+    }
   }
 
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
   const tx = await prisma.transacties.findMany({
-    where: { PasID: pas, Date_checkin: { gte: since } },
+    where: params.allHistory ? { PasID: pas } : { PasID: pas, Date_checkin: { gte: since } },
     orderBy: { Date_checkin: "desc" },
-    take: 50,
     select: {
       Date_checkin: true,
       Date_checkout: true,
@@ -179,18 +198,34 @@ export async function getPasOverzicht(params: {
     },
   });
 
+  const stallingIds = [...new Set(tx.map((row) => row.FietsenstallingID))];
+  const parks = stallingIds.length
+    ? await prisma.fietsenstallingen.findMany({
+        where: { StallingsID: { in: stallingIds } },
+        select: { StallingsID: true, Title: true },
+      })
+    : [];
+  const titleByStallingsId = new Map(parks.map((park) => [park.StallingsID ?? "", park.Title ?? ""]));
+  const passName = rows.map((row) => row.Naam?.trim() ?? "").find((name) => name.length > 0) ?? "";
+
   return {
     found: true,
     email,
     gemeente,
-    transactions: tx.map((t) => ({
-      checkin: t.Date_checkin.toISOString(),
-      checkout: t.Date_checkout ? t.Date_checkout.toISOString() : null,
-      typeCheckin: t.Type_checkin,
-      typeCheckout: t.Type_checkout,
-      stallingsId: t.FietsenstallingID,
-      amount: t.Stallingskosten != null ? Number(t.Stallingskosten) : 0,
-    })),
+    days: params.allHistory ? null : 30,
+    transactions: tx.map((t) => {
+      const title = titleByStallingsId.get(t.FietsenstallingID) || t.FietsenstallingID;
+      const kosten = t.Stallingskosten != null ? Number(t.Stallingskosten) : 0;
+      return {
+        checkin: t.Date_checkin.toISOString(),
+        checkout: t.Date_checkout ? t.Date_checkout.toISOString() : null,
+        typeCheckin: t.Type_checkin,
+        typeCheckout: t.Type_checkout,
+        stallingsId: t.FietsenstallingID,
+        description: passName ? `Stalling ${passName} in ${title}` : `Stalling fiets in ${title}`,
+        amount: -kosten,
+      };
+    }),
   };
 }
 
@@ -223,14 +258,14 @@ export async function getPasOverzichtHtml(params: {
 
   const rows = result.transactions
     .map((t) => {
-      const color = t.amount >= 0 ? "green" : "red";
+      const color = t.amount > 0 ? "green" : t.amount < 0 ? "red" : "";
       const cin = t.typeCheckin && t.typeCheckin !== "user" ? ` (${t.typeCheckin})` : "";
       const cout = t.checkout && t.typeCheckout && t.typeCheckout !== "user" ? ` (${t.typeCheckout})` : "";
       return `<tr><td>${fmtDate(t.checkin)} ${fmtTime(t.checkin)}${cin}</td><td>${
-        t.checkout ? `${fmtDate(t.checkout)} ${fmtTime(t.checkout)}${cout}` : "—"
-      }</td><td>${t.stallingsId}</td><td style="color:${color}">€ ${t.amount.toFixed(2)}</td></tr>`;
+        t.checkout ? `${fmtDate(t.checkout)} ${fmtTime(t.checkout)}${cout}` : ""
+      }</td><td>${escapeHtml(t.description)}</td><td class="${color}">€ ${t.amount.toFixed(2)}</td></tr>`;
     })
     .join("");
 
-  return `<p>${linkText}</p><table class="tbl"><thead><tr><th>Check in</th><th>Check uit</th><th>Stalling</th><th>Bedrag</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>Geen transacties in de laatste 30 dagen</td></tr>"}</tbody></table>`;
+  return `<p>${linkText}</p><table class="tbl"><thead><tr><th>Check in</th><th>Check uit</th><th>Omschrijving</th><th>Bij- en afschrijvingen</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>Geen transacties gevonden voor pas in de afgelopen 30 dagen</td></tr>"}</tbody></table>`;
 }
