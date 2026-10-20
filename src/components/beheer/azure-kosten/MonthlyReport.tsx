@@ -34,6 +34,12 @@ const MonthlyReport: React.FC<{
     if (scope === "prod") return Math.round((item.appService + item.otherProd) * 100) / 100;
     return item.total;
   };
+  const yearTotal = {
+    appService: round(rows.reduce((sum, item) => sum + item.appService, 0)),
+    otherProd: round(rows.reduce((sum, item) => sum + item.otherProd, 0)),
+    acceptance: round(rows.reduce((sum, item) => sum + item.acceptance, 0)),
+    total: round(rows.reduce((sum, item) => sum + totalOf(item), 0)),
+  };
   const categories = rows.map((item) => item.label);
   const series = [
     scope !== "acc" ? { name: "App Service", data: rows.map((item) => item.appService) } : null,
@@ -119,6 +125,15 @@ const MonthlyReport: React.FC<{
               <TableCell align="right">{money(totalOf(item))}</TableCell>
             </TableRow>
           ))}
+          {!byYear && (
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700 }}>Totaal</TableCell>
+              {scope !== "acc" ? <TableCell align="right" sx={{ fontWeight: 700 }}>{money(yearTotal.appService)}</TableCell> : null}
+              {scope !== "acc" ? <TableCell align="right" sx={{ fontWeight: 700 }}>{money(yearTotal.otherProd)}</TableCell> : null}
+              {scope !== "prod" ? <TableCell align="right" sx={{ fontWeight: 700 }}>{money(yearTotal.acceptance)}</TableCell> : null}
+              <TableCell align="right" sx={{ fontWeight: 700 }}>{money(yearTotal.total)}</TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </Box>

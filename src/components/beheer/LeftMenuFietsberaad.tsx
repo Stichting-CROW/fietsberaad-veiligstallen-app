@@ -292,14 +292,6 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                     onSelect={onSelect}
                     icon={FiSettings}
                   />
-                  <LeftMenuItem
-                    component={VSMenuTopic.AzureKosten}
-                    title={'Azure-kosten'}
-                    compact={true}
-                    activecomponent={activecomponent}
-                    onSelect={onSelect}
-                    icon={FiServer}
-                  />
                 </>
               )}
               <LeftMenuItem

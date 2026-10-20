@@ -8,7 +8,7 @@ Everything collected stays in `data/azure-costs/`. That path is listed in `.giti
 
 | Path | What it is |
 | --- | --- |
-| `data/azure-costs/raw/prod/` | Production inventory and monthly cost files |
+| `data/azure-costs/raw/prod/` | Production inventory, monthly cost files, and meter files |
 | `data/azure-costs/raw/acc/` | Acceptance inventory and monthly cost files |
 | `data/azure-costs/raw/portal/` | Optional portal CSVs when the API denies the query. Name them `prod.csv` and `acc.csv` |
 | `data/azure-costs/classification.json` | Local category rules. Copy from `classification.example.json` |
@@ -21,12 +21,13 @@ A month file is `usage-YYYY-MM.json`, or `usage-YYYY-MM--<resource-group>.json` 
 
 ## Scripts
 
-Run them from the repository root. Helpers `lib.sh`, `wrap-query.mjs`, and `next-link.mjs` are used by the shell scripts. You do not run those yourself.
+Run them from the repository root. Helpers `lib.sh`, `wrap-query.mjs`, `split-range.mjs`, and `next-link.mjs` are used by the shell scripts. You do not run those yourself.
 
 | Script | Purpose |
 | --- | --- |
 | `scripts/azure-cost/probe.sh` | Check the login, write the inventory, and fetch two cost months (previous month and 2024-01) |
-| `scripts/azure-cost/export-costs.sh` | Fetch each month from 2024-01 through the current month |
+| `scripts/azure-cost/export-costs.sh` | Fetch costs from 2024-01 through the current month. One query per 11-month window for `vst-eu-prd-rg01` and `vst-eu-acc-rg01` |
+| `scripts/azure-cost/export-meters.sh` | Production only. Fetch MySQL and App Service meters (compute, storage, backup, I/O) |
 | `scripts/azure-cost/build-summary.mjs` | Turn the raw files and `classification.json` into `summary.json` |
 | `scripts/azure-cost/classification.example.json` | Empty example for the category rules |
 
@@ -56,9 +57,17 @@ Cost queries use the resource group, not the subscription. A subscription-scope 
 bash scripts/azure-cost/export-costs.sh
 ```
 
-Each call is `az rest --method post` to the Cost Management query API (`ActualCost`, grouped by resource id and service name). It does not change Azure. The script waits between calls because the API returns 429 after a short burst. A month outside retention is saved with `"status": "unavailable"`. History is often about 13 months.
+Each call is `az rest --method post` to the Cost Management query API. It does not change Azure. A window uses `"granularity": "Monthly"` over at most 11 months, grouped by resource id and service name. The response is split into the existing `usage-YYYY-MM--<resource-group>.json` files. A month the window does not return is requested on its own. The script waits between calls because the API returns 429 after a short burst. A month outside retention is saved with `"status": "unavailable"`. History is often about 13 months, and a range longer than a year is rejected, so the export stays inside 11-month windows.
 
-4. Add category rules, if the file is not there yet.
+4. Fetch the production meter split. This is a separate query. The website still does not call Azure.
+
+```bash
+bash scripts/azure-cost/export-meters.sh
+```
+
+Scope is `vst-eu-prd-rg01`. The query is monthly actual cost, grouped by resource id and meter subcategory, filtered to Azure Database for MySQL and Azure App Service. Files are `meters-<from>_<to>--<resource-group>.json` under `data/azure-costs/raw/prod/`. A file with `"status": "ok"` is skipped on the next run. The Opbouw tab adds every production MySQL server together. Meter names that contain compute, storage, backup, or I/O are mapped onto those columns. Any other meter keeps its Azure name in the meter table. App Service is not shown there.
+
+5. Add category rules, if the file is not there yet.
 
 ```bash
 cp scripts/azure-cost/classification.example.json data/azure-costs/classification.json
@@ -66,7 +75,7 @@ cp scripts/azure-cost/classification.example.json data/azure-costs/classificatio
 
 Each rule is a name fragment (`match`) plus `environment` (`prod` or `acc`) and `platform` (`core`, `api`, `database`, `network`, or `other`). The longest matching fragment wins. Bandwidth charges are stored as `network` when the summary is built.
 
-5. Build the file the page reads.
+6. Build the file the page reads.
 
 ```bash
 node scripts/azure-cost/build-summary.mjs
@@ -74,7 +83,7 @@ node scripts/azure-cost/build-summary.mjs
 
 Reload **Azure-kosten**. The API is `GET /api/protected/azure-costs` and it only serves `summary.json`.
 
-To refresh later, run `export-costs.sh` and `build-summary.mjs` again. Months that already have `"status": "ok"` are not downloaded again.
+To refresh later, run `export-costs.sh`, `export-meters.sh`, and `build-summary.mjs` again. Files that already have `"status": "ok"` are not downloaded again.
 
 ## Tasks on the Detail tab
 

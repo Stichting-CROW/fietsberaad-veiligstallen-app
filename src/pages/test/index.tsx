@@ -212,6 +212,19 @@ const TestIndexPage: React.FC = () => {
           </Button>
           
         </div>
+
+        {hasFietsberaadSuperadmin && (
+          <div className="mt-10">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Kosten</h2>
+            <Button
+              onClick={() => handleNavigate('/beheer/azurekosten')}
+              className="py-6 px-8 text-center w-full"
+              style={{ backgroundColor: '#0F766E' }}
+            >
+              Azure-kosten
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
