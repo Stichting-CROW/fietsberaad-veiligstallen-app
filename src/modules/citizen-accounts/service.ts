@@ -3,6 +3,7 @@ import { prisma } from "~/server/db";
 import {
   CITIZEN_COOKIE,
   hashPassword,
+  coldfusionUuid,
   newId,
   readCitizenSession,
   readCookie,
@@ -13,6 +14,7 @@ import {
 } from "./auth";
 import { mailOrigin, sendAccountMail, sendOpsMail } from "./mail";
 import { createIdealPayment, fetchMolliePayment, ledgerStatus } from "./mollie";
+import { deficitOverboekingen, OVERBOEKEN_CATCH_UP_SQL, positiveOverboekingen, runCatchUpRows, type ExploitantSaldoRow, type OverboekingBooking } from "./overboeken";
 
 export class AccountError extends Error {
   constructor(message: string) {
@@ -42,7 +44,7 @@ export async function registerAccount(input: { email: string; password: string; 
   if (input.password.length < 6) throw new AccountError("Kies een wachtwoord van minstens 6 tekens");
   const existing = await prisma.accounts.findFirst({ where: { Email: email } });
   if (existing && existing.account_type !== "DELETED") throw new AccountError("Het opgegeven e-mailadres wordt al gebruikt");
-  const id = newId();
+  const id = coldfusionUuid();
   await prisma.accounts.create({
     data: {
       ID: id,
@@ -156,7 +158,7 @@ export async function deleteAccount(accountId: string) {
   if (reasons.length) throw new AccountError(reasons.join(" "));
 
   for (const pass of passes) {
-    const systemId = newId();
+    const systemId = coldfusionUuid();
     await prisma.accounts.create({ data: { ID: systemId, account_type: "SYSTEM", Status: "1", DateRegistration: new Date() } });
     const owner = pass.SiteID ? await councilAccountId(systemId, pass.SiteID) : systemId;
     await prisma.accounts_pasids.update({ where: { ID: pass.ID }, data: { AccountID: owner } });
@@ -165,7 +167,7 @@ export async function deleteAccount(accountId: string) {
   await prisma.accounts.update({
     where: { ID: accountId },
     data: {
-      Email: newId(),
+      Email: coldfusionUuid(),
       EncryptedPassword: null,
       DateDeleted: new Date(),
       Nieuwsbrief: "0",
@@ -417,7 +419,7 @@ export async function startTopup(accountId: string, productId: number | "saldote
   if (!(credit > 0)) throw new AccountError("Kies een opwaardeerbedrag");
   const fee = await transactionFee();
   const charge = credit + fee;
-  const id = newId();
+  const id = coldfusionUuid();
   await prisma.financialtransactions.create({
     data: {
       ID: id,
@@ -475,7 +477,10 @@ export async function applyMollieResult(input: { id: string; status: string; tra
       if (subscription && !subscription.isBetaald) {
         await prisma.abonnementen.update({
           where: { ID: subscription.ID },
-          data: { isActief: false, afloopdatum: subscription.ingangsdatum },
+          data: {
+            isActief: false,
+            afloopdatum: subscription.ingangsdatum ? new Date(subscription.ingangsdatum.getTime() + 1000) : subscription.ingangsdatum,
+          },
           select: { ID: true },
         });
       }
@@ -612,7 +617,7 @@ export async function councilAccountId(accountId: string, siteId: string): Promi
   const where = { AccountID: accountId, SiteID: siteId };
   const existing = await prisma.gemeenteaccounts.findFirst({ where, select: { ID: true } });
   if (existing) return existing.ID;
-  const id = newId();
+  const id = coldfusionUuid();
   try {
     await prisma.gemeenteaccounts.create({ data: { ID: id, ...where } });
     return id;
@@ -671,7 +676,7 @@ async function ownedSubscription(accountId: string) {
 /** Citizen URLs carry `externalID` (as ColdFusion does), never the sequential ID; older rows get one on first use. */
 async function subscriptionRef(row: { ID: number; externalID: string | null }): Promise<string> {
   if (row.externalID) return row.externalID;
-  const externalID = newId();
+  const externalID = coldfusionUuid();
   await prisma.abonnementen.update({ where: { ID: row.ID }, data: { externalID }, select: { ID: true } });
   return externalID;
 }
@@ -1237,7 +1242,7 @@ export async function buySubscription(input: {
   }
   const created = await prisma.abonnementen.create({
     data: {
-      externalID: newId(),
+      externalID: coldfusionUuid(),
       ingangsdatum: start,
       afloopdatum: end,
       prijsInclBtw: form.prijs,
@@ -1332,7 +1337,7 @@ export async function paySubscription(accountId: string, subscriptionId: number,
     ? await prisma.contacts.findUnique({ where: { ID: subscription.siteID }, select: { CompanyName: true } })
     : null;
   const ref = await subscriptionRef(subscription);
-  const txId = newId();
+  const txId = coldfusionUuid();
   await prisma.financialtransactions.create({
     data: {
       ID: txId,
@@ -1780,15 +1785,28 @@ export async function operatorMailPasswordLink(accountId: string, siteId: string
 export async function restituteSaldo(accountId: string, amount: number, exploitantId: string, siteId: string) {
   if (!(amount > 0)) throw new AccountError("Restituties kunnen niet negatief zijn.");
   await prisma.$transaction(async (tx) => {
-    const rows = await tx.financialtransactions.findMany({
-      where: { accountID: accountId, status: "ok" },
-      select: { amount: true },
-    });
-    const saldo = rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
-    if (saldo < amount) throw new AccountError("Deze registrant heeft niet genoeg stallingstegoed om deze restitutie te verwerken.");
+    const accountRows = await tx.$queryRaw<{ stallingstegoed: unknown }[]>`
+      SELECT stallingstegoed FROM vw_stallingstegoeden WHERE accountID = ${accountId} LIMIT 1
+    `;
+    const accountBalance = accountRows[0] ? Number(accountRows[0].stallingstegoed ?? 0) : 0;
+    const operatorRows = await tx.$queryRaw<{ amount: unknown }[]>`
+      SELECT COALESCE(SUM(amount), 0) AS amount
+      FROM financialtransactions
+      WHERE accountID = ${accountId}
+        AND (
+          paidToSiteID = ${exploitantId}
+          OR paidBySiteID = ${exploitantId}
+          OR sourceSiteID = ${exploitantId}
+        )
+        AND siteID = ${siteId}
+    `;
+    const operatorBalance = Number(operatorRows[0]?.amount ?? 0);
+    if (!(accountBalance >= amount || operatorBalance >= amount)) {
+      throw new AccountError("Deze registrant heeft niet genoeg stallingstegoed om deze restitutie te verwerken.");
+    }
     await tx.financialtransactions.create({
       data: {
-        ID: newId(),
+        ID: coldfusionUuid(),
         amount: -amount,
         transactionDate: new Date(),
         status: "ok",
@@ -1967,7 +1985,7 @@ async function managedPass(passID: string, councilId: string, pastype: string, a
   }
   let owner = accountId;
   if (!owner) {
-    owner = newId();
+    owner = coldfusionUuid();
     await prisma.accounts.create({ data: { ID: owner, account_type: "SYSTEM", Status: "1", DateRegistration: new Date() } });
   }
   const id = newId();
@@ -1999,7 +2017,7 @@ async function bookManagedSubscription(subscription: { ID: number; AccountID: st
     data: [
       {
         ...common,
-        ID: newId(),
+        ID: coldfusionUuid(),
         amount,
         code: refund ? "restitutie abonnement exploitant" : "betaling abonnement exploitant",
         description: mode === "create" ? "Betaling abonnement" : null,
@@ -2007,7 +2025,7 @@ async function bookManagedSubscription(subscription: { ID: number; AccountID: st
       },
       {
         ...common,
-        ID: newId(),
+        ID: coldfusionUuid(),
         amount: -amount,
         code: "abonnement",
         description: refund ? "Restitutie abonnement" : form.naam,
@@ -2074,7 +2092,7 @@ export async function createManagedSubscriptions(input: {
       : null);
     const created = await prisma.abonnementen.create({
       data: {
-        externalID: newId(),
+        externalID: coldfusionUuid(),
         AccountID: owner,
         subscriptiontypeID: form.ID,
         ingangsdatum: start,
@@ -2182,7 +2200,7 @@ async function activatePaidSubscription(subscriptionId: number) {
   const price = Number(subscription.prijsInclBtw ?? subscription.abonnementsvormen?.prijs ?? 0);
   await prisma.financialtransactions.create({
     data: {
-      ID: newId(),
+      ID: coldfusionUuid(),
       amount: -price,
       transactionDate: new Date(),
       status: "ok",
@@ -2292,16 +2310,12 @@ Als u geen printer heeft, noteer dan de volgende code: <strong>${escapeHtml(pass
 </div>`;
 }
 
+/** FinancialGateway.getStallingstegoedForAccount: the view total, or 0 when the account has no row. */
 export async function recalculateSaldo(accountId: string): Promise<number> {
-  let total = 0;
-  try {
-    const rows = await prisma.$queryRaw<{ stallingstegoed: unknown }[]>`
-      SELECT stallingstegoed FROM vw_stallingstegoeden WHERE accountID = ${accountId} LIMIT 1
-    `;
-    total = rows[0] ? Number(rows[0].stallingstegoed ?? 0) : await sumTransactions(accountId);
-  } catch {
-    total = await sumTransactions(accountId);
-  }
+  const rows = await prisma.$queryRaw<{ stallingstegoed: unknown }[]>`
+    SELECT stallingstegoed FROM vw_stallingstegoeden WHERE accountID = ${accountId} LIMIT 1
+  `;
+  const total = rows[0] ? Number(rows[0].stallingstegoed ?? 0) : 0;
   await prisma.accounts.update({
     where: { ID: accountId },
     data: { saldo: total, dateLastSaldoUpdate: new Date() },
@@ -2309,55 +2323,96 @@ export async function recalculateSaldo(accountId: string): Promise<number> {
   return total;
 }
 
-async function sumTransactions(accountId: string): Promise<number> {
-  const rows = await prisma.financialtransactions.findMany({
-    where: { accountID: accountId, status: "ok" },
-    select: { amount: true },
-  });
-  return rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+function asDate(value: Date | string | null): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-async function settleOperatorBalances(accountId: string) {
-  const lockName = `citizen-settle:${accountId}`;
-  let locked = false;
-  try {
-    const lockRows = await prisma.$queryRaw<{ got: number | null }[]>`
-      SELECT GET_LOCK(${lockName}, 10) AS got
-    `;
-    locked = Number(lockRows[0]?.got ?? 0) === 1;
-    if (!locked) {
-      console.error("Overboeking: lock niet verkregen", accountId);
-      return;
-    }
-    const rows = await prisma.$queryRaw<{ siteID: string; exploitantID: string; stallingstegoed: unknown }[]>`
-      SELECT siteID, exploitantID, stallingstegoed FROM vw_stallingstegoedenexploitant
-      WHERE accountID = ${accountId} AND stallingstegoed <> 0
-    `;
-    for (const row of rows) {
-      const amount = Number(row.stallingstegoed ?? 0);
-      if (!amount) continue;
-      await prisma.financialtransactions.create({
-        data: {
-          ID: newId(),
-          amount: -amount,
-          transactionDate: new Date(),
-          status: "ok",
-          code: "overboeking",
-          description: "Overboeking",
-          accountID: accountId,
-          sourceSiteID: amount > 0 ? row.exploitantID : "1",
-          targetSiteID: amount > 0 ? "1" : row.exploitantID,
-          siteID: row.siteID,
-        },
-      });
-    }
-  } catch (error) {
-    console.error("Overboeking overgeslagen", error);
-  } finally {
-    if (locked) {
-      await prisma.$queryRaw`SELECT RELEASE_LOCK(${lockName})`.catch(() => null);
-    }
+/** FinancialGateway.getStallingstegoedFietsberaadForAccount. */
+async function fietsberaadCredit(accountId: string): Promise<number> {
+  const paidByFietsberaad = await prisma.$queryRaw<{ amount: unknown }[]>`
+    SELECT COALESCE(SUM(amount), 0) AS amount
+    FROM financialtransactions
+    WHERE accountID = ${accountId}
+      AND (paidToSiteID = '1' OR sourceSiteID = '1' OR paidBySiteID = '1')
+      AND status = 'ok'
+  `;
+  const paidToFietsberaad = await prisma.$queryRaw<{ amount: unknown }[]>`
+    SELECT COALESCE(SUM(amount), 0) AS amount
+    FROM financialtransactions
+    WHERE accountID = ${accountId}
+      AND targetSiteID = '1'
+      AND status = 'ok'
+  `;
+  return Number(paidByFietsberaad[0]?.amount ?? 0) - Number(paidToFietsberaad[0]?.amount ?? 0);
+}
+
+/** saveFinancialTransaction for one overboeking row: amount is not zero, then recalculate the account balance. */
+async function saveOverboeking(accountId: string, booking: OverboekingBooking) {
+  if (booking.amount === 0) return;
+  await prisma.financialtransactions.create({
+    data: {
+      ID: coldfusionUuid(),
+      amount: booking.amount,
+      btw: booking.btw,
+      btwPercentage: booking.btwPercentage,
+      transactionDate: new Date(),
+      status: booking.status,
+      code: booking.code,
+      accountID: accountId,
+      sourceSiteID: booking.sourceSiteID,
+      targetSiteID: booking.targetSiteID,
+      siteID: booking.siteID,
+    },
+  });
+  await recalculateSaldo(accountId);
+}
+
+/** BikeparkAccount.overboeken(). */
+export async function settleOperatorBalances(accountId: string) {
+  const rows = await prisma.$queryRaw<{
+    siteID: string;
+    exploitantID: string;
+    stallingstegoed: unknown;
+    dateLastTransaction: Date | string | null;
+  }[]>`
+    SELECT siteID, exploitantID, stallingstegoed, dateLastTransaction
+    FROM vw_stallingstegoedenexploitant
+    WHERE accountID = ${accountId}
+  `;
+  const saldos: ExploitantSaldoRow[] = rows.map((row) => ({
+    siteID: row.siteID,
+    exploitantID: row.exploitantID,
+    stallingstegoed: Number(row.stallingstegoed ?? 0),
+    dateLastTransaction: asDate(row.dateLastTransaction),
+  }));
+  for (const booking of positiveOverboekingen(saldos)) {
+    await saveOverboeking(accountId, booking);
   }
+  const credit = await fietsberaadCredit(accountId);
+  for (const booking of deficitOverboekingen(saldos, credit)) {
+    await saveOverboeking(accountId, booking);
+  }
+}
+
+/**
+ * fms/remote/cronjobs/overboeken.cfm: at most 10 view rows with a non-zero operator balance,
+ * newest dateLastTransaction first, then overboeken() per row. A missing account is skipped.
+ * A later error does not drop the rest of the batch.
+ */
+export async function runOverboekenCatchUp(): Promise<{
+  processed: string[];
+  skipped: string[];
+  errors: { accountId: string; message: string }[];
+}> {
+  const rows = await prisma.$queryRawUnsafe<{ accountID: string | null }[]>(OVERBOEKEN_CATCH_UP_SQL);
+  return runCatchUpRows(
+    rows,
+    async (accountId) => (await prisma.accounts.findUnique({ where: { ID: accountId }, select: { ID: true } })) !== null,
+    (accountId) => settleOperatorBalances(accountId),
+  );
 }
 
 async function requireUser(accountId: string) {
