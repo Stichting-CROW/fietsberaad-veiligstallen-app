@@ -19,6 +19,19 @@ export type CostResource = {
   costs: Record<string, number>;
 };
 
+export type MeterBucket = "compute" | "storage" | "backup" | "io" | "other";
+
+export type CostMeter = {
+  month: string;
+  resourceId: string;
+  resourceName: string;
+  resourceGroup: string;
+  serviceName: string;
+  meter: string;
+  bucket: MeterBucket | string;
+  cost: number;
+};
+
 export type CostLine = {
   month: string;
   resourceId: string;
@@ -73,6 +86,7 @@ export type CostSummary = {
   months: CostMonth[];
   resources: CostResource[];
   lineItems: CostLine[];
+  meters?: CostMeter[];
   services: RunningService[];
   jobs: CostJob[];
   notes: string[];

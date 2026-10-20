@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Read-only monthly cost export from 2024-01 through the current month,
-# for every enabled subscription of the current portal user.
+# Read-only cost export from 2024-01 through the current month.
+# One monthly-granularity query covers up to 11 months per resource group.
+# Months the window does not return are fetched one by one.
 # Months outside retention are stored with status unavailable, not skipped silently.
 set -u
 source "$(dirname "$0")/lib.sh"
@@ -18,18 +19,20 @@ while IFS=$'\t' read -r name sub; do
   azure_cost_want "$slug" || continue
   echo "Subscription $name ($slug)"
   mapfile -t groups < <(az group list --subscription "$sub" --query "[].name" -o tsv)
-  if [[ "${#groups[@]}" -eq 0 ]]; then
-    echo "No resource groups in $name"
-    continue
-  fi
-  month="$start"
-  while [[ "$month" < "$end" || "$month" == "$end" ]]; do
-    for rg in "${groups[@]}"; do
-      echo "Fetching $slug $month $rg"
-      query_usage_month "$month" "$root" "$sub" "$slug" "$name" "$rg" || echo "Failed to write $slug $month $rg"
+  from="$start"
+  while [[ "$from" < "$end" || "$from" == "$end" ]]; do
+    to="$(date -d "${from}-01 +10 months" +%Y-%m)"
+    if [[ "$to" > "$end" ]]; then
+      to="$end"
+    fi
+    for rg in vst-eu-prd-rg01 vst-eu-acc-rg01; do
+      if ! printf '%s\n' "${groups[@]}" | grep -qx "$rg"; then
+        continue
+      fi
+      query_usage_window "$from" "$to" "$root" "$sub" "$slug" "$name" "$rg" || echo "Failed window $slug $from $rg"
     done
-    month="$(date -d "${month}-01 +1 month" +%Y-%m)"
+    from="$(date -d "${to}-01 +1 month" +%Y-%m)"
   done
 done < <(az account list --query "[?state=='Enabled'].[name,id]" -o tsv)
 
-echo "Next: node scripts/azure-cost/build-summary.mjs"
+echo "Next: bash scripts/azure-cost/export-meters.sh && node scripts/azure-cost/build-summary.mjs"

@@ -26,6 +26,7 @@ import Chart from "../reports/Chart";
 import type { CostJob, CostLine, CostResource, CostSummary, RunningService } from "~/server/azure-costs/types";
 import SavingsReport from "./SavingsReport";
 import MonthlyReport from "./MonthlyReport";
+import MeterReport from "./MeterReport";
 import SettingsPanel from "./SettingsPanel";
 import { categoryTooltip, euro as formatEuro } from "./labels";
 import { inScope, readPlanFacts, type CostScope, type ShutdownSettings } from "./scenario";
@@ -261,19 +262,21 @@ const AzureKostenComponent: React.FC = () => {
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Lokaal overzicht van {summary.generatedAt}. Cijfers, app-namen en plannen staan niet in git.
       </Typography>
-      {summary.notes.filter((note) => !note.includes("hebben nog geen platform")).map((note) => (
+      {summary.notes.filter((note) => !note.includes("hebben nog geen platform") && !note.includes("export-meters")).map((note) => (
         <Alert key={note} severity="info" sx={{ mb: 1 }}>{note}</Alert>
       ))}
       <Tabs value={tab} onChange={(_, value: number) => setTab(value)} sx={{ mb: 2 }}>
         <Tab label="Besparing" />
         <Tab label="Kosten" />
+        <Tab label="Opbouw" />
         <Tab label="Detail" />
         <Tab label="Instellingen" />
       </Tabs>
       {tab === 0 && <SavingsReport summary={summary} settings={settings} />}
       {tab === 1 && <MonthlyReport summary={summary} scope={scope} onScope={setScope} />}
-      {tab === 3 && <SettingsPanel summary={summary} settings={settings} onChange={setSettings} />}
-      {tab === 2 && (
+      {tab === 2 && <MeterReport summary={summary} />}
+      {tab === 4 && <SettingsPanel summary={summary} settings={settings} onChange={setSettings} />}
+      {tab === 3 && (
       <Box>
       <Box display="flex" gap={2} flexWrap="wrap" my={2}>
         <Filter label="Jaar" value={year} onChange={setYear} options={[["all", "Alle"], ...years.map((item) => [item, item] as [string, string])]} />

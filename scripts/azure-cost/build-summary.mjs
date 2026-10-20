@@ -93,11 +93,72 @@ function headerIndex(headers, names) {
 }
 
 function monthFromDate(value) {
-  const match = String(value || "").match(/(\d{4})[-/](\d{2})/);
+  const text = String(value || "");
+  const match = text.match(/(\d{4})[-/](\d{2})/);
   if (match) return `${match[1]}-${match[2]}`;
-  const alt = String(value || "").match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
+  const compact = text.match(/^(\d{4})(\d{2})\d{2}$/);
+  if (compact) return `${compact[1]}-${compact[2]}`;
+  const alt = text.match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
   if (alt) return `${alt[3]}-${alt[2]}`;
   return "";
+}
+
+function meterBucket(name) {
+  const text = String(name || "").toLowerCase();
+  if (text.includes("backup")) return "backup";
+  if (text.includes("iops") || text.includes("i/o") || text.includes(" io")) return "io";
+  if (text.includes("storage")) return "storage";
+  if (text.includes("compute") || text.includes("vcore") || text.includes("premium") || text.includes("isolated") || /p\dv3/.test(text) || /standard s\d/.test(text) || (text.includes("plan") && !text.includes("free"))) return "compute";
+  return "other";
+}
+
+function serviceFromResourceId(resourceId) {
+  const text = String(resourceId || "").toLowerCase();
+  if (text.includes("microsoft.dbformysql")) return "Azure Database for MySQL";
+  if (text.includes("microsoft.web/")) return "Azure App Service";
+  return "";
+}
+
+function rowsFromMeterPage(page) {
+  const props = page?.properties || page;
+  const columns = props?.columns || [];
+  const rows = props?.rows || [];
+  if (!columns.length || !rows.length) return [];
+  const costIdx = columnIndex(columns, ["Cost", "PreTaxCost"]);
+  const idIdx = columnIndex(columns, ["ResourceId"]);
+  const meterIdx = columnIndex(columns, ["MeterSubCategory", "Meter", "MeterName"]);
+  const dateIdx = columnIndex(columns, ["UsageDate", "BillingMonth", "Date"]);
+  return rows.map((row) => ({
+    month: monthFromDate(dateIdx >= 0 ? row[dateIdx] : ""),
+    resourceId: idIdx >= 0 ? String(row[idIdx] || "") : "",
+    meter: meterIdx >= 0 ? String(row[meterIdx] || "") : "",
+    cost: costIdx >= 0 ? Number(row[costIdx] || 0) : 0,
+  })).filter((row) => row.month && row.resourceId);
+}
+
+function loadMeters() {
+  const rows = [];
+  for (const source of dataDirs()) {
+    for (const file of listFiles(source.dir, (name) => /^meters-.*\.json$/.test(name))) {
+      const doc = readJson(file, null);
+      if (doc?.status !== "ok") continue;
+      for (const page of doc.pages || []) {
+        for (const row of rowsFromMeterPage(page)) {
+          rows.push({
+            month: row.month,
+            resourceId: row.resourceId,
+            resourceName: resourceNameFromId(row.resourceId),
+            resourceGroup: resourceGroupFromId(row.resourceId),
+            serviceName: serviceFromResourceId(row.resourceId),
+            meter: row.meter || "Onbekend",
+            bucket: meterBucket(row.meter),
+            cost: row.cost,
+          });
+        }
+      }
+    }
+  }
+  return rows.sort((a, b) => a.month.localeCompare(b.month) || a.resourceName.localeCompare(b.resourceName) || a.meter.localeCompare(b.meter));
 }
 
 function rowsFromPortalCsv(file) {
@@ -725,12 +786,17 @@ function main() {
   if (!hasLiveEvidence) {
     notes.push("Geen live Lucee-export, requestlog of Logic Apps-lijst. De kolom 'gezien' blijft leeg.");
   }
+  const meters = loadMeters();
+  if (!meters.length) {
+    notes.push("Productie-meters voor MySQL zijn nog niet opgehaald. Draai export-meters.sh.");
+  }
   const summary = {
     generatedAt: new Date().toISOString(),
     currency,
     months: months.map((month) => ({ month: month.month, status: month.status, error: month.error })),
     resources,
     lineItems: lineItems.map(({ monthStatus, ...item }) => item),
+    meters,
     services,
     jobs,
     notes,
