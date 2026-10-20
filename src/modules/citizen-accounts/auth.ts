@@ -95,6 +95,12 @@ export function newId(): string {
   return randomBytes(16).toString("hex");
 }
 
+/** ColdFusion `CreateUUID()`: 35 characters, 8-4-4-16, uppercase. */
+export function coldfusionUuid(): string {
+  const hex = randomBytes(16).toString("hex").toUpperCase();
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16)}`;
+}
+
 export function citizenCookieHeader(token: string): string {
   return `${CITIZEN_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}`;
 }
