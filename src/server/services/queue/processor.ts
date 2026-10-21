@@ -398,7 +398,7 @@ async function processSync(
     }
 
     const bikepark = await getBikeparkByExternalID(row.bikeparkID);
-    if (!bikepark?.SiteID) {
+    if (!bikepark?.SiteID || !bikepark.StallingsID) {
       throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
     }
 
@@ -482,7 +482,7 @@ async function processSync(
 
       await transactiesModel.create({
         data: {
-          FietsenstallingID: bikepark.ID,
+          FietsenstallingID: bikepark.StallingsID,
           SectieID: row.sectionID,
           PasID: bikepass.PasID,
           Pastype: bikepass.Pastype === "ovchip" ? 1 : bikepass.Pastype === "barcodebike" ? 2 : 0,

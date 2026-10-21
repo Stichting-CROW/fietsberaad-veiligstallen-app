@@ -72,6 +72,11 @@ mysql-db/persist-db/
 /data/checkpoints*
 /data/ns
 
+# local experiment output (azure cost dumps, playwright auth and results)
+/data/azure-costs/
+/e2e/**/.auth/
+/test-results/
+
 #auto generated test scripts
 scripts/*.sql
 
