@@ -12,6 +12,7 @@ import {
   clearAllReportFileCache,
   getReportFileCacheStatus,
 } from "~/backend/services/reports/csvExportCache";
+import { stallingIdsForActiveContact } from "~/server/services/scope-bikepark-ids";
 const dateSchema = z.string().datetime();
 
 const UserStatusParamsSchema = z.object({
@@ -213,9 +214,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           }
 
           const { reportType, bikeparkIDs, startDT, endDT } = parseResult.data;
+          const scopedBikeparkIDs = await stallingIdsForActiveContact(
+            session.user.activeContactId,
+            bikeparkIDs,
+          );
           const data = await ReportService.getAvailableDataDetailed(
             reportType as ReportType,
-            bikeparkIDs,
+            scopedBikeparkIDs,
             startDT ? new Date(startDT) : undefined,
             endDT ? new Date(endDT) : undefined
           );
@@ -232,9 +237,13 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           }
 
           const { reportType, bikeparkIDs, startDT, endDT } = parseResult.data;
+          const scopedBikeparkIDs = await stallingIdsForActiveContact(
+            session.user.activeContactId,
+            bikeparkIDs,
+          );
           const data = await ReportService.getAvailableDataPerBikepark(
             reportType as ReportType,
-            bikeparkIDs,
+            scopedBikeparkIDs,
             startDT ? new Date(startDT) : undefined,
             endDT ? new Date(endDT) : undefined
           );

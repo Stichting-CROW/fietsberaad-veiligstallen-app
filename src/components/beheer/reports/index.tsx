@@ -162,6 +162,10 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const [resultView, setResultView] = useState<ReportResultView>("chart");
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+  const ownerBikeparkIDs = React.useMemo(
+    () => bikeparks.flatMap((bp) => (bp.StallingsID ? [bp.StallingsID] : [])),
+    [bikeparks],
+  );
 
   const selectedReportTitle = React.useMemo(() => {
     if (!selectedReportType) return '';
@@ -215,17 +219,30 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         }
       }
 
+      // The owner list is still loading, or this data owner has no stallingen.
+      // A saved filter can still hold ids from another owner; do not query those.
+      if (ownerBikeparkIDs.length === 0) {
+        setReportData(undefined);
+        setLoading(false);
+        onDataLoaded && onDataLoaded(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
 
         const apiEndpoint = `/api/reports/${filterState.reportType}`;
-        
+        const ownerIdSet = new Set(ownerBikeparkIDs);
+
         // For bezetting report, derive bikeparkIDs from bikeparkDataSources if selectedBikeparkIDs is empty
-        let bikeparkIDs = filterState.selectedBikeparkIDs;
-        if (filterState.reportType === 'bezetting' && (!bikeparkIDs || bikeparkIDs.length === 0) && filterState.bikeparkDataSources && filterState.bikeparkDataSources.length > 0) {
-          bikeparkIDs = filterState.bikeparkDataSources.map(bp => bp.StallingsID);
+        let bikeparkIDs = (filterState.selectedBikeparkIDs ?? []).filter((id) => ownerIdSet.has(id));
+        if (filterState.reportType === 'bezetting' && bikeparkIDs.length === 0 && filterState.bikeparkDataSources && filterState.bikeparkDataSources.length > 0) {
+          bikeparkIDs = filterState.bikeparkDataSources
+            .map(bp => bp.StallingsID)
+            .filter((id) => ownerIdSet.has(id));
         }
+        const bikeparkDataSources = (filterState.bikeparkDataSources ?? []).filter((bp) => ownerIdSet.has(bp.StallingsID));
         
         const response = await fetch(apiEndpoint, {
           method: 'POST',
@@ -239,7 +256,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               reportGrouping: filterState.reportGrouping,
               reportRangeUnit: filterState.reportRangeUnit,
               bikeparkIDs: bikeparkIDs,
-              bikeparkDataSources: filterState.bikeparkDataSources,
+              bikeparkDataSources: bikeparkDataSources,
               startDT,
               endDT,
               fillups: filterState.fillups,
@@ -290,6 +307,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   }, [
     filterState,
     gemeenteInfo?.DayBeginsAt,
+    ownerBikeparkIDs,
     bikeparksWithData?.length ?? 0// Force reloading data if available bikeparks change
   ]);
 
@@ -370,13 +388,31 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const selectedGemeenteID = session?.user?.activeContactId || "";
 
   useEffect(() => {
-    // Do API call to get gemeente inffo based on selectedGemeenteID
+    if (!selectedGemeenteID) {
+      setGemeenteInfo(undefined);
+      return;
+    }
+
+    const controller = new AbortController();
     const fetchGemeenteInfo = async () => {
-      const response = await fetch(`/api/contacts?ID=${selectedGemeenteID}`);
-      const data = await response.json();
-      setGemeenteInfo(data);
+      try {
+        const response = await fetch(`/api/contacts?ID=${encodeURIComponent(selectedGemeenteID)}`, {
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setGemeenteInfo(data);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        console.error(error);
+      }
     };
     fetchGemeenteInfo();
+
+    return () => {
+      controller.abort();
+    };
   }, [selectedGemeenteID]);
 
   const renderReportParams = (params: ReportParams) => {

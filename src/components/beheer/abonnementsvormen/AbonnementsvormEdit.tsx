@@ -41,9 +41,8 @@ const AbonnementsvormEdit: React.FC<AbonnementsvormEditProps> = ({ id, onClose }
   // Options - use hooks for fietsenstallingtypen and exploitanten
   const { data: session } = useSession();
   const { fietsenstallingtypen } = useFietsenstallingtypen();
-  // Pass undefined to get all exploitants for the current organization
-  // The API will filter based on user access rights
-  const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError } = useExploitanten(session?.user?.activeContactId || undefined);
+  // "" waits until the session has an active contact. undefined would load every exploitant.
+  const { exploitanten, isLoading: exploitantenLoading, error: exploitantenError } = useExploitanten(session?.user?.activeContactId || "");
   const [fietstypen, setFietstypen] = useState<VSFietstype[]>([]);
   const [documenttemplates, setDocumenttemplates] = useState<Documenttemplate[]>([]);
   const [hasBuurtstallingenModule, setHasBuurtstallingenModule] = useState(false);
