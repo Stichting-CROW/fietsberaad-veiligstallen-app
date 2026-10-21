@@ -21,6 +21,7 @@
     "test:bulk-reservations": "npx tsx --test src/server/services/bulk-reservations/domain.test.ts",
     "test:overboeken": "npx tsx --test src/modules/citizen-accounts/overboeken.test.ts src/modules/citizen-accounts/coldfusion-id.test.ts",
     "test:privacy": "npx tsx --test src/server/privacy/retention-rules.test.ts src/server/privacy/retention-execute.sql.test.ts",
+    "test:info-files": "npx tsx --test src/server/services/info-files/render.test.ts",
     "test:e2e:displays": "playwright test --project=displays",
     "test:engine-parity": "tsx e2e/engine-parity/compare.ts",
     "test:e2e:buurtstallingen": "playwright test",

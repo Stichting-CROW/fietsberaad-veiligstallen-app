@@ -145,6 +145,8 @@ const config = {
 
     return [
       { source: "/sitemap.xml", destination: "/api/sitemap.xml" },
+      { source: "/veiligstallen.kml", destination: "/api/info-files/kml" },
+      { source: "/veiligstallen.xml", destination: "/api/info-files/xml" },
       { source: "/robots.txt", destination: "/api/robots" },
       ...devDisplay,
       ...byHost(presentatieHosts, presentatieRules),
