@@ -1,6 +1,7 @@
 /**
  * Managed transaction upsert — bypasses motorblok In/Uit matching.
  * Maps payload 1:1 to transacties; upsert key = (FietsenstallingID, ExternalTransactionID).
+ * FietsenstallingID is the short StallingsID, matching ColdFusion.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -117,9 +118,10 @@ export async function putManagedTransaction(
   input = { ...input, managed };
 
   const bikepark = await getBikeparkByExternalID(input.bikeparkID);
-  if (!bikepark) {
+  if (!bikepark?.StallingsID) {
     throw new Error(`Locatie ${input.bikeparkID} niet gevonden`);
   }
+  const stallingsID = bikepark.StallingsID;
 
   const sectionId =
     input.managed.sectionid_checkin ?? input.managed.sectionid ?? input.sectionID;
@@ -150,7 +152,7 @@ export async function putManagedTransaction(
 
   const rowData = {
     ZipID: bikepark.ZipID ?? null,
-    FietsenstallingID: bikepark.ID,
+    FietsenstallingID: stallingsID,
     SectieID: sectionId,
     SectieID_uit: input.managed.sectionid_out ?? null,
     PlaceID: input.managed.placeid != null ? BigInt(input.managed.placeid) : null,
@@ -177,7 +179,7 @@ export async function putManagedTransaction(
 
   const existing = await transactiesModel.findFirst({
     where: {
-      FietsenstallingID: bikepark.ID,
+      FietsenstallingID: stallingsID,
       ExternalTransactionID: externalTransactionID,
     },
     select: { ID: true },

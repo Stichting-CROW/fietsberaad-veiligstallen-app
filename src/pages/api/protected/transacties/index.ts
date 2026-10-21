@@ -77,15 +77,15 @@ export default async function handler(
     if (bikeparkID) {
       const stalling = await prisma.fietsenstallingen.findFirst({
         where: { StallingsID: bikeparkID, Status: "1" },
-        select: { ID: true },
+        select: { StallingsID: true },
       });
-      if (!stalling) {
+      if (!stalling?.StallingsID) {
         return res.status(200).json({
           data: [],
           pagination: { page: 1, pageSize: finalPageSize, total: 0, totalPages: 0 },
         });
       }
-      where.FietsenstallingID = stalling.ID;
+      where.FietsenstallingID = stalling.StallingsID;
     } else if (FietsenstallingID) {
       where.FietsenstallingID = FietsenstallingID;
     }

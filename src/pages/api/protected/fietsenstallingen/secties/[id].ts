@@ -13,6 +13,8 @@ import {
   syncTariefregelsForNewBikeType,
   cleanupTariefregelsForDeletedBikeType,
 } from "~/server/services/tarieven";
+import { sectionTotalCapacity, storedBikeTypeCapacity } from "~/server/services/section-capacity";
+import { generateUniqueSectionExternalId } from "~/server/services/section-external-id";
 
 /**
  * Calculate total capacity for a fietsenstalling from all its sections
@@ -51,6 +53,21 @@ const updateFietsenstallingCapacity = async (fietsenstallingId: string): Promise
   await prisma.fietsenstallingen.update({
     where: { ID: fietsenstallingId },
     data: { Capacity: newCapacity }
+  });
+};
+
+/**
+ * Write fietsenstalling_sectie.capaciteit from the bike-type rows.
+ * ColdFusion: section.setTotalCapacity(section.getCapacity()).
+ */
+const syncSectionTotalCapacity = async (sectionId: number): Promise<void> => {
+  const bikeTypes = await prisma.sectie_fietstype.findMany({
+    where: { sectieID: sectionId },
+    select: { Capaciteit: true },
+  });
+  await prisma.fietsenstalling_sectie.update({
+    where: { sectieId: sectionId },
+    data: { capaciteit: sectionTotalCapacity(bikeTypes.map((bt) => bt.Capaciteit)) },
   });
 };
 
@@ -177,34 +194,13 @@ export default async function handle(
       // isKluis = 1 for fietskluizen type, 0 for other types
       const isKluis = (fietsenstalling.Type === "fietskluizen");
 
-      // Get existing sections and find the highest index number
-      // Pattern: StallingsID_index (e.g., mb02_001, mb02_002)
-      const existingSections = await prisma.fietsenstalling_sectie.findMany({
-        where: { fietsenstallingsId: data.fietsenstallingsId },
-        select: { externalId: true }
-      });
-      
-      const prefix = `${fietsenstalling.StallingsID}_`;
-      let highestIndex = 0;
-      
-      for (const section of existingSections) {
-        if (!section.externalId) continue;
-        
-        // Check if externalId matches the pattern
-        if (section.externalId.startsWith(prefix)) {
-          const indexPart = section.externalId.substring(prefix.length);
-          const index = parseInt(indexPart, 10);
-          
-          // Only consider valid numbers
-          if (!isNaN(index) && index > 0 && index > highestIndex) {
-            highestIndex = index;
-          }
-        }
-      }
-      
-      // Next index is highest + 1, starting from 001
-      const nextIndex = highestIndex + 1;
-      const externalId = `${fietsenstalling.StallingsID}_${nextIndex.toString().padStart(3, '0')}`;
+      // ColdFusion generateUniqueSectionExternalID: unpadded {StallingsID}_{n},
+      // from non-locker sections and from section ids already used in transacties.
+      const externalId = await generateUniqueSectionExternalId(
+        (sql, ...values) => prisma.$queryRawUnsafe(sql, ...values),
+        data.fietsenstallingsId,
+        fietsenstalling.StallingsID
+      );
       
       // Create section
       const newSection = await prisma.fietsenstalling_sectie.create({
@@ -236,6 +232,8 @@ export default async function handle(
       await prisma.sectie_fietstype.createMany({
         data: sectionBikeTypes
       });
+
+      await syncSectionTotalCapacity(newSection.sectieId);
 
       // Fetch the created section with all relations
       const createdSection = await prisma.fietsenstalling_sectie.findFirst({
@@ -289,7 +287,6 @@ export default async function handle(
         data: {
           titel: req.body.titel,
           omschrijving: req.body.omschrijving ?? null,
-          capaciteit: req.body.capaciteit !== undefined ? req.body.capaciteit : null,
           kleur: req.body.kleur || "00FF00",
           qualificatie: req.body.qualificatie || "NONE",
           isactief: req.body.isactief !== undefined ? req.body.isactief : true,
@@ -323,8 +320,8 @@ export default async function handle(
               BikeTypeID: bikeTypeData.BikeTypeID,
             },
             data: {
-              Capaciteit: bikeTypeData.Capaciteit ?? 0,
-              Toegestaan: bikeTypeData.Toegestaan ?? true,
+              Capaciteit: storedBikeTypeCapacity(bikeTypeData.Capaciteit, isNowAllowed),
+              Toegestaan: isNowAllowed,
             },
           });
 
@@ -361,6 +358,8 @@ export default async function handle(
           }
         }
 
+        await syncSectionTotalCapacity(sectionIdNum);
+
         // Fetch updated section with all relations
         const sectionWithRelations = await prisma.fietsenstalling_sectie.findFirst({
           where: { sectieId: sectionIdNum },
@@ -384,6 +383,12 @@ export default async function handle(
 
         res.status(200).json({ data: sectionWithRelations as SectieDetailsType });
       } else {
+        await syncSectionTotalCapacity(sectionIdNum);
+        const sectionAfterSync = await prisma.fietsenstalling_sectie.findFirst({
+          where: { sectieId: sectionIdNum },
+          select: selectSectieDetailsType,
+        });
+
         // Update the fietsenstalling Capacity field (even if only section metadata changed)
         if (existingSection.fietsenstallingsId) {
           await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
@@ -398,7 +403,7 @@ export default async function handle(
             },
           });
         }
-        res.status(200).json({ data: updatedSection as SectieDetailsType });
+        res.status(200).json({ data: (sectionAfterSync ?? updatedSection) as SectieDetailsType });
       }
       break;
     }
