@@ -101,6 +101,7 @@ export default async function handle(
           name,
           html,
           siteID: activeContactId,
+          EditorModified: session.user.name?.trim() || session.user.email?.trim() || "",
           dateCreated: new Date(),
           dateModified: new Date(),
         },

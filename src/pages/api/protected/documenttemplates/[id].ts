@@ -29,7 +29,14 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       res.status(403).json({ error: "Geen toegang tot dit document" });
       return;
     }
-    res.status(200).json({ ID: template.ID, name: template.name, html: template.html, readOnly: !own });
+    res.status(200).json({
+      ID: template.ID,
+      name: template.name,
+      html: template.html,
+      readOnly: !own,
+      editorModified: template.EditorModified,
+      dateModified: template.dateModified,
+    });
     return;
   }
   const rights = getRights(session.user.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht);
@@ -43,6 +50,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       data: {
         name: typeof req.body?.name === "string" ? req.body.name : template.name,
         html: typeof req.body?.html === "string" ? req.body.html : template.html,
+        EditorModified: session.user.name?.trim() || session.user.email?.trim() || "",
         dateModified: new Date(),
       },
     });
