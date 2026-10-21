@@ -34,6 +34,14 @@ export type DocumentContext = {
   dateLabel: string;
 };
 
+/** Phone line from ColdFusion BikeparkAccount.getDisplayPhone. */
+export function displayPhone(phone: string | null | undefined, mobile: string | null | undefined): string {
+  const fixed = phone?.trim() ?? "";
+  const cell = mobile?.trim() ?? "";
+  if (fixed && cell) return `${fixed} / ${cell}`;
+  return fixed || cell;
+}
+
 function text(value: string | null | undefined): string {
   return value?.trim() ? value : "";
 }

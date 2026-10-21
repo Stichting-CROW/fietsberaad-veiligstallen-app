@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { documentPage, logoUrl, renderDocument } from "~/modules/buurtstallingen/domain/documents";
+import { documentPage, displayPhone, logoUrl, renderDocument } from "~/modules/buurtstallingen/domain/documents";
 import { code128bSvg } from "~/modules/citizen-accounts/barcode";
 import { resolveSubscriptionRef, sessionAccountId, subscriptionConditions, subscriptionDocument } from "~/modules/citizen-accounts/service";
 import { prisma } from "~/server/db";
@@ -22,7 +22,34 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       res.status(404).send("<h1>Document niet gevonden</h1>");
       return;
     }
+    const accountId = sessionAccountId(req);
+    const account = accountId
+      ? await prisma.accounts.findUnique({
+          where: { ID: accountId },
+          select: {
+            FirstName: true,
+            MiddleName: true,
+            LastName: true,
+            Address: true,
+            Address_Nr: true,
+            Zip: true,
+            City: true,
+            Email: true,
+            Phone: true,
+            Mobile: true,
+          },
+        })
+      : null;
     const body = renderDocument(conditions.html, {
+      firstName: account?.FirstName,
+      middleName: account?.MiddleName,
+      lastName: account?.LastName,
+      address: account?.Address,
+      addressNr: account?.Address_Nr,
+      zip: account?.Zip,
+      city: account?.City,
+      email: account?.Email,
+      phone: displayPhone(account?.Phone, account?.Mobile),
       subscriptionName: conditions.subscriptionName,
       subscriptionPrice: conditions.subscriptionPrice,
       dateLabel: new Date().toLocaleDateString("nl-NL"),

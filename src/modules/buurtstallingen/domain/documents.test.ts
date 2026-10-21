@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { documentPage, logoUrl } from "./documents";
+import { displayPhone, documentPage, logoUrl } from "./documents";
 
 test("a file name is served from the static logo library", () => {
   assert.equal(logoUrl("utrecht.png"), "https://static.veiligstallen.nl/library/logo/utrecht.png");
   assert.equal(logoUrl("https://cdn.example/logo.png"), "https://cdn.example/logo.png");
   assert.equal(logoUrl("  "), "https://fms.veiligstallen.nl/resources/client/logo.png");
   assert.equal(logoUrl("[local]/uploads/logo.png"), "/api/uploads/logo.png");
+});
+
+test("display phone joins a fixed number and a mobile number", () => {
+  assert.equal(displayPhone("020-1", "06-2"), "020-1 / 06-2");
+  assert.equal(displayPhone("020-1", "  "), "020-1");
+  assert.equal(displayPhone("", "06-2"), "06-2");
+  assert.equal(displayPhone(null, null), "");
 });
 
 test("the printable page centers the logo and keeps the filled template", () => {
