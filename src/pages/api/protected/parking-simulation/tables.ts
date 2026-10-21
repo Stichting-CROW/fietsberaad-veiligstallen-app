@@ -113,11 +113,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             prisma.bezettingsdata_tmp.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
             prisma.transacties_archief.deleteMany({ where: { locationid: { in: stallingsIDs } } }),
             prisma.financialtransactions.deleteMany({ where: { bikeparkID: { in: stallingsIDs } } }),
-          );
-        }
-        if (stallingsIds.length > 0) {
-          deletes.push(
-            prisma.transacties.deleteMany({ where: { FietsenstallingID: { in: stallingsIds } } }),
+            prisma.transacties.deleteMany({ where: { FietsenstallingID: { in: stallingsIDs } } }),
           );
         }
         await prisma.$transaction(deletes);

@@ -11,6 +11,7 @@ import { userCanDeleteFietsenstalling, userHasRight } from "~/types/utils";
 import { VSSecurityTopic } from "~/types/securityprofile";
 // TODO: convert these types to the types in the types/parking.tsx file
 import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
+import { generateUniqueSectionExternalId } from "~/server/services/section-external-id";
 
 export type FietsenstallingResponse = {
   data?: ParkingDetailsType;
@@ -224,8 +225,13 @@ export const createNewStalling = async (req: NextApiRequest, res: NextApiRespons
     });
     const sectieId = newSectieIdResult._max.sectieId !== null ? newSectieIdResult._max.sectieId + 1 : 1;
     
-    // Generate externalId: StallingsID_001 for first section
-    const externalId = newFietsenstalling.StallingsID ? `${newFietsenstalling.StallingsID}_001` : null;
+    const externalId = newFietsenstalling.StallingsID
+      ? await generateUniqueSectionExternalId(
+          (sql, ...values) => prisma.$queryRawUnsafe(sql, ...values),
+          newFietsenstalling.ID,
+          newFietsenstalling.StallingsID
+        )
+      : null;
     
     // Set isKluis based on fietsenstalling type
     // isKluis = 1 for fietskluizen type, 0 for other types
@@ -687,13 +693,13 @@ export default async function handle(
                 data: { huidigeFietsenstallingId: null, huidigeSectieId: null, dateLastCheck: null },
               });
               await tx.transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
+              await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.StallingsID } });
               if (parkingsimulationTablesExist) {
                 await tx.parkingsimulation_section_assignments.deleteMany({
                   where: { locationid: stalling.StallingsID },
                 });
               }
             }
-            await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.ID } });
             await tx.fietsenstallingen.delete({
               where: { ID: stalling.ID },
             });
