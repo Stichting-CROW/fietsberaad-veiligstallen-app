@@ -1,6 +1,6 @@
 import React from "react";
 import { presentatiesThemeCss } from "./theme";
-import { LIBRARY_LOGO2_BASE } from "./theme";
+import { libraryLogo2Base } from "./theme";
 
 /** Injected via renderDocument head — not as JSX text (strings in body are escaped). */
 export function slide2HeadExtra(themeColor1: string): string {
@@ -68,7 +68,7 @@ export function PresentatieFramePage(props: {
         <div id="content">
           <div id="logo">
             {props.logo2 && props.siteId !== "1" ? (
-              <img src={`${LIBRARY_LOGO2_BASE}${props.logo2}`} alt="Logo" />
+              <img src={`${libraryLogo2Base()}${props.logo2}`} alt="Logo" />
             ) : (
               <img src="/display/presentaties/logo.png" alt="Veiligstallen" />
             )}

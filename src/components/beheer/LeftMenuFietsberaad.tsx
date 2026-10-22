@@ -346,6 +346,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 onSelect={onSelect}
                 icon={FiUsers}
               />
+              <LeftMenuItem
+                component={VSMenuTopic.TestOmgeving}
+                title={'Acceptatie (docker)'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiServer}
+              />
               {hasWachtrijAccess && (
                 <LeftMenuItem
                   component={VSMenuTopic.Wachtrij}

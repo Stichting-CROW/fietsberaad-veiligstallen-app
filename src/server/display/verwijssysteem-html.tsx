@@ -1,6 +1,6 @@
 import React from "react";
 import { escapeHtml, trustedHtml } from "./render";
-import { normalizeThemeColor, LIBRARY_LOGO2_BASE, LIBRARY_LOGO_BASE } from "./theme";
+import { normalizeThemeColor, libraryLogo2Base, libraryLogoBase } from "./theme";
 import type { CouncilDisplay } from "./council";
 
 const CSS = `
@@ -132,7 +132,7 @@ function VerwijssysteemFooter({ council }: { council: CouncilDisplay | null }) {
     <div id="footer" className="tbl_row">
       <div className="tbl_cell footerCell floatLeft alignLeft" style={{ width: "45%" }}>
         {council?.companyLogo2 ? (
-          <img src={`${LIBRARY_LOGO2_BASE}${council.companyLogo2}`} height={45} alt="" />
+          <img src={`${libraryLogo2Base()}${council.companyLogo2}`} height={45} alt="" />
         ) : (
           <a href="/">
             <img src="/display/verwijssysteem/logo.png" height={45} alt="" />
@@ -141,7 +141,7 @@ function VerwijssysteemFooter({ council }: { council: CouncilDisplay | null }) {
       </div>
       <div className="tbl_cell footerCell floatRight alignRight" style={{ width: "45%" }}>
         {council?.companyLogo ? (
-          <img src={`${LIBRARY_LOGO_BASE}${council.companyLogo}`} height={45} alt="" />
+          <img src={`${libraryLogoBase()}${council.companyLogo}`} height={45} alt="" />
         ) : null}
       </div>
     </div>

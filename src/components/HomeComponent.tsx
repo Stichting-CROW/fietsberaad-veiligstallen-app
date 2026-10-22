@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
+import { clientLogoFallback } from "~/utils/library-url";
 
 import {
   setIsParkingListVisible,
@@ -274,7 +275,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
       }
   
-      let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+      let logofile = clientLogoFallback();
   
       // If logo URL is not null and mapZoom is 12 or higher, return the image
       if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
@@ -288,7 +289,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
         return <ImageWithFallback
           src={logofile}
-          fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+          fallbackSrc={clientLogoFallback()}
           alt="Logo"
           width={64}
           height={64}
@@ -297,7 +298,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         />
       }
   
-      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
+      return <img src={clientLogoFallback()} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
     }
 
     const renderDesktopParkingList = () => {

@@ -1,3 +1,5 @@
+import { libraryDirectoryUrl } from "~/utils/library-url";
+
 export function normalizeThemeColor(color: string | null | undefined, fallback = "1f99d2"): string {
   if (!color) return fallback;
   return color.replace(/^#/, "").trim();
@@ -30,5 +32,10 @@ a:link, a:visited { color: #${c1}; }
 </style>`;
 }
 
-export const LIBRARY_LOGO_BASE = "https://static.veiligstallen.nl/library/logo/";
-export const LIBRARY_LOGO2_BASE = "https://static.veiligstallen.nl/library/logo2/";
+export function libraryLogoBase(): string {
+  return libraryDirectoryUrl("logo");
+}
+
+export function libraryLogo2Base(): string {
+  return libraryDirectoryUrl("logo2");
+}

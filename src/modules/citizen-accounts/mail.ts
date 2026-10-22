@@ -1,3 +1,4 @@
+import { libraryDirectoryUrl } from "~/utils/library-url";
 import { captureBuurtstallingenMail } from "~/modules/buurtstallingen/application/mail-capture";
 import { prisma } from "~/server/db";
 import { createMailer, formatFrom, requireSmtpConfig } from "~/utils/server/mail-tools";
@@ -68,7 +69,7 @@ function mailLogo(file: string | null | undefined): string {
   if (!value) return "https://www.veiligstallen.nl/resources/images/logo.png";
   if (/^https?:\/\//.test(value)) return value;
   if (value.startsWith("[local]")) return `${mailOrigin()}${value.replace("[local]", "/api")}`;
-  return `https://static.veiligstallen.nl/library/logo/${value}`;
+  return `${libraryDirectoryUrl("logo")}${value}`;
 }
 
 // customtags/send_mail_account.cfm

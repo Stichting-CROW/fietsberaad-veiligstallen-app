@@ -1,3 +1,5 @@
+import { libraryFileUrl } from "~/utils/library-url";
+
 /**
  * SEO utilities for meta tags, URLs, and descriptions.
  */
@@ -56,7 +58,7 @@ export function buildParkingImageUrl(image: string | null | undefined): string |
   if (image.includes("http")) {
     return image;
   }
-  return `https://static.veiligstallen.nl/library/fietsenstallingen/${image}`;
+  return `${libraryFileUrl("fietsenstallingen", image)}`;
 }
 
 /**
