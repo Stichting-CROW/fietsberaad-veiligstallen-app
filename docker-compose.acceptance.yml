@@ -1,0 +1,134 @@
+# Acceptance (docker). Azure acceptance stays the `acceptance` branch until that app is offline.
+# Project name `acc-docker` groups the containers, network, volumes, and images we build.
+#   npm run docker-acc:up
+#   npm run docker-acc:db
+#
+# The checked-in Prisma baseline migration is a no-op, so `migrate` creates the
+# schema with `prisma db push` and then seeds the beheer login.
+
+name: acc-docker
+
+x-stack: &stack
+  labels:
+    nl.veiligstallen.stack: acc-docker
+
+services:
+  mysql:
+    <<: *stack
+    image: mysql:8
+    container_name: acc-docker-mysql
+    profiles: ["app", "db"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-test-root}
+      MYSQL_DATABASE: acc_docker
+      MYSQL_USER: veiligstallen
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-test-only-change-me}
+    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "127.0.0.1:5556:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-test-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    <<: *stack
+    image: axllent/mailpit:v1.21
+    container_name: acc-docker-mailpit
+    profiles: ["app", "db"]
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
+  migrate:
+    <<: *stack
+    image: acc-docker-migrate
+    container_name: acc-docker-migrate
+    profiles: ["app", "db"]
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: mysql://veiligstallen:${MYSQL_PASSWORD:-test-only-change-me}@mysql:3306/acc_docker
+      TEST_ENV_BOOTSTRAP: "1"
+      NEXT_PUBLIC_APP_ENV: acceptance
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    <<: *stack
+    image: acc-docker-app
+    container_name: acc-docker-app
+    profiles: ["app"]
+    user: "0:0"
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_STATIC_LIBRARY_BASE: ${NEXT_PUBLIC_STATIC_LIBRARY_BASE:-http://127.0.0.1:3010}
+        NEXT_PUBLIC_APP_ENV: acceptance
+        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXTAUTH_URL:-http://127.0.0.1:3010}
+    env_file:
+      - docker/acceptance/.env
+    environment:
+      DATABASE_URL: mysql://veiligstallen:${MYSQL_PASSWORD:-test-only-change-me}@mysql:3306/acc_docker
+      LIBRARY_DIR: /library
+      REPORT_CACHE_DIR: /home/reportcache
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      TEST_ENV_BOOTSTRAP: "1"
+      NEXT_PUBLIC_APP_ENV: acceptance
+      OVERBOEKEN_CRON_ENABLED: "1"
+      ENABLE_WRITE_API: "true"
+    ports:
+      - "127.0.0.1:3010:3000"
+    volumes:
+      - ./docker/acceptance/library:/library
+      - uploads:/home/uploads
+      - reportcache:/home/reportcache
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  cron:
+    <<: *stack
+    image: acc-docker-cron
+    container_name: acc-docker-cron
+    profiles: ["app"]
+    build:
+      context: ./docker/acceptance
+      dockerfile: cron.Dockerfile
+    env_file:
+      - docker/acceptance/.env
+    environment:
+      TZ: Europe/Amsterdam
+    depends_on:
+      - app
+
+networks:
+  default:
+    name: acc-docker
+    labels:
+      nl.veiligstallen.stack: acc-docker
+
+volumes:
+  mysql-data:
+    name: acc-docker-mysql-data
+    labels:
+      nl.veiligstallen.stack: acc-docker
+  uploads:
+    name: acc-docker-uploads
+    labels:
+      nl.veiligstallen.stack: acc-docker
+  reportcache:
+    name: acc-docker-reportcache
+    labels:
+      nl.veiligstallen.stack: acc-docker

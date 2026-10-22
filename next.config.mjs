@@ -144,6 +144,7 @@ const config = {
     ];
 
     return [
+      { source: "/library/:path*", destination: "/api/library/:path*" },
       { source: "/sitemap.xml", destination: "/api/sitemap.xml" },
       { source: "/veiligstallen.kml", destination: "/api/info-files/kml" },
       { source: "/veiligstallen.xml", destination: "/api/info-files/xml" },

@@ -4,6 +4,7 @@ import { type AppState } from "~/store/store";
 import Link from 'next/link'
 import Image from 'next/image'
 import ImageWithFallback from "~/components/common/ImageWithFallback";
+import { clientLogoFallback } from "~/utils/library-url";
 
 // Import components
 import Modal from "src/components/Modal";
@@ -53,7 +54,7 @@ function AppHeaderMobile({
       return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white" width={64} height={48} alt="Logo" />
     }
 
-    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+    let logofile = clientLogoFallback();
 
     // If logo URL is not null and mapZoom is 12 or higher, return the image
     if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
@@ -67,7 +68,7 @@ function AppHeaderMobile({
 
       return <ImageWithFallback
         src={logofile}
-        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        fallbackSrc={clientLogoFallback()}
         alt="Logo"
         width={64}
         height={64}
@@ -75,7 +76,7 @@ function AppHeaderMobile({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
+    return <img src={clientLogoFallback()} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
   }
 
   return (

@@ -1,2 +1,4 @@
 mysql-db/*
-.env.local
+.env
+.env.*
+docker/acceptance/library

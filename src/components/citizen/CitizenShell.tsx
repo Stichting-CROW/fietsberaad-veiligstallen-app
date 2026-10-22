@@ -13,6 +13,7 @@ import { LoadingSpinner } from "~/components/beheer/common/LoadingSpinner";
 import { getMunicipalityBasedOnUrlName } from "~/utils/municipality";
 import { convertCoordinatenToCoords } from "~/utils/map/index";
 import { filterNavItems, getArticlesForMunicipality, getPrimary } from "~/utils/navigation";
+import { clientLogoFallback } from "~/utils/library-url";
 
 type PublicItem = { title: string; href: string };
 type MenuFlags = { fms: boolean; topup: boolean; abonnement: boolean; bikeparkTypes: string[]; hasBikeparks: boolean };
@@ -30,7 +31,7 @@ type Account = { loggedIn: boolean; saldo: number | null };
 type PageArticle = { title: string; displayTitle: string; abstract: string; article: string };
 
 const OWNER_STORAGE_KEY = "vs_citizen_site";
-const DEFAULT_LOGO = "https://fms.veiligstallen.nl/resources/client/logo.png";
+const DEFAULT_LOGO = clientLogoFallback();
 const DEFAULT_MENU: MenuFlags = { fms: false, topup: false, abonnement: false, bikeparkTypes: [], hasBikeparks: false };
 const DEFAULT_THEME: CitizenTheme = { id: null, name: "", urlName: "", themeColor1: "1f99d2", themeColor2: "96c11f", logo: null, menu: DEFAULT_MENU };
 const TYPE_BOUND_NAV: Record<string, string> = { buurtstallingen: "buurtstalling", fietstrommels: "fietstrommel", fietskluizen: "fietskluizen" };

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { type ChangeEvent, type MouseEvent, useState } from "react";
 import { Button } from "~/components/Button";
 import ImageSlider from "~/components/ImageSlider";
+import { libraryDirectoryUrl } from "~/utils/library-url";
 
 type ContactEditLogoProps = {
   ID: string,
@@ -17,7 +18,7 @@ const ContactEditLogo = ({ ID, CompanyLogo, CompanyLogo2, isLogo2, onUpdateAfbee
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const logoField = isLogo2 ? "CompanyLogo2" : "CompanyLogo";
-  const baseUrl = isLogo2 ? "https://static.veiligstallen.nl/library/logo2/" : "https://static.veiligstallen.nl/library/logo/";
+  const baseUrl = libraryDirectoryUrl(isLogo2 ? "logo2" : "logo");
 
   const onRemoveAfbeelding = async () => {
     const update = { [logoField]: null }
