@@ -1,5 +1,5 @@
 /**
- * GET /api/reporting/occupation/surveys
+ * GET /api/reporting/v4/occupation/surveys
  *
  * Port of getSurveys from the ColdFusion v2_occupation.cfc: all gemeenten in
  * the 'fms' module (unscoped, parity with the old API).

@@ -1,9 +1,9 @@
 /**
- * GET /api/reporting/occupation/staticdata
+ * GET /api/reporting/v4/occupation/staticdata
  *
  * Port of getStaticData from the ColdFusion v2_occupation.cfc: the static
  * sections (= FMS bikeparks) the authenticated user is authorized for.
- * Also served as /api/reporting/occupation/static (the CF canonical path).
+ * Also served as /api/reporting/v4/occupation/static (the CF canonical path).
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {

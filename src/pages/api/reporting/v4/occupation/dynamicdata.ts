@@ -1,9 +1,9 @@
 /**
- * GET /api/reporting/occupation/dynamicdata
+ * GET /api/reporting/v4/occupation/dynamicdata
  *
  * Port of getDynamicData from the ColdFusion v2_occupation.cfc: the occupation
  * (bezettingsdata) time series for the authorized static sections.
- * Also served as /api/reporting/occupation/dynamic (the CF canonical path).
+ * Also served as /api/reporting/v4/occupation/dynamic (the CF canonical path).
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {

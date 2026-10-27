@@ -5,7 +5,7 @@ import { diff } from "deep-object-diff";
 
 /**
  * Occupation (bezettingsdata) reporting API comparison: old ColdFusion
- * /rest/reporting/v2/occupation/* versus new /api/reporting/occupation/*.
+ * /rest/reporting/v2/occupation/* versus new /api/reporting/v4/occupation/*.
  * Fetches both through the /api/protected/fms-api-compare proxy (avoids CORS,
  * forwards Basic auth).
  */
@@ -174,7 +174,7 @@ export const OccupationComparisonSection: React.FC<OccupationComparisonSectionPr
     const newBase = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
     const qs = buildQueryString(endpoint);
     const oldUrl = `${oldBase}/rest/reporting/v2/occupation/${endpoint.id}${qs}`;
-    const newUrl = `${newBase}/api/reporting/occupation/${endpoint.id}${qs}`;
+    const newUrl = `${newBase}/api/reporting/v4/occupation/${endpoint.id}${qs}`;
 
     setRows((r) => ({ ...r, [endpoint.id]: { ...EMPTY_ROW, status: "loading", oldUrl, newUrl } }));
 
@@ -273,7 +273,7 @@ export const OccupationComparisonSection: React.FC<OccupationComparisonSectionPr
     const instruction = [
       "Fix the new API implementation so it returns the same structure and values as the old API for this endpoint. The order of keys in the structure should also match the old API.",
       "",
-      `Endpoint: /rest/reporting/v2/occupation/${endpoint.id} (old) vs /api/reporting/occupation/${endpoint.id} (new)`,
+      `Endpoint: /rest/reporting/v2/occupation/${endpoint.id} (old) vs /api/reporting/v4/occupation/${endpoint.id} (new)`,
       `Old URL: ${row.oldUrl}`,
       `New URL: ${row.newUrl}`,
       "",
@@ -319,7 +319,7 @@ export const OccupationComparisonSection: React.FC<OccupationComparisonSectionPr
       <p className="text-sm text-gray-600 mb-4">
         Vergelijkt de oude en nieuwe occupation-reporting-API (bezettingsdata):{" "}
         <code className="bg-gray-100 px-1 rounded">/rest/reporting/v2/occupation/*</code> (oud) versus{" "}
-        <code className="bg-gray-100 px-1 rounded">/api/reporting/occupation/*</code> (nieuw). Beide
+        <code className="bg-gray-100 px-1 rounded">/api/reporting/v4/occupation/*</code> (nieuw). Beide
         endpoints gebruiken Basic Auth tegen{" "}
         <code className="bg-gray-100 px-1 rounded">security_users</code> (beheer-inlog). Bij{" "}
         <code className="bg-gray-100 px-1 rounded">organisations</code>,{" "}

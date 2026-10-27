@@ -34,6 +34,11 @@ const SPECS = [
     swaggerUrl: "/docs/api/v4",
   },
   {
+    json: "src/lib/openapi/reporting-api-v4.json",
+    slug: "reporting-api-v4",
+    swaggerUrl: "/docs/api/reporting/v4",
+  },
+  {
     json: "src/lib/openapi/fms-api-migrate-v2.json",
     slug: "fms-api-migrate-v2",
     swaggerUrl: "/test/fms-api-docs-migrate-v2",

@@ -4,7 +4,7 @@
  * reports_json_datastandaard.cfc (bezetting/query2datastandaard) +
  * reports.cfc (getQBezettingDatastandaard/totalHitsBezetting).
  *
- * Serves /api/reporting/occupation/* (old: /rest/reporting/v2/occupation/*).
+ * Serves /api/reporting/v4/occupation/* (old: /rest/reporting/v2/occupation/*).
  */
 import { prisma } from "~/server/db";
 import { formatCfDbDateTime } from "~/server/services/fms/fms-idtypes";
