@@ -1,8 +1,8 @@
 /**
- * GET /api/reporting/occupation/contractors
+ * GET /api/reporting/v4/occupation/authorities
  *
- * Port of getContractors from the ColdFusion v2_occupation.cfc: the unique
- * contractors (occupation data sources) of the user's static sections.
+ * Port of getAuthorities from the ColdFusion v2_occupation.cfc: the unique
+ * authorities (gemeenten) derived from the user's static sections.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
@@ -11,7 +11,7 @@ import {
 } from "~/server/services/reporting/reporting-request";
 import {
   getStaticData,
-  getOrganisationById,
+  getAuthorityById,
 } from "~/server/services/reporting/occupation-service";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
@@ -24,19 +24,20 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     ).result;
 
     // CF SetAppend: dedupe by id, keeping first-encountered order
-    const result: { id: string; name?: string }[] = [];
+    const authorityIds: string[] = [];
     for (const section of staticSections) {
-      for (const contractorId of section.contractorIds) {
-        if (!result.some((organisation) => organisation.id === contractorId)) {
-          result.push(getOrganisationById(contractorId));
+      for (const surveyId of section.surveyIds) {
+        if (surveyId && !authorityIds.includes(surveyId)) {
+          authorityIds.push(surveyId);
         }
       }
     }
 
+    const result = await Promise.all(authorityIds.map((id) => getAuthorityById(id)));
     res.status(200).json({ result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal error";
-    console.error("Reporting occupation contractors error:", error);
+    console.error("Reporting occupation authorities error:", error);
     res.status(400).json({ error: message });
   }
 }

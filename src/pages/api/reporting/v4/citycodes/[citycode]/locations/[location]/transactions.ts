@@ -1,5 +1,5 @@
 /**
- * GET /api/reporting/citycodes/{citycode}/locations/{location}/transactions
+ * GET /api/reporting/v4/citycodes/{citycode}/locations/{location}/transactions
  *
  * Port of getTransactionsForBikepark from the ColdFusion v1_reportingservice.cfc.
  * Authenticated with HTTP Basic auth against security_users (parity with the old API).

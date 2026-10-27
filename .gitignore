@@ -62,6 +62,10 @@ mysql-db/export-db.zip
 # local MySQL data (Docker volume - restrictively permissioned, breaks build scans)
 mysql-db/persist-db/
 
+# local docker library cache (municipality logos downloaded from static.veiligstallen.nl)
+/docker/acceptance/library/
+/docker/test/library/
+
 #uploads
 /public/uploads*
 

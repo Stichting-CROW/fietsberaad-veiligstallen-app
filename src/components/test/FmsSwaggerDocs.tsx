@@ -7,6 +7,7 @@ const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
 
 const FMS_DOCS_NAV = [
   { href: "/docs/api/v4", label: "V4 referentie" },
+  { href: "/docs/api/reporting/v4", label: "Rapportage v4" },
   { href: "/test/fms-api-docs-migrate-v2", label: "Migratie V2 → V4" },
   { href: "/test/fms-api-docs-migrate-v3", label: "Migratie V3 → V4" },
   { href: "/test/fms-api-docs", label: "V2 + V3" },
@@ -103,6 +104,7 @@ const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
         docExpansion="none"
         defaultModelsExpandDepth={1}
         defaultModelExpandDepth={1}
+        deepLinking
       />
     </div>
   );

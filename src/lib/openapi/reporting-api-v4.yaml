@@ -1,0 +1,585 @@
+openapi: 3.0.3
+info:
+  title: Rapportage API v4
+  description: |
+    Datastandaard- en rapportage-API (v4).
+
+    Basispad: `/api/reporting/v4/...`.
+
+    Dit is een andere API dan de [FMS REST API v4](/docs/api/v4).
+    FMS v4 gebruikt dataleverancier-credentials. Deze API gebruikt een
+    **FMS-gebruikersaccount** (inloggen op de site), met rechten op basis
+    van de rol.
+
+    Oude ColdFusion-paden: `/rest/reporting/v2/occupation/...` en
+    `/rest/reporting/v1/citycodes/.../transactions`.
+
+    ## Toegang
+
+    HTTP Basic Auth. Alle endpoints vereisen een geldig gebruikersaccount.
+
+    - Intern Fietsberaad-admin (rootadmin of admin) ziet alle stallingen.
+    - Overige toegestane rollen zien de stallingen van hun gekoppelde organisaties.
+    - Beheerder-admins en interne editors krijgen 401.
+
+    Zonder `Authorization`-header antwoordt de server met 401 en
+    `WWW-Authenticate: Basic realm="FMSService"`.
+
+    ## Bezetting
+
+    `static` levert de stallingen (statische secties) waar de gebruiker recht
+    op heeft. `dynamic` levert de bezettingsreeks in datastandaardvorm.
+
+    `/v4/occupation/staticdata` en `/v4/occupation/dynamicdata` zijn aliassen
+    van `static` en `dynamic`.
+  version: 4.0.0
+servers:
+  - url: /api/reporting
+    description: Rapportage API v4
+security:
+  - basicAuth: []
+tags:
+  - name: Bezetting
+    description: Datastandaard bezettingsdata (stallingen en tijdreeksen).
+  - name: Transacties
+    description: Ruwe stallingstransacties.
+paths:
+  /v4/occupation/static:
+    get:
+      summary: Stallingen (statische secties)
+      description: >
+        De stallingen waar de aangemelde gebruiker recht op heeft.
+        Ook beschikbaar als `/v4/occupation/staticdata`.
+      tags: [Bezetting]
+      parameters:
+        - $ref: '#/components/parameters/StaticSectionId'
+        - $ref: '#/components/parameters/SurveyId'
+        - $ref: '#/components/parameters/AuthorityId'
+        - $ref: '#/components/parameters/Geopolygon'
+      responses:
+        '200':
+          description: Stallingen in datastandaardvorm.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaticDataResult'
+        '400':
+          $ref: '#/components/responses/OccupationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/occupation/dynamic:
+    get:
+      summary: Bezettingsreeks
+      description: >
+        Bezettingsdata voor de stallingen uit dezelfde filters als `static`.
+        Zonder `startDate` en `endDate` is de periode de laatste 5 jaar tot nu.
+        `depth` groter dan 1 voegt secties toe. `groupBy=staticSectionId`
+        geeft één pagina per stalling.
+        Ook beschikbaar als `/v4/occupation/dynamicdata`.
+      tags: [Bezetting]
+      parameters:
+        - $ref: '#/components/parameters/StaticSectionId'
+        - $ref: '#/components/parameters/SurveyId'
+        - $ref: '#/components/parameters/AuthorityId'
+        - $ref: '#/components/parameters/Geopolygon'
+        - name: startDate
+          in: query
+          description: '`yyyy-mm-ddTHH:mm:ss` (wandklok, optioneel `Z`).'
+          schema:
+            type: string
+            example: '2026-10-01T00:00:00'
+        - name: endDate
+          in: query
+          description: '`yyyy-mm-ddTHH:mm:ss` (wandklok, optioneel `Z`).'
+          schema:
+            type: string
+            example: '2026-10-02T00:00:00'
+        - name: depth
+          in: query
+          description: '`1` is totalen per stalling. `2` of hoger voegt `sections` toe.'
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: contractorId
+          in: query
+          description: Bron van de bezettingsdata (ContractorID).
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 1000
+            minimum: 1
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+            enum: [timestamp, parkingcapacity, occupiedspaces, vacantspaces]
+        - name: orderDirection
+          in: query
+          schema:
+            type: string
+            enum: [ASC, DESC, asc, desc]
+        - name: groupBy
+          in: query
+          description: Alleen `staticSectionId` is geldig.
+          schema:
+            type: string
+            enum: [staticSectionId]
+      responses:
+        '200':
+          description: >
+            Zonder `groupBy` een pagina. Met `groupBy=staticSectionId` een
+            lijst van pagina's (alleen stallingen met data).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/DynamicDataPage'
+                  - $ref: '#/components/schemas/DynamicDataGrouped'
+        '400':
+          $ref: '#/components/responses/OccupationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/occupation/authorities:
+    get:
+      summary: Gemeenten van de stallingen
+      tags: [Bezetting]
+      parameters:
+        - $ref: '#/components/parameters/Geopolygon'
+      responses:
+        '200':
+          description: Unieke gemeenten (authorities) van de zichtbare stallingen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamedIdList'
+        '400':
+          $ref: '#/components/responses/OccupationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/occupation/contractors:
+    get:
+      summary: Bronnen van bezettingsdata
+      tags: [Bezetting]
+      parameters:
+        - $ref: '#/components/parameters/Geopolygon'
+      responses:
+        '200':
+          description: Unieke contractor-id's van de zichtbare stallingen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamedIdList'
+        '400':
+          $ref: '#/components/responses/OccupationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/occupation/organisations:
+    get:
+      summary: Organisaties
+      description: Vaste organisaties plus alle gemeenten in de FMS-module.
+      tags: [Bezetting]
+      responses:
+        '200':
+          description: Organisaties en gemeenten.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/occupation/surveys:
+    get:
+      summary: Gemeenten in de FMS-module
+      description: Niet beperkt tot de organisaties van de gebruiker.
+      tags: [Bezetting]
+      responses:
+        '200':
+          description: Gemeenten.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SurveyList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v4/citycodes/{citycode}/locations/{location}/transactions:
+    get:
+      summary: Ruwe transacties van een stalling
+      description: >
+        Standaard `type` is `checkout` en de periode is de vorige maand.
+        Geef `from` en `to` samen, of `year` en `month`.
+      tags: [Transacties]
+      parameters:
+        - name: citycode
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: location
+          in: path
+          required: true
+          description: Stalling-id, bijvoorbeeld `9933_001`.
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [checkout, checkin, overlap]
+            default: checkout
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          description: Maand 1–12.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Ruwe transacties. Velden met de standaardwaarde ontbreken in `data`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResult'
+        '400':
+          $ref: '#/components/responses/StatusError'
+        '401':
+          description: >
+            Ongeldige credentials, of geen recht op deze stalling
+            (`Niet voldoende rechten`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusError'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: >
+        HTTP Basic Auth met een FMS-gebruikersaccount (security_users),
+        niet de dataleverancier-credentials van de FMS API.
+  parameters:
+    StaticSectionId:
+      name: staticSectionId
+      in: query
+      description: Stalling-id's, kommagescheiden.
+      schema:
+        type: string
+        example: '9933_001'
+    SurveyId:
+      name: surveyId
+      in: query
+      description: Gemeentecode(s), kommagescheiden.
+      schema:
+        type: string
+    AuthorityId:
+      name: authorityId
+      in: query
+      description: Gemeentecode(s), kommagescheiden. Zelfde filter als `surveyId`.
+      schema:
+        type: string
+    Geopolygon:
+      name: geopolygon
+      in: query
+      description: >
+        Vlakke lijst `lat lng` (spaties of komma's), polygoon gesloten.
+        Minimaal 4 punten.
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Geen of ongeldige Basic Auth.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StatusError'
+    OccupationError:
+      description: Ongeldige queryparameter.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    StatusError:
+      description: Fout met status en bericht.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StatusError'
+  schemas:
+    StatusError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 0
+        message:
+          type: string
+    GeoPoint:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Point]
+        coordinates:
+          type: array
+          description: '[lng, lat]'
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+    StaticSection:
+      type: object
+      required: [id, contractorIds, authorityIds, surveyIds]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        geoLocation:
+          $ref: '#/components/schemas/GeoPoint'
+        contractorIds:
+          type: array
+          items:
+            type: string
+        authorityIds:
+          type: array
+          items:
+            type: string
+            nullable: true
+        surveyIds:
+          type: array
+          items:
+            type: string
+            nullable: true
+    StaticDataResult:
+      type: object
+      required: [result, totalHits]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaticSection'
+        totalHits:
+          type: integer
+    Traffic:
+      type: object
+      properties:
+        periodInMinutes:
+          type: integer
+          example: 15
+        arrivals:
+          type: number
+        departures:
+          type: number
+    DynamicSubsection:
+      type: object
+      properties:
+        id:
+          type: string
+        deltas:
+          $ref: '#/components/schemas/Traffic'
+        parkingCapacity:
+          type: number
+        occupiedSpaces:
+          type: number
+        vacantSpaces:
+          type: number
+    DynamicSectionRecord:
+      type: object
+      required: [staticSectionId, timestamp, contractorId, note]
+      properties:
+        staticSectionId:
+          type: string
+        timestamp:
+          type: string
+          description: '`YYYY-MM-DD HH:mm:ss`'
+        contractorId:
+          type: string
+        authorityId:
+          type: string
+          nullable: true
+        surveyId:
+          type: string
+          nullable: true
+        note:
+          type: object
+          properties:
+            isOpen:
+              type: boolean
+        occupiedSpaces:
+          type: number
+        parkingCapacity:
+          type: number
+        vacantSpaces:
+          type: number
+        traffic:
+          $ref: '#/components/schemas/Traffic'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/DynamicSubsection'
+    DynamicDataPage:
+      type: object
+      required: [result, totalHits, page, pageSize]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/DynamicSectionRecord'
+        totalHits:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    DynamicDataGrouped:
+      type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/DynamicDataPage'
+    NamedId:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+    NamedIdList:
+      type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/NamedId'
+    Survey:
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        authorityId:
+          type: string
+          nullable: true
+    SurveyList:
+      type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/Survey'
+    OrganisationList:
+      type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          description: Vaste organisaties (`id`, `name`) gevolgd door gemeenten (`id`, `name`, `authorityId`).
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                nullable: true
+              name:
+                type: string
+              authorityId:
+                type: string
+                nullable: true
+    TransactionRow:
+      type: object
+      description: Alleen velden die afwijken van `defaults` staan in de rij.
+      properties:
+        sectionid:
+          type: string
+        checkindate:
+          type: string
+        checkoutdate:
+          type: string
+        checkintype:
+          type: string
+        checkouttype:
+          type: string
+        price:
+          type: number
+        clienttypeid:
+          type: integer
+        biketypeid:
+          type: integer
+    TransactionDefaults:
+      type: object
+      properties:
+        clienttypeid:
+          type: integer
+        checkouttype:
+          type: string
+        checkintype:
+          type: string
+        biketypeid:
+          type: integer
+        locationid:
+          type: string
+        sectionid:
+          type: string
+    TransactionsResult:
+      type: object
+      required: [data, count, citycode, type, defaults, locationid]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionRow'
+        count:
+          type: integer
+        citycode:
+          type: string
+        type:
+          type: string
+          enum: [checkout, checkin, overlap]
+        defaults:
+          $ref: '#/components/schemas/TransactionDefaults'
+        locationid:
+          type: string
+        month:
+          type: string
+        year:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
