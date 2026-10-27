@@ -104,6 +104,7 @@ const FmsSwaggerDocs: React.FC<FmsSwaggerDocsProps> = ({ specUrl }) => {
         docExpansion="none"
         defaultModelsExpandDepth={1}
         defaultModelExpandDepth={1}
+        deepLinking
       />
     </div>
   );
