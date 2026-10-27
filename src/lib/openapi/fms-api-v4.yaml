@@ -19,6 +19,7 @@ info:
       en hebben per stalling een `permit`.
     - **Gebruikersaccounts** (security_users) voor de datastandaard- en
       rapportage-API, op basis van de rol van de gebruiker.
+      Specificatie: [Rapportage v4](/docs/api/reporting/v4).
 
     ## Rechten: lezen vs. schrijven
 
@@ -59,6 +60,15 @@ info:
     Stallingstransacties worden uitsluitend via `managedtransactions` aangeleverd.
     Legacy in/out (`transactions`), `completedtransactions`, fietskluizen-writes,
     `isAllowedToUse` en koppelpas op plek-niveau geven HTTP 410.
+
+    ## Rapportage
+
+    Bezetting (datastandaard) en ruwe transacties staan op de rapportage-API.
+    Die gebruikt een FMS-gebruikersaccount, niet de dataleverancier-credentials
+    van deze specificatie.
+
+    - [Rapportage v4 (Swagger)](/docs/api/reporting/v4)
+    - Basispad: `/api/reporting/v4/...`
 
     ## Migratie vanaf v2 of v3
 

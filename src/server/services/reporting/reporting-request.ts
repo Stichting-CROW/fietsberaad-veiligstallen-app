@@ -1,5 +1,5 @@
 /**
- * Shared request handling for the /api/reporting/* REST endpoints:
+ * Shared request handling for the /api/reporting/v4/* REST endpoints:
  * method guard + HTTP Basic auth against security_users (ColdFusion parity).
  */
 import type { NextApiRequest, NextApiResponse } from "next";

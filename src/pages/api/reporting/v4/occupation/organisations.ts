@@ -1,5 +1,5 @@
 /**
- * GET /api/reporting/occupation/organisations
+ * GET /api/reporting/v4/occupation/organisations
  *
  * Port of getOrganisations from the ColdFusion v2_occupation.cfc: the
  * hardcoded organisations plus all FMS-module gemeenten (surveys).

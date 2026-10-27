@@ -206,6 +206,13 @@ const TestIndexPage: React.FC = () => {
             FMS API v4 documentatie (Swagger)
           </Button>
           <Button
+            onClick={() => handleNavigate('/docs/api/reporting/v4')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            Rapportage API v4 (Swagger)
+          </Button>
+          <Button
             onClick={() => handleNavigate('/test/fms-api-docs-migrate-v2')}
             className="py-6 px-8 text-center w-full"
             style={{ backgroundColor: '#3B82F6' }}

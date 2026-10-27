@@ -29,14 +29,14 @@ export type ApiFetchResult = {
 };
 
 const OCCUPATION_HANDLERS: Record<string, () => Promise<{ default: ApiHandler }>> = {
-  authorities: () => import("~/pages/api/reporting/occupation/authorities"),
-  contractors: () => import("~/pages/api/reporting/occupation/contractors"),
-  dynamic: () => import("~/pages/api/reporting/occupation/dynamic"),
-  dynamicdata: () => import("~/pages/api/reporting/occupation/dynamicdata"),
-  organisations: () => import("~/pages/api/reporting/occupation/organisations"),
-  static: () => import("~/pages/api/reporting/occupation/static"),
-  staticdata: () => import("~/pages/api/reporting/occupation/staticdata"),
-  surveys: () => import("~/pages/api/reporting/occupation/surveys"),
+  authorities: () => import("~/pages/api/reporting/v4/occupation/authorities"),
+  contractors: () => import("~/pages/api/reporting/v4/occupation/contractors"),
+  dynamic: () => import("~/pages/api/reporting/v4/occupation/dynamic"),
+  dynamicdata: () => import("~/pages/api/reporting/v4/occupation/dynamicdata"),
+  organisations: () => import("~/pages/api/reporting/v4/occupation/organisations"),
+  static: () => import("~/pages/api/reporting/v4/occupation/static"),
+  staticdata: () => import("~/pages/api/reporting/v4/occupation/staticdata"),
+  surveys: () => import("~/pages/api/reporting/v4/occupation/surveys"),
 };
 
 function resolveInternalApiRoute(pathname: string): RouteResolution | null {
@@ -64,17 +64,17 @@ function resolveInternalApiRoute(pathname: string): RouteResolution | null {
   }
 
   const reportingTxMatch = pathname.match(
-    /^\/api\/reporting\/citycodes\/([^/]+)\/locations\/([^/]+)\/transactions$/
+    /^\/api\/reporting\/v4\/citycodes\/([^/]+)\/locations\/([^/]+)\/transactions$/
   );
   if (reportingTxMatch) {
     return {
       loadHandler: () =>
-        import("~/pages/api/reporting/citycodes/[citycode]/locations/[location]/transactions"),
+        import("~/pages/api/reporting/v4/citycodes/[citycode]/locations/[location]/transactions"),
       pathParams: { citycode: reportingTxMatch[1]!, location: reportingTxMatch[2]! },
     };
   }
 
-  const occupationMatch = pathname.match(/^\/api\/reporting\/occupation\/([^/]+)$/);
+  const occupationMatch = pathname.match(/^\/api\/reporting\/v4\/occupation\/([^/]+)$/);
   if (occupationMatch) {
     const endpoint = occupationMatch[1]!;
     const loader = OCCUPATION_HANDLERS[endpoint];

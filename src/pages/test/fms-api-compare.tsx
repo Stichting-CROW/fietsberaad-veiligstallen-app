@@ -1770,7 +1770,7 @@ const FmsApiComparePage: React.FC = () => {
 
     const newBase = newApiUrl || (typeof window !== "undefined" ? window.location.origin : "");
     const oldBase = oldApiUrl || OLD_API_BASE;
-    const newUrl = `${newBase}/api/reporting${suffix}`;
+    const newUrl = `${newBase}/api/reporting/v4${suffix}`;
     const oldUrl = `${oldBase}/rest/reporting/v1${suffix}`;
 
     setReportingOldUrl(oldUrl);
@@ -2504,7 +2504,7 @@ const FmsApiComparePage: React.FC = () => {
               </code>{" "}
               (oud) versus{" "}
               <code className="bg-gray-100 px-1 rounded">
-                /api/reporting/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
+                /api/reporting/v4/citycodes/&#123;citycode&#125;/locations/&#123;location&#125;/transactions
               </code>{" "}
               (nieuw). Beide endpoints gebruiken Basic Auth tegen{" "}
               <code className="bg-gray-100 px-1 rounded">security_users</code> (beheer-inlog), dus vul hierboven
