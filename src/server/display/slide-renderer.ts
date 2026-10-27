@@ -2,7 +2,7 @@ import { prisma } from "~/server/db";
 import {
   getActivePresentations,
   getParkedBikesCountForCouncilYear,
-  resolvePresentationBikeparkId,
+  resolveFietsenstallingForPresentation,
 } from "./presentation";
 import { getBikeparkInfo, getBikeparkInfoFlat } from "./occupancy";
 import { renderOpeningstijdenTableHtml } from "./openingstijden-table";
@@ -33,10 +33,17 @@ async function expandArticle(html: string, zipId: string | null): Promise<string
   return out;
 }
 
-export async function renderSlide2Html(siteId: string, bikeparkId?: string): Promise<{ html: string; totalDuration: number }> {
-  const slides = await getActivePresentations(siteId, bikeparkId);
+export async function renderSlide2Html(
+  siteId: string,
+  bikeparkIdFromUrl?: string
+): Promise<{ html: string; totalDuration: number }> {
+  const slides = await getActivePresentations(siteId, bikeparkIdFromUrl);
   const council = await getCouncilById(siteId);
-  const fallbackBikeparkId = await resolvePresentationBikeparkId(siteId, bikeparkId);
+  const stallingFromUrl = bikeparkIdFromUrl?.trim()
+    ? await resolveFietsenstallingForPresentation(siteId, bikeparkIdFromUrl)
+    : null;
+  /** Internal fietsenstallingen.ID when bikeparkID is in the URL (slide2.cfm parity). */
+  const slideBikeparkId = stallingFromUrl?.ID;
   const rounds = slides.length > 6 ? 1 : 2;
   let totalDuration = 0;
   const parts: string[] = [];
@@ -47,7 +54,6 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
       const duration = slide.Duration ?? 10;
       let inner = "";
       let valid = true;
-      const slideBikeparkId = bikeparkId ?? fallbackBikeparkId;
 
       switch (slide.ContentType) {
         case "Article": {
@@ -56,15 +62,12 @@ export async function renderSlide2Html(siteId: string, bikeparkId?: string): Pro
           break;
         }
         case "Bikepark": {
-          if (!slideBikeparkId) {
+          const dia = stallingFromUrl?.dia ?? "";
+          if (!slideBikeparkId || !dia.trim()) {
             valid = false;
             break;
           }
-          const bp = await prisma.fietsenstallingen.findUnique({
-            where: { ID: slideBikeparkId },
-            select: { dia: true },
-          });
-          inner = `<h1>${slide.Title ?? ""}</h1>${trustedHtml(bp?.dia ?? "")}`;
+          inner = `<h1>${slide.Title ?? ""}</h1>${trustedHtml(dia)}`;
           break;
         }
         case "Openingstijden": {

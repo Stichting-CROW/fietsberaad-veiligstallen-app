@@ -189,10 +189,15 @@ export const authOptions: NextAuthOptions = {
           if (orgaccount) {
             const mainContactId = orgaccount.user_contact_roles.find((role) => role.isOwnOrganization)?.ContactID || undefined;
             const tokenContactId = typeof token.activeContactId === "string" ? token.activeContactId : undefined;
-            const activeContactId = orgaccount.user_contact_roles.some((role) => role.ContactID === tokenContactId)
+            const fietsberaadRole = orgaccount.user_contact_roles.find((role) => role.ContactID === "1")?.NewRoleID;
+            const canSwitchAnyOrganisation = fietsberaadRole === "rootadmin" || fietsberaadRole === "viewer";
+            const hasRoleOnTokenContact = !!tokenContactId && orgaccount.user_contact_roles.some((role) => role.ContactID === tokenContactId);
+            const activeContactId = hasRoleOnTokenContact || (canSwitchAnyOrganisation && !!tokenContactId)
               ? tokenContactId
               : mainContactId;
-            const currentRoleID: VSUserRoleValuesNew = orgaccount.user_contact_roles.find((role) => role.ContactID === activeContactId)?.NewRoleID as VSUserRoleValuesNew || VSUserRoleValuesNew.None;
+            const currentRoleID: VSUserRoleValuesNew = orgaccount.user_contact_roles.find((role) => role.ContactID === activeContactId)?.NewRoleID as VSUserRoleValuesNew
+              || (canSwitchAnyOrganisation && activeContactId === tokenContactId ? fietsberaadRole as VSUserRoleValuesNew : undefined)
+              || VSUserRoleValuesNew.None;
             session.user.id = token.id as string;
             session.user.name = orgaccount.DisplayName;
             session.user.mainContactId = mainContactId;

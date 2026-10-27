@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { displayQueryString, resolveInternalBikeparkId } from "~/server/display/fms-display-resolve";
 import { getBikeparkInfo, getBikeparksInfoForSite } from "~/server/display/occupancy";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -7,14 +8,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end();
   }
 
-  const bikeparkId = typeof req.query.bikeparkId === "string" ? req.query.bikeparkId : undefined;
-  const siteId = typeof req.query.siteId === "string" ? req.query.siteId : undefined;
+  const bikeparkRef =
+    typeof req.query.bikeparkId === "string"
+      ? req.query.bikeparkId
+      : typeof req.query.bikeParkId === "string"
+        ? req.query.bikeParkId
+        : displayQueryString(req.query.locationId);
+  const siteId =
+    typeof req.query.siteId === "string"
+      ? req.query.siteId
+      : typeof req.query.siteID === "string"
+        ? req.query.siteID
+        : undefined;
+  const citycode = displayQueryString(req.query.citycode);
   const filter =
     req.query.filter === "overzichten" ? ("overzichten" as const) : ("verwijssysteem" as const);
 
   try {
-    if (bikeparkId) {
-      const sections = await getBikeparkInfo(bikeparkId);
+    if (bikeparkRef) {
+      const internalId = await resolveInternalBikeparkId(bikeparkRef, {
+        siteId,
+        citycode,
+      });
+      if (!internalId) {
+        res.setHeader("Cache-Control", "public, max-age=10");
+        return res.status(200).json([]);
+      }
+      const sections = await getBikeparkInfo(internalId);
       res.setHeader("Cache-Control", "public, max-age=10");
       return res.status(200).json(
         sections.map((s) => ({

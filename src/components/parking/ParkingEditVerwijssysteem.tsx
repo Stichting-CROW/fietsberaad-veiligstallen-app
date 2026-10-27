@@ -5,7 +5,10 @@ import TipTapEditor from "~/components/common/TipTapEditor";
 
 type Props = {
   parkingdata: ParkingDetailsType;
+  /** Verwijssysteem checkboxes, nota, bron bezettingsdata */
   canEditFlags: boolean;
+  /** Rich HTML for diashow type Bikepark */
+  canEditDia: boolean;
   newVerwijssysteem: boolean | undefined;
   setNewVerwijssysteem: (v: boolean) => void;
   newVerwijssysteemOverzichten: boolean | undefined;
@@ -23,6 +26,7 @@ const BRON_OPTIONS = ["FMS", "v4"] as const;
 const ParkingEditVerwijssysteem: React.FC<Props> = ({
   parkingdata,
   canEditFlags,
+  canEditDia,
   newVerwijssysteem,
   setNewVerwijssysteem,
   newVerwijssysteemOverzichten,
@@ -90,10 +94,13 @@ const ParkingEditVerwijssysteem: React.FC<Props> = ({
         </fieldset>
         <div>
           <label className="block text-sm font-medium mb-1">Dia (HTML voor diashow type Bikepark)</label>
-          {canEditFlags ? (
+          <p className="text-sm text-gray-600 mb-2">
+            Wordt getoond op presentatieschermen bij een diashow-dia van type Bikepark (naast de titel in Diashow-beheer).
+          </p>
+          {canEditDia ? (
             <TipTapEditor value={dia} onChange={setNewDia} />
           ) : (
-            <div className="prose max-w-none border rounded p-3" dangerouslySetInnerHTML={{ __html: dia }} />
+            <div className="prose max-w-none border rounded p-3" dangerouslySetInnerHTML={{ __html: dia || "<p><em>Geen inhoud</em></p>" }} />
           )}
         </div>
       </div>

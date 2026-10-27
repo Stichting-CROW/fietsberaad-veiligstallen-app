@@ -5,12 +5,40 @@ const FIETSWIN_TYPES = new Set(["Prijzenpot", "Winkansen"]);
 
 const STALLING_SLIDE_TYPES = new Set(["Bikepark", "Openingstijden", "Verwijssysteem"]);
 
+export type ResolvedPresentationStalling = {
+  ID: string;
+  dia: string | null;
+  StallingsID: string | null;
+};
+
+/** Resolve URL bikeparkID to fietsenstallingen row (internal ID or StallingsID). */
+export async function resolveFietsenstallingForPresentation(
+  siteId: string,
+  bikeparkRef?: string | null
+): Promise<ResolvedPresentationStalling | null> {
+  const ref = bikeparkRef?.trim();
+  if (!ref) return null;
+
+  const select = { ID: true, dia: true, StallingsID: true };
+  const byId = await prisma.fietsenstallingen.findFirst({
+    where: { SiteID: siteId, Status: "1", ID: ref },
+    select,
+  });
+  if (byId) return byId;
+
+  return prisma.fietsenstallingen.findFirst({
+    where: { SiteID: siteId, Status: "1", StallingsID: ref },
+    select,
+  });
+}
+
 /** First active stalling for gemeente-level URLs without bikeparkID (e.g. diashow preview). */
 export async function resolvePresentationBikeparkId(
   siteId: string,
   bikeparkId?: string
 ): Promise<string | undefined> {
-  if (bikeparkId) return bikeparkId;
+  const resolved = bikeparkId ? await resolveFietsenstallingForPresentation(siteId, bikeparkId) : null;
+  if (resolved) return resolved.ID;
   const row = await prisma.fietsenstallingen.findFirst({
     where: { SiteID: siteId, Status: "1" },
     orderBy: { Title: "asc" },
@@ -19,13 +47,37 @@ export async function resolvePresentationBikeparkId(
   return row?.ID;
 }
 
-export async function getActivePresentations(siteId: string, bikeparkId?: string) {
+/** ColdFusion slide2.cfm query rules for which slides appear in the rotation. */
+export function shouldIncludePresentationSlide(
+  contentType: string | null | undefined,
+  context: { bikeparkIdInUrl: boolean; stallingDiaHasText: boolean }
+): boolean {
+  const type = contentType ?? "";
+  if (FIETSWIN_TYPES.has(type)) return false;
+  if (context.bikeparkIdInUrl) {
+    if (type === "Bikepark") return context.stallingDiaHasText;
+    return true;
+  }
+  if (type === "Bikepark" || type === "Openingstijden") return false;
+  return true;
+}
+
+export async function getActivePresentations(siteId: string, bikeparkIdFromUrl?: string) {
   const slides = await prisma.presentations.findMany({
     where: { SiteID: siteId, Status: "1" },
     orderBy: { SortOrder: "asc" },
   });
 
-  return slides.filter((s) => !FIETSWIN_TYPES.has(s.ContentType ?? ""));
+  const bikeparkIdInUrl = !!bikeparkIdFromUrl?.trim();
+  let stallingDiaHasText = false;
+  if (bikeparkIdInUrl) {
+    const stalling = await resolveFietsenstallingForPresentation(siteId, bikeparkIdFromUrl);
+    stallingDiaHasText = (stalling?.dia ?? "").trim().length > 0;
+  }
+
+  return slides.filter((s) =>
+    shouldIncludePresentationSlide(s.ContentType, { bikeparkIdInUrl, stallingDiaHasText })
+  );
 }
 
 export function presentationSlideNeedsBikepark(contentType: string | null | undefined): boolean {

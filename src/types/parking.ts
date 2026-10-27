@@ -106,7 +106,7 @@ export type ParkingDetailsType = {
     Toegangscontrole: number | null;
     Url: string | null;
     ExtraServices: string | null;
-    dia: string | null; // not used in the app
+    dia: string | null; // Diashow type Bikepark (HTML on stalling)
     BerekentStallingskosten: boolean;
     AantalReserveerbareKluizen: number; // not used in the app
     MaxStallingsduur: number; // not used in the app
@@ -218,7 +218,7 @@ export const selectParkingDetailsType = {
   Tariefcode: true,
   Url: true,
   ExtraServices: true,
-  dia: true, // not used in the app
+  dia: true,
   BerekentStallingskosten: true, // not used in the app
   MaxStallingsduur: true, // not used in the app
   HeeftExterneBezettingsdata: true, // not used in the app

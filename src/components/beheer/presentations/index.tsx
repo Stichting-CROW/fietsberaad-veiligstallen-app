@@ -208,12 +208,18 @@ const PresentationsComponent: React.FC = () => {
               {form.ContentType === "RSS" && (
                 <TextField label="RSS URL" value={form.RSS ?? ""} onChange={(e) => setForm({ ...form, RSS: e.target.value })} />
               )}
-              {(form.ContentType === "Bikepark" ||
-                form.ContentType === "Openingstijden" ||
-                form.ContentType === "Verwijssysteem") && (
+              {form.ContentType === "Bikepark" && (
                 <Typography variant="body2" color="text.secondary">
-                  De inhoud komt uit de gekozen stalling (veld &quot;Dia&quot; / openingstijden / verwijssysteem op de
-                  stalling). Zonder <code>bikeparkID</code> in de URL wordt de eerste stalling alfabetisch gebruikt.
+                  De inhoud komt uit het veld <strong>Dia</strong> op de stalling (beheer → stalling → Verwijssysteem
+                  en diashow). Zonder tekst in Dia wordt deze slide niet getoond. Op het scherm staat alleen de titel
+                  hierboven plus die HTML.
+                </Typography>
+              )}
+              {(form.ContentType === "Openingstijden" || form.ContentType === "Verwijssysteem") && (
+                <Typography variant="body2" color="text.secondary">
+                  De inhoud komt uit openingstijden respectievelijk verwijssysteem op de stalling uit{" "}
+                  <code>bikeparkID</code> in de URL. Zonder <code>bikeparkID</code> worden openingstijden-dia&apos;s
+                  niet meegenomen; verwijssysteem per stalling vereist wel <code>bikeparkID</code>.
                 </Typography>
               )}
               <TextField

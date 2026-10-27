@@ -284,6 +284,7 @@ const ParkingEdit = ({
   const [hasAbonnementenModule, setHasAbonnementenModule] = React.useState(false);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  const hasDiashowBeheer = userHasRight(session?.user?.securityProfile, VSSecurityTopic.diashow_beheer);
   const canEditAllFields = hasFietsenstallingenAdmin;
   const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
@@ -1520,30 +1521,41 @@ const ParkingEdit = ({
     parkingdata.Type !== "buurtstalling" &&
     parkingdata.Type !== "fietstrommel";
 
-  const renderTabCapaciteit = (visible = false) => {
+  const renderTabDiashow = (visible = false) => {
     const canEditVerwijssysteemFlags = hasFietsberaadSuperadmin || canEditAllFields;
+    const canEditDia =
+      hasDiashowBeheer || hasFietsberaadSuperadmin || canEditAllFields || canEditLimitedFields;
+    return (
+      <div
+        className="mt-10 flex w-full flex-col gap-8"
+        style={{ display: visible ? "flex" : "none" }}
+      >
+        <ParkingEditVerwijssysteem
+          parkingdata={parkingdata}
+          canEditFlags={canEditVerwijssysteemFlags}
+          canEditDia={canEditDia}
+          newVerwijssysteem={newVerwijssysteem}
+          setNewVerwijssysteem={setNewVerwijssysteem}
+          newVerwijssysteemOverzichten={newVerwijssysteemOverzichten}
+          setNewVerwijssysteemOverzichten={setNewVerwijssysteemOverzichten}
+          newNotaVerwijssysteem={newNotaVerwijssysteem}
+          setNewNotaVerwijssysteem={setNewNotaVerwijssysteem}
+          newBronBezettingsdata={newBronBezettingsdata}
+          setNewBronBezettingsdata={setNewBronBezettingsdata}
+          newDia={newDia}
+          setNewDia={setNewDia}
+        />
+      </div>
+    );
+  };
+
+  const renderTabCapaciteit = (visible = false) => {
     const canEditBulk = canEditAllFields || canEditLimitedFields;
     return (
       <div
         className="mt-10 flex w-full flex-col gap-8"
         style={{ display: visible ? "flex" : "none" }}
       >
-        {hasFmsModule && !isVoorstel && (
-          <ParkingEditVerwijssysteem
-            parkingdata={parkingdata}
-            canEditFlags={canEditVerwijssysteemFlags}
-            newVerwijssysteem={newVerwijssysteem}
-            setNewVerwijssysteem={setNewVerwijssysteem}
-            newVerwijssysteemOverzichten={newVerwijssysteemOverzichten}
-            setNewVerwijssysteemOverzichten={setNewVerwijssysteemOverzichten}
-            newNotaVerwijssysteem={newNotaVerwijssysteem}
-            setNewNotaVerwijssysteem={setNewNotaVerwijssysteem}
-            newBronBezettingsdata={newBronBezettingsdata}
-            setNewBronBezettingsdata={setNewBronBezettingsdata}
-            newDia={newDia}
-            setNewDia={setNewDia}
-          />
-        )}
         {showBulkReservationsPanel && hasID && (
           <ParkingBulkReserveringen
             fietsenstallingId={parkingdata.ID}
@@ -1607,6 +1619,8 @@ const ParkingEdit = ({
 
   const isLoggedIn = session !== null;
   const hasID = Boolean(parkingdata.ID);
+  const showDiashowTab =
+    hasID && isLoggedIn && !isVoorstel && (hasFmsModule || hasDiashowBeheer);
 
   let opslaanTekst = "";
   if(isVoorstel) {
@@ -1732,6 +1746,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
+        {showDiashowTab && <Tab label="Diashow" value="tab-diashow" />}
         <Tab label="Openingstijden" value="tab-openingstijden" />
         {showTarievenTab && (
           <Tab label="Tarieven" value="tab-tarieven" />
@@ -1748,6 +1763,7 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
+      {renderTabDiashow(showDiashowTab && selectedTab === "tab-diashow")}
       {renderTabOpeningstijden(selectedTab === "tab-openingstijden")}
       {renderTabTarieven(
         showTarievenTab && selectedTab === "tab-tarieven"

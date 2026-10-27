@@ -2,13 +2,18 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getCouncilById } from "~/server/display/council";
 import { renderDocument, displayNoStoreHeaders } from "~/server/display/render";
 import { Slide2Shell, slide2HeadExtra } from "~/server/display/presentaties-html";
+import { resolvePresentationFromQuery } from "~/server/display/fms-display-resolve";
 import { renderSlide2Html } from "~/server/display/slide-renderer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
-  const siteId = (req.query.siteID ?? req.query.siteId) as string | undefined;
-  const bikeparkId = (req.query.bikeparkID ?? req.query.bikeparkId) as string | undefined;
-  if (!siteId) return res.status(400).send("siteID required");
+  const resolved = await resolvePresentationFromQuery(req.query);
+  if (!resolved) {
+    const hasFms = req.query.citycode && req.query.locationId;
+    if (hasFms) return res.status(404).send("Stalling niet gevonden");
+    return res.status(400).send("siteID required");
+  }
+  const { siteId, bikeparkIdFromUrl: bikeparkId } = resolved;
 
   const council = await getCouncilById(siteId);
   const { html, totalDuration } = await renderSlide2Html(siteId, bikeparkId);

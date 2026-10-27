@@ -3,7 +3,13 @@ import {
   getBikeparkByExternalId,
   listFmsCouncilsForVerwijssysteem,
   resolveCouncilByUrlOrName,
+  type CouncilDisplay,
 } from "~/server/display/council";
+import {
+  displayQueryString,
+  resolveCouncilByCitycode,
+  resolveStallingByCitycodeAndLocationId,
+} from "~/server/display/fms-display-resolve";
 import { renderDocument, displayNoStoreHeaders } from "~/server/display/render";
 import {
   VerwijssysteemGemeentenPage,
@@ -22,8 +28,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const segments = (req.query.path as string[] | undefined) ?? [];
   const slug = segments[0];
   const stallingsId = segments[1];
+  const queryCitycode = displayQueryString(req.query.citycode);
+  const queryLocationId = displayQueryString(req.query.locationId);
+
+  const renderSecties = (
+    council: CouncilDisplay,
+    bikepark: NonNullable<Awaited<ReturnType<typeof getBikeparkByExternalId>>>
+  ) => {
+    const n = bikepark.fietsenstalling_secties.length;
+    const itemClass = n >= 3 ? "small" : "big";
+    const itemHeightCss =
+      itemClass === "small" ? `calc(90% / ${Math.ceil(n / 2)})` : `calc(90% / ${Math.max(n, 1)})`;
+    return renderDocument(
+      "Veiligstallen | Verwijssysteem",
+      verwijssysteemHead(council, "Secties"),
+      <VerwijssysteemSectiesPage
+        council={council}
+        itemClass={itemClass}
+        itemHeightCss={itemHeightCss}
+        bikeparkId={bikepark.ID}
+        sections={bikepark.fietsenstalling_secties.map((s) => ({
+          id: s.sectieId,
+          color: s.kleur,
+          name: s.titel,
+          note: s.NotaVerwijssysteem ?? "",
+        }))}
+      />
+    );
+  };
 
   try {
+    if (queryCitycode && queryLocationId && !slug) {
+      const fms = await resolveStallingByCitycodeAndLocationId(queryCitycode, queryLocationId);
+      if (!fms) return res.status(404).send("Stalling niet gevonden");
+      const html = renderSecties(fms.council, fms.bikepark);
+      Object.entries(displayNoStoreHeaders()).forEach(([k, v]) => res.setHeader(k, v));
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(200).send(html);
+    }
+
     if (!slug) {
       const councils = await listFmsCouncilsForVerwijssysteem();
       const html = renderDocument(
@@ -36,7 +79,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).send(html);
     }
 
-    const council = await resolveCouncilByUrlOrName(slug);
+    if (stallingsId) {
+      const fmsHit = await resolveStallingByCitycodeAndLocationId(slug, stallingsId);
+      if (fmsHit) {
+        const html = renderSecties(fmsHit.council, fmsHit.bikepark);
+        Object.entries(displayNoStoreHeaders()).forEach(([k, v]) => res.setHeader(k, v));
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(html);
+      }
+    }
+
+    let council = await resolveCouncilByUrlOrName(slug);
+    if (!council) {
+      council = await resolveCouncilByCitycode(slug);
+    }
     if (!council) {
       return res.status(404).send("Gemeente niet gevonden");
     }
@@ -45,27 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const bikepark = await getBikeparkByExternalId(council.id, stallingsId);
       if (!bikepark) return res.status(404).send("Stalling niet gevonden");
 
-      const n = bikepark.fietsenstalling_secties.length;
-      const itemClass = n >= 3 ? "small" : "big";
-      const itemHeightCss =
-        itemClass === "small" ? `calc(90% / ${Math.ceil(n / 2)})` : `calc(90% / ${Math.max(n, 1)})`;
-
-      const html = renderDocument(
-        "Veiligstallen | Verwijssysteem",
-        verwijssysteemHead(council, "Secties"),
-        <VerwijssysteemSectiesPage
-          council={council}
-          itemClass={itemClass}
-          itemHeightCss={itemHeightCss}
-          bikeparkId={bikepark.ID}
-          sections={bikepark.fietsenstalling_secties.map((s) => ({
-            id: s.sectieId,
-            color: s.kleur,
-            name: s.titel,
-            note: s.NotaVerwijssysteem ?? "",
-          }))}
-        />
-      );
+      const html = renderSecties(council, bikepark);
       Object.entries(displayNoStoreHeaders()).forEach(([k, v]) => res.setHeader(k, v));
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       return res.status(200).send(html);

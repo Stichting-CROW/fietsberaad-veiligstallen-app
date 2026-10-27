@@ -4,8 +4,8 @@ import handler from "./verwijssysteem/data";
 /** CF compat: /remote/Webservice.cfc?method=getBikeparkInfo&bikeParkId=… */
 export default async function webserviceCompat(req: NextApiRequest, res: NextApiResponse) {
   const method = req.query.method as string | undefined;
-  if (method === "getBikeparkInfo" && req.query.bikeParkId) {
-    req.query.bikeparkId = req.query.bikeParkId;
+  if (method === "getBikeparkInfo" && (req.query.bikeParkId || req.query.locationId)) {
+    req.query.bikeparkId = (req.query.bikeParkId ?? req.query.locationId) as string;
     const origJson = res.json.bind(res);
     res.json = (body: unknown) => {
       if (Array.isArray(body)) {

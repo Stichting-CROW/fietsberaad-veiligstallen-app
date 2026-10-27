@@ -51,6 +51,12 @@ export function buildSlide2Src(host: string | undefined, siteId: string, bikepar
   return `${base}?${q}`;
 }
 
+/** CF or FMS query string for slide2 iframe (see fms-display-resolve). */
+export function buildSlide2SrcFromQueryString(host: string | undefined, queryString: string): string {
+  const base = slide2PathForRequestHost(host);
+  return `${base}?${queryString}`;
+}
+
 export function buildDisplayUrls(params: {
   kind: StallingsschermKind;
   siteId: string;
