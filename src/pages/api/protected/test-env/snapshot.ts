@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { assertTestEnvUser, sendTestEnvError } from "~/server/test-env/http";
-import { beginSnapshotJob, getSnapshotJob } from "~/server/test-env/job";
+import { beginSnapshotJob, failActivePhase, getSnapshotJob } from "~/server/test-env/job";
 import { runSnapshot, type SnapshotRequest } from "~/server/test-env/snapshot";
 import { TestEnvError } from "~/server/test-env/guard";
 
@@ -29,9 +29,12 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       stallingIds: Array.isArray(body.stallingIds) ? body.stallingIds.map(String) : [],
       from: String(body.from ?? ""),
       to: String(body.to ?? ""),
+      copyAllOwnerAccounts: body.copyAllOwnerAccounts === true,
+      copyAllOwnerBarcodes: body.copyAllOwnerBarcodes === true,
     };
     void runSnapshot(job, input).catch((error: unknown) => {
       job.status = "error";
+      failActivePhase(job);
       job.error = error instanceof Error ? error.message : String(error);
       job.finishedAt = new Date().toISOString();
       if (!(error instanceof TestEnvError)) console.error("test-env snapshot", error);

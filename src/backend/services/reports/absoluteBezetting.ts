@@ -4,6 +4,7 @@ import {
   interpolateSQL
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
+import { formatReportInstant } from "~/utils/datetime-nl";
 
 /**
  * Build SQL for the "absolute_bezetting" report.
@@ -107,10 +108,9 @@ export const getSQL = (params: ReportParams, useCache = false): string | false =
   // Each bikepark has 2 queries (capacity + occupation), each needing 2 date parameters
   const queryParams: string[] = [];
   for (let i = 0; i < bikeparkIDs.length; i++) {
-    queryParams.push(adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"));
-    queryParams.push(adjustedEndDate.format("YYYY-MM-DD HH:mm:ss"));
-    queryParams.push(adjustedStartDate.format("YYYY-MM-DD HH:mm:ss"));
-    queryParams.push(adjustedEndDate.format("YYYY-MM-DD HH:mm:ss"));
+    const from = formatReportInstant(adjustedStartDate, "YYYY-MM-DD HH:mm:ss");
+    const to = formatReportInstant(adjustedEndDate, "YYYY-MM-DD HH:mm:ss");
+    queryParams.push(from, to, from, to);
   }
 
   const sqlfilledin = interpolateSQL(sql, queryParams);

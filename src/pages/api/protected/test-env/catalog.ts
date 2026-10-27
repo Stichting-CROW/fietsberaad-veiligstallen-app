@@ -30,6 +30,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       database: decodeURIComponent(url.pathname.replace(/^\//, "")),
     });
     try {
+      await connection.query("SET SESSION TRANSACTION READ ONLY");
       const ownerIds = cleanIds(req.query.ownerIds);
       const exploitantIds = cleanIds(req.query.exploitantIds);
       const [owners] = await connection.query<RowDataPacket[]>(
@@ -50,14 +51,16 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         );
         exploitants = exploitantRows;
         const params = [...ownerIds];
-        let sql = `SELECT ID AS id, StallingsID AS stallingsId, Title AS title, SiteID AS siteId, ExploitantID AS exploitantId
-                   FROM fietsenstallingen
-                   WHERE SiteID IN (${ownerPlaceholders})`;
+        let sql = `SELECT f.ID AS id, f.StallingsID AS stallingsId, f.Title AS title, f.SiteID AS siteId,
+                          f.ExploitantID AS exploitantId, f.Type AS typeId, typ.name AS typeName
+                   FROM fietsenstallingen f
+                   LEFT JOIN fietsenstallingtypen typ ON typ.id = f.Type
+                   WHERE f.SiteID IN (${ownerPlaceholders})`;
         if (exploitantIds.length > 0) {
           sql += ` AND ExploitantID IN (${exploitantIds.map(() => "?").join(", ")})`;
           params.push(...exploitantIds);
         }
-        sql += " ORDER BY Title";
+        sql += " ORDER BY f.Title";
         const [stallingRows] = await connection.query<RowDataPacket[]>(sql, params);
         stallingen = stallingRows;
       }

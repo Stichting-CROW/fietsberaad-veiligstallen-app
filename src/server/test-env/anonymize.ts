@@ -82,7 +82,7 @@ export function transformRow(table: string, row: Record<string, unknown>, ctx: A
       "Email1", "Email2", "JobTitle", "Department",
     ]);
     if ("Email1" in row) row.Email1 = fakeEmail("contact", id);
-    if ("Helpdesk" in row && text(row.Helpdesk).includes("@")) row.Helpdesk = null;
+    if ("Helpdesk" in row && text(row.Helpdesk).includes("@")) row.Helpdesk = fakeEmail("helpdesk", id);
     if (!ORG_ITEM_TYPES.has(itemType)) row.CompanyName = "Contactpersoon";
     return row;
   }

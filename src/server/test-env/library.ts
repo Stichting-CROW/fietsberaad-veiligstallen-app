@@ -67,9 +67,10 @@ export async function downloadLibrary(conn: Connection, onStep: (step: string) =
   }
   add("client", "logo.png", "https://fms.veiligstallen.nl/resources/client/logo.png");
 
-  onStep(`bibliotheek (${jobs.length} bestanden)`);
+  onStep(`bestand 0 van ${jobs.length}`);
   let saved = 0;
   for (let index = 0; index < jobs.length; index += 4) {
+    onStep(`bestand ${Math.min(index + 4, jobs.length)} van ${jobs.length}`);
     const batch = jobs.slice(index, index + 4);
     await Promise.all(batch.map(async (job) => {
       const dir = path.join(root, job.subdir);
