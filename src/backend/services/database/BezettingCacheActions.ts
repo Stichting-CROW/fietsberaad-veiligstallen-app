@@ -1,6 +1,6 @@
 import { prisma } from "~/server/db";
 import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
-import moment from "moment";
+import { formatReportInstant } from "~/utils/datetime-nl";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
 
@@ -76,7 +76,7 @@ export const updateBezettingCache = async (params: CacheParams) => {
 
   const conditions = [];
   if (!params.allDates) {
-    conditions.push(`timestamp >= DATE_ADD('${adjustedStartDate.format('YYYY-MM-DD 00:00:00')}', INTERVAL -${timeIntervalInMinutes} MINUTE)`);
+    conditions.push(`timestamp >= DATE_ADD('${formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00")}', INTERVAL -${timeIntervalInMinutes} MINUTE)`);
   }
   if (!params.allBikeparks) {
     const bikeparkIDs = params.selectedBikeparkIDs.length > 0 ? params.selectedBikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
@@ -149,7 +149,7 @@ export const clearBezettingCache = async (params: CacheParams) => {
 
   const conditions = [];
   if (!params.allDates) {
-    conditions.push(`timestamp >= '${moment(params.startDate).format('YYYY-MM-DD 00:00:00')}'`);
+    conditions.push(`timestamp >= '${formatReportInstant(params.startDate, "YYYY-MM-DD 00:00:00")}'`);
   }
   if (!params.allBikeparks) {
     const bikeparkIDs = params.selectedBikeparkIDs.length > 0 ? params.selectedBikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';

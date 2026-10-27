@@ -10,6 +10,41 @@ export function euro(value: number, currency = "EUR"): string {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: currency || "EUR" }).format(value || 0);
 }
 
+/** One color per kind of cost, shared by the service chart, the category chart, and the pies. */
+const SERIES_COLOR: Record<string, string> = {
+  app: "#008FFB",
+  database: "#FEB019",
+  network: "#00E396",
+  other: "#FF4560",
+};
+
+const SERIES_FALLBACK = ["#775DD0", "#3F51B5", "#546E7A", "#D4526D", "#8D5B4C", "#F86624", "#D4E157"];
+
+export function seriesColor(name: string): string {
+  const key = name.toLowerCase();
+  if (key.includes("database") || key.includes("mysql") || key.includes("sql")) return SERIES_COLOR.database;
+  if (key.includes("app service")) return SERIES_COLOR.app;
+  if (
+    key.includes("netwerk")
+    || key.includes("network")
+    || key.includes("bandwidth")
+    || key.includes("dns")
+  ) return SERIES_COLOR.network;
+  if (
+    key.includes("overig")
+    || key.includes("monitor")
+    || key.includes("log analytics")
+    || key.includes("logic apps")
+    || key.includes("key vault")
+    || key === "other"
+    || key.includes("onbekend")
+    || key.includes("niet ingedeeld")
+  ) return SERIES_COLOR.other;
+  let hash = 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return SERIES_FALLBACK[hash % SERIES_FALLBACK.length];
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char));
 }

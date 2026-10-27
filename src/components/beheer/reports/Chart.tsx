@@ -17,12 +17,14 @@ const Chart = ({
   options,
   series,
   type,
-  style
+  style,
+  height,
 }: {
   options: object,
   series: Array<any>,
-  type: 'line' | 'bar',
-  style?: object
+  type: 'line' | 'bar' | 'pie',
+  style?: object,
+  height?: number | string,
 }) => {
   // const [chartData, setChartData] = useState<{
   //   options?: object,
@@ -53,16 +55,18 @@ const Chart = ({
   //   return <>Loading..</>
   // }
 
+  const chartHeight = height ?? "100%";
+
   return (
     <>
-      <div style={{ width: '100%', height: '100%' }}>
+      <div style={{ width: '100%', height: chartHeight }}>
         {options && series && (
           <ApexChart
             options={options}
             series={series}
             type={type}
-            height="100%"
-            style={{ minHeight: "400px", ...style }}
+            height={chartHeight}
+            style={{ minHeight: typeof height === "number" ? height : "400px", ...style }}
           />
         )}
       </div>

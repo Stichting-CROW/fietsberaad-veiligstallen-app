@@ -1,6 +1,6 @@
 import { prisma } from "~/server/db";
 import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
-import moment from "moment";
+import { formatReportInstant } from "~/utils/datetime-nl";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
 
@@ -73,7 +73,7 @@ export const updateTransactionCache = async (params: CacheParams) => {
     if (!params.allDates) {
         // For filtering, use a conservative approach: include transactions that might fall in the date range
         // We subtract the maximum possible daybeginsat offset (23:59 = 1439 minutes) to ensure we don't miss any
-        conditions.push(`checkoutdate >= DATE_ADD('${adjustedStartDate.format('YYYY-MM-DD 00:00:00')}', INTERVAL -1439 MINUTE)`);
+        conditions.push(`checkoutdate >= DATE_ADD('${formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00")}', INTERVAL -1439 MINUTE)`);
     }
     if (!params.allBikeparks) {
         conditions.push(`locationID IN (${params.selectedBikeparkIDs.map(bp=>`'${bp}'`).join(',')})`);
@@ -118,7 +118,7 @@ export const clearTransactionCache = async (params: CacheParams) => {
 
     const conditions = [];
     if (!params.allDates) {
-      conditions.push(`checkoutdate >= '${moment(params.startDate).format('YYYY-MM-DD 00:00:00')}'`);
+      conditions.push(`checkoutdate >= '${formatReportInstant(params.startDate, "YYYY-MM-DD 00:00:00")}'`);
     }
     if (!params.allBikeparks) {
       conditions.push(`locationID IN (${params.selectedBikeparkIDs.map(bp=>`'${bp}'`).join(',')})`);

@@ -124,15 +124,21 @@ export class TableCopier {
     }
 
     const pk = await primaryKey(this.source, table);
+    if (pk && whereSql !== "1=1" && !whereSql.startsWith(assertIdent(pk))) {
+      await this.copyFilteredRows(table, columns, pk, whereSql, params);
+      return;
+    }
     let copied = 0;
     let lastPk: unknown = null;
     let offset = 0;
+    const columnSql = columns.map(assertIdent).join(", ");
     for (;;) {
       const pkClause = pk && lastPk != null ? ` AND ${assertIdent(pk)} > ?` : "";
       const pageParams = pk && lastPk != null ? [...params, lastPk] : params;
-      const order = pk ? ` ORDER BY ${assertIdent(pk)}` : "";
+      const distinct = pk ? "" : "DISTINCT ";
+      const order = pk ? ` ORDER BY ${assertIdent(pk)}` : ` ORDER BY ${columnSql}`;
       const limit = pk ? ` LIMIT ${CHUNK}` : ` LIMIT ${CHUNK} OFFSET ${offset}`;
-      const sql = `SELECT ${columns.map(assertIdent).join(", ")} FROM ${assertIdent(table)} WHERE (${whereSql})${pkClause}${order}${limit}`;
+      const sql = `SELECT ${distinct}${columnSql} FROM ${assertIdent(table)} WHERE (${whereSql})${pkClause}${order}${limit}`;
       const [rows] = await this.source.query<RowDataPacket[]>(sql, pageParams);
       if (rows.length === 0) break;
       const prepared = rows.map((row) => transformRow(table, plain(row, columns), this.anonymizer));
@@ -140,6 +146,29 @@ export class TableCopier {
       if (pk) lastPk = rows[rows.length - 1]?.[pk];
       else offset += rows.length;
       if (rows.length < CHUNK) break;
+      this.onStep(`${table} (${copied})`);
+    }
+    this.counts[table] = (this.counts[table] ?? 0) + copied;
+  }
+
+  /** One index scan for the filter, then primary-key lookups. Avoids ORDER BY pk on a filtered table. */
+  private async copyFilteredRows(table: string, columns: string[], pk: string, whereSql: string, params: unknown[]): Promise<void> {
+    const [idRows] = await this.source.query<RowDataPacket[]>(
+      `SELECT ${assertIdent(pk)} AS pk FROM ${assertIdent(table)} WHERE (${whereSql})`,
+      params,
+    );
+    const ids = idRows.map((row) => row.pk).filter((value) => value != null);
+    const columnSql = columns.map(assertIdent).join(", ");
+    let copied = 0;
+    for (let index = 0; index < ids.length; index += CHUNK) {
+      const chunk = ids.slice(index, index + CHUNK);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const [rows] = await this.source.query<RowDataPacket[]>(
+        `SELECT ${columnSql} FROM ${assertIdent(table)} WHERE ${assertIdent(pk)} IN (${placeholders})`,
+        chunk,
+      );
+      const prepared = rows.map((row) => transformRow(table, plain(row, columns), this.anonymizer));
+      copied += await this.insertChunk(table, columns, prepared);
       this.onStep(`${table} (${copied})`);
     }
     this.counts[table] = (this.counts[table] ?? 0) + copied;
@@ -165,6 +194,11 @@ export class TableCopier {
       .map((row) => Object.values(row)[0])
       .filter((value) => value != null && String(value) !== "")
       .map((value) => String(value));
+  }
+
+  async rows(sql: string, params: unknown[] = []): Promise<RowDataPacket[]> {
+    const [found] = await this.source.query<RowDataPacket[]>(sql, params);
+    return found;
   }
 
   private async insertChunk(table: string, columns: string[], rows: Record<string, unknown>[]): Promise<number> {

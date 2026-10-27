@@ -5,8 +5,8 @@ import {
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 
-import moment from 'moment';
 import { type BikeparkWithDataSource } from "~/components/beheer/reports/BikeparkDataSourceSelect";
+import { formatReportInstant } from "~/utils/datetime-nl";
 
 const filter_bikeparks_sql = (params: {
   bikeparkIDs: string[],
@@ -58,7 +58,7 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   // }
 
   const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate);
-  if (adjustedStartDate === undefined || adjustedEndDate === undefined) {
+  if (!startDate || !endDate || adjustedStartDate === undefined || adjustedEndDate === undefined) {
     throw new Error("Start or end date is undefined");
     return false;
   }
@@ -150,8 +150,8 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
 
   // Prepare parameters for the query
   const queryParams = [
-    false === useCache ? adjustedStartDate.format('YYYY-MM-DD HH:mm:ss') : moment(startDate).format('YYYY-MM-DD 00:00:00'),
-    false === useCache ? adjustedEndDate.format('YYYY-MM-DD HH:mm:ss') : moment(endDate).format('YYYY-MM-DD 23:59:59')
+    false === useCache ? formatReportInstant(adjustedStartDate, "YYYY-MM-DD HH:mm:ss") : formatReportInstant(startDate, "YYYY-MM-DD 00:00:00"),
+    false === useCache ? formatReportInstant(adjustedEndDate, "YYYY-MM-DD HH:mm:ss") : formatReportInstant(endDate, "YYYY-MM-DD 23:59:59"),
   ];
   if (params.fillups) {
     queryParams.push(params.fillups ? '0' : '1');

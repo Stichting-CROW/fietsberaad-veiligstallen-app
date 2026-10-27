@@ -1,7 +1,8 @@
 # Acceptance (docker). Azure acceptance stays the `acceptance` branch until that app is offline.
 # Project name `acc-docker` groups the containers, network, volumes, and images we build.
 #   npm run docker-acc:up
-#   npm run docker-acc:db
+#   npm run docker-acc:db:up
+#   npm run docker-acc:db:down
 #
 # The checked-in Prisma baseline migration is a no-op, so `migrate` creates the
 # schema with `prisma db push` and then seeds the beheer login.
