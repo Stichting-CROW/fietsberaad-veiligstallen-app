@@ -214,13 +214,22 @@ function expectClosedTransactie(passSuffix: string): Assertion {
   };
 }
 
-/** Archief rows for this run's externaltransactionid. Open visits stay at 0. */
+/** Archive rows that share the id of the live transacties row for this external id. */
+async function archiefForManaged(externalTransactionID: string) {
+  const txs = await prisma.transacties.findMany({
+    where: { ExternalTransactionID: externalTransactionID },
+    select: { ID: true },
+  });
+  if (txs.length === 0) return [];
+  return prisma.transacties_archief.findMany({
+    where: { ID: { in: txs.map((row) => row.ID) } },
+  });
+}
+
+/** Archief rows for this run's managed visit (same id as transacties). Open visits stay at 0. */
 function expectArchiefCount(passSuffix: string, expected: number): Assertion {
   return async (ctx) => {
-    const externaltransactionid = managedExtId(ctx, passSuffix);
-    const count = await prisma.transacties_archief.count({
-      where: { externaltransactionid },
-    });
+    const count = (await archiefForManaged(managedExtId(ctx, passSuffix))).length;
     return {
       label: `transacties_archief voor ${passSuffix}`,
       ok: count === expected,
@@ -236,10 +245,7 @@ function expectArchiefRow(
   expected: { price: number; source: string }
 ): Assertion {
   return async (ctx) => {
-    const externaltransactionid = managedExtId(ctx, passSuffix);
-    const rows = await prisma.transacties_archief.findMany({
-      where: { externaltransactionid },
-    });
+    const rows = await archiefForManaged(managedExtId(ctx, passSuffix));
     const row = rows[0];
     const price = row ? Number(row.price) : null;
     const ok =

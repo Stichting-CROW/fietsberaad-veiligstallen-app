@@ -135,9 +135,15 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
   if (accountIDs.length > 0) {
     await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
-  await prisma.transacties_archief.deleteMany({
-    where: { externaltransactionid: { startsWith: prefix } },
+  const txs = await prisma.transacties.findMany({
+    where: { PasID: { startsWith: prefix } },
+    select: { ID: true },
   });
+  if (txs.length > 0) {
+    await prisma.transacties_archief.deleteMany({
+      where: { ID: { in: txs.map((row) => row.ID) } },
+    });
+  }
   await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
   await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
   if (councilIDs.length > 0) {

@@ -74,7 +74,7 @@ Batch: `{ "managedtransactions": [ … ] }` (max 50, all-or-nothing).
 
 Verplicht: `externaltransactionid`, `idcode`, `checkindate`, `checkintype` (`user`  `controle`  `system`  `sync`  `reservation`).
 
-Zelfde `externaltransactionid` bij check-out = update van dezelfde transactie.
+Zelfde `externaltransactionid` bij check-out = update van dezelfde transactie. Een correctie met dat id moet binnen 18 maanden na de check-out binnen zijn. Daarna is de transactie opgeruimd en telt hetzelfde id als een nieuw bezoek.
 
 ### Voorbeelden
 

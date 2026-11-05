@@ -249,11 +249,11 @@ export async function putManagedTransaction(
       exploitantid: bikepark.ExploitantID ?? null,
       reservationtime: input.managed.reserveringsduur ?? null,
       source: ARCHIEF_SOURCE_V4_MANAGED,
-      externaltransactionid: externalTransactionID,
+      transactionId: saved.ID,
       daybeginsat: bikepark.dayBeginsAt ?? undefined,
     });
   } else {
-    await deleteManagedTransactiesArchief(archiefDb(tx), stallingsID, externalTransactionID);
+    await deleteManagedTransactiesArchief(archiefDb(tx), saved.ID);
   }
 
   return { transactionID: saved.ID, created: !existing };
@@ -439,7 +439,6 @@ async function planManagedWrite(input: PutManagedTransactionInput, places: Set<s
       exploitantid: bikepark.ExploitantID ?? null,
       reservationtime: managed.reserveringsduur ?? null,
       source: ARCHIEF_SOURCE_V4_MANAGED,
-      externaltransactionid: externalTransactionID,
       daybeginsat: bikepark.dayBeginsAt ?? undefined,
     };
   }
@@ -551,17 +550,39 @@ export async function putManagedTransactionsBatch(
   const ok = [...okIds];
 
   await upsertTransactiesBatch(tx, visits.map((item) => item.rowData));
+  const savedIds = visits.length === 0
+    ? []
+    : await tx.transacties.findMany({
+        where: {
+          OR: visits.map((item) => ({
+            FietsenstallingID: item.rowData.FietsenstallingID,
+            ExternalTransactionID: item.rowData.ExternalTransactionID,
+          })),
+        },
+        select: { ID: true, FietsenstallingID: true, ExternalTransactionID: true },
+      });
+  const idByVisit = new Map(
+    savedIds.map((row) => [`${row.FietsenstallingID}\0${row.ExternalTransactionID ?? ""}`, row.ID])
+  );
+  const transactionIdOf = (item: PlannedManaged) =>
+    idByVisit.get(`${item.rowData.FietsenstallingID}\0${item.rowData.ExternalTransactionID}`);
+
   await writeTransactiesArchiefBatch(
     archiefDb(tx),
-    visits.flatMap((item) => (item.archief ? [item.archief] : []))
+    visits.flatMap((item) => {
+      if (!item.archief) return [];
+      const transactionId = transactionIdOf(item);
+      if (transactionId == null) return [];
+      return [{ ...item.archief, transactionId }];
+    })
   );
   await deleteManagedTransactiesArchiefMany(
     archiefDb(tx),
-    visits.flatMap((item) =>
-      item.hasCheckout
-        ? []
-        : [{ locationid: item.rowData.FietsenstallingID, externaltransactionid: item.rowData.ExternalTransactionID }]
-    )
+    visits.flatMap((item) => {
+      if (item.hasCheckout) return [];
+      const transactionId = transactionIdOf(item);
+      return transactionId == null ? [] : [transactionId];
+    })
   );
 
   const now = new Date();

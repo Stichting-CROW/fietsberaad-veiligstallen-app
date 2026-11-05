@@ -13,7 +13,6 @@ import {
 type ArchiefRow = {
   ID: number;
   locationid: string;
-  externaltransactionid: string | null;
   price: Decimal;
   checkoutdate: Date;
   source: string;
@@ -29,18 +28,10 @@ function memoryDb() {
       findFirst: async () => ({ DayBeginsAt: new Date(1970, 0, 1, 4, 0, 0) }),
     },
     transacties_archief: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { locationid: string; externaltransactionid: string };
-      }) =>
-        rows.find(
-          (row) =>
-            row.locationid === where.locationid &&
-            row.externaltransactionid === where.externaltransactionid
-        ) ?? null,
-      create: async ({ data }: { data: Omit<ArchiefRow, "ID"> & { externaltransactionid: string | null } }) => {
-        const row = { ...data, ID: nextId++ } as ArchiefRow;
+      findUnique: async ({ where }: { where: { ID: number } }) =>
+        rows.find((row) => row.ID === where.ID) ?? null,
+      create: async ({ data }: { data: Omit<ArchiefRow, "ID"> & { ID?: number } }) => {
+        const row = { ...data, ID: data.ID ?? nextId++ } as ArchiefRow;
         rows.push(row);
         return row;
       },
@@ -50,21 +41,10 @@ function memoryDb() {
         Object.assign(row, data);
         return row;
       },
-      deleteMany: async ({
-        where,
-      }: {
-        where: { locationid: string; externaltransactionid: string };
-      }) => {
+      deleteMany: async ({ where }: { where: { ID: number } }) => {
         const before = rows.length;
         for (let i = rows.length - 1; i >= 0; i--) {
-          const row = rows[i];
-          if (
-            row &&
-            row.locationid === where.locationid &&
-            row.externaltransactionid === where.externaltransactionid
-          ) {
-            rows.splice(i, 1);
-          }
+          if (rows[i]?.ID === where.ID) rows.splice(i, 1);
         }
         return { count: before - rows.length };
       },
@@ -86,7 +66,7 @@ function visit(overrides: Partial<WriteTransactiesArchiefInput> = {}): WriteTran
     clienttypeid: 1,
     biketypeid: 1,
     source: ARCHIEF_SOURCE_V4_MANAGED,
-    externaltransactionid: "ext-9933-1",
+    transactionId: 42,
     daybeginsat: new Date(1970, 0, 1, 0, 0, 0),
     ...overrides,
   };
@@ -123,27 +103,30 @@ test("a managed resend updates the same archief row", async () => {
   assert.equal(rows[0]?.source, ARCHIEF_SOURCE_V4_MANAGED);
 });
 
-test("two external ids at the same stalling stay two rows", async () => {
+test("two transaction ids at the same stalling stay two rows", async () => {
   const { db, rows } = memoryDb();
-  await writeTransactiesArchiefFromManaged(db as never, visit({ externaltransactionid: "a" }));
-  await writeTransactiesArchiefFromManaged(db as never, visit({ externaltransactionid: "b" }));
+  await writeTransactiesArchiefFromManaged(db as never, visit({ transactionId: 1 }));
+  await writeTransactiesArchiefFromManaged(db as never, visit({ transactionId: 2 }));
   assert.equal(rows.length, 2);
+  assert.equal(rows[0]?.ID, 1);
+  assert.equal(rows[1]?.ID, 2);
 });
 
-test("completed transactions without an external id insert each time", async () => {
+test("completed transactions without a transaction id insert each time", async () => {
   const { db, rows } = memoryDb();
-  const input = visit({ externaltransactionid: null, source: "fms-v3-api" });
+  const input = visit({ transactionId: null, source: "fms-v3-api" });
   const first = await writeTransactiesArchiefFromManaged(db as never, input);
   const second = await writeTransactiesArchiefFromManaged(db as never, input);
   assert.equal(first.created, true);
   assert.equal(second.created, true);
+  assert.notEqual(first.id, second.id);
   assert.equal(rows.length, 2);
 });
 
 test("reopening a managed visit removes its archief row", async () => {
   const { db, rows } = memoryDb();
   await writeTransactiesArchiefFromManaged(db as never, visit());
-  const removed = await deleteManagedTransactiesArchief(db as never, "9933_001", "ext-9933-1");
+  const removed = await deleteManagedTransactiesArchief(db as never, 42);
   assert.equal(removed, 1);
   assert.equal(rows.length, 0);
 });

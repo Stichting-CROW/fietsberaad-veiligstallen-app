@@ -283,6 +283,8 @@ model bezettingsdata {
   @@index([sectionID], map: "sectionID")
   @@index([source], map: "source")
   @@index([timestamp], map: "timestamp")
+  @@index([timestamp, bikeparkID, sectionID, source, fillup, open], map: "idx_bezettingcache_1")
+  @@index([bikeparkID, timestamp], map: "idx_bezettingcache_2")
 }
 
 model bezettingsdata_tmp {
@@ -1381,6 +1383,10 @@ model transacties {
   @@index([dateModified], map: "dateModified")
 }
 
+/// Closed visits copied for rapportage.
+/// A row copied from transacties uses that row's ID. Completed transactions insert their own id.
+/// A correction with the same externaltransactionid updates this row only while the live
+/// transacties row still exists (before the 18-month retention delete).
 model transacties_archief {
   ID              Int                               @id @default(autoincrement())
   citycode        String                            @db.VarChar(4)
@@ -1389,8 +1395,6 @@ model transacties_archief {
   sectionid_out   String?                           @db.VarChar(13)
   placeid         Int?
   externalplaceid String?                           @db.VarChar(100)
-  /// Managed-transaction upsert key. Null on legacy completed-transaction rows.
-  externaltransactionid String?                     @db.VarChar(100)
   checkindate     DateTime                          @db.DateTime(0)
   checkoutdate    DateTime?                         @db.DateTime(0)
   checkintype     transacties_archief_checkintype
@@ -1413,14 +1417,16 @@ model transacties_archief {
   @@index([citycode], map: "citycode")
   @@index([clienttypeid], map: "clienttypeid")
   @@index([exploitantid], map: "exploitantid")
-  @@unique([locationid, externaltransactionid], map: "uk_archief_location_external_tx")
-  @@index([externaltransactionid], map: "idx_archief_externaltransactionid")
   @@index([citycode, locationid, checkoutdate, sectionid], map: "idx_citycode_locationid_checkoutdate")
   @@index([locationid], map: "locationid")
   @@index([modified], map: "modified")
   @@index([placeid], map: "placeid")
   @@index([sectionid], map: "sectionid")
   @@index([source], map: "source")
+  @@index([locationid, checkoutdate, checkintype, checkouttype, checkindate], map: "idx_transactionscache_1")
+  @@index([sectionid, clienttypeid], map: "idx_transactionscache_2")
+  @@index([locationid, checkoutdate, sectionid, clienttypeid], map: "idx_stallingduurcache_1")
+  @@index([checkindate, checkoutdate], map: "idx_stallingduurcache_2")
 }
 
 model transacties_archief_tmp {
@@ -1915,6 +1921,7 @@ model bezettingsdata_day_hour_cache {
   @@index([source, bikeparkID], map: "idx_bikeparkID_source")
   @@index([bikeparkID, timestamp], map: "idx_bikeparkID_timestamp")
   @@index([bikeparkID, sectionID, source, interval, timestamp], map: "idx_bikeparkID_sectionID_source_interval_timestamp")
+  @@index([bikeparkID, source, interval, timestamp], map: "idx_bikeparkID_source_interval_timestamp")
 }
 
 model stallingsduur_cache {

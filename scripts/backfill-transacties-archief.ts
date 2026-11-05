@@ -1,9 +1,8 @@
 /**
- * Copy closed `transacties` rows into `transacties_archief` when no matching row exists.
+ * Copy closed `transacties` rows into `transacties_archief` when that id is not there yet.
  *
- * Managed rows (ExternalTransactionID set) upsert on (locationid, externaltransactionid),
- * same as a live check-out. Legacy rows without that id are inserted only when
- * location + section + check-in + check-out is not already in archief.
+ * The archive row uses transacties.ID, the same key as the ColdFusion archive job.
+ * A row that already has that id is left as it is.
  *
  * Default scope is testgemeente (ZipID 9933). Pass --all for every city, or --zip.
  *
@@ -13,7 +12,6 @@
  *   npx tsx scripts/backfill-transacties-archief.ts --all --dry-run
  *
  * Requires DATABASE_URL (Node 22: `node --env-file=.env --import tsx scripts/backfill-transacties-archief.ts`).
- * Apply prisma/migrations/20261027210000_transacties_archief_external_tx first.
  */
 
 import { readFileSync, existsSync } from "fs";
@@ -136,33 +134,17 @@ async function main(): Promise<void> {
       }
 
       const externalId = row.ExternalTransactionID?.trim() || null;
-      if (!externalId) {
-        const duplicate = await prisma.transacties_archief.findFirst({
-          where: {
-            locationid,
-            sectionid,
-            checkindate: row.Date_checkin,
-            checkoutdate: checkout,
-          },
-          select: { ID: true },
-        });
-        if (duplicate) {
-          skipped++;
-          continue;
-        }
+      const existing = await prisma.transacties_archief.findUnique({
+        where: { ID: row.ID },
+        select: { ID: true },
+      });
+      if (existing) {
+        skipped++;
+        continue;
       }
 
       if (args.dryRun) {
-        if (externalId) {
-          const existing = await prisma.transacties_archief.findFirst({
-            where: { locationid, externaltransactionid: externalId },
-            select: { ID: true },
-          });
-          if (existing) updated++;
-          else inserted++;
-        } else {
-          inserted++;
-        }
+        inserted++;
         continue;
       }
 
@@ -184,7 +166,7 @@ async function main(): Promise<void> {
           exploitantid: row.ExploitantID,
           reservationtime: row.Reserveringsduur,
           source: externalId ? ARCHIEF_SOURCE_V4_MANAGED : "backfill-transacties",
-          externaltransactionid: externalId,
+          transactionId: row.ID,
           daybeginsat: await dayBeginsAt(dayCache, citycode),
         });
         if (result.created) inserted++;

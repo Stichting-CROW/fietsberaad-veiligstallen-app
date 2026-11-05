@@ -5,9 +5,11 @@
  * v4 clients keep posting managedtransactions only; archief is an internal side effect.
  * Open visits do not get an archief row — call deleteManagedTransactiesArchief instead.
  *
- * Idempotency: when externaltransactionid is set, the row is upserted on
- * (locationid, externaltransactionid). A resend updates that row.
- * Rows without an external id (legacy completed transactions) are inserted.
+ * A managed visit uses transacties.ID as the archive id. A resend updates that row
+ * while the live transaction still exists. After the 18-month retention delete the
+ * live row is gone, so a later post with the same externaltransactionid is a new visit.
+ * Corrections have to arrive before that cleanup.
+ * Rows without a transaction id (legacy completed transactions) are inserted.
  */
 
 import type { PrismaClient } from "~/generated/prisma-client";
@@ -49,8 +51,11 @@ export type WriteTransactiesArchiefInput = {
   exploitantid?: string | null;
   reservationtime?: number | null;
   source: string;
-  /** Upsert key together with locationid. Omit for a plain insert. */
-  externaltransactionid?: string | null;
+  /**
+   * transacties.ID. When set, the archive row is upserted on that id.
+   * Omit for a plain insert (v3 completed transactions have no transacties row).
+   */
+  transactionId?: number | null;
   /** Organisation day start (contacts.DayBeginsAt). Looked up from citycode when omitted. */
   daybeginsat?: Date;
 };
@@ -98,7 +103,6 @@ type ArchiefData = {
   sectionid_out: string | null;
   placeid: number | null;
   externalplaceid: string | null;
-  externaltransactionid: string | null;
   checkindate: Date;
   checkoutdate: Date;
   checkintype: ArchiefCheckType;
@@ -121,10 +125,6 @@ function buildArchiefData(input: WriteTransactiesArchiefInput, daybeginsat: Date
     ? requireFit("sectionid_out", input.sectionidOut, 13)
     : null;
   const source = requireFit("source", input.source, 35);
-  const externaltransactionid = input.externaltransactionid?.trim() || null;
-  if (externaltransactionid && externaltransactionid.length > 100) {
-    throw new Error("externaltransactionid max 100 tekens");
-  }
   return {
     citycode,
     locationid,
@@ -132,7 +132,6 @@ function buildArchiefData(input: WriteTransactiesArchiefInput, daybeginsat: Date
     sectionid_out: sectionidOut,
     placeid: input.placeid ?? null,
     externalplaceid: input.externalplaceid ?? null,
-    externaltransactionid,
     checkindate: input.checkindate,
     checkoutdate: input.checkoutdate,
     checkintype: toArchiefCheckType(input.checkintype),
@@ -149,7 +148,7 @@ function buildArchiefData(input: WriteTransactiesArchiefInput, daybeginsat: Date
 }
 
 /**
- * Insert or, when externaltransactionid is set, update the archief row for this visit.
+ * Insert or, when transactionId is set, update the archief row that shares transacties.ID.
  */
 export async function writeTransactiesArchiefFromManaged(
   db: Db,
@@ -157,48 +156,40 @@ export async function writeTransactiesArchiefFromManaged(
 ): Promise<{ id: number; created: boolean }> {
   const daybeginsat = input.daybeginsat ?? (await resolveDayBeginsAt(db, input.citycode.trim()));
   const data = buildArchiefData(input, daybeginsat);
-  const externaltransactionid = data.externaltransactionid;
-  const locationid = data.locationid;
+  const transactionId = input.transactionId ?? null;
 
-  if (!externaltransactionid) {
+  if (transactionId == null) {
     const created = await db.transacties_archief.create({ data });
     return { id: created.ID, created: true };
   }
 
-  const existing = await db.transacties_archief.findFirst({
-    where: { locationid, externaltransactionid },
+  const existing = await db.transacties_archief.findUnique({
+    where: { ID: transactionId },
     select: { ID: true },
   });
   if (existing) {
-    await db.transacties_archief.update({ where: { ID: existing.ID }, data });
-    return { id: existing.ID, created: false };
+    await db.transacties_archief.update({ where: { ID: transactionId }, data });
+    return { id: transactionId, created: false };
   }
 
   try {
-    const created = await db.transacties_archief.create({ data });
+    const created = await db.transacties_archief.create({ data: { ...data, ID: transactionId } });
     return { id: created.ID, created: true };
   } catch (e) {
     if (!isUniqueConflict(e)) throw e;
-    const again = await db.transacties_archief.findFirst({
-      where: { locationid, externaltransactionid },
-      select: { ID: true },
-    });
-    if (!again) throw e;
-    await db.transacties_archief.update({ where: { ID: again.ID }, data });
-    return { id: again.ID, created: false };
+    await db.transacties_archief.update({ where: { ID: transactionId }, data });
+    return { id: transactionId, created: false };
   }
 }
 
-function archiefKey(locationid: string, externaltransactionid: string): string {
-  return `${locationid}\0${externaltransactionid}`;
-}
+type ArchiefRowWithId = ArchiefData & { ID: number };
 
-/** Upsert many closed visits. The last input for a location + external id wins. */
+/** Upsert many closed visits. The last input for a transaction id wins. */
 export async function writeTransactiesArchiefBatch(
   db: Db,
   inputs: WriteTransactiesArchiefInput[]
 ): Promise<void> {
-  const byKey = new Map<string, ArchiefData>();
+  const byId = new Map<number, ArchiefRowWithId>();
   const dayCache = new Map<string, Date>();
   for (const input of inputs) {
     const citycode = input.citycode.trim();
@@ -211,45 +202,33 @@ export async function writeTransactiesArchiefBatch(
       }
     }
     const data = buildArchiefData(input, daybeginsat);
-    if (!data.externaltransactionid) {
+    if (input.transactionId == null) {
       await db.transacties_archief.create({ data });
       continue;
     }
-    byKey.set(archiefKey(data.locationid, data.externaltransactionid), data);
+    byId.set(input.transactionId, { ...data, ID: input.transactionId });
   }
-  const rows = [...byKey.values()];
+  const rows = [...byId.values()];
   if (rows.length === 0) return;
 
   const existing = await db.transacties_archief.findMany({
-    where: {
-      OR: rows.map((row) => ({
-        locationid: row.locationid,
-        externaltransactionid: row.externaltransactionid,
-      })),
-    },
-    select: { ID: true, locationid: true, externaltransactionid: true },
+    where: { ID: { in: rows.map((row) => row.ID) } },
+    select: { ID: true },
   });
-  const existingId = new Map<string, number>();
-  for (const row of existing) {
-    if (row.externaltransactionid) {
-      existingId.set(archiefKey(row.locationid, row.externaltransactionid), row.ID);
-    }
-  }
+  const existingIds = new Set(existing.map((row) => row.ID));
 
-  const toCreate = rows.filter(
-    (row) => !existingId.has(archiefKey(row.locationid, row.externaltransactionid ?? ""))
-  );
+  const toCreate = rows.filter((row) => !existingIds.has(row.ID));
   if (toCreate.length > 0) {
     await db.transacties_archief.createMany({ data: toCreate });
   }
 
   const toUpdate = rows.flatMap((row) => {
-    const id = existingId.get(archiefKey(row.locationid, row.externaltransactionid ?? ""));
-    if (id == null) return [];
+    if (!existingIds.has(row.ID)) return [];
     return [{
-      id,
+      id: row.ID,
       set: {
         citycode: row.citycode,
+        locationid: row.locationid,
         sectionid: row.sectionid,
         sectionid_out: row.sectionid_out,
         placeid: row.placeid,
@@ -280,32 +259,19 @@ export async function writeTransactiesArchiefBatch(
 /** Drop archief rows when managed visits in this batch are open again. */
 export async function deleteManagedTransactiesArchiefMany(
   db: Db,
-  keys: { locationid: string; externaltransactionid: string }[]
+  transactionIds: number[]
 ): Promise<void> {
-  const unique = new Map<string, { locationid: string; externaltransactionid: string }>();
-  for (const key of keys) {
-    const externaltransactionid = key.externaltransactionid.trim();
-    if (!key.locationid || !externaltransactionid) continue;
-    unique.set(archiefKey(key.locationid, externaltransactionid), {
-      locationid: key.locationid,
-      externaltransactionid,
-    });
-  }
-  const pairs = [...unique.values()];
-  if (pairs.length === 0) return;
-  await db.transacties_archief.deleteMany({ where: { OR: pairs } });
+  const ids = [...new Set(transactionIds.filter((id) => Number.isInteger(id) && id > 0))];
+  if (ids.length === 0) return;
+  await db.transacties_archief.deleteMany({ where: { ID: { in: ids } } });
 }
 
 /** Drop the archief row when a managed visit is open again (no check-out). */
 export async function deleteManagedTransactiesArchief(
   db: Db,
-  locationid: string,
-  externaltransactionid: string
+  transactionId: number
 ): Promise<number> {
-  const externalId = externaltransactionid.trim();
-  if (!locationid || !externalId) return 0;
-  const result = await db.transacties_archief.deleteMany({
-    where: { locationid, externaltransactionid: externalId },
-  });
+  if (!Number.isInteger(transactionId) || transactionId <= 0) return 0;
+  const result = await db.transacties_archief.deleteMany({ where: { ID: transactionId } });
   return result.count;
 }

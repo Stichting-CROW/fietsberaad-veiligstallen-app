@@ -7,7 +7,7 @@ import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createPare
 const cacheInfo: IndicesInfo = {
   basetable: 'bezettingsdata',
   indices: {
-    idx_bezettingcache_1: `timestamp, bikeparkID, sectionID, source, fillup, open`,
+    idx_bezettingcache_1: "timestamp, bikeparkID, sectionID, source, fillup, `open`",
     idx_bezettingcache_2: `bikeparkID, timestamp`,
   },
 };
@@ -195,11 +195,9 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
     `CREATE INDEX idx_source ON bezettingsdata_day_hour_cache(source);`,
     'CREATE INDEX idx_interval ON bezettingsdata_day_hour_cache(`interval`);',
     `CREATE INDEX idx_bikeparkID_source ON bezettingsdata_day_hour_cache(source, bikeparkID);`,
-    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,// Used for /api/database/availableDataPerBikepark
-    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',// Matches unique constraint for upsert performance
-    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`, // Used for /api/database/availableDataPerBikepark
-    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);', // Matches unique constraint for upsert performance
-    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);' // Used for /api/reports/bezetting
+    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,
+    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',
+    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);'
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {
@@ -208,6 +206,12 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
       console.error("Unable to create index on bezettingsdata_day_hour_cache table", result);
       return false;
     }
+  }
+
+  const indicesCreated = await createParentIndices(cacheInfo);
+  if (!indicesCreated) {
+    console.error("Unable to create bezetting parent indices");
+    return false;
   }
 
   return getBezettingCacheStatus(params);

@@ -133,6 +133,9 @@ function olderThan(column: string, amount: number, unit: "MONTH" | "YEAR"): stri
 export function planAction(action: ActionKey): ActionPlan {
   switch (action) {
     case "cleartransactions": {
+      // Deletes the live row, including ExternalTransactionID. transacties_archief keeps
+      // the copy under the same ID. A later post of that external id is a new visit, so
+      // corrections have to be sent before this cleanup.
       const required = [`INTERVAL ${MONTHS_18} MONTH`, "Date_checkout <"];
       const where = `Date_checkout < DATE_SUB(?, INTERVAL ${MONTHS_18} MONTH)`;
       return {

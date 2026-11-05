@@ -38,7 +38,7 @@ Simulation Process and cron `/api/cron/process-queues` always run Next.js `proce
 
 | v4 call | Input | After `processQueues()` / rollup |
 |---|---|---|
-| `POST …/managedtransactions` | `new_wachtrij_managed_transacties` | `transacties` upsert on `FietsenstallingID` + `ExternalTransactionID`. A payload with `checkoutdate` also upserts `transacties_archief` (`source=fms-v4-managed`, key `locationid` + `externaltransactionid`). Open visits do not write archief. |
+| `POST …/managedtransactions` | `new_wachtrij_managed_transacties` | `transacties` upsert on `FietsenstallingID` + `ExternalTransactionID`. A payload with `checkoutdate` also writes `transacties_archief` with the same `transacties.ID` (`source=fms-v4-managed`). Open visits do not write archief. |
 | `POST …/occupation` (and occupation+sync) | `new_bezettingsdata_tmp`; also sets `fietsenstalling_sectie.Bezetting` to the reported value | rollup → `bezettingsdata` |
 | `POST …` bike / pas | `new_wachtrij_pasids` | `accounts_pasids` / `accounts` |
 | `POST …` saldo | `new_wachtrij_betalingen` | `financialtransactions` / `accounts` |
@@ -47,7 +47,7 @@ Simulation Process and cron `/api/cron/process-queues` always run Next.js `proce
 
 Check-in/out on v4 is **managedtransactions** only (Wilmar). Occupation rollup is the Lumiguide path.
 
-`POST …/completedtransactions` stays **410**. Archief is not a second client call. `putManagedTransaction` writes it after the `transacties` upsert when the visit has a check-out. Resending the same `externaltransactionid` updates that archief row.
+`POST …/completedtransactions` stays **410**. Archief is not a second client call. `putManagedTransaction` writes it after the `transacties` upsert when the visit has a check-out. Resending the same `externaltransactionid` updates that archive row, because it still points at the same `transacties.ID`. After the 18-month retention delete the live row is gone, so a later post with that external id is a new visit. Corrections have to arrive before that cleanup.
 
 ### Local processing
 
@@ -74,7 +74,7 @@ npx tsx scripts/backfill-transacties-archief.ts --dry-run
 npx tsx scripts/backfill-transacties-archief.ts --location 9933_001
 ```
 
-Default scope is ZipID `9933`. `--all` covers every city. Apply migration `20261027210000_transacties_archief_external_tx` before the first check-out or backfill (`externaltransactionid` on `transacties_archief`).
+Default scope is ZipID `9933`. `--all` covers every city. The archive id is `transacties.ID`. Migration `20261105120000_drop_transacties_archief_external_tx` removes `transacties_archief.externaltransactionid` where that column was added.
 
 `daybeginsat` on the archief row is the organisation `contacts.DayBeginsAt` (fallback `00:00:00`). Rebuild `transacties_archief_day_cache` after a backfill if rapportage reads the cache. Sync check-outs (inventory, bike absent) still close `transacties` only; they do not write archief.
 

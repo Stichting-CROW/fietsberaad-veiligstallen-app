@@ -156,6 +156,12 @@ export const createTransactionCacheTable = async (params: CacheParams) => {
         return false;
     }
 
+    const indicesCreated = await createParentIndices(cacheInfo);
+    if (!indicesCreated) {
+        console.error("Unable to create transaction parent indices");
+        return false;
+    }
+
     return getTransactionCacheStatus(params);
 }
 

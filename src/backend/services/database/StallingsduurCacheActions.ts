@@ -192,6 +192,12 @@ export const createStallingsduurCacheTable = async (params: CacheParams) => {
     }
   }
 
+  const indicesCreated = await createParentIndices(cacheInfo);
+  if (!indicesCreated) {
+    console.error("Unable to create stallingsduur parent indices");
+    return false;
+  }
+
   return getStallingsduurCacheStatus(params);
 }
 
