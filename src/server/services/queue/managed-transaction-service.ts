@@ -9,11 +9,22 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { getBikeparkByExternalID, getBikeparkSectionByExternalID, getPlace } from "./bikepark-service";
 import { getBikepassByPassId } from "./account-service";
 import { passtype2integer } from "../fms/fms-idtypes";
+import {
+  ARCHIEF_SOURCE_V4_MANAGED,
+  deleteManagedTransactiesArchief,
+  writeTransactiesArchiefFromManaged,
+} from "./transacties-archief-service";
 
 type Prisma = Omit<
   PrismaClient,
   "$connect" | "$disconnect" | "$on" | "$use" | "$extends" | "$transaction"
 >;
+
+/** Queue `tx` is the generated client at runtime; this module's Prisma alias is `@prisma/client`. */
+type ArchiefDb = Parameters<typeof writeTransactiesArchiefFromManaged>[0];
+function archiefDb(tx: Prisma): ArchiefDb {
+  return tx as unknown as ArchiefDb;
+}
 
 const CHECK_TYPES = new Set(["user", "controle", "system", "sync", "reservation"]);
 
@@ -185,23 +196,13 @@ export async function putManagedTransaction(
     select: { ID: true },
   });
 
-  if (existing) {
-    await transactiesModel.update({
-      where: { ID: existing.ID },
-      data: rowData,
-    });
-    await syncParkedStateFromManaged(tx, {
-      bikepark,
-      stallingsID: input.bikeparkID,
-      sectionID: sectionId,
-      passID: input.managed.idcode.trim(),
-      idtype: input.managed.idtype ?? 0,
-      parked: !hasCheckout,
-    });
-    return { transactionID: existing.ID, created: false };
-  }
+  const saved = existing
+    ? await transactiesModel.update({
+        where: { ID: existing.ID },
+        data: rowData,
+      })
+    : await transactiesModel.create({ data: rowData });
 
-  const created = await transactiesModel.create({ data: rowData });
   await syncParkedStateFromManaged(tx, {
     bikepark,
     stallingsID: input.bikeparkID,
@@ -210,7 +211,37 @@ export async function putManagedTransaction(
     idtype: input.managed.idtype ?? 0,
     parked: !hasCheckout,
   });
-  return { transactionID: created.ID, created: true };
+
+  if (hasCheckout) {
+    const citycode = (bikepark.ZipID ?? "").trim();
+    if (!citycode) {
+      throw new Error(`Geen citycode (ZipID) voor locatie ${stallingsID}`);
+    }
+    await writeTransactiesArchiefFromManaged(archiefDb(tx), {
+      citycode,
+      locationid: stallingsID,
+      sectionid: sectionId,
+      sectionidOut: input.managed.sectionid_out ?? null,
+      placeid: input.managed.placeid ?? null,
+      externalplaceid: input.managed.externalplaceid ?? null,
+      checkindate,
+      checkoutdate: parseDate(input.managed.checkoutdate),
+      checkintype: input.managed.checkintype,
+      checkouttype: input.managed.checkouttype ?? "user",
+      price: input.managed.stallingskosten ?? 0,
+      clienttypeid: input.managed.clienttypeid ?? 1,
+      biketypeid: input.managed.biketypeid ?? 1,
+      exploitantid: bikepark.ExploitantID ?? null,
+      reservationtime: input.managed.reserveringsduur ?? null,
+      source: ARCHIEF_SOURCE_V4_MANAGED,
+      externaltransactionid: externalTransactionID,
+      daybeginsat: bikepark.dayBeginsAt ?? undefined,
+    });
+  } else {
+    await deleteManagedTransactiesArchief(archiefDb(tx), stallingsID, externalTransactionID);
+  }
+
+  return { transactionID: saved.ID, created: !existing };
 }
 
 function pastypeFromIdtype(idtype: number): string {

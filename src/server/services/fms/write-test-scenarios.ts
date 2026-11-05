@@ -214,6 +214,54 @@ function expectClosedTransactie(passSuffix: string): Assertion {
   };
 }
 
+/** Archief rows for this run's externaltransactionid. Open visits stay at 0. */
+function expectArchiefCount(passSuffix: string, expected: number): Assertion {
+  return async (ctx) => {
+    const externaltransactionid = managedExtId(ctx, passSuffix);
+    const count = await prisma.transacties_archief.count({
+      where: { externaltransactionid },
+    });
+    return {
+      label: `transacties_archief voor ${passSuffix}`,
+      ok: count === expected,
+      expected: `${expected} archiefrij(en)`,
+      actual: `${count} archiefrij(en)`,
+    };
+  };
+}
+
+/** The single archief row matches the closed managed visit (location, source, price). */
+function expectArchiefRow(
+  passSuffix: string,
+  expected: { price: number; source: string }
+): Assertion {
+  return async (ctx) => {
+    const externaltransactionid = managedExtId(ctx, passSuffix);
+    const rows = await prisma.transacties_archief.findMany({
+      where: { externaltransactionid },
+    });
+    const row = rows[0];
+    const price = row ? Number(row.price) : null;
+    const ok =
+      rows.length === 1 &&
+      row != null &&
+      row.locationid === ctx.bikeparkID &&
+      row.source === expected.source &&
+      price != null &&
+      Math.abs(price - expected.price) < 0.005 &&
+      row.checkoutdate != null;
+    return {
+      label: `Archiefrij voor ${passSuffix}`,
+      ok,
+      expected: `1 rij location=${ctx.bikeparkID} source=${expected.source} price=${expected.price.toFixed(2)}`,
+      actual:
+        rows.length === 0
+          ? "geen rij"
+          : `${rows.length} rij(en) location=${row?.locationid ?? "?"} source=${row?.source ?? "?"} price=${price?.toFixed(2) ?? "?"}`,
+    };
+  };
+}
+
 /** Total transacties rows for the synthetic pass equals `expected`. */
 function expectTransactieCount(passSuffix: string, expected: number): Assertion {
   return async (ctx) => {
@@ -420,7 +468,11 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     act: async (ctx) => {
       await enqueueManaged(ctx, "ci", { checkindate: ctx.baseTime.toISOString() });
     },
-    assert: [expectManagedQueueProcessed(), expectOpenTransactie("ci")],
+    assert: [
+      expectManagedQueueProcessed(),
+      expectOpenTransactie("ci"),
+      expectArchiefCount("ci", 0),
+    ],
   },
   {
     id: "checkin-checkout",
@@ -442,6 +494,54 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       expectManagedQueueProcessed(),
       expectClosedTransactie("co"),
       expectTransactieCount("co", 1),
+      expectArchiefCount("co", 1),
+      expectArchiefRow("co", { price: 0, source: "fms-v4-managed" }),
+    ],
+  },
+  {
+    id: "checkin-checkout-archief-resync",
+    label: "Check-out archief blijft één rij bij opnieuw versturen",
+    description:
+      "Open check-in schrijft geen archief. Check-out schrijft één transacties_archief-rij. Opnieuw versturen van hetzelfde externaltransactionid werkt prijs en check-out bij en maakt geen tweede rij.",
+    writeMethods: ["queue managedtransactions"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", { checkindate: minutesAfter(ctx, 0).toISOString() });
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 30).toISOString(),
+            checkouttype: "user",
+            stallingsduur: 30,
+            stallingskosten: 1.5,
+          });
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 45).toISOString(),
+            checkouttype: "user",
+            stallingsduur: 45,
+            stallingskosten: 2,
+          });
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectManagedQueueProcessed(),
+      expectClosedTransactie("arch"),
+      expectTransactieCount("arch", 1),
+      expectArchiefCount("arch", 1),
+      expectArchiefRow("arch", { price: 2, source: "fms-v4-managed" }),
     ],
   },
   {

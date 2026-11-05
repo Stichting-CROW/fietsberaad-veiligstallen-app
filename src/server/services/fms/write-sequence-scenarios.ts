@@ -138,6 +138,32 @@ function ok(label: string, pass: boolean, expected: string, actual: string): Ass
   return { label, ok: pass, expected, actual };
 }
 
+async function archiefAssertions(
+  ctx: ApiWriteTestContext,
+  suffix: string,
+  price: number
+): Promise<AssertionResult[]> {
+  const externaltransactionid = extId(ctx, suffix);
+  const rows = await prisma.transacties_archief.findMany({ where: { externaltransactionid } });
+  const row = rows[0];
+  const actualPrice = row ? Number(row.price) : null;
+  return [
+    ok("transacties_archief één rij", rows.length === 1, "1", String(rows.length)),
+    ok(
+      "archief location + source + price",
+      rows.length === 1 &&
+        row?.locationid === ctx.bikeparkID &&
+        row?.source === "fms-v4-managed" &&
+        actualPrice != null &&
+        Math.abs(actualPrice - price) < 0.005,
+      `${ctx.bikeparkID} fms-v4-managed ${price.toFixed(2)}`,
+      row
+        ? `${row.locationid} ${row.source ?? "?"} ${actualPrice?.toFixed(2) ?? "?"}`
+        : "geen rij"
+    ),
+  ];
+}
+
 async function latestTx(passID: string) {
   return prisma.transacties.findFirst({
     where: { PasID: passID },
@@ -155,6 +181,9 @@ async function teardownSequence(ctx: ApiWriteTestContext): Promise<void> {
   if (accountIDs.length > 0) {
     await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
+  await prisma.transacties_archief.deleteMany({
+    where: { externaltransactionid: { startsWith: prefix } },
+  });
   await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
   await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
   if (councilIDs.length > 0) {
@@ -184,7 +213,7 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
     id: "seq-full-visit",
     label: "Full bike visit (register + check-in + check-out)",
     description:
-      "POST bike → managed check-in → managed check-out (same externaltransactionid) → processQueues.",
+      "POST bike → managed check-in → managed check-out (same externaltransactionid) → resend check-out → processQueues. One transacties_archief row.",
     writeMethods: ["v4 saveBike", "v4 managedtransactions"],
     act: async (ctx) => {
       await postBike(ctx, "visit");
@@ -196,7 +225,15 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
         checkoutdate: minutesAfter(ctx, 30).toISOString(),
         checkouttype: "user",
         stallingsduur: 30,
-        stallingskosten: 0,
+        stallingskosten: 1.25,
+      });
+      await processThisRun(ctx);
+      await postManaged(ctx, "visit", {
+        checkindate: minutesAfter(ctx, 0).toISOString(),
+        checkoutdate: minutesAfter(ctx, 40).toISOString(),
+        checkouttype: "user",
+        stallingsduur: 40,
+        stallingskosten: 2.5,
       });
       await processThisRun(ctx);
     },
@@ -227,6 +264,7 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
           extId(ctx, "visit"),
           tx?.ExternalTransactionID ?? "geen"
         ),
+        ...(await archiefAssertions(ctx, "visit", 2.5)),
       ];
     },
     teardown: teardownSequence,

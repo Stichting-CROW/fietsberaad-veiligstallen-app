@@ -22,6 +22,10 @@ import {
 import { assertLocationInCity } from "./fms-v3-protected-reads";
 import { passtype2integer, passtype2string } from "./fms-idtypes";
 import { logFmsCall } from "./webservice-log";
+import {
+  ARCHIEF_SOURCE_V3_COMPLETED,
+  writeTransactiesArchiefFromManaged,
+} from "../queue/transacties-archief-service";
 
 export type FmsOkResult = {
   message: string;
@@ -279,33 +283,21 @@ export async function uploadCompletedTransactionV3(
     throw new Error(`Locatie ${locationid} niet gevonden`);
   }
 
-  const checkindate = parseDate(completed.checkindate);
-  const checkoutdate = parseDate(completed.checkoutdate);
-  const checkintype = String(
-    completed.checkintype ?? completed.typecheckin ?? "user"
-  ) as "user" | "controle" | "system" | "sync" | "reservation";
-  const checkouttype = String(
-    completed.typecheckout ?? completed.checkouttype ?? "user"
-  ) as "user" | "controle" | "system" | "sync" | "reservation";
-
-  await prisma.transacties_archief.create({
-    data: {
-      citycode,
-      locationid,
-      sectionid: sectionid ?? locationid,
-      sectionid_out: sectionid ?? null,
-      placeid: placeid ?? null,
-      checkindate,
-      checkoutdate,
-      checkintype,
-      checkouttype,
-      daybeginsat: new Date(1970, 0, 1, 0, 0, 0),
-      price: Number(completed.price ?? 0),
-      clienttypeid: Number(completed.clienttypeid ?? 0),
-      biketypeid: Number(completed.biketypeid ?? 1),
-      exploitantid: bikepark.ExploitantID ?? null,
-      source: "fms-v3-api",
-    },
+  await writeTransactiesArchiefFromManaged(prisma, {
+    citycode,
+    locationid,
+    sectionid: sectionid ?? locationid,
+    sectionidOut: sectionid ?? null,
+    placeid: placeid ?? null,
+    checkindate: parseDate(completed.checkindate),
+    checkoutdate: parseDate(completed.checkoutdate),
+    checkintype: String(completed.checkintype ?? completed.typecheckin ?? "user"),
+    checkouttype: String(completed.typecheckout ?? completed.checkouttype ?? "user"),
+    price: Number(completed.price ?? 0),
+    clienttypeid: Number(completed.clienttypeid ?? 0),
+    biketypeid: Number(completed.biketypeid ?? 1),
+    exploitantid: bikepark.ExploitantID ?? null,
+    source: ARCHIEF_SOURCE_V3_COMPLETED,
   });
 
   return okResult();

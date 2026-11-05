@@ -135,6 +135,9 @@ async function teardownRun(ctx: WriteTestContext): Promise<void> {
   if (accountIDs.length > 0) {
     await prisma.financialtransactions.deleteMany({ where: { accountID: { in: accountIDs } } });
   }
+  await prisma.transacties_archief.deleteMany({
+    where: { externaltransactionid: { startsWith: prefix } },
+  });
   await prisma.transacties.deleteMany({ where: { PasID: { startsWith: prefix } } });
   await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: prefix } } });
   if (councilIDs.length > 0) {

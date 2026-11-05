@@ -11,6 +11,8 @@ export type BikeparkInfo = {
   SiteID: string | null;
   ZipID: string | null;
   ExploitantID: string | null;
+  /** contacts.DayBeginsAt for the stalling's organisation. Null when the contact has none. */
+  dayBeginsAt: Date | null;
   BerekentStallingskosten: boolean;
   Type: string | null;
   hasUniSectionPrices: boolean;
@@ -46,7 +48,7 @@ export async function getBikeparkByExternalID(bikeparkID: string): Promise<Bikep
       hasUniSectionPrices: true,
       hasUniBikeTypePrices: true,
       contacts_fietsenstallingen_SiteIDTocontacts: {
-        select: { ZipID: true },
+        select: { ZipID: true, DayBeginsAt: true },
       },
     },
   });
@@ -57,6 +59,7 @@ export async function getBikeparkByExternalID(bikeparkID: string): Promise<Bikep
     SiteID: row.SiteID,
     ZipID: row.contacts_fietsenstallingen_SiteIDTocontacts?.ZipID ?? null,
     ExploitantID: row.ExploitantID,
+    dayBeginsAt: row.contacts_fietsenstallingen_SiteIDTocontacts?.DayBeginsAt ?? null,
     BerekentStallingskosten: row.BerekentStallingskosten,
     Type: row.Type,
     hasUniSectionPrices: row.hasUniSectionPrices,
