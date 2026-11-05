@@ -12,6 +12,7 @@
 
 import type { PrismaClient } from "~/generated/prisma-client";
 import { Decimal } from "@prisma/client/runtime/library";
+import { updateRowsById } from "./batch-sql";
 
 type Db = Omit<
   PrismaClient,
@@ -186,6 +187,113 @@ export async function writeTransactiesArchiefFromManaged(
     await db.transacties_archief.update({ where: { ID: again.ID }, data });
     return { id: again.ID, created: false };
   }
+}
+
+function archiefKey(locationid: string, externaltransactionid: string): string {
+  return `${locationid}\0${externaltransactionid}`;
+}
+
+/** Upsert many closed visits. The last input for a location + external id wins. */
+export async function writeTransactiesArchiefBatch(
+  db: Db,
+  inputs: WriteTransactiesArchiefInput[]
+): Promise<void> {
+  const byKey = new Map<string, ArchiefData>();
+  const dayCache = new Map<string, Date>();
+  for (const input of inputs) {
+    const citycode = input.citycode.trim();
+    let daybeginsat = input.daybeginsat;
+    if (!daybeginsat) {
+      daybeginsat = dayCache.get(citycode);
+      if (!daybeginsat) {
+        daybeginsat = await resolveDayBeginsAt(db, citycode);
+        dayCache.set(citycode, daybeginsat);
+      }
+    }
+    const data = buildArchiefData(input, daybeginsat);
+    if (!data.externaltransactionid) {
+      await db.transacties_archief.create({ data });
+      continue;
+    }
+    byKey.set(archiefKey(data.locationid, data.externaltransactionid), data);
+  }
+  const rows = [...byKey.values()];
+  if (rows.length === 0) return;
+
+  const existing = await db.transacties_archief.findMany({
+    where: {
+      OR: rows.map((row) => ({
+        locationid: row.locationid,
+        externaltransactionid: row.externaltransactionid,
+      })),
+    },
+    select: { ID: true, locationid: true, externaltransactionid: true },
+  });
+  const existingId = new Map<string, number>();
+  for (const row of existing) {
+    if (row.externaltransactionid) {
+      existingId.set(archiefKey(row.locationid, row.externaltransactionid), row.ID);
+    }
+  }
+
+  const toCreate = rows.filter(
+    (row) => !existingId.has(archiefKey(row.locationid, row.externaltransactionid ?? ""))
+  );
+  if (toCreate.length > 0) {
+    await db.transacties_archief.createMany({ data: toCreate });
+  }
+
+  const toUpdate = rows.flatMap((row) => {
+    const id = existingId.get(archiefKey(row.locationid, row.externaltransactionid ?? ""));
+    if (id == null) return [];
+    return [{
+      id,
+      set: {
+        citycode: row.citycode,
+        sectionid: row.sectionid,
+        sectionid_out: row.sectionid_out,
+        placeid: row.placeid,
+        externalplaceid: row.externalplaceid,
+        checkindate: row.checkindate,
+        checkoutdate: row.checkoutdate,
+        checkintype: row.checkintype,
+        checkouttype: row.checkouttype,
+        daybeginsat: row.daybeginsat,
+        reservationtime: row.reservationtime,
+        price: row.price.toString(),
+        clienttypeid: row.clienttypeid,
+        biketypeid: row.biketypeid,
+        source: row.source,
+        exploitantid: row.exploitantid,
+        modified: row.modified,
+      },
+    }];
+  });
+  await updateRowsById(
+    db as unknown as Parameters<typeof updateRowsById>[0],
+    "transacties_archief",
+    "ID",
+    toUpdate
+  );
+}
+
+/** Drop archief rows when managed visits in this batch are open again. */
+export async function deleteManagedTransactiesArchiefMany(
+  db: Db,
+  keys: { locationid: string; externaltransactionid: string }[]
+): Promise<void> {
+  const unique = new Map<string, { locationid: string; externaltransactionid: string }>();
+  for (const key of keys) {
+    const externaltransactionid = key.externaltransactionid.trim();
+    if (!key.locationid || !externaltransactionid) continue;
+    unique.set(archiefKey(key.locationid, externaltransactionid), {
+      locationid: key.locationid,
+      externaltransactionid,
+    });
+  }
+  const pairs = [...unique.values()];
+  if (pairs.length === 0) return;
+  await db.transacties_archief.deleteMany({ where: { OR: pairs } });
 }
 
 /** Drop the archief row when a managed visit is open again (no check-out). */

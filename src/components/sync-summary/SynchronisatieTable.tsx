@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { ControleSummary } from '~/types/sync-summary';
+import { APP_TZ } from '~/utils/datetime-nl';
 
 type SortField = 'laatsteSync' | 'dataOwnerName' | 'fietsenstallingName' | 'plaats' | 'ageInDays';
 type SortDirection = 'asc' | 'desc';
@@ -25,7 +26,8 @@ const SynchronisatieTable: React.FC<SynchronisatieTableProps> = ({
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: APP_TZ,
     });
   };
 

@@ -39,7 +39,7 @@ export function okResult(extra?: { id?: number; ids?: number[]; subscriptionid?:
   return { message: "OK", status: 1, ...extra };
 }
 
-/** Max items per POST (matches queue processor LIMIT_MANAGED). */
+/** Max items per client POST. The queue processor drains a larger batch on its own. */
 export const MAX_MANAGED_TRANSACTIONS_BATCH = 50;
 
 export function errorResult(message: string): FmsOkResult {

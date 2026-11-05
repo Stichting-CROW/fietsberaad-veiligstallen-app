@@ -12,6 +12,7 @@ export type FmsPermitRow = {
   operatorName: string;
   operatorUrlName: string | null;
   siteId: string;
+  gemeenteName: string | null;
   bikeparkId: string | null;
   stallingsId: string | null;
   bikeparkTitle: string | null;
@@ -72,6 +73,7 @@ export async function listFmsPermitsForGemeente(siteId: string): Promise<{
       operatorName: operator?.CompanyName ?? p.OperatorID ?? "",
       operatorUrlName: operator?.UrlName ?? null,
       siteId: p.SiteID ?? siteId,
+      gemeenteName,
       bikeparkId: p.BikeparkID,
       stallingsId: bikepark?.StallingsID ?? null,
       bikeparkTitle: bikepark?.Title ?? null,
@@ -89,6 +91,54 @@ export async function listFmsPermitsForGemeente(siteId: string): Promise<{
       title: s.Title,
     })),
   };
+}
+
+const operatorPermitInclude = {
+  contacts_fmsservice_permit_OperatorIDTocontacts: {
+    select: { ID: true, CompanyName: true, UrlName: true, ItemType: true },
+  },
+  fietsenstallingen: {
+    select: { ID: true, StallingsID: true, Title: true },
+  },
+  contacts_fmsservice_permit_SiteIDTocontacts: {
+    select: { CompanyName: true },
+  },
+} satisfies Prisma.fmsservice_permitInclude;
+
+export async function listFmsPermitsForOperator(operatorId: string): Promise<FmsPermitRow[]> {
+  const permits = await prisma.fmsservice_permit.findMany({
+    where: { OperatorID: operatorId },
+    include: operatorPermitInclude,
+    orderBy: [{ SiteID: "asc" }, { BikeparkID: "asc" }],
+  });
+
+  return permits.map((p) => {
+    const operator = p.contacts_fmsservice_permit_OperatorIDTocontacts;
+    const bikepark = p.fietsenstallingen;
+    const gemeenteName =
+      p.contacts_fmsservice_permit_SiteIDTocontacts?.CompanyName ?? null;
+    const permitTypes = expandPermitString(p.Permit);
+    const locationLabel = bikepark
+      ? `${bikepark.StallingsID ?? ""} - ${bikepark.Title ?? ""}`.trim()
+      : gemeenteName
+        ? `Alle stallingen in ${gemeenteName}`
+        : "Alle stallingen in gemeente";
+
+    return {
+      id: p.ID,
+      operatorId: p.OperatorID ?? operatorId,
+      operatorName: operator?.CompanyName ?? p.OperatorID ?? "",
+      operatorUrlName: operator?.UrlName ?? null,
+      siteId: p.SiteID ?? "",
+      gemeenteName,
+      bikeparkId: p.BikeparkID,
+      stallingsId: bikepark?.StallingsID ?? null,
+      bikeparkTitle: bikepark?.Title ?? null,
+      locationLabel,
+      permitTypes,
+      permit: p.Permit,
+    };
+  });
 }
 
 async function assertGemeente(siteId: string) {

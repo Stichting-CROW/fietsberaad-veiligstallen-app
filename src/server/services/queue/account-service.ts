@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { prisma as defaultPrisma } from "~/server/db";
+import { updateRowsById } from "./batch-sql";
 
 /** UUID without hyphens (32 chars) for VarChar(35) columns. */
 function shortUUID(): string {
@@ -154,6 +155,76 @@ export async function getBikepassByPassId(
     huidigeFietsenstallingId: null,
     huidigeSectieId: null,
   };
+}
+
+export type BikepassLookup = {
+  siteID: string;
+  passID: string;
+  pastype: string;
+};
+
+export function bikepassKey(siteID: string, passID: string, pastype: string): string {
+  return `${siteID}\0${passID}\0${pastype}`;
+}
+
+/** Existing passes for a queue batch, grouped so each site/pastype is one indexed IN query. */
+export async function findBikepassIds(
+  prisma: Prisma,
+  keys: BikepassLookup[]
+): Promise<Map<string, string>> {
+  const unique = new Map<string, BikepassLookup>();
+  for (const key of keys) {
+    if (!key.siteID || !key.passID) continue;
+    unique.set(bikepassKey(key.siteID, key.passID, key.pastype), key);
+  }
+  const found = new Map<string, string>();
+  const groups = new Map<string, BikepassLookup[]>();
+  for (const key of unique.values()) {
+    const groupKey = `${key.siteID}\0${key.pastype}`;
+    const group = groups.get(groupKey) ?? [];
+    group.push(key);
+    groups.set(groupKey, group);
+  }
+  for (const group of groups.values()) {
+    const siteID = group[0]?.siteID;
+    const pastype = group[0]?.pastype;
+    if (!siteID || pastype == null) continue;
+    const rows = await prisma.accounts_pasids.findMany({
+      where: { SiteID: siteID, Pastype: pastype, PasID: { in: group.map((key) => key.passID) } },
+      select: { ID: true, PasID: true },
+    });
+    for (const row of rows) {
+      found.set(bikepassKey(siteID, row.PasID, pastype), row.ID);
+    }
+  }
+  return found;
+}
+
+/** Set bike fields on many passes in one UPDATE. Empty barcode/RFID values are left unchanged. */
+export async function updatePasidBikes(
+  prisma: Prisma,
+  rows: {
+    id: string;
+    barcode?: string;
+    rfid?: string;
+    rfidBike?: string;
+    biketypeID: number;
+  }[]
+): Promise<void> {
+  const now = new Date();
+  await updateRowsById(
+    prisma as unknown as Parameters<typeof updateRowsById>[0],
+    "accounts_pasids",
+    "ID",
+    rows.map((row) => {
+      const set: Record<string, unknown> = { BikeTypeID: row.biketypeID };
+      if (row.barcode) set.barcodeFiets = row.barcode;
+      if (row.rfid) set.RFID = row.rfid;
+      if (row.rfidBike) set.RFIDBike = row.rfidBike;
+      return { id: row.id, set };
+    }),
+    { dateLastIdUpdate: now, dateModified: now }
+  );
 }
 
 /**

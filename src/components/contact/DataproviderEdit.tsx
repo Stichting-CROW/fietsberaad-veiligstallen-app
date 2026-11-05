@@ -10,6 +10,7 @@ import { useDataprovider } from "~/hooks/useDataprovider";
 import { makeClientApiCall } from "~/utils/client/api-tools";
 import { type DataproviderResponse } from "~/pages/api/protected/dataprovider/[id]";
 import FormSelect from "../Form/FormSelect";
+import DataproviderLinkedStallings from "~/components/contact/DataproviderLinkedStallings";
 
 type DataproviderEditProps = {
   id: string;
@@ -19,6 +20,15 @@ type DataproviderEditProps = {
 const DEFAULT_DATAPROVIDER: VSContactDataprovider = getDefaultNewDataprovider(
   "Testdataprovider " + new Date().toISOString(),
 );
+
+function generateRandomPassword() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
 
 const DataproviderEdit = (props: DataproviderEditProps) => {
   const [isEditing, setIsEditing] = useState(!!props.onClose);
@@ -56,32 +66,30 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
       const initial = {
         CompanyName: DEFAULT_DATAPROVIDER.CompanyName,
         UrlName: DEFAULT_DATAPROVIDER.UrlName,
-        Password: DEFAULT_DATAPROVIDER.Password,
+        Password: "",
         Status: DEFAULT_DATAPROVIDER.Status,
       };
 
       setCompanyName(initial.CompanyName);
       setUrlName(initial.UrlName);
-      setPassword(initial.Password);
+      setPassword("");
       setStatus(initial.Status);
 
       setInitialData(initial);
-    } else {
-      if (activecontact) {
-        const initial = {
-          CompanyName: activecontact.CompanyName || initialData.CompanyName,
-          UrlName: activecontact.UrlName || initialData.UrlName,
-          Password: activecontact.Password || initialData.Password,
-          Status: activecontact.Status || initialData.Status,
-        };
+    } else if (activecontact) {
+      const initial = {
+        CompanyName: activecontact.CompanyName || initialData.CompanyName,
+        UrlName: activecontact.UrlName || initialData.UrlName,
+        Password: "",
+        Status: activecontact.Status || initialData.Status,
+      };
 
-        setCompanyName(initial.CompanyName);
-        setUrlName(initial.UrlName);
-        setPassword(initial.Password);
-        setStatus(initial.Status);
+      setCompanyName(initial.CompanyName);
+      setUrlName(initial.UrlName);
+      setPassword("");
+      setStatus(initial.Status);
 
-        setInitialData(initial);
-      }
+      setInitialData(initial);
     }
   }, [props.id, activecontact, isNew]);
 
@@ -99,8 +107,13 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
 
   const handleUpdate = async () => {
     console.log(`handleUpdate ${CompanyName} / ${UrlName} / ${Password} ${Status}`);
-    if (!CompanyName || !UrlName || !Password || !Status) {
-      setErrorMessage("Naam, ContractorID, Wachtwoord en Status zijn verplichte velden");
+    const passwordTrimmed = (Password ?? "").trim();
+    if (!CompanyName || !UrlName || !Status) {
+      setErrorMessage("Naam, ContractorID en Status zijn verplichte velden");
+      return;
+    }
+    if (isNew && !passwordTrimmed) {
+      setErrorMessage("Wachtwoord is verplicht bij een nieuwe dataleverancier (vul in of kies Random)");
       return;
     }
 
@@ -112,9 +125,11 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
         ItemType: VSContactItemType.Dataprovider,
         CompanyName,
         UrlName,
-        Password,
         Status,
       };
+      if (passwordTrimmed) {
+        data.Password = passwordTrimmed;
+      }
 
       const urlValidate = `/api/protected/dataprovider/validate/`;
       const responseValidate =
@@ -171,12 +186,12 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
     if (isNew) {
       setCompanyName(null);
       setUrlName(null);
-      setPassword(null);
+      setPassword("");
       setStatus(null);
     } else {
       setCompanyName(initialData.CompanyName);
       setUrlName(initialData.UrlName);
-      setPassword(initialData.Password);
+      setPassword("");
       setStatus(initialData.Status);
     }
   };
@@ -273,11 +288,27 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
           onChange={e => setUrlName(e.target.value)}
         />
         <br />
-        <FormInput
-          label="Wachtwoord"
-          value={Password}
-          onChange={e => setPassword(e.target.value)}
-        />
+        <label className="block">
+          <div>
+            <b>Wachtwoord</b>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={Password ?? ""}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              className="my-2 w-full rounded-full border px-5 py-2"
+            />
+            <button
+              type="button"
+              onClick={() => setPassword(generateRandomPassword())}
+              className="whitespace-nowrap rounded bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-700"
+            >
+              Random
+            </button>
+          </div>
+        </label>
         <br />
         <FormSelect
                 label="Status"
@@ -290,6 +321,7 @@ const DataproviderEdit = (props: DataproviderEditProps) => {
                 ]}
                 disabled={!isEditing}
             />
+        {!isNew && <DataproviderLinkedStallings operatorId={props.id} />}
       </div>
     </div>
   );

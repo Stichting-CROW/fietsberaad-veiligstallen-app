@@ -242,7 +242,7 @@ export default function TestOmgeving() {
             </Typography>
             <Typography variant="subtitle2">2. Database</Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              <code>npm run docker-acc:db:up</code> start MySQL op <code>127.0.0.1:5556</code>, database <code>acc_docker</code>, gebruiker <code>veiligstallen</code>. Het wachtwoord is <code>MYSQL_PASSWORD</code> uit <code>docker/acceptance/.env</code>. <code>npm run docker-acc:db:down</code> stopt MySQL en bewaart de data.
+              <code>npm run docker-acc:dev:up</code> start MySQL op <code>127.0.0.1:5556</code>, database <code>acc_docker</code>, gebruiker <code>veiligstallen</code>. Het wachtwoord is <code>MYSQL_PASSWORD</code> uit <code>docker/acceptance/.env</code>. <code>npm run docker-acc:dev:down</code> stopt MySQL en bewaart de data.
             </Typography>
             <Typography variant="subtitle2">3. App-variabelen</Typography>
             <Typography variant="body2" component="div" sx={{ mb: 1 }}>

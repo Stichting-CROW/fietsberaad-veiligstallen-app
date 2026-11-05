@@ -1,21 +1,26 @@
 /**
  * Queue processor for new_wachtrij_* tables.
  * Does not implement FMS tariff calculation or afboeking (intentional).
- * Processing order: pasids (50) → managed (50) → betalingen (200) → sync (1).
+ * Processing order: pasids (500) → managed (500) → betalingen (200) → sync (1).
  * In/Uit (new_wachtrij_transacties) is not processed — v4 uses managedtransactions.
  */
 
 import { prisma } from "~/server/db";
-import { getBikeparkByExternalID, getBikeparkSectionByExternalID } from "./bikepark-service";
-import { getBikepassByPassId, addSaldoObject } from "./account-service";
 import {
-  putManagedTransaction,
+  getBikeparkByExternalID,
+  getBikeparkSectionByExternalID,
+  loadBikeparksByStallingsID,
+  loadSectionsByExternalID,
+} from "./bikepark-service";
+import { bikepassKey, findBikepassIds, getBikepassByPassId, updatePasidBikes, addSaldoObject } from "./account-service";
+import {
+  putManagedTransactionsBatch,
   type ManagedTransactionInput,
 } from "./managed-transaction-service";
 import { processLumiguidePath } from "../bezettingsdata/update-bezettingsdata-service";
 
-const LIMIT_PASIDS = 50;
-const LIMIT_MANAGED = 50;
+const LIMIT_PASIDS = 500;
+const LIMIT_MANAGED = 500;
 const LIMIT_BETALINGEN = 200;
 const LIMIT_SYNC = 1;
 const QUEUE_PROCESSOR_TIMEOUT = 3 * 60 * 1000; // 3 minutes
@@ -130,49 +135,32 @@ async function processPasids(
     data: { processed: PROCESSED.LOCKED },
   });
 
-  let processed = 0;
   let errors = 0;
+  const bikeparks = await loadBikeparksByStallingsID(rows.map((row) => row.bikeparkID));
+  const pending: { queueID: number; siteID: string; passID: string; pastype: string; barcode: string | null; rfid: string | null; rfidBike: string | null; biketypeID: number }[] = [];
 
   for (const row of rows) {
     try {
-      const bikepark = await getBikeparkByExternalID(row.bikeparkID);
+      const bikepark = bikeparks.get(row.bikeparkID) ?? null;
       if (!bikepark?.SiteID) {
         throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
       }
-
       let bike: unknown = null;
       try {
         bike = JSON.parse(row.bike);
       } catch {
         bike = {};
       }
-      const pastype = parsePastypeFromBike(bike);
-
-      const bikepass = await getBikepassByPassId(
-        tx,
-        row.passID,
-        bikepark.SiteID,
-        pastype
-      );
-
-      const pasidsModel = tx.accounts_pasids;
-      await pasidsModel.update({
-        where: { ID: bikepass.ID },
-        data: {
-          barcodeFiets: row.barcode || undefined,
-          RFID: row.RFID || undefined,
-          RFIDBike: row.RFIDBike || undefined,
-          BikeTypeID: row.biketypeID ?? 1,
-          dateLastIdUpdate: new Date(),
-          dateModified: new Date(),
-        },
+      pending.push({
+        queueID: row.ID,
+        siteID: bikepark.SiteID,
+        passID: row.passID,
+        pastype: parsePastypeFromBike(bike),
+        barcode: row.barcode,
+        rfid: row.RFID,
+        rfidBike: row.RFIDBike,
+        biketypeID: row.biketypeID ?? 1,
       });
-
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-      });
-      processed++;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       await model.update({
@@ -183,7 +171,47 @@ async function processPasids(
     }
   }
 
-  return { processed, errors };
+  const passIds = await findBikepassIds(
+    tx,
+    pending.map((row) => ({ siteID: row.siteID, passID: row.passID, pastype: row.pastype }))
+  );
+  const ready: { queueID: number; id: string; barcode?: string; rfid?: string; rfidBike?: string; biketypeID: number }[] = [];
+  for (const row of pending) {
+    const key = bikepassKey(row.siteID, row.passID, row.pastype);
+    let id = passIds.get(key);
+    if (!id) {
+      try {
+        id = (await getBikepassByPassId(tx, row.passID, row.siteID, row.pastype)).ID;
+        passIds.set(key, id);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        await model.update({
+          where: { ID: row.queueID },
+          data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
+        });
+        errors++;
+        continue;
+      }
+    }
+    ready.push({
+      queueID: row.queueID,
+      id,
+      barcode: row.barcode || undefined,
+      rfid: row.rfid || undefined,
+      rfidBike: row.rfidBike || undefined,
+      biketypeID: row.biketypeID,
+    });
+  }
+
+  await updatePasidBikes(tx, ready);
+  if (ready.length > 0) {
+    await model.updateMany({
+      where: { ID: { in: ready.map((row) => row.queueID) } },
+      data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+    });
+  }
+
+  return { processed: ready.length, errors };
 }
 
 
@@ -244,37 +272,62 @@ async function processManagedTransacties(
     data: { processed: PROCESSED.LOCKED },
   });
 
-  let processed = 0;
   let errors = 0;
-
-  for (const row of rows) {
+  const prepared = rows.map((row) => {
     try {
       const managed = parseManagedPayload(row.payload);
       const sectionID = managed.sectionid_checkin ?? managed.sectionid ?? "";
-      if (!sectionID) {
-        throw new Error("sectionid ontbreekt in payload");
-      }
-      await putManagedTransaction(tx, {
-        bikeparkID: row.bikeparkID,
-        sectionID,
-        managed,
-      });
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-      });
-      processed++;
+      return { row, managed, sectionID, parseError: null as string | null };
     } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
+      const parseError = e instanceof Error ? e.message : String(e);
+      return { row, managed: null, sectionID: "", parseError };
+    }
+  });
+  const bikeparks = await loadBikeparksByStallingsID(prepared.map((item) => item.row.bikeparkID));
+  const sections = await loadSectionsByExternalID(
+    prepared.flatMap((item) => [item.sectionID, item.managed?.sectionid_out ?? ""])
+  );
+
+  const batchItems: { queueID: number; input: { bikeparkID: string; sectionID: string; managed: ManagedTransactionInput; bikeparks: typeof bikeparks; sections: typeof sections } }[] = [];
+  for (const { row, managed, sectionID, parseError } of prepared) {
+    if (parseError || !managed) {
       await model.update({
         where: { ID: row.ID },
-        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
+        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: parseError ?? "payload onleesbaar" },
       });
       errors++;
+      continue;
     }
+    if (!sectionID) {
+      await model.update({
+        where: { ID: row.ID },
+        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: "sectionid ontbreekt in payload" },
+      });
+      errors++;
+      continue;
+    }
+    batchItems.push({
+      queueID: row.ID,
+      input: { bikeparkID: row.bikeparkID, sectionID, managed, bikeparks, sections },
+    });
   }
 
-  return { processed, errors };
+  const { ok, failed } = await putManagedTransactionsBatch(tx, batchItems);
+  for (const failure of failed) {
+    await model.update({
+      where: { ID: failure.queueID },
+      data: { processed: PROCESSED.ERROR, processDate: new Date(), error: failure.error },
+    });
+    errors++;
+  }
+  if (ok.length > 0) {
+    await model.updateMany({
+      where: { ID: { in: ok } },
+      data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+    });
+  }
+
+  return { processed: ok.length, errors };
 }
 
 async function processBetalingen(
@@ -310,10 +363,11 @@ async function processBetalingen(
 
   let processed = 0;
   let errors = 0;
+  const bikeparks = await loadBikeparksByStallingsID(rows.map((row) => row.bikeparkID));
 
   for (const row of rows) {
     try {
-      const bikepark = await getBikeparkByExternalID(row.bikeparkID);
+      const bikepark = bikeparks.get(row.bikeparkID) ?? null;
       if (!bikepark?.SiteID) {
         throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
       }
