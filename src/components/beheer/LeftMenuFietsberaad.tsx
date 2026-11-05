@@ -247,6 +247,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           >
             <>
               <LeftMenuItem
+                component={VSMenuTopic.Achtergrondtaken}
+                title={'Achtergrondtaken'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiClock}
+              />
+              <LeftMenuItem
                 component={VSMenuTopic.NsKoppeling}
                 title={'NS Koppeling'}
                 compact={true}

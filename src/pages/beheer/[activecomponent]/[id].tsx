@@ -43,6 +43,7 @@ import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
 import StallingsschermenComponent from '~/components/beheer/stallingsschermen';
 import PrivacyBeheerComponent from '~/components/beheer/privacy';
 import AzureKostenComponent from '~/components/beheer/azure-kosten';
+import AchtergrondtakenComponent from '~/components/beheer/achtergrondtaken';
 import TestOmgeving from '~/components/beheer/test-omgeving/TestOmgeving';
 
 import { VSMenuTopic } from "~/types/index";
@@ -606,6 +607,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         case VSMenuTopic.AzureKosten:
           selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
             <AzureKostenComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.Achtergrondtaken:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <AchtergrondtakenComponent />
           ) : (
             <AccessDenied />
           );
