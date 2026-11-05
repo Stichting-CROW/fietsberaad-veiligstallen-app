@@ -20,13 +20,13 @@ export type TestgemeenteLockerPlaceStatus = {
 export function lockerPlaceConfigurationHint(): string {
   return [
     `Stalling ${TESTGEMEENTE_LOCKER_BIKEPARK_ID} (fietskluizen) moet sectie ${TESTGEMEENTE_LOCKER_SECTION_ID} hebben met minimaal één kluisplek (fietsenstalling_plek).`,
-    "Voeg kluisplekken toe via stallingbeheer, of maak de testgemeente opnieuw aan (parkeersimulatie → testgemeente aanmaken; nieuwe testgemeentes krijgen plekken automatisch).",
+    "Voeg kluisplekken toe via stallingbeheer, of maak de test data-eigenaar opnieuw aan via Beheer → Ontwikkeling → Acceptatie (docker) → Test data-eigenaar.",
   ].join(" ");
 }
 
 export function describeLockerPlaceProblem(status: TestgemeenteLockerPlaceStatus): string {
   if (!status.stallingExists) {
-    return `Fietskluizen-stalling ${status.bikeparkID} ontbreekt in de database. Maak de testgemeente aan via parkeersimulatie (inclusief stallings 9933_001 t/m 9933_007). ${lockerPlaceConfigurationHint()}`;
+    return `Fietskluizen-stalling ${status.bikeparkID} ontbreekt in de database. Maak de test data-eigenaar aan via Acceptatie (docker) → Test data-eigenaar (inclusief stallings 9933_001 t/m 9933_007). ${lockerPlaceConfigurationHint()}`;
   }
   if (!status.sectionExists) {
     return `Sectie ${status.sectionID} ontbreekt op stalling ${status.bikeparkID}. ${lockerPlaceConfigurationHint()}`;

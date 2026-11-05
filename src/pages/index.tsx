@@ -8,6 +8,10 @@ import SeoHead from "~/components/SeoHead";
 import { prisma } from "~/server/db";
 import { toMetaDescription } from "~/utils/seo";
 import { titleToSlug } from "~/utils/slug";
+import {
+  buildPublicStallingPath,
+  resolvePublicMunicipalityUrlName,
+} from "~/utils/server/public-stalling-url";
 
 export async function getServerSideProps(context: any) {
   try {
@@ -31,20 +35,23 @@ export async function getServerSideProps(context: any) {
           ID: stallingId,
           Status: "1",
         },
-        include: {
-          contacts_fietsenstallingen_SiteIDTocontacts: {
-            select: { UrlName: true },
-          },
+        select: {
+          ID: true,
+          Title: true,
+          Description: true,
+          Image: true,
+          Coordinaten: true,
+          EditorCreated: true,
+          IsStationsstalling: true,
+          Plaats: true,
+          Location: true,
+          contacts_fietsenstallingen_SiteIDTocontacts: { select: { UrlName: true } },
         },
       });
 
       if (parking) {
-        const urlName = parking.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName;
-        const nameSlug = parking.Title ? titleToSlug(parking.Title) : undefined;
-        const qs = new URLSearchParams();
-        if (nameSlug) qs.set("name", nameSlug);
-        qs.set("stallingid", parking.ID);
-        const path = urlName ? `/${urlName}/?${qs.toString()}` : `/?${qs.toString()}`;
+        const urlName = await resolvePublicMunicipalityUrlName(parking);
+        const path = buildPublicStallingPath(urlName, parking);
         const title = parking.Title
           ? `${parking.Title} - VeiligStallen`
           : "VeiligStallen";

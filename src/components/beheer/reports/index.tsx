@@ -146,6 +146,8 @@ interface ReportComponentProps {
   warning?: string;
   onDataLoaded?: (hasReportData: boolean) => void;
   initialReportType?: ReportType;
+  initialFilterState?: Partial<ReportState>;
+  persistFilterState?: boolean;
 }
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
@@ -158,6 +160,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   warning,
   onDataLoaded,
   initialReportType,
+  initialFilterState,
+  persistFilterState = true,
 }) => {
   const { data: session } = useSession()
   const router = useRouter()
@@ -504,6 +508,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 bikeparks={bikeparksWithData}
                 activeReportType={selectedReportType}
                 onStateChange={handleFilterChange}
+                initialFilterState={initialFilterState}
+                persistFilterState={persistFilterState}
                 resultView={resultView}
                 onResultViewChange={setResultView}
               />

@@ -12,8 +12,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import Link from "next/link";
 import SnapshotProgress, { type SnapshotPhaseView } from "./SnapshotProgress";
+import TestStallingPanel from "./TestStallingPanel";
+import TestAccessTable from "./TestAccessTable";
 
 type Owner = { id: string; name: string | null; gemeenteCode: number | null; zipId: string | null };
 type Named = { id: string; name: string | null };
@@ -59,9 +60,13 @@ export default function TestOmgeving() {
   const [confirm, setConfirm] = useState("");
   const [copyAllOwnerAccounts, setCopyAllOwnerAccounts] = useState(false);
   const [copyAllOwnerBarcodes, setCopyAllOwnerBarcodes] = useState(false);
-  const [tab, setTab] = useState(2);
+  const [tab, setTab] = useState(3);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
+  const [testStallingRefreshKey, setTestStallingRefreshKey] = useState(0);
+  const [testGemeenteExists, setTestGemeenteExists] = useState(false);
+  const [nsOrgExists, setNsOrgExists] = useState(false);
+  const [nsConnectorConfigured, setNsConnectorConfigured] = useState<boolean | null>(null);
 
   const loadCatalog = useCallback(async (nextOwners = ownerIds, nextExploitants = exploitantIds) => {
     const params = new URLSearchParams();
@@ -122,6 +127,82 @@ export default function TestOmgeving() {
   const snapshotRunning = (busy || job?.status === "running") && !phasesFinished;
   const confirmReady = confirm.trim() === "WISSEN";
 
+  const fetchTestGemeenteExists = useCallback(async () => {
+    try {
+      const res = await fetch("/api/protected/test-env/test-gemeente/status");
+      if (!res.ok) {
+        setTestGemeenteExists(false);
+        return;
+      }
+      const body = await res.json() as { exists?: boolean };
+      setTestGemeenteExists(!!body.exists);
+    } catch {
+      setTestGemeenteExists(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchTestGemeenteExists();
+  }, [fetchTestGemeenteExists, testStallingRefreshKey]);
+
+  const fetchNsOrganisationStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/protected/test-env/ns-organisation/status");
+      if (!res.ok) {
+        setNsOrgExists(false);
+        setNsConnectorConfigured(false);
+        return;
+      }
+      const body = await res.json() as { exists?: boolean; nsConnectorConfigured?: boolean };
+      setNsOrgExists(!!body.exists);
+      setNsConnectorConfigured(!!body.nsConnectorConfigured);
+    } catch {
+      setNsOrgExists(false);
+      setNsConnectorConfigured(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchNsOrganisationStatus();
+  }, [fetchNsOrganisationStatus]);
+
+  const bootstrapNsOrganisation = async () => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch("/api/protected/test-env/ns-organisation/create", { method: "POST" });
+      const body = await res.json() as { error?: string; message?: string };
+      if (!res.ok) throw new Error(body.error || "NS-organisatie aanmaken mislukt");
+      setInfo(body.message ?? "NS data-eigenaar aangemaakt.");
+      await fetchNsOrganisationStatus();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : String(actionError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteTestDataEigenaar = async () => {
+    if (!window.confirm("Weet je zeker dat je de test data-eigenaar wilt verwijderen? Stallings, test-exploitant, test-dataleverancier en testaccounts worden verwijderd.")) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch("/api/protected/test-env/test-gemeente/delete", { method: "POST" });
+      const body = await res.json() as { error?: string; message?: string };
+      if (!res.ok) throw new Error(body.error || "Verwijderen mislukt");
+      setInfo(body.message ?? "Test data-eigenaar verwijderd.");
+      setTestStallingRefreshKey((k) => k + 1);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : String(actionError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const createTeststalling = async () => {
     setBusy(true);
     setError(null);
@@ -130,15 +211,18 @@ export default function TestOmgeving() {
       const loginResponse = await fetch("/api/protected/test-env/teststalling", { method: "POST" });
       const loginBody = await loginResponse.json() as { error?: string; login?: { username: string; password: string } };
       if (!loginResponse.ok) throw new Error(loginBody.error || "Beheerlogin mislukt");
-      const createResponse = await fetch("/api/protected/parking-simulation/test-gemeente/create", { method: "POST" });
+      const createResponse = await fetch("/api/protected/test-env/test-gemeente/create", { method: "POST" });
       const createBody = await createResponse.json() as { error?: string; id?: string };
       if (!createResponse.ok && createResponse.status !== 400) {
         throw new Error(createBody.error || "Testgemeente aanmaken mislukt");
       }
       const login = loginBody.login;
       setInfo(
-        `Beheerlogin ${login?.username} / ${login?.password}. ${createBody.error ? createBody.error : `Testgemeente ${createBody.id ?? ""} aangemaakt.`}`,
+        createBody.error
+          ? `Fietsberaad-login ${login?.username} / ${login?.password}. ${createBody.error}`
+          : `Test data-eigenaar aangemaakt (${createBody.id ?? ""}). Fietsberaad-login: ${login?.username} / ${login?.password}. Zie testaccounts hieronder.`,
       );
+      setTestStallingRefreshKey((k) => k + 1);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : String(actionError));
     } finally {
@@ -223,7 +307,8 @@ export default function TestOmgeving() {
 
       <Tabs value={tab} onChange={(_, value: number) => setTab(value)} sx={{ flexShrink: 0 }}>
         <Tab label="Instructies" />
-        <Tab label="Teststalling" />
+        <Tab label="Test data-eigenaar" />
+        <Tab label="NS koppeling" />
         <Tab label="Productiesnapshot" />
         <Tab label="Opties" />
         <Tab label="Notities" />
@@ -272,20 +357,63 @@ export default function TestOmgeving() {
           </Box>
         )}
         {tab === 1 && (
-          <Box>
-            <Typography variant="h6">Teststalling</Typography>
+          <Box sx={{ overflow: "auto", flex: 1, minHeight: 0 }}>
+            <Typography variant="h6">Test data-eigenaar</Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Maakt de beheerlogin en de testgemeente API (9933). Daarna kun je in de parkeersimulatie een stalling klonen.
+              Maakt de Fietsberaad-login (indien nodig), de data-eigenaar testgemeente API (9933) met standaardstallings, een test-exploitant, test-dataleverancier (FMS) en vaste testaccounts. Daarna kun je extra stallings klonen.
             </Typography>
-            <Button variant="contained" disabled={busy} onClick={() => void createTeststalling()}>
-              Teststalling aanmaken
-            </Button>
-            <Button component={Link} href="/beheer/parking-simulation" sx={{ ml: 1 }}>
-              Parkeersimulatie
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+              <Button variant="contained" disabled={busy || testGemeenteExists} onClick={() => void createTeststalling()}>
+                Test data-eigenaar aanmaken
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                disabled={busy || !testGemeenteExists}
+                onClick={() => void deleteTestDataEigenaar()}
+              >
+                Test data-eigenaar verwijderen
+              </Button>
+            </Box>
+            <TestAccessTable refreshKey={testStallingRefreshKey} />
+            <TestStallingPanel
+              refreshKey={testStallingRefreshKey}
+              onMessage={(message, isError) => {
+                if (isError) setError(message);
+                else setInfo(message);
+              }}
+            />
+          </Box>
+        )}
+        {tab === 2 && (
+          <Box sx={{ overflow: "auto", flex: 1, minHeight: 0 }}>
+            <Typography variant="h6">NS koppeling</Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Voorbereiden van de NS-organisatie in <code>acc_docker</code> (UrlName <code>ns</code> en exploitant{" "}
+              <code>ns-stations</code>). Daarna importeer je locaties zoals in productie via{" "}
+              Achtergrondprocessen → NS Koppeling (dry run of echte import uit de NS Places API).
+            </Typography>
+            {nsConnectorConfigured === false && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <code>NSCONNECTOR_SUBSCRIPTION_KEY</code> is niet ingesteld in de app-omgeving. Zet de key in{" "}
+                <code>.env</code> of <code>.env.local</code> voordat je bootstrap of import gebruikt.
+              </Alert>
+            )}
+            {nsOrgExists && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                NS data-eigenaar (<code>ns</code>) staat in de database. Gebruik beheer → NS Koppeling om te synchroniseren.
+              </Alert>
+            )}
+            <Button
+              variant="contained"
+              disabled={busy || nsOrgExists || nsConnectorConfigured !== true}
+              onClick={() => void bootstrapNsOrganisation()}
+            >
+              NS data-eigenaar bootstrap
             </Button>
           </Box>
         )}
-        {tab === 3 && (
+        {tab === 4 && (
           <Box>
             <Typography variant="h6">Opties</Typography>
             <FormControlLabel
@@ -306,7 +434,7 @@ export default function TestOmgeving() {
             </Typography>
           </Box>
         )}
-        {tab === 4 && (
+        {tab === 5 && (
           <Box sx={{ overflow: "auto", flex: 1, minHeight: 0 }}>
             <Typography variant="h6">Notities</Typography>
             <Typography variant="body2" sx={{ mt: 1, mb: 2 }}>
@@ -329,15 +457,15 @@ export default function TestOmgeving() {
                 <li>unieke_bezoekers en rapportageinfo. De rapporten in deze app gebruiken de drie caches. Oude exporthistorie wordt niet gelezen.</li>
                 <li>Mailinglijsten, leden en verzonden berichten. De standaardteksten gaan wel mee.</li>
                 <li>Tijdelijke importtabellen, schema_version, lopers en log.</li>
-                <li>NextAuth-tabellen, de parkeersimulatie en de historie van privacy-retentie. Die horen bij deze omgeving, niet bij productie. Een snapshot wist de lokale simulatie.</li>
+                <li>NextAuth-tabellen en de historie van privacy-retentie. Die horen bij deze omgeving, niet bij productie.</li>
               </ul>
             </Typography>
           </Box>
         )}
-        {tab === 2 && !catalog?.prodAvailable && (
+        {tab === 3 && !catalog?.prodAvailable && (
           <Alert severity="info" sx={{ my: 1 }}>Productiekopie is niet beschikbaar op deze server.</Alert>
         )}
-        {tab === 2 && catalog?.prodAvailable && (
+        {tab === 3 && catalog?.prodAvailable && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minHeight: 0 }}>
             <Box sx={{
               display: "grid",
@@ -446,7 +574,7 @@ export default function TestOmgeving() {
             )}
           </Box>
         )}
-        {tab === 2 && job && (
+        {tab === 3 && job && (
           <Box sx={{ mt: 1, flexShrink: 0 }}>
             {job.phases && job.phases.length > 0 ? (
               <SnapshotProgress phases={job.phases} />

@@ -11,7 +11,7 @@ import { useAbonnementLink } from "~/hooks/useAbonnementLink";
 
 const renderGeenInfoBeschikbaar = () => {
   return (
-    <>  
+    <>
       <SectionBlock heading="Abonnementen">
         <div className="ml-2 grid grid-cols-1">
           <div>Geen informatie over abonnementen beschikbaar</div>
@@ -46,11 +46,11 @@ const ParkingViewAbonnementen = ({ parkingdata }: { parkingdata: ParkingDetailsT
     </SectionBlock>;
   }
 
-  if(!abonnementLink || !abonnementLink.status || !filteredSubscriptionTypes ) {
+  if (!abonnementLink || !abonnementLink.status || !filteredSubscriptionTypes) {
     return renderGeenInfoBeschikbaar();
   }
 
-  if(filteredSubscriptionTypes.length === 0) {
+  if (filteredSubscriptionTypes.length === 0) {
     return renderGeenInfoBeschikbaar();
   }
 

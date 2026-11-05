@@ -600,10 +600,13 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const updateStallingId = (id: string | undefined): void => {
       const municipality = getCurrentMunicipalityFromUrl();
       const pathname = municipality ? `/${municipality}` : "/";
+      if (activeParkingId !== id) {
+        dispatch(setActiveParkingId(id));
+      }
       if (undefined === id) {
         delete query.stallingid;
         delete query.name;
-        router.push({ pathname, query: { ...query } });
+        router.push({ pathname, query: { ...query } }, undefined, { shallow: true });
       } else {
         const parking = allparkingdata?.find((p) => p.ID === id);
         const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
@@ -615,11 +618,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         }
         if (municipality) newQuery.municipality = municipality;
         else delete newQuery.municipality;
-        router.push({ pathname, query: newQuery });
-      }
-  
-      if (activeParkingId !== id) {
-        dispatch(setActiveParkingId(id));
+        router.push({ pathname, query: newQuery }, undefined, { shallow: true });
       }
     };
   
@@ -629,7 +628,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         const pathname = municipality ? `/${municipality}` : "/";
         delete query.stallingid;
         delete query.name;
-        router.push({ pathname, query: { ...query } });
+        router.push({ pathname, query: { ...query } }, undefined, { shallow: true });
       }
       dispatch(setActiveParkingId(undefined));
     };

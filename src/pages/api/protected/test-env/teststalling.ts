@@ -14,7 +14,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const login = await ensureTestAdmin();
     res.status(200).json({
       login,
-      testgemeenteUrl: "/api/protected/parking-simulation/test-gemeente/create",
+      testgemeenteUrl: "/api/protected/test-env/test-gemeente/create",
     });
   } catch (error) {
     sendTestEnvError(res, error);

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+export const TEST_ADMIN_EMAIL = "beheer@example.test";
 export const TEST_LOGIN_PASSWORD = "teststalling";
 
 export type Anonymizer = {

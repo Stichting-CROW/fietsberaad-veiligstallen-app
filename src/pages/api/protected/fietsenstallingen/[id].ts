@@ -634,11 +634,6 @@ export default async function handle(
            WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_managed_transacties'`
         ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
 
-        const parkingsimulationTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
-          `SELECT COUNT(*) as count FROM information_schema.tables 
-           WHERE table_schema = DATABASE() AND table_name = 'parkingsimulation_section_assignments'`
-        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
-
         await prisma.$transaction(
           async (tx) => {
             const plekIds = await tx.fietsenstalling_plek.findMany({
@@ -705,11 +700,6 @@ export default async function handle(
               });
               await tx.transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
               await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.StallingsID } });
-              if (parkingsimulationTablesExist) {
-                await tx.parkingsimulation_section_assignments.deleteMany({
-                  where: { locationid: stalling.StallingsID },
-                });
-              }
             }
             await tx.fietsenstallingen.delete({
               where: { ID: stalling.ID },

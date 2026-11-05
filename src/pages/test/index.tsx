@@ -122,13 +122,6 @@ const TestIndexPage: React.FC = () => {
           {hasFietsberaadSuperadmin && (
             <>
               <Button
-                onClick={() => handleNavigate('/beheer/parking-simulation')}
-                className="py-6 px-8 text-center w-full"
-                style={{ backgroundColor: '#3B82F6' }}
-              >
-                Parkeer Simulatie
-              </Button>
-              <Button
                 onClick={() => handleNavigate('/test/fms-api-compare')}
                 className="py-6 px-8 text-center w-full"
                 style={{ backgroundColor: '#3B82F6' }}

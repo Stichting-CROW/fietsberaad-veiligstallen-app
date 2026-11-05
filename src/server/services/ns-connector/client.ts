@@ -14,7 +14,7 @@ export const NS_SYNC_QUERIES = [
       type: "stationfacility",
       radius: "1000",
       name: "fietskluis",
-      limit: "250",
+      limit: "500",
     },
   },
   {
@@ -24,7 +24,7 @@ export const NS_SYNC_QUERIES = [
       type: "stationfacility",
       radius: "1000",
       identifier: "fietsenstalling",
-      limit: "250",
+      limit: "500",
     },
   },
 ] as const;

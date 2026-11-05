@@ -2,69 +2,56 @@
 
 Handleiding om een testomgeving klaar te zetten zodat Wilmar v4 kan testen zonder productie-stallingen aan te raken.
 
-Vereist: fietsberaad-superadmin, en `ENABLE_WRITE_API=true` op de host (anders geven writes HTTP 403).
+Vereist: fietsberaad-superadmin, `acceptatie_ontwikkeling`, `TEST_ENV_BOOTSTRAP=1`, en `ENABLE_WRITE_API=true` op de host (anders geven writes HTTP 403).
 
-Aanbevolen host: **acceptance** (`https://vstfb-eu-acc-app01.azurewebsites.net`).
+Aanbevolen: lokale **Acceptatie (docker)**-stack (`acc_docker` op `127.0.0.1:5556`) met `npm run dev`. Zie [acceptance-docker.md](../acceptance-docker.md).
 
-Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) naar Wilmar. Pas daarin de basis-URL aan als je een andere host gebruikt.
+Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) naar Wilmar. Pas daarin de basis-URL aan (`http://localhost:3000` of je tunnel).
 
 ---
 
-## 1. Tabellen en testgemeente
+## 1. Testgemeente
 
-1. Open `/beheer/parking-simulation` → tab **Instellingen**.
-2. **Parkeer Simulatie tabellen**: als status *Niet aanwezig* is, klik **Maak tabellen**.
-3. **Testgemeente API**: als status *Niet aanwezig* is, klik **Maak testgemeente**.
+1. **Beheer → Ontwikkeling → Acceptatie (docker)** → tab **Test data-eigenaar**.
+2. Klik **Test data-eigenaar aanmaken** (beheerlogin + data-eigenaar testgemeente API, citycode `9933`).
 
-Dat maakt de organisatie `testgemeente API` (citycode `9933`) aan, inclusief een kopie van Utrecht Vredenburg als stalling **`9933_001`** (sectie **`9933_001_1`**).
+Dat maakt o.a. aan:
 
-Een extra kloon is niet nodig. Wil je toch een verse kopie: **Teststallingen → Toevoegen** → type *bewaakt* → bron *Utrecht* → zoek *Vredenburg* → **Aanmaken**. Noteer het nieuwe StallingsID (`9933_00x`).
+- Data-eigenaar `testgemeente API` (citycode `9933`) met standaardstallings zoals **`9933_001`**
+- Test-exploitant **Test exploitant API**
+- Test-dataleverancier **Test dataleverancier API** (`api-test` / `api-test-$$`) met FMS operator-rechten op alle stallingen
+- Beheeraccounts `beheerder@testgemeente.test` en `exploitant@testgemeente.test` (wachtwoord `teststalling`)
 
-## 2. API-account
+De inloggegevens staan in de tabel **Testaccounts** op hetzelfde tabblad.
 
-1. **Beheer → Organisaties → Dataleveranciers → Nieuwe Dataleverancier**
-   - Naam: `Wilmar API test`
-   - ContractorID (datastandaard): `api-test`
-   - Wachtwoord: `api-test-$$`
-   - Status: Actief
-2. **Beheer → Organisaties → Data-eigenaren** → open **testgemeente API** → tab **FMS rechten**
-   - Dataleverancier: *Wilmar API test*
-   - Locatie: *Alle stallingen in testgemeente API*
-   - Rechten: **Operator (alle rechten)**
-   - **Toegang toevoegen**
+Extra layout-kloon: **Stalling klonen** → type *bewaakt* → bron *Utrecht* → *Vredenburg* → **Aanmaken**.
 
-## 3. Simulatie-credentials en fietsen
+### NS koppeling (optioneel)
 
-Op dezelfde pagina `/beheer/parking-simulation` → **Instellingen** → **FMS API instellingen**:
+1. Zet `NSCONNECTOR_SUBSCRIPTION_KEY` in `.env` / `.env.local`.
+2. Tab **NS koppeling** → **NS data-eigenaar bootstrap** (organisatie `ns` + exploitant `ns-stations`).
+3. **Beheer → Achtergrondprocessen → NS Koppeling** → voorbeeld-import of echte import (zelfde sync als productie).
 
-- UrlName: `api-test`
-- Wachtwoord: `api-test-$$`
-- API Base URL: leeg laten
-- **Opslaan**
+## 2. Smoke-test
 
-Daarna tab **Dashboard**:
-
-1. Fietsenpool → **Vullen** (50 fietsen, 30 elektrisch, 10 bromfietsen, 10 bakfietsen).
-2. Open het tabblad van stalling `9933_001`.
-3. Onder **Report transactions**: Type *In*, kies een fietstype, klik **Check-in** (eventueel aantal 5).
-4. Klik **Process** zodat de transacties in `transacties` landen.
-
-Optionele smoke-test (ingelogd in dezelfde browser):
+Met de app op je dev-host:
 
 ```bash
 curl -sS -u 'api-test:api-test-$$' \
-  'https://vstfb-eu-acc-app01.azurewebsites.net/api/fms/v4/citycodes/9933/locations/9933_001'
+  'http://localhost:3000/api/fms/v4/citycodes/9933/locations/9933_001'
 ```
 
 Verwacht: JSON van de stalling, geen 401.
 
-## 4. Checklist voor Wilmar
+Transacties en bezetting test je via de FMS v4 API of [FMS schrijf-tests](/test/fms-write-tests) (superadmin).
+
+## 3. Checklist voor Wilmar
 
 Geef hen [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) plus:
 
 | Gegeven | Waarde |
 | --- | --- |
-| Host | `https://vstfb-eu-acc-app01.azurewebsites.net` |
+| Host | jouw Next.js-basis-URL (bijv. tunnel naar localhost) |
 | User / wachtwoord | `api-test` / `api-test-$$` |
 | Citycode | `9933` |
 | Locationid | `9933_001` |

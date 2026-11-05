@@ -1,4 +1,4 @@
-import type { NSLocation, NSOpeningHour } from "~/types/ns-connector";
+import type { NSInfoImage, NSLocation, NSOpeningHour } from "~/types/ns-connector";
 
 export type NsBikeparkType = "bewaakt" | "geautomatiseerd" | "fietskluizen";
 
@@ -83,23 +83,116 @@ type OpeningHourFieldNames = {
 
 export type NsOpeningHourUpdate = Partial<OpeningHourFieldNames>;
 
+const ALL_OPENING_KEYS = Object.values(DAY_OPEN_CLOSE).flatMap((d) => [d.open, d.close]);
+
+function emptyOpeningHourFields(): NsOpeningHourUpdate {
+  const result: NsOpeningHourUpdate = {};
+  for (const key of ALL_OPENING_KEYS) {
+    result[key] = null;
+  }
+  return result;
+}
+
 function readOpeningHours(location: NSLocation): NSOpeningHour[] {
   const raw = location as NSLocation & { openinghours?: NSOpeningHour[] };
   return raw.openingHours ?? raw.openinghours ?? [];
 }
 
-function readInfoImages(location: NSLocation): { link: { uri: string } }[] | undefined {
-  const raw = location as NSLocation & { infoimages?: { link: { uri: string } }[] };
+function readInfoImages(location: NSLocation): NSInfoImage[] | undefined {
+  const raw = location as NSLocation & { infoimages?: NSInfoImage[] };
   return raw.infoImages ?? raw.infoimages;
 }
 
+function infoImageByTitle(images: NSInfoImage[], title: string): NSInfoImage | undefined {
+  return images.find((img) => img.title?.trim() === title);
+}
+
+/** Plain NS `body` text (\\r\\n) → safe HTML for `OmschrijvingTarieven` / `Openingstijden`. */
+export function nsInfoTextToHtml(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const escaped = trimmed
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return escaped.replace(/\r\n|\r|\n/g, "<br />");
+}
+
+/** Memo → Openingstijden, Tarief Toelichting → OmschrijvingTarieven; ignores Storing. */
+export function buildInfoTextFields(location: NSLocation): {
+  OmschrijvingTarieven: string;
+  Openingstijden: string;
+  Url: string;
+} {
+  const images = readInfoImages(location) ?? [];
+  const tarief = infoImageByTitle(images, "Tarief Toelichting");
+  const memo = infoImageByTitle(images, "Memo");
+  return {
+    OmschrijvingTarieven: tarief?.body ? nsInfoTextToHtml(tarief.body) : "",
+    Openingstijden: memo?.body ? nsInfoTextToHtml(memo.body) : "",
+    Url: location.infoUrl?.trim() ?? "",
+  };
+}
+
+function timeToMinutes(time: string): number | null {
+  const trimmed = time.trim();
+  if (trimmed === "24:00") return 24 * 60;
+  const parsed = parseNsTime(trimmed);
+  if (!parsed) return null;
+  return parsed.getUTCHours() * 60 + parsed.getUTCMinutes();
+}
+
+/**
+ * Maps one NS openingHours row to fietsenstallingen `Open_*` / `Dicht_*` (regular stalling conventions).
+ * @see docs/NS-API-Integration.md — opening hours mapping
+ */
+export function nsOpeningHourToDbTimes(entry: NSOpeningHour): { open: Date | null; close: Date | null } {
+  const startTrim = entry.startTime.trim();
+  const endTrim = entry.endTime.trim();
+  const open = parseNsTime(startTrim);
+  if (!open) {
+    return { open: null, close: null };
+  }
+
+  // NS UI: 00:00–24:00 = gehele dag (24 uur), regardless of closesNextDay
+  if (startTrim === "00:00" && endTrim === "24:00") {
+    return { open: parseNsTime("00:00"), close: parseNsTime("23:59") };
+  }
+
+  if (endTrim === "24:00") {
+    return { open, close: parseNsTime("00:00") };
+  }
+
+  const close = parseNsTime(endTrim);
+  if (!close) {
+    return { open: null, close: null };
+  }
+
+  if (entry.closesNextDay === true) {
+    const startM = timeToMinutes(startTrim);
+    const endM = timeToMinutes(endTrim);
+    if (startM != null && endM != null && endM >= startM) {
+      return { open, close };
+    }
+  }
+
+  return { open, close };
+}
+
 export function buildOpeningHourFields(location: NSLocation): NsOpeningHourUpdate {
-  const result: NsOpeningHourUpdate = {};
-  for (const entry of readOpeningHours(location)) {
+  const hours = readOpeningHours(location);
+  if (hours.length === 0 || location.open === "Unknown") {
+    return emptyOpeningHourFields();
+  }
+
+  const result = emptyOpeningHourFields();
+  for (const entry of hours) {
     const cols = DAY_OPEN_CLOSE[entry.dayOfWeek];
     if (!cols) continue;
-    result[cols.open] = parseNsTime(entry.startTime);
-    result[cols.close] = parseNsTime(entry.endTime);
+    const { open, close } = nsOpeningHourToDbTimes(entry);
+    result[cols.open] = open;
+    result[cols.close] = close;
   }
   return result;
 }
@@ -136,6 +229,9 @@ export type NsLocationUpdateFields = {
   Postcode: string;
   Plaats: string;
   NotaVerwijssysteem: string;
+  OmschrijvingTarieven: string;
+  Openingstijden: string;
+  Url: string;
   Tariefcode?: number;
   EditorModified: string;
   DateModified: Date;
@@ -160,6 +256,7 @@ export function buildLocationUpdateFields(
     EditorModified: "NS-connector",
     DateModified: now,
     ...buildOpeningHourFields(location),
+    ...buildInfoTextFields(location),
   };
 
   const regime = location.extra?.regime;

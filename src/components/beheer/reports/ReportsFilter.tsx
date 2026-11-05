@@ -158,6 +158,8 @@ interface ReportsFilterComponentProps {
   activeReportType?: ReportType;
   onStateChange: (newState: ReportState) => void;
   initialFilterState?: Partial<ReportState>;
+  /** When false, ignore and do not write VS_reports_filterState (e.g. stalling detail modal). */
+  persistFilterState?: boolean;
   resultView?: ReportResultView;
   onResultViewChange?: (view: ReportResultView) => void;
 }
@@ -222,6 +224,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
   activeReportType,
   onStateChange,
   initialFilterState,
+  persistFilterState = true,
   resultView = "chart",
   onResultViewChange,
 }, ref) => {
@@ -287,6 +290,9 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
   // Load initial state from localStorage or use defaults
   const loadInitialState = () => {
+    if (!persistFilterState) {
+      return { ...defaultReportState, ...initialFilterState };
+    }
     const savedState = localStorage.getItem(STORAGE_KEY);
     if (savedState) {
       try {
@@ -1219,6 +1225,7 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
+    if (!persistFilterState) return;
     const stateToSave = {
       reportType,
       reportGrouping,
@@ -1248,7 +1255,8 @@ const ReportsFilterComponent = forwardRef<ReportsFilterHandle, ReportsFilterComp
     customEndDate,
     activePreset,
     selectedSeries,
-    source
+    source,
+    persistFilterState,
   ]);
 
   return (

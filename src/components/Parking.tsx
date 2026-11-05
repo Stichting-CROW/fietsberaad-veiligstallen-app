@@ -84,13 +84,23 @@ const Parking = ({ id, stallingId, onStallingIdChanged, onClose }: ParkingProps)
     return null;
   }
 
-  const allowEdit = session.status === "authenticated" || currentStalling && currentStalling.Status === "aanm";
+  const isNsConnectorStalling = currentStalling.EditorCreated === "NS-connector";
+  const allowEdit =
+    !isNsConnectorStalling &&
+    (session.status === "authenticated" || currentStalling.Status === "aanm");
 
   let content = undefined;
-  if (allowEdit === true && (editMode === true)) {
+  if (allowEdit === true && editMode === true) {
     content = (<ParkingEdit parkingdata={currentStalling} onClose={handleCloseEdit} onChange={handleUpdateRevision} />);
   } else {
-    content = (<ParkingView parkingdata={currentStalling} onEdit={allowEdit ? () => { setEditMode(true) } : undefined} onToggleStatus={handleToggleStatus} isLoggedIn={session.status === "authenticated"} />);
+    content = (
+      <ParkingView
+        parkingdata={currentStalling}
+        onEdit={allowEdit ? () => { setEditMode(true); } : undefined}
+        onToggleStatus={isNsConnectorStalling ? undefined : handleToggleStatus}
+        isLoggedIn={session.status === "authenticated"}
+      />
+    );
   }
 
   return (
