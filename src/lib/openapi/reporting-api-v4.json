@@ -287,6 +287,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/OccupationError"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           }
@@ -310,6 +313,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/OccupationError"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

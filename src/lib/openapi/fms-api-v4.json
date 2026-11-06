@@ -438,6 +438,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       },
@@ -558,6 +567,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
           }
         }
       },
@@ -600,6 +612,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -656,6 +677,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -702,6 +732,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
           }
         }
       }
@@ -905,6 +938,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -912,6 +946,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -971,6 +1014,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -978,6 +1022,95 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/idcodes/{idtype}/{idcode}": {
+      "post": {
+        "summary": "Koppelpas op sectorpad (alias van de locatie-variant)",
+        "description": "Zelfde werking, permit (`operator`) en body als\n`POST …/locations/{locationid}/idcodes/{idtype}/{idcode}`. `sectionid` wordt niet gebruikt;\ndit pad bestaat voor compatibiliteit met v3 (`koppelpas_section`).\nNieuwe koppelingen bij voorkeur via de locatie-variant.\n",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "3=tijdelijk, 4=tmp_sleutelhanger"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newidcodes": {
+                    "type": "object",
+                    "properties": {
+                      "idcode": {
+                        "type": "string"
+                      },
+                      "idtype": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultaat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1034,6 +1167,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1041,6 +1175,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1108,6 +1251,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1115,6 +1259,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1122,7 +1275,7 @@
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation": {
       "post": {
         "summary": "Sectorcontrole vastleggen en/of bezetting doorgeven",
-        "description": "data.bikes wordt opgeslagen als controlemoment en maakt geen transacties. Afwijkingen gaan mee in data.managedtransactions (maximaal 2500). data.occupation zet het schermgetal.",
+        "description": "data.bikes wordt opgeslagen als controlemoment en maakt geen transacties. Afwijkingen gaan mee in data.managedtransactions (maximaal 2500). data.occupation zet het schermgetal. Minstens één van data.bikes en data.occupation is verplicht, anders 400. Het vereiste permit hangt af van de velden: data.bikes en data.managedtransactions vragen operator, dataprovider.type1 of dataprovider.type2; data.occupation vraagt operator of dataprovider.type2.\n",
         "tags": [
           "V4 Write"
         ],
@@ -1153,6 +1306,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1160,6 +1314,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1464,6 +1627,22 @@
           },
           {
             "$ref": "#/components/parameters/V4Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1489,6 +1668,22 @@
           },
           {
             "$ref": "#/components/parameters/V4Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1505,6 +1700,38 @@
         "type": "http",
         "scheme": "basic",
         "description": "HTTP Basic Auth (UrlName + Password uit contacts)"
+      }
+    },
+    "responses": {
+      "V4BadRequest": {
+        "description": "Ongeldige invoer of verwerkingsfout. `message` bevat de reden, `status` is 0.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
+      },
+      "V4Unauthorized": {
+        "description": "Geen of ongeldige Basic Auth, of het account heeft niet het vereiste `permit` voor deze stalling\n(`message`: `Niet voldoende rechten`).\n",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
+      },
+      "V4WriteDisabled": {
+        "description": "De write-API staat uit op deze host (`ENABLE_WRITE_API` is niet `true`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
       }
     },
     "parameters": {

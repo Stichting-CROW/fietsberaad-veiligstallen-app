@@ -195,6 +195,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrganisationList'
+        '400':
+          $ref: '#/components/responses/OccupationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /v4/occupation/surveys:
@@ -209,6 +211,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SurveyList'
+        '400':
+          $ref: '#/components/responses/OccupationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /v4/citycodes/{citycode}/locations/{location}/transactions:

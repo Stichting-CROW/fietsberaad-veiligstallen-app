@@ -362,6 +362,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
     get:
       summary: Saldo voor één ID-middel (operator)
       tags:
@@ -432,6 +438,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/V3SubscriptionEntry'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
     post:
       summary: Abonnement toevoegen
       description: Vereist ENABLE_WRITE_API en Basic Auth (operator of dataprovider.type2).
@@ -456,6 +464,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/subscriptions/{subscriptionid}:
     post:
       summary: Pas koppelen aan bestaand abonnement
@@ -488,6 +502,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/bikeupdates:
     get:
       summary: Fietsmutaties sinds tijdstip
@@ -516,6 +536,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/V3BikeUpdatesResponse'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
   /v4/citycodes/{citycode}/locations/{locationid}/bikes:
     get:
       summary: Geregistreerde fietsen (barcoderegister)
@@ -632,10 +654,17 @@ paths:
                   $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
         '200':
+          description: Resultaat
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}:
     post:
       summary: Tijdelijke pas koppelen aan definitieve pas (koppelpas)
@@ -670,10 +699,68 @@ paths:
                       type: integer
       responses:
         '200':
+          description: Resultaat
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
+  /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/idcodes/{idtype}/{idcode}:
+    post:
+      summary: Koppelpas op sectorpad (alias van de locatie-variant)
+      description: |
+        Zelfde werking, permit (`operator`) en body als
+        `POST …/locations/{locationid}/idcodes/{idtype}/{idcode}`. `sectionid` wordt niet gebruikt;
+        dit pad bestaat voor compatibiliteit met v3 (`koppelpas_section`).
+        Nieuwe koppelingen bij voorkeur via de locatie-variant.
+      tags:
+      - V4 Write
+      parameters:
+      - $ref: '#/components/parameters/V4Citycode'
+      - $ref: '#/components/parameters/V4Locationid'
+      - $ref: '#/components/parameters/V4Sectionid'
+      - name: idtype
+        in: path
+        required: true
+        schema:
+          type: integer
+          description: 3=tijdelijk, 4=tmp_sleutelhanger
+      - name: idcode
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newidcodes:
+                  type: object
+                  properties:
+                    idcode:
+                      type: string
+                    idtype:
+                      type: integer
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/idcodes/{idtype}/{idcode}/bike:
     post:
       summary: Fiets koppelen aan pas
@@ -706,10 +793,17 @@ paths:
                   type: integer
       responses:
         '200':
+          description: Resultaat
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/managedtransactions:
     post:
       summary: Beheerde transactie(s) (sector)
@@ -750,10 +844,17 @@ paths:
                   $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
         '200':
+          description: Resultaat
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation:
     post:
       summary: Sectorcontrole vastleggen en/of bezetting doorgeven
@@ -761,6 +862,10 @@ paths:
         data.bikes wordt opgeslagen als controlemoment en maakt geen transacties.
         Afwijkingen gaan mee in data.managedtransactions (maximaal 2500).
         data.occupation zet het schermgetal.
+        Minstens één van data.bikes en data.occupation is verplicht, anders 400.
+        Het vereiste permit hangt af van de velden: data.bikes en data.managedtransactions
+        vragen operator, dataprovider.type1 of dataprovider.type2; data.occupation vraagt
+        operator of dataprovider.type2.
       tags:
       - V4 Write
       parameters:
@@ -777,10 +882,17 @@ paths:
                   $ref: '#/components/schemas/V3OccupationData'
       responses:
         '200':
+          description: Resultaat
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '400':
+          $ref: '#/components/responses/V4BadRequest'
+        '401':
+          $ref: '#/components/responses/V4Unauthorized'
+        '403':
+          $ref: '#/components/responses/V4WriteDisabled'
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/places/{placeid}:
     get:
       summary: Eén plek
@@ -944,6 +1056,16 @@ paths:
       - $ref: '#/components/parameters/V4Locationid'
       - $ref: '#/components/parameters/V4Sectionid'
       - $ref: '#/components/parameters/V4Placeid'
+      - name: idtype
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: idcode
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '410':
           description: Fietskluizen/buurt-toegang via FMS REST is verwijderd in v4.
@@ -956,6 +1078,16 @@ paths:
       - $ref: '#/components/parameters/V4Locationid'
       - $ref: '#/components/parameters/V4Sectionid'
       - $ref: '#/components/parameters/V4Placeid'
+      - name: idtype
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: idcode
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         '410':
           description: Koppelpas op plek-niveau is verwijderd in v4. Gebruik POST …/locations/{id}/idcodes/….
@@ -965,6 +1097,27 @@ components:
       type: http
       scheme: basic
       description: HTTP Basic Auth (UrlName + Password uit contacts)
+  responses:
+    V4BadRequest:
+      description: Ongeldige invoer of verwerkingsfout. `message` bevat de reden, `status` is 0.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Result'
+    V4Unauthorized:
+      description: |
+        Geen of ongeldige Basic Auth, of het account heeft niet het vereiste `permit` voor deze stalling
+        (`message`: `Niet voldoende rechten`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Result'
+    V4WriteDisabled:
+      description: De write-API staat uit op deze host (`ENABLE_WRITE_API` is niet `true`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Result'
   parameters:
     V4Citycode:
       name: citycode
