@@ -11,6 +11,7 @@ import { getLaagSaldo } from "~/backend/services/reports/laagSaldo";
 import { getPasOverzicht } from "~/server/display/overzichten-queries";
 import { monthlyReport } from "~/modules/buurtstallingen/application/service";
 import { prisma } from "~/server/db";
+import { stallingIdsForActiveContact } from "~/server/services/scope-bikepark-ids";
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   // Require authentication and rapportages role for all report endpoints
@@ -31,7 +32,19 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
   if (req.method === 'POST') {
     let data = undefined;
 
-    // one of 
+    const reportParams = req.body?.reportParams;
+    if (reportParams && Array.isArray(reportParams.bikeparkIDs)) {
+      reportParams.bikeparkIDs = await stallingIdsForActiveContact(
+        session.user.activeContactId,
+        reportParams.bikeparkIDs,
+      );
+      if (Array.isArray(reportParams.bikeparkDataSources)) {
+        const allowed = new Set<string>(reportParams.bikeparkIDs);
+        reportParams.bikeparkDataSources = reportParams.bikeparkDataSources.filter(
+          (bp: { StallingsID?: string }) => typeof bp?.StallingsID === "string" && allowed.has(bp.StallingsID),
+        );
+      }
+    }
 
     switch (req.query.reportType) {
       case "transacties_voltooid":

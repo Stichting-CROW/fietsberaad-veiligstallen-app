@@ -106,7 +106,7 @@ const ParkingEditBeheerder: React.FC<ParkingEditBeheerderProps> = ({
   setNewHelpdeskHandmatigIngesteld,
 }) => {
   // Use the hook for exploitanten
-  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || undefined);
+  const { exploitanten, isLoading: isLoadingExploitanten, error: errorExploitanten } = useExploitanten(parkingdata.SiteID || "");
 
   if (isLoadingExploitanten) {
     return (
