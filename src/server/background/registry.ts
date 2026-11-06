@@ -20,7 +20,6 @@ export type TaskDefinition = {
   run: (ctx: TaskContext) => Promise<unknown>;
 };
 
-const isProduction = () => process.env.NEXT_PUBLIC_APP_ENV === "production";
 const always = () => true;
 const never = () => false;
 
@@ -31,8 +30,7 @@ function payloadObject(payload: unknown): Record<string, unknown> {
 export const TASKS: Record<string, TaskDefinition> = {
   "process-queues": {
     label: "Wachtrij verwerken (FMS)",
-    // Production queues are still processed by ColdFusion.
-    schedule: { cron: "* * * * *", enabledByDefault: () => !isProduction() },
+    schedule: { cron: "* * * * *", enabledByDefault: always },
     run: async () => {
       const { processQueues } = await import("~/server/services/queue/processor");
       const result = await processQueues();
@@ -166,7 +164,12 @@ export function getTask(type: string): TaskDefinition | undefined {
   return Object.prototype.hasOwnProperty.call(TASKS, type) ? TASKS[type] : undefined;
 }
 
-export function scheduleDefaults() {
+/**
+ * Deployed builds (acceptance, production, docker) seed every schedule disabled; enable them on the
+ * beheer screen. Production does not set NEXT_PUBLIC_APP_ENV, so only `next dev` counts as local.
+ */
+export function scheduleDefaults(env: Record<string, string | undefined> = process.env) {
+  const local = env.NODE_ENV === "development";
   return Object.entries(TASKS)
     .filter(([, def]) => def.schedule)
     .map(([type, def]) => ({
@@ -174,6 +177,6 @@ export function scheduleDefaults() {
       taskType: type,
       cron: def.schedule!.cron,
       timezone: def.schedule!.timezone ?? DEFAULT_TIMEZONE,
-      enabled: def.schedule!.enabledByDefault(),
+      enabled: local && def.schedule!.enabledByDefault(),
     }));
 }
