@@ -1,27 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   REMINDER_START_DATE_UTC,
+  isReminderProductionEnvironment,
   sendAutoReminderEmails,
 } from "~/utils/server/contactpersonen-reminder-mail";
-
-function isProductionEnvironment(): boolean {
-  const explicit = process.env.REMINDER_RUNTIME_ENV?.trim().toLowerCase();
-  if (explicit) {
-    return explicit === "production" || explicit === "prod";
-  }
-
-  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
-  if (nodeEnv) {
-    return nodeEnv === "production";
-  }
-
-  const genericEnv = process.env.APP_ENV?.trim().toLowerCase();
-  if (genericEnv) {
-    return genericEnv === "production" || genericEnv === "prod";
-  }
-
-  return false;
-}
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -36,7 +18,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (!isProductionEnvironment()) {
+  if (!isReminderProductionEnvironment()) {
     return res.status(200).json({
       ok: true,
       skipped: true,

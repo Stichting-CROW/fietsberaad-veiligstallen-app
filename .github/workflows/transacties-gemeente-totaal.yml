@@ -1,0 +1,16 @@
+name: Transacties gemeente totaal (displays)
+
+on:
+  schedule:
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  update-totals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cron endpoint (production)
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://beta.veiligstallen.nl/api/cron/transacties-gemeente-totaal"

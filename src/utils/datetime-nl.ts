@@ -1,9 +1,26 @@
+import moment from "moment-timezone";
+
 /**
  * MySQL DATETIME / TIMESTAMP display for Veiligstallen reports.
  * Prisma/mysql2 map naive DB datetimes to Date UTC components (= wall-clock in NL).
  */
 
 export const APP_TZ = "Europe/Amsterdam";
+
+/**
+ * Wall-clock string for a report instant, in Europe/Amsterdam.
+ * The browser sends local midnight as an ISO timestamp. Formatting that in the
+ * server zone (UTC in production) includes the previous civil day in the SQL range.
+ */
+export function formatReportInstant(
+  value: Date | string | moment.Moment,
+  pattern: string,
+  shiftMinutes = 0,
+): string {
+  const instant = moment(value).tz(APP_TZ);
+  if (shiftMinutes !== 0) instant.add(shiftMinutes, "minutes");
+  return instant.format(pattern);
+}
 
 /** Serialize a DB datetime for JSON (wall-clock, no `Z` suffix). */
 export function serializeDbDateTime(d: Date | null | undefined): string | null {

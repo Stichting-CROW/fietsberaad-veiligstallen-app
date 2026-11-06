@@ -10,6 +10,25 @@ export const REMINDER_SUBJECT = "VeiligStallen: zijn de fietsenstallingen up to 
 export const SITE_ID_FIETSBERAAD = "1";
 export const REMINDER_START_DATE_UTC = new Date("2026-07-01T00:00:00.000Z");
 
+export function isReminderProductionEnvironment(): boolean {
+  const explicit = process.env.REMINDER_RUNTIME_ENV?.trim().toLowerCase();
+  if (explicit) {
+    return explicit === "production" || explicit === "prod";
+  }
+
+  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
+  if (nodeEnv) {
+    return nodeEnv === "production";
+  }
+
+  const genericEnv = process.env.APP_ENV?.trim().toLowerCase();
+  if (genericEnv) {
+    return genericEnv === "production" || genericEnv === "prod";
+  }
+
+  return false;
+}
+
 const BASE_URL = resolveMailBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
 const P_STYLE = "margin-top:10px;margin-bottom:10px";

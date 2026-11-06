@@ -4,9 +4,10 @@
 
 import { prisma } from "~/server/db";
 import { getBikeparkByExternalID } from "../queue/bikepark-service";
-import { getBikepassByPassId } from "../queue/account-service";
+import { passTopAccountId } from "../queue/account-service";
+import { takeOverSystemAccount } from "~/modules/citizen-accounts/service";
 import { addSubscription, subscribe } from "./subscription-service";
-import { updateLocker } from "./fms-locker-service";
+import { isAllowedToUse, updateLocker } from "./fms-locker-service";
 import { reportOccupationData } from "./report-occupation-service";
 import {
   addBikeToWachtrij,
@@ -22,6 +23,10 @@ import {
 import { assertLocationInCity } from "./fms-v3-protected-reads";
 import { passtype2integer, passtype2string } from "./fms-idtypes";
 import { logFmsCall } from "./webservice-log";
+import {
+  ARCHIEF_SOURCE_V3_COMPLETED,
+  writeTransactiesArchiefFromManaged,
+} from "../queue/transacties-archief-service";
 
 export type FmsOkResult = {
   message: string;
@@ -35,8 +40,11 @@ export function okResult(extra?: { id?: number; ids?: number[]; subscriptionid?:
   return { message: "OK", status: 1, ...extra };
 }
 
-/** Max items per POST (matches queue processor LIMIT_MANAGED). */
-export const MAX_MANAGED_TRANSACTIONS_BATCH = 50;
+/** Max items per client POST on …/managedtransactions. The queue processor drains a larger batch on its own. */
+export const MAX_MANAGED_TRANSACTIONS_BATCH = 500;
+
+/** Max managed transactions posted together with one occupation scan list. */
+export const MAX_OCCUPATION_MANAGED_TRANSACTIONS = 2500;
 
 export function errorResult(message: string): FmsOkResult {
   return { message, status: 0 };
@@ -182,27 +190,29 @@ export function dedupeManagedTransactionsLastWins(
   return [...byKey.values()];
 }
 
-export async function uploadManagedTransactionsV3(
-  locationid: string,
+type PreparedManagedTransaction = {
+  raw: Record<string, unknown>;
+  managed: ManagedTransactionInput;
+  sectionid: string;
+};
+
+function prepareManagedBatch(
+  managedRaws: Record<string, unknown>[],
   defaultSectionid: string,
-  managedRaws: Record<string, unknown>[]
-): Promise<FmsOkResult> {
+  maxItems: number
+): PreparedManagedTransaction[] {
   if (managedRaws.length === 0) {
     throw new Error("managedtransactions mag niet leeg zijn");
   }
-  if (managedRaws.length > MAX_MANAGED_TRANSACTIONS_BATCH) {
-    throw new Error(`max ${MAX_MANAGED_TRANSACTIONS_BATCH} managedtransactions per request`);
+  if (managedRaws.length > maxItems) {
+    throw new Error(`max ${maxItems} managedtransactions per request`);
   }
 
   const deduped = dedupeManagedTransactionsLastWins(managedRaws);
   if (deduped.length === 0) {
     throw new Error("managedtransactions mag niet leeg zijn");
   }
-  const prepared: {
-    raw: Record<string, unknown>;
-    managed: ManagedTransactionInput;
-    sectionid: string;
-  }[] = [];
+  const prepared: PreparedManagedTransaction[] = [];
 
   for (const raw of deduped) {
     const managed = applyManagedCheckoutDefaults(mapV3ManagedTransaction(raw));
@@ -210,7 +220,13 @@ export async function uploadManagedTransactionsV3(
     const sectionid = String(managed.sectionid_checkin ?? raw.sectionid ?? defaultSectionid);
     prepared.push({ raw, managed, sectionid });
   }
+  return prepared;
+}
 
+async function enqueuePreparedManaged(
+  locationid: string,
+  prepared: PreparedManagedTransaction[]
+): Promise<number[]> {
   const ids: number[] = [];
   for (const { raw, managed, sectionid } of prepared) {
     const result = await addManagedTransactionToWachtrij(
@@ -220,6 +236,18 @@ export async function uploadManagedTransactionsV3(
     );
     ids.push(result.id);
   }
+  return ids;
+}
+
+export async function uploadManagedTransactionsV3(
+  locationid: string,
+  defaultSectionid: string,
+  managedRaws: Record<string, unknown>[],
+  maxItems = MAX_MANAGED_TRANSACTIONS_BATCH
+): Promise<FmsOkResult> {
+  const prepared = prepareManagedBatch(managedRaws, defaultSectionid, maxItems);
+
+  const ids = await enqueuePreparedManaged(locationid, prepared);
 
   void logFmsCall(
     "uploadManagedTransactions",
@@ -279,33 +307,21 @@ export async function uploadCompletedTransactionV3(
     throw new Error(`Locatie ${locationid} niet gevonden`);
   }
 
-  const checkindate = parseDate(completed.checkindate);
-  const checkoutdate = parseDate(completed.checkoutdate);
-  const checkintype = String(
-    completed.checkintype ?? completed.typecheckin ?? "user"
-  ) as "user" | "controle" | "system" | "sync" | "reservation";
-  const checkouttype = String(
-    completed.typecheckout ?? completed.checkouttype ?? "user"
-  ) as "user" | "controle" | "system" | "sync" | "reservation";
-
-  await prisma.transacties_archief.create({
-    data: {
-      citycode,
-      locationid,
-      sectionid: sectionid ?? locationid,
-      sectionid_out: sectionid ?? null,
-      placeid: placeid ?? null,
-      checkindate,
-      checkoutdate,
-      checkintype,
-      checkouttype,
-      daybeginsat: new Date(1970, 0, 1, 0, 0, 0),
-      price: Number(completed.price ?? 0),
-      clienttypeid: Number(completed.clienttypeid ?? 0),
-      biketypeid: Number(completed.biketypeid ?? 1),
-      exploitantid: bikepark.ExploitantID ?? null,
-      source: "fms-v3-api",
-    },
+  await writeTransactiesArchiefFromManaged(prisma, {
+    citycode,
+    locationid,
+    sectionid: sectionid ?? locationid,
+    sectionidOut: sectionid ?? null,
+    placeid: placeid ?? null,
+    checkindate: parseDate(completed.checkindate),
+    checkoutdate: parseDate(completed.checkoutdate),
+    checkintype: String(completed.checkintype ?? completed.typecheckin ?? "user"),
+    checkouttype: String(completed.typecheckout ?? completed.checkouttype ?? "user"),
+    price: Number(completed.price ?? 0),
+    clienttypeid: Number(completed.clienttypeid ?? 0),
+    biketypeid: Number(completed.biketypeid ?? 1),
+    exploitantid: bikepark.ExploitantID ?? null,
+    source: ARCHIEF_SOURCE_V3_COMPLETED,
   });
 
   return okResult();
@@ -611,28 +627,59 @@ export async function setOccupationV3(
   return okResult({ id: result.tmpId });
 }
 
+function occupationManagedRaws(data: Record<string, unknown>): Record<string, unknown>[] | null {
+  if (data.managedtransactions == null) return null;
+  if (!Array.isArray(data.managedtransactions)) {
+    throw new Error("managedtransactions moet een array zijn");
+  }
+  return data.managedtransactions as Record<string, unknown>[];
+}
+
 export async function occupationAndSyncV3(
   locationid: string,
   sectionid: string,
   data: Record<string, unknown>
 ): Promise<FmsOkResult> {
+  const managedRaws = occupationManagedRaws(data);
+  const prepared =
+    managedRaws != null && managedRaws.length > 0
+      ? prepareManagedBatch(managedRaws, sectionid, MAX_OCCUPATION_MANAGED_TRANSACTIONS)
+      : [];
+
   let last: FmsOkResult = okResult();
   if (data.bikes != null) {
     last = await syncSectorV3(locationid, sectionid, data);
     if (last.status !== 1) return last;
   }
+  if (prepared.length > 0) {
+    const ids = await enqueuePreparedManaged(locationid, prepared);
+    last = okResult({ id: last.id, ids });
+    void logFmsCall(
+      "occupationManagedTransactions",
+      locationid,
+      `${sectionid} ${prepared.length} item(s) ids=${ids.join(",")}`
+    );
+  }
   if (data.occupation != null) {
-    last = await setOccupationV3(locationid, sectionid, data);
+    const occupation = await setOccupationV3(locationid, sectionid, data);
+    last = okResult({ id: occupation.id ?? last.id, ids: last.ids });
   }
   return last;
 }
 
+/**
+ * ColdFusion BaseRestService.koppelpas.
+ * An unknown fob replaces the temporary pass in place, so it stays on that account
+ * (the citizen after an account purchase, a SYSTEM account after a counter sale).
+ * A fob that already sits on a SYSTEM account is taken over by the temporary pass's account.
+ */
 export async function koppelpasV3(
   citycode: string,
   locationid: string,
   idtype: number,
   idcode: string,
-  newidcodes: Record<string, unknown>
+  newidcodes: Record<string, unknown>,
+  place?: { sectionid: string; placeid: string }
 ): Promise<FmsOkResult> {
   if (idtype !== 3 && idtype !== 4) {
     throw new Error("Alleen tijdelijke passen (idtype=3 of 4) kunnen worden omgezet");
@@ -650,6 +697,13 @@ export async function koppelpasV3(
 
   const tempPasstype = idtype === 4 ? "tmp_sleutelhanger" : "tijdelijk";
 
+  if (place) {
+    const allowed = await isAllowedToUse(locationid, place.sectionid, place.placeid, tempPassId);
+    if (!allowed.allowed) {
+      throw new Error(`ID ${idtype}/${idcode} mag deze plek niet gebruiken`);
+    }
+  }
+
   const tempBikepass = await prisma.accounts_pasids.findFirst({
     where: { SiteID: siteId, PasID: tempPassId, Pastype: tempPasstype },
     select: { ID: true, PasID: true, Pastype: true, AccountID: true },
@@ -665,31 +719,51 @@ export async function koppelpasV3(
   }
   const newPasstype = passtype2string(newIdtype);
 
-  const newBikepass = await getBikepassByPassId(
-    prisma,
-    newIdcode,
-    siteId,
-    newPasstype
-  );
-
-  await prisma.abonnementen.updateMany({
-    where: { bikepassID: tempBikepass.ID },
-    data: { bikepassID: newBikepass.ID },
+  const existing = await prisma.accounts_pasids.findFirst({
+    where: { SiteID: siteId, PasID: newIdcode, Pastype: newPasstype },
+    select: { ID: true, PasID: true, AccountID: true },
   });
+
+  if (!existing) {
+    await prisma.accounts_pasids.update({
+      where: { ID: tempBikepass.ID },
+      data: { PasID: newIdcode, Pastype: newPasstype },
+    });
+  } else {
+    const tempTop = await passTopAccountId(prisma, tempBikepass.AccountID);
+    const newTop = await passTopAccountId(prisma, existing.AccountID);
+    const newAccount = newTop
+      ? await prisma.accounts.findUnique({ where: { ID: newTop }, select: { account_type: true } })
+      : null;
+    if (
+      place &&
+      newAccount &&
+      newAccount.account_type !== "SYSTEM" &&
+      newTop &&
+      tempTop &&
+      newTop !== tempTop
+    ) {
+      throw new Error(
+        `Kan pas ${existing.PasID} niet koppelen aan deze plek, want de pas is gekoppeld aan een ander account dan de tijdelijke pas van de reservering op plek ${place.placeid}`
+      );
+    }
+    if (newAccount?.account_type === "SYSTEM" && newTop && tempTop) {
+      await takeOverSystemAccount(tempTop, newTop);
+    }
+    await prisma.abonnementen.updateMany({
+      where: { bikepassID: tempBikepass.ID },
+      data: { bikepassID: existing.ID },
+    });
+    await prisma.fietsenstalling_plek.updateMany({
+      where: { bikeParked: tempBikepass.ID },
+      data: { bikeParked: existing.ID },
+    });
+    await prisma.accounts_pasids.delete({ where: { ID: tempBikepass.ID } });
+  }
 
   await prisma.transacties.updateMany({
-    where: {
-      PasID: tempBikepass.PasID,
-      Pastype: passtype2integer(tempPasstype),
-    },
-    data: {
-      PasID: newIdcode,
-      Pastype: passtype2integer(newPasstype),
-    },
-  });
-
-  await prisma.accounts_pasids.delete({
-    where: { ID: tempBikepass.ID },
+    where: { PasID: tempPassId, Date_checkout: null },
+    data: { PasID: newIdcode, Pastype: passtype2integer(newPasstype) },
   });
 
   void logFmsCall(

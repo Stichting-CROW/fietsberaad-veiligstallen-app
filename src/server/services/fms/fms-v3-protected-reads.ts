@@ -289,19 +289,20 @@ export async function getBikeUpdatesV3(
   });
   const pasByPasId = new Map(pasLinks.map((p) => [p.PasID, p]));
 
-  const accountIds = [
+  const councilIds = [
     ...new Set(pasLinks.map((p) => p.AccountID).filter((id): id is string => !!id)),
   ];
+  // accounts_pasids.AccountID is gemeenteaccounts.ID; the saldo lives on gemeenteaccounts.AccountID.
   const gemeenteLinks =
-    accountIds.length > 0
+    councilIds.length > 0
       ? await prisma.gemeenteaccounts.findMany({
-          where: { SiteID: bikepark.SiteID, AccountID: { in: accountIds } },
-          select: { AccountID: true },
+          where: { SiteID: bikepark.SiteID, ID: { in: councilIds } },
+          select: { ID: true, AccountID: true },
         })
       : [];
-  const validAccountIds = new Set(gemeenteLinks.map((g) => g.AccountID));
+  const topAccountByCouncilId = new Map(gemeenteLinks.map((g) => [g.ID, g.AccountID]));
 
-  const saldoAccountIds = accountIds.filter((id) => validAccountIds.has(id));
+  const saldoAccountIds = [...new Set(topAccountByCouncilId.values())];
   const accounts =
     saldoAccountIds.length > 0
       ? await prisma.accounts.findMany({
@@ -315,11 +316,12 @@ export async function getBikeUpdatesV3(
 
   for (const t of rows) {
     const link = pasByPasId.get(t.PasID);
-    if (!link?.AccountID || !validAccountIds.has(link.AccountID)) continue;
+    const topAccountId = link?.AccountID ? topAccountByCouncilId.get(link.AccountID) : undefined;
+    if (!link || !topAccountId) continue;
     if (!t.dateModified) continue;
 
     const status = t.Date_checkout == null ? "In" : "Uit";
-    const saldo = saldoByAccountId.get(link.AccountID) ?? 0;
+    const saldo = saldoByAccountId.get(topAccountId) ?? 0;
 
     const entry: V3BikeUpdateEntry = {
       idcode: t.PasID,

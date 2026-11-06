@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react"
 import { type AppState } from "~/store/store";
 import type { VSContactExploitant, VSContactGemeenteInLijst, VSContact } from "~/types/contacts";
 import { getNewRoleLabel, logSession } from '~/types/utils';
+import { clientLogoFallback } from "~/utils/library-url";
 import { getOrganisationByID } from "~/utils/organisations";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
 import { AdminButton } from "./AdminButton";
@@ -111,7 +112,7 @@ const TopBar: React.FC<TopBarProps> = ({
       return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto object-contain" width={64} height={48} alt="Logo" />
     }
 
-    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+    let logofile = clientLogoFallback();
     if(activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
       logofile = activecontact.CompanyLogo;
       if(!logofile.startsWith('http')) {
@@ -124,7 +125,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
       return <ImageWithFallback
         src={logofile}
-        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        fallbackSrc={clientLogoFallback()}
         alt="Logo"
         width={64}
         height={64}
@@ -132,7 +133,7 @@ const TopBar: React.FC<TopBarProps> = ({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto object-contain" width={64} height={48} alt="Logo" />
+    return <img src={clientLogoFallback()} className="max-h-12 w-auto object-contain" width={64} height={48} alt="Logo" />
   }
 
 

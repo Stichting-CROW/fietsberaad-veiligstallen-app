@@ -1,0 +1,122 @@
+/* ============================================ */
+/* 
+	Layout styles 
+	responsive
+*/
+/* ============================================ */
+
+/* screen is smaller than desktop */
+@media only screen 
+	and (max-width: 960px) {
+
+	#wrapper {
+		width: 100%;
+	}
+	
+	/* header */
+	#header {
+		padding: 8px;
+		padding-left: 16px;
+		min-height: 65px;
+		font-size: 80%;
+	}
+	#header_logo {
+		width: 90px;
+		height: 52px;
+		background-image: url(/display/overzichten/images/logo_small.png);
+	}
+	#header_text { 
+		margin-left: 100px; 
+	}
+	
+	/* nav */
+	#smallNav_title { 
+		display: block; 
+		height: 43px;
+		line-height: 22px;
+		cursor: pointer;
+	}
+	.openclose { 
+		float: right; 
+		display: inline-block;
+		width: 31px;
+		height: 24px;
+		margin: 9px 12px 9px 0px;
+		background: url("../images/topNav_closed.png") no-repeat scroll 0 0 transparent; /* img symbol: open */
+	}
+	.openclose.closemenu { 
+		float: right;
+		display: inline-block;
+		width: 31px;
+		height: 24px;
+		margin: 9px 12px 9px 0px;
+		background: url("../images/topNav_open.png") no-repeat scroll 0 0 transparent; /* img symbol: close */
+	}
+	#main_nav_container { 
+		display: none;
+		float: none;
+		position: absolute;
+		padding: 0;
+		z-index: 80001;
+		/*border-top: 1px solid #3db8f1;*/
+		background-color: #178dc4;
+	}    
+	#main_nav_container.showmenu { 
+		left: 0;
+		display: block;
+	}
+	#main_nav_container li {
+		display: block; 
+		width: 100%;
+		float: left;
+		background-color: #178dc4;
+		border-top: 1px solid #3db8f1;
+	}
+	#main_nav_container li:last-child { border-bottom: 1px solid #3db8f1; }
+	#main_nav_container li:hover {}
+	#main_nav_container li a {
+		display: block; 
+		width: 100%;
+		padding-left: 0px;
+		padding-right: 0px;
+	}
+	#main_nav_container li a span {
+		padding-left: 22px;
+		padding-right: 22px;
+	}
+	
+	/* verwijssysteem */
+	.small .item { width: 100%; }
+	
+} 
+
+/* mobile screen */
+@media only screen 
+	and (max-width: 570px) {
+	
+	#content h2 { 
+		font-size: 1.1em; 
+	}
+	
+	/* verwijssysteem */
+	.item {
+		margin-bottom: 8px;
+	}
+	.col_color { 
+		width: 15px !important; 
+	}
+	.col_text {
+		padding: 10px;
+	}
+	.col_text h2 {
+		font-size: 18px;
+	}
+	.col_text p {
+		font-size: 12px;
+	}
+	.col_plaatsen { 
+		width: 50px !important;
+		font-size: 20px;
+	}
+	
+}

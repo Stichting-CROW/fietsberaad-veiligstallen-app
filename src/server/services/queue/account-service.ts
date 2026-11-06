@@ -5,6 +5,8 @@
 
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { prisma as defaultPrisma } from "~/server/db";
+import { updateRowsById } from "./batch-sql";
 
 /** UUID without hyphens (32 chars) for VarChar(35) columns. */
 function shortUUID(): string {
@@ -18,7 +20,10 @@ type Prisma = Omit<
 
 export type BikepassInfo = {
   ID: string;
+  /** gemeenteaccounts.ID (ColdFusion CouncilAccount), as stored in accounts_pasids.AccountID. */
   AccountID: string | null;
+  /** accounts.ID behind the pass (BikePass.getTopAccount); use this for saldo and financialtransactions. */
+  topAccountID: string | null;
   SiteID: string | null;
   PasID: string;
   Pastype: string;
@@ -26,6 +31,53 @@ export type BikepassInfo = {
   huidigeFietsenstallingId: string | null;
   huidigeSectieId: string | null;
 };
+
+/**
+ * accounts_pasids.AccountID holds gemeenteaccounts.ID in ColdFusion data. Older rows written by Next.js
+ * hold accounts.ID directly, so an ID without a council account is taken as the account itself.
+ */
+export async function passTopAccountId(prisma: Prisma, passAccountID: string | null): Promise<string | null> {
+  if (!passAccountID) return null;
+  const link = await prisma.gemeenteaccounts.findUnique({
+    where: { ID: passAccountID },
+    select: { AccountID: true },
+  });
+  return link?.AccountID ?? passAccountID;
+}
+
+/** Splits pass AccountIDs into gemeenteaccounts IDs and the accounts IDs behind them (test teardown). */
+export async function passAccountIds(
+  passAccountIDs: Array<string | null>,
+  prisma: Prisma = defaultPrisma
+): Promise<{ councilIDs: string[]; accountIDs: string[] }> {
+  const ids = [...new Set(passAccountIDs.filter((id): id is string => !!id))];
+  if (ids.length === 0) return { councilIDs: [], accountIDs: [] };
+  const links: Array<{ ID: string; AccountID: string }> = await prisma.gemeenteaccounts.findMany({
+    where: { ID: { in: ids } },
+    select: { ID: true, AccountID: true },
+  });
+  const linked = new Map<string, string>(links.map((l) => [l.ID, l.AccountID]));
+  return {
+    councilIDs: [...linked.keys()],
+    accountIDs: [...new Set(ids.map((id) => linked.get(id) ?? id))],
+  };
+}
+
+/** BikeparkAccount.getCouncilAccountByCouncil: find or create the account's gemeenteaccounts row. */
+export async function councilAccountFor(prisma: Prisma, accountID: string, siteID: string): Promise<string> {
+  const where = { AccountID: accountID, SiteID: siteID };
+  const existing = await prisma.gemeenteaccounts.findFirst({ where, select: { ID: true } });
+  if (existing) return existing.ID;
+  const id = shortUUID();
+  try {
+    await prisma.gemeenteaccounts.create({ data: { ID: id, ...where } });
+    return id;
+  } catch (error) {
+    const raced = await prisma.gemeenteaccounts.findFirst({ where, select: { ID: true } });
+    if (raced) return raced.ID;
+    throw error;
+  }
+}
 
 /**
  * Get or create bikepass (accounts_pasids) for passID.
@@ -49,6 +101,7 @@ export async function getBikepassByPassId(
     return {
       ID: existing.ID,
       AccountID: existing.AccountID,
+      topAccountID: await passTopAccountId(prisma, existing.AccountID),
       SiteID: existing.SiteID,
       PasID: existing.PasID,
       Pastype: existing.Pastype,
@@ -58,29 +111,43 @@ export async function getBikepassByPassId(
     };
   }
 
-  // Create account and bikepass (ID must fit VarChar(35))
-  const accountID = shortUUID();
-  await accountsModel.create({
-    data: {
-      ID: accountID,
-      saldo: 0,
-    },
+  // service.getBikepassByPassId: a pass already known in another municipality gets a row here on the same
+  // account and with the same name; an unknown pass gets a new SYSTEM account (getNewSystemAccount(council)).
+  const elsewhere = await pasidsModel.findFirst({
+    where: { PasID: passID, Pastype: pastype, NOT: { SiteID: siteID } },
+    select: { AccountID: true, Naam: true },
   });
+  let accountID = elsewhere ? await passTopAccountId(prisma, elsewhere.AccountID) : null;
+  if (accountID && !(await accountsModel.findUnique({ where: { ID: accountID }, select: { ID: true } }))) accountID = null;
+  if (!accountID) {
+    accountID = shortUUID();
+    await accountsModel.create({
+      data: {
+        ID: accountID,
+        saldo: 0,
+        account_type: "SYSTEM",
+        DateRegistration: new Date(),
+      },
+    });
+  }
+  const councilAccountID = await councilAccountFor(prisma, accountID, siteID);
 
   const bikepassID = shortUUID();
   await pasidsModel.create({
     data: {
       ID: bikepassID,
-      AccountID: accountID,
+      AccountID: councilAccountID,
       SiteID: siteID,
       PasID: passID,
       Pastype: pastype,
+      Naam: elsewhere?.Naam ?? null,
     },
   });
 
   return {
     ID: bikepassID,
-    AccountID: accountID,
+    AccountID: councilAccountID,
+    topAccountID: accountID,
     SiteID: siteID,
     PasID: passID,
     Pastype: pastype,
@@ -88,6 +155,76 @@ export async function getBikepassByPassId(
     huidigeFietsenstallingId: null,
     huidigeSectieId: null,
   };
+}
+
+export type BikepassLookup = {
+  siteID: string;
+  passID: string;
+  pastype: string;
+};
+
+export function bikepassKey(siteID: string, passID: string, pastype: string): string {
+  return `${siteID}\0${passID}\0${pastype}`;
+}
+
+/** Existing passes for a queue batch, grouped so each site/pastype is one indexed IN query. */
+export async function findBikepassIds(
+  prisma: Prisma,
+  keys: BikepassLookup[]
+): Promise<Map<string, string>> {
+  const unique = new Map<string, BikepassLookup>();
+  for (const key of keys) {
+    if (!key.siteID || !key.passID) continue;
+    unique.set(bikepassKey(key.siteID, key.passID, key.pastype), key);
+  }
+  const found = new Map<string, string>();
+  const groups = new Map<string, BikepassLookup[]>();
+  for (const key of unique.values()) {
+    const groupKey = `${key.siteID}\0${key.pastype}`;
+    const group = groups.get(groupKey) ?? [];
+    group.push(key);
+    groups.set(groupKey, group);
+  }
+  for (const group of groups.values()) {
+    const siteID = group[0]?.siteID;
+    const pastype = group[0]?.pastype;
+    if (!siteID || pastype == null) continue;
+    const rows = await prisma.accounts_pasids.findMany({
+      where: { SiteID: siteID, Pastype: pastype, PasID: { in: group.map((key) => key.passID) } },
+      select: { ID: true, PasID: true },
+    });
+    for (const row of rows) {
+      found.set(bikepassKey(siteID, row.PasID, pastype), row.ID);
+    }
+  }
+  return found;
+}
+
+/** Set bike fields on many passes in one UPDATE. Empty barcode/RFID values are left unchanged. */
+export async function updatePasidBikes(
+  prisma: Prisma,
+  rows: {
+    id: string;
+    barcode?: string;
+    rfid?: string;
+    rfidBike?: string;
+    biketypeID: number;
+  }[]
+): Promise<void> {
+  const now = new Date();
+  await updateRowsById(
+    prisma as unknown as Parameters<typeof updateRowsById>[0],
+    "accounts_pasids",
+    "ID",
+    rows.map((row) => {
+      const set: Record<string, unknown> = { BikeTypeID: row.biketypeID };
+      if (row.barcode) set.barcodeFiets = row.barcode;
+      if (row.rfid) set.RFID = row.rfid;
+      if (row.rfidBike) set.RFIDBike = row.rfidBike;
+      return { id: row.id, set };
+    }),
+    { dateLastIdUpdate: now, dateModified: now }
+  );
 }
 
 /**
@@ -112,24 +249,25 @@ export async function addSaldoObject(
     select: { AccountID: true },
   });
 
-  if (!bikepass?.AccountID) {
+  const accountID = await passTopAccountId(prisma, bikepass?.AccountID ?? null);
+  if (!accountID) {
     throw new Error(`Geen account gevonden voor passID ${passID}`);
   }
 
   const account = await accountsModel.findUnique({
-    where: { ID: bikepass.AccountID },
+    where: { ID: accountID },
     select: { saldo: true },
   });
 
   if (!account) {
-    throw new Error(`Account ${bikepass.AccountID} niet gevonden`);
+    throw new Error(`Account ${accountID} niet gevonden`);
   }
 
   const currentSaldo = Number(account.saldo ?? 0);
   const newSaldo = currentSaldo + amount;
 
   await accountsModel.update({
-    where: { ID: bikepass.AccountID },
+    where: { ID: accountID },
     data: {
       saldo: newSaldo,
       dateLastSaldoUpdate: new Date(),
@@ -139,7 +277,7 @@ export async function addSaldoObject(
   await ftModel.create({
     data: {
       ID: shortUUID(),
-      accountID: bikepass.AccountID,
+      accountID,
       amount,
       transactionDate,
       siteID,

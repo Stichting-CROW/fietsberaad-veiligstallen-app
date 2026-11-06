@@ -1,0 +1,30 @@
+name: Buurtstallingen jobs
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Expire reservations and remind waiting lists
+        run: |
+          set -e
+          BASE_URL="${PROD_NEXTAUTH_URL%/}"
+          if [ -z "$BUURTSTALLINGEN_JOB_TOKEN" ] || [ -z "$BASE_URL" ]; then
+            echo "Buurtstallingen jobs skipped: URL or token is not configured"
+            exit 0
+          fi
+          CODE=$(curl -sS -o /tmp/buurtstallingen-jobs.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $BUURTSTALLINGEN_JOB_TOKEN" \
+            "$BASE_URL/api/buurtstallingen/jobs")
+          cat /tmp/buurtstallingen-jobs.json
+          echo
+          test "$CODE" = "200"
+        env:
+          PROD_NEXTAUTH_URL: ${{ secrets.PROD_NEXTAUTH_URL }}
+          BUURTSTALLINGEN_JOB_TOKEN: ${{ secrets.BUURTSTALLINGEN_JOB_TOKEN }}

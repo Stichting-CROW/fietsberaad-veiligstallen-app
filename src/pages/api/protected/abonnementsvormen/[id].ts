@@ -24,7 +24,21 @@ const abonnementsvormCreateSchema = z.object({
   isActief: z.boolean().default(true),
   conditionsID: z.string().nullable(),
   biketypeIDs: z.array(z.number()).optional(), // Array of BikeType IDs
+  contractID: z.string().nullable().optional(),
+  paymentAuthorizationID: z.string().nullable().optional(),
 });
+
+const SLOT_STALLING_TYPES = new Set(["buurtstalling", "fietstrommel"]);
+
+function slotDocumentError(
+  type: string | null | undefined,
+  contractID: string | null | undefined,
+  paymentAuthorizationID: string | null | undefined,
+): string | null {
+  if (!type || !SLOT_STALLING_TYPES.has(type)) return null;
+  if (contractID && paymentAuthorizationID) return null;
+  return "Voor een buurtstalling of fietstrommel zijn een contract en een machtiging verplicht";
+}
 
 const abonnementsvormUpdateSchema = z.object({
   naam: z.string().min(1).optional(),
@@ -174,6 +188,12 @@ export default async function handle(
         }
 
         const parsed = parseResult.data;
+        const documentError = slotDocumentError(parsed.bikeparkTypeID, parsed.contractID, parsed.paymentAuthorizationID);
+        if (documentError) {
+          res.status(400).json({ error: documentError });
+          return;
+        }
+        const slotType = SLOT_STALLING_TYPES.has(parsed.bikeparkTypeID);
 
         // Validate exploitantSiteID is in user's accessible sites if provided
         const { sites } = validateUserSessionResult;
@@ -191,9 +211,11 @@ export default async function handle(
             bikeparkTypeID: parsed.bikeparkTypeID,
             siteID: activeContactId,
             exploitantSiteID: parsed.exploitantSiteID || null,
-            idmiddelen: parsed.idmiddelen,
+            idmiddelen: slotType ? "sleutelhanger" : parsed.idmiddelen,
             isActief: parsed.isActief,
             conditionsID: parsed.conditionsID || null,
+            contractID: parsed.contractID || null,
+            paymentAuthorizationID: parsed.paymentAuthorizationID || null,
           }
         });
 
@@ -303,6 +325,15 @@ export default async function handle(
         if (parsed.conditionsID !== undefined) updateData.conditionsID = parsed.conditionsID;
         if (parsed.contractID !== undefined) updateData.contractID = parsed.contractID;
         if (parsed.paymentAuthorizationID !== undefined) updateData.paymentAuthorizationID = parsed.paymentAuthorizationID;
+        const nextType = parsed.bikeparkTypeID ?? existing.bikeparkTypeID;
+        const nextContract = parsed.contractID !== undefined ? parsed.contractID : existing.contractID;
+        const nextAuthorization = parsed.paymentAuthorizationID !== undefined ? parsed.paymentAuthorizationID : existing.paymentAuthorizationID;
+        const documentError = slotDocumentError(nextType, nextContract, nextAuthorization);
+        if (documentError) {
+          res.status(400).json({ error: documentError });
+          return;
+        }
+        if (nextType && SLOT_STALLING_TYPES.has(nextType)) updateData.idmiddelen = "sleutelhanger";
 
         await prisma.abonnementsvormen.update({
           where: { ID: abonnementsvormId! },

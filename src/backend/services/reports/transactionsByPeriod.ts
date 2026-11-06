@@ -4,7 +4,7 @@ import {
   interpolateSQL
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
-import moment from 'moment';
+import { formatReportInstant } from "~/utils/datetime-nl";
 
 const filter_locations_sql = (params: {
   bikeparkIDs: string[],
@@ -129,20 +129,22 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   let cacheStartDate: string = '';
   let cacheEndDate: string = '';
   if (useCache) {
-    // For cache queries, adjust the start date the same way as when populating the cache
-    cacheStartDate = adjustedStartDate ? adjustedStartDate.clone().startOf('day').format('YYYY-MM-DD') : (startDate ? moment(startDate).startOf('day').format('YYYY-MM-DD') : '');
-    // For the end date, use the original endDate (not adjustedEndDate) to ensure we don't include the next day
-    // Adjust it the same way as when populating the cache: DATE(DATE_ADD(checkoutdate, INTERVAL -timeIntervalInMinutes MINUTE))
-    cacheEndDate = endDate ? moment(endDate).add(-timeIntervalInMinutes, 'minutes').startOf('day').format('YYYY-MM-DD') : (adjustedEndDate ? adjustedEndDate.clone().startOf('day').format('YYYY-MM-DD') : '');
+    // Cache dates are civil days in Europe/Amsterdam, matching the selected period.
+    cacheStartDate = adjustedStartDate
+      ? formatReportInstant(adjustedStartDate, "YYYY-MM-DD")
+      : (startDate ? formatReportInstant(startDate, "YYYY-MM-DD") : "");
+    cacheEndDate = endDate
+      ? formatReportInstant(endDate, "YYYY-MM-DD", -timeIntervalInMinutes)
+      : (adjustedEndDate ? formatReportInstant(adjustedEndDate, "YYYY-MM-DD") : "");
   }
-  
+
   const queryParams = [
-    false === useCache 
-      ? adjustedStartDate.format('YYYY-MM-DD HH:mm:ss')
+    false === useCache
+      ? formatReportInstant(adjustedStartDate, "YYYY-MM-DD HH:mm:ss")
       : cacheStartDate,
-    false === useCache 
-      ? adjustedEndDate.format('YYYY-MM-DD HH:mm:ss')
-      : cacheEndDate
+    false === useCache
+      ? formatReportInstant(adjustedEndDate, "YYYY-MM-DD HH:mm:ss")
+      : cacheEndDate,
   ];
 
   const sqlfilledin = interpolateSQL(sql, queryParams);

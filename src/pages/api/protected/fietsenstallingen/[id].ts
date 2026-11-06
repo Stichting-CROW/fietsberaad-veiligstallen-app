@@ -12,6 +12,8 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 // TODO: convert these types to the types in the types/parking.tsx file
 import type { fietsenstalling_sectie, sectie_fietstype } from "~/generated/prisma-client";
 import { generateUniqueSectionExternalId } from "~/server/services/section-external-id";
+import { assertStallingDeletable } from "~/modules/buurtstallingen/application/service";
+import { DomainError } from "~/modules/buurtstallingen/domain/types";
 
 export type FietsenstallingResponse = {
   data?: ParkingDetailsType;
@@ -615,17 +617,21 @@ export default async function handle(
           res.status(404).json({ error: "Stalling not found" });
           return;
         }
+        try {
+          await assertStallingDeletable(stalling.ID);
+        } catch (error) {
+          if (error instanceof DomainError) {
+            res.status(400).json({ error: error.message });
+            return;
+          }
+          throw error;
+        }
         const sectieIds = stalling.fietsenstalling_secties.map((s) => s.sectieId);
 
         // Check if new_* tables exist (they may not in environments without FMS simulation setup)
         const newTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
           `SELECT COUNT(*) as count FROM information_schema.tables 
            WHERE table_schema = DATABASE() AND table_name = 'new_wachtrij_managed_transacties'`
-        ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
-
-        const parkingsimulationTablesExist = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
-          `SELECT COUNT(*) as count FROM information_schema.tables 
-           WHERE table_schema = DATABASE() AND table_name = 'parkingsimulation_section_assignments'`
         ).then((r) => Number(r?.[0]?.count ?? 0) > 0);
 
         await prisma.$transaction(
@@ -694,11 +700,6 @@ export default async function handle(
               });
               await tx.transacties_archief.deleteMany({ where: { locationid: stalling.StallingsID } });
               await tx.transacties.deleteMany({ where: { FietsenstallingID: stalling.StallingsID } });
-              if (parkingsimulationTablesExist) {
-                await tx.parkingsimulation_section_assignments.deleteMany({
-                  where: { locationid: stalling.StallingsID },
-                });
-              }
             }
             await tx.fietsenstallingen.delete({
               where: { ID: stalling.ID },

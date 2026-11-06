@@ -1,0 +1,32 @@
+name: Info files
+
+on:
+  workflow_dispatch:
+  # Every 30 minutes, except UTC 03:00–04:59, matching Logic App vstinfofiles.
+  # Leave this commented until that Logic App stops, so www still serves the ColdFusion files.
+  # schedule:
+  #   - cron: "*/30 0-2,5-23 * * *"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Write veiligstallen.kml and veiligstallen.xml
+        run: |
+          set -e
+          BASE_URL="${PROD_NEXTAUTH_URL%/}"
+          if [ -z "$CRON_SECRET" ] || [ -z "$BASE_URL" ]; then
+            echo "Info files skipped: URL or token is not configured"
+            exit 0
+          fi
+          CODE=$(curl -sS -o /tmp/info-files.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$BASE_URL/api/cron/info-files")
+          cat /tmp/info-files.json
+          echo
+          test "$CODE" = "200"
+        env:
+          PROD_NEXTAUTH_URL: ${{ secrets.PROD_NEXTAUTH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

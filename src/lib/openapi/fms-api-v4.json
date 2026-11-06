@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FMS REST API v4",
-    "description": "Fietsenstallingen Management Service REST API (V4).\n\nBasispad: `/api/fms/v4/...`.\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n  Specificatie: [Rapportage v4](/docs/api/reporting/v4).\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |\n| `dataprovider.type2` | `managedtransactions` + bezettingsdata |\n\n- **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,\n  secties, plekken en abonnementsvormen, plus de algemene keuzelijsten\n  (fietstypen, betalingstypen, klanttypen, servertijd).\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` vereisen\n  `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.\n\n## Catalogus\n\n**Catalogus** is naslagdata: u vraagt op *wat er is*, niet om een check-in\nof andere mutatie te doen.\n\n- **Algemene catalogus** — keuzelijsten voor de hele dienst, niet gekoppeld\n  aan één stalling: `GET /v4/servertime`, `/v4/biketypes`,\n  `/v4/paymenttypes`, `/v4/clienttypes`.\n  JSON-keys zijn kleine letters (`id`, `name`, `singular`). Eén fietstype\n  ophalen: `GET /v4/biketypes` en filteren op `id` (er is geen\n  `/v4/biketypes/{id}`).\n- **Stallingscatalogus** — de boom van een gemeente en haar stallingen:\n  `GET /v4/citycodes`, locaties, secties, plekken, abonnementsvormen.\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd.\nLegacy in/out (`transactions`), `completedtransactions`, fietskluizen-writes,\n`isAllowedToUse` en koppelpas op plek-niveau geven HTTP 410.\n\n## Rapportage\n\nBezetting (datastandaard) en ruwe transacties staan op de rapportage-API.\nDie gebruikt een FMS-gebruikersaccount, niet de dataleverancier-credentials\nvan deze specificatie.\n\n- [Rapportage v4 (Swagger)](/docs/api/reporting/v4)\n- Basispad: `/api/reporting/v4/...`\n\n## Migratie vanaf v2 of v3\n\n- [V2 → V4](/test/fms-api-docs-migrate-v2)\n- [V3 → V4](/test/fms-api-docs-migrate-v3)\n",
+    "description": "Fietsenstallingen Management Service REST API (V4).\n\nBasispad: `/api/fms/v4/...`.\n\n## Toegang (authenticatie)\n\nDe API gebruikt **HTTP Basic Auth**. Endpoints zonder slotje zijn openbaar;\nendpoints met een slotje vereisen geldige credentials én het juiste recht\n(`permit`) voor de betreffende stalling.\n\nEr zijn twee soorten accounts:\n\n- **Dataleverancier-/operator-credentials** (per stalling/operator) voor de\n  FMS REST API (v4). Deze worden in FMS beheerd onder *Dataleveranciers*\n  en hebben per stalling een `permit`.\n- **Gebruikersaccounts** (security_users) voor de datastandaard- en\n  rapportage-API, op basis van de rol van de gebruiker.\n  Specificatie: [Rapportage v4](/docs/api/reporting/v4).\n\n## Rechten: lezen vs. schrijven\n\nDe FMS REST endpoints hanteren `permit`-niveaus per stalling:\n\n| Permit | Betekenis |\n| --- | --- |\n| `operator` | Alle rechten (lezen én schrijven) |\n| `dataprovider.type1` | Inventarisatie (`occupation` met `bikes`), `managedtransactions` en `bikeupdates` lezen |\n| `dataprovider.type2` | `managedtransactions`, bezettingsgetal, abonnementen toevoegen/koppelen, saldo opwaarderen, fiets koppelen |\n\n- **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,\n  secties, plekken en abonnementsvormen, plus de algemene keuzelijsten\n  (fietstypen, betalingstypen, klanttypen, servertijd).\n- **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder\n  permit krijgt u een uitgeklede weergave (geen foutmelding).\n- **Gevoelige reads** (saldi, abonnementen, fietsen): vereisen het `operator`-permit.\n- **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.\n  Uitzonderingen: `managedtransactions` en `occupation` met `bikes` of\n  `managedtransactions` accepteren `operator`, `dataprovider.type1` en\n  `dataprovider.type2`. Het bezettingsgetal (`occupation`), abonnementen\n  toevoegen of koppelen, saldo opwaarderen en fiets koppelen vereisen\n  `operator` of `dataprovider.type2`. Koppelpas vereist `operator`.\n- **`bikeupdates`**: `operator` of `dataprovider.type1`.\n\n## Catalogus\n\n**Catalogus** is naslagdata: u vraagt op *wat er is*, niet om een check-in\nof andere mutatie te doen.\n\n- **Algemene catalogus** — keuzelijsten voor de hele dienst, niet gekoppeld\n  aan één stalling: `GET /v4/servertime`, `/v4/biketypes`,\n  `/v4/paymenttypes`, `/v4/clienttypes`.\n  JSON-keys zijn kleine letters (`id`, `name`, `singular`). Eén fietstype\n  ophalen: `GET /v4/biketypes` en filteren op `id` (er is geen\n  `/v4/biketypes/{id}`).\n- **Stallingscatalogus** — de boom van een gemeente en haar stallingen:\n  `GET /v4/citycodes`, locaties, secties, plekken, abonnementsvormen.\n\n## Transacties (v4)\n\nStallingstransacties worden uitsluitend via `managedtransactions` aangeleverd.\nLegacy in/out (`transactions`), `completedtransactions`, fietskluizen-writes,\n`isAllowedToUse` en koppelpas op plek-niveau geven HTTP 410.\n\n## Rapportage\n\nBezetting (datastandaard) en ruwe transacties staan op de rapportage-API.\nDie gebruikt een FMS-gebruikersaccount, niet de dataleverancier-credentials\nvan deze specificatie.\n\n- [Rapportage v4 (Swagger)](/docs/api/reporting/v4)\n- Basispad: `/api/reporting/v4/...`\n\n## Migratie vanaf v2 of v3\n\n- [V2 → V4](/test/fms-api-docs-migrate-v2)\n- [V3 → V4](/test/fms-api-docs-migrate-v3)\n",
     "version": "4.0.0"
   },
   "servers": [
@@ -48,7 +48,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Array van fietstypen (`id`, `name`, `singular`). Eén type ophalen door te filteren op `id` (geen aparte `/biketypes/{id}`).\n",
+            "description": "Array van fietstypen (`id`, `name`, `singular`) uit `fietstypen`. Eén type ophalen door te filteren op `id` (geen aparte `/biketypes/{id}`). Een transactie kan een id bevatten dat in deze lijst ontbreekt.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -57,7 +57,8 @@
                     "type": "object",
                     "properties": {
                       "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Bekende ids:\n\n- `1` fiets\n- `2` bromfiets\n- `3` afwijkende maten\n- `4` elektrisch\n- `5` motor\n- `6` mindervaliden\n- `7` bakfiets\n- `8` ligfiets / tandem\n- `9` racefiets\n- `10` kinderfiets\n- `11` brede fiets\n- `12` takel\n"
                       },
                       "name": {
                         "type": "string"
@@ -92,7 +93,8 @@
                     "type": "object",
                     "properties": {
                       "paymenttypeid": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "- `1` fysieke betaling of restitutie\n- `2` kwijtschelding (geen fysiek geld)\n"
                       },
                       "name": {
                         "type": "string"
@@ -112,7 +114,7 @@
     "/v4/clienttypes": {
       "get": {
         "summary": "Klanttypen (algemene catalogus)",
-        "description": "Algemene catalogus van klanttypen (`id`, `name`).\n",
+        "description": "Algemene catalogus van klanttypen (`id`, `name`) uit `klanttypen`.\nBekende ids: `1` dagstaller, `2` abonnement via VeiligStallen, `3` abonnement anders.\nBij 2 en 3 worden geen stallingskosten gerekend.\n",
         "tags": [
           "V4"
         ],
@@ -128,7 +130,8 @@
                     "type": "object",
                     "properties": {
                       "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "- `1` dagstaller (standaard op een transactie)\n- `2` abonnement via VeiligStallen\n- `3` abonnement anders\n"
                       },
                       "name": {
                         "type": "string"
@@ -435,6 +438,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       },
@@ -555,6 +567,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
           }
         }
       },
@@ -597,6 +612,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -653,6 +677,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -699,6 +732,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
           }
         }
       }
@@ -845,7 +881,7 @@
     "/v4/citycodes/{citycode}/locations/{locationid}/managedtransactions": {
       "post": {
         "summary": "Beheerde transactie(s) (bikepark-niveau)",
-        "description": "Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).\nBij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden\neerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.\n",
+        "description": "Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 500).\nBij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden\neerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.\n",
         "tags": [
           "V4 Write"
         ],
@@ -881,7 +917,7 @@
                     "properties": {
                       "managedtransactions": {
                         "type": "array",
-                        "maxItems": 50,
+                        "maxItems": 500,
                         "items": {
                           "$ref": "#/components/schemas/V3ManagedTransaction"
                         }
@@ -890,7 +926,7 @@
                   },
                   {
                     "type": "array",
-                    "maxItems": 50,
+                    "maxItems": 500,
                     "items": {
                       "$ref": "#/components/schemas/V3ManagedTransaction"
                     }
@@ -902,6 +938,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -909,6 +946,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -968,6 +1014,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -975,6 +1022,95 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
+          }
+        }
+      }
+    },
+    "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/idcodes/{idtype}/{idcode}": {
+      "post": {
+        "summary": "Koppelpas op sectorpad (alias van de locatie-variant)",
+        "description": "Zelfde werking, permit (`operator`) en body als\n`POST …/locations/{locationid}/idcodes/{idtype}/{idcode}`. `sectionid` wordt niet gebruikt;\ndit pad bestaat voor compatibiliteit met v3 (`koppelpas_section`).\nNieuwe koppelingen bij voorkeur via de locatie-variant.\n",
+        "tags": [
+          "V4 Write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/V4Citycode"
+          },
+          {
+            "$ref": "#/components/parameters/V4Locationid"
+          },
+          {
+            "$ref": "#/components/parameters/V4Sectionid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "3=tijdelijk, 4=tmp_sleutelhanger"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newidcodes": {
+                    "type": "object",
+                    "properties": {
+                      "idcode": {
+                        "type": "string"
+                      },
+                      "idtype": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultaat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1031,6 +1167,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1038,6 +1175,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1084,7 +1230,7 @@
                     "properties": {
                       "managedtransactions": {
                         "type": "array",
-                        "maxItems": 50,
+                        "maxItems": 500,
                         "items": {
                           "$ref": "#/components/schemas/V3ManagedTransaction"
                         }
@@ -1093,7 +1239,7 @@
                   },
                   {
                     "type": "array",
-                    "maxItems": 50,
+                    "maxItems": 500,
                     "items": {
                       "$ref": "#/components/schemas/V3ManagedTransaction"
                     }
@@ -1105,6 +1251,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1112,13 +1259,23 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
     },
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation": {
       "post": {
-        "summary": "Sector synchroniseren en/of bezetting doorgeven",
+        "summary": "Sectorcontrole vastleggen en/of bezetting doorgeven",
+        "description": "data.bikes wordt opgeslagen als controlemoment en maakt geen transacties. Afwijkingen gaan mee in data.managedtransactions (maximaal 2500). data.occupation zet het schermgetal. Minstens één van data.bikes en data.occupation is verplicht, anders 400. Het vereiste permit hangt af van de velden: data.bikes en data.managedtransactions vragen operator, dataprovider.type1 of dataprovider.type2; data.occupation vraagt operator of dataprovider.type2.\n",
         "tags": [
           "V4 Write"
         ],
@@ -1149,6 +1306,7 @@
         },
         "responses": {
           "200": {
+            "description": "Resultaat",
             "content": {
               "application/json": {
                 "schema": {
@@ -1156,6 +1314,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/V4BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V4Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V4WriteDisabled"
           }
         }
       }
@@ -1460,6 +1627,22 @@
           },
           {
             "$ref": "#/components/parameters/V4Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1485,6 +1668,22 @@
           },
           {
             "$ref": "#/components/parameters/V4Placeid"
+          },
+          {
+            "name": "idtype",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "idcode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1501,6 +1700,38 @@
         "type": "http",
         "scheme": "basic",
         "description": "HTTP Basic Auth (UrlName + Password uit contacts)"
+      }
+    },
+    "responses": {
+      "V4BadRequest": {
+        "description": "Ongeldige invoer of verwerkingsfout. `message` bevat de reden, `status` is 0.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
+      },
+      "V4Unauthorized": {
+        "description": "Geen of ongeldige Basic Auth, of het account heeft niet het vereiste `permit` voor deze stalling\n(`message`: `Niet voldoende rechten`).\n",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
+      },
+      "V4WriteDisabled": {
+        "description": "De write-API staat uit op deze host (`ENABLE_WRITE_API` is niet `true`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Result"
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -1543,7 +1774,7 @@
         "properties": {
           "bikeTypeID": {
             "type": "integer",
-            "description": "1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden"
+            "description": "1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel\n"
           },
           "name": {
             "type": "string"
@@ -1569,7 +1800,8 @@
         "type": "object",
         "properties": {
           "clientTypeID": {
-            "type": "integer"
+            "type": "integer",
+            "description": "1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten."
           },
           "name": {
             "type": "string"
@@ -1717,6 +1949,7 @@
           },
           "checkintype": {
             "type": "string",
+            "description": "Soort check-in. Standaard `user`.\n\n- `user` — gewone check door de staller\n- `controle` — controlescan. Geen stallingskosten. Een controle-in kort na een controle-uit maakt die uitcheck ongedaan.\n- `system` — door het systeem gezet, bijvoorbeeld een open bezoek dat wordt afgesloten of een uitcheck zonder bijbehorende incheck. Geen stallingskosten.\n- `sync` — bezettingssynchronisatie: de fiets verschijnt of verdwijnt. Telt niet mee in de transactierapporten. Geen stallingskosten.\n- `reservation` — reservering. Geen stallingskosten.\n",
             "enum": [
               "user",
               "controle",
@@ -1731,6 +1964,7 @@
           },
           "checkouttype": {
             "type": "string",
+            "description": "Zelfde waarden als `checkintype`, voor de check-out. Standaard `user`.",
             "enum": [
               "user",
               "controle",
@@ -1767,10 +2001,12 @@
             "type": "string"
           },
           "biketypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Fietstype. Standaard `1`. Namen via `GET /v4/biketypes`.\n\n1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel.\n"
           },
           "clienttypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Klanttype. Standaard `1`. Namen via `GET /v4/clienttypes`.\n\n1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten.\n"
           },
           "tariefstaffels": {
             "type": "string"
@@ -1876,6 +2112,7 @@
           },
           "bikes": {
             "type": "array",
+            "description": "Scanlijst. Wordt opgeslagen als controlemoment en maakt geen transacties.",
             "items": {
               "type": "object",
               "properties": {
@@ -1896,6 +2133,14 @@
           },
           "occupation": {
             "type": "integer"
+          },
+          "managedtransactions": {
+            "type": "array",
+            "maxItems": 2500,
+            "description": "Afwijkingen bij deze controle. Zelfde object als een managed transactie. Maximaal 2500.",
+            "items": {
+              "$ref": "#/components/schemas/V3ManagedTransaction"
+            }
           },
           "checkins": {
             "type": "integer"

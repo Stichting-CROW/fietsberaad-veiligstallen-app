@@ -221,8 +221,11 @@ const ParkingEditOpening = ({
       if (isOpen24) return "open24";
       if (isGesloten) return "gesloten";
     } else {
-      // NS connector: open24 when both 00:00, no separate 'gesloten'
-      const isOpen24NS = open.hours() === 0 && open.minutes() === 0 && close.hours() === 0 && close.minutes() === 0;
+      const isOpen24NS =
+        open.hours() === 0 &&
+        open.minutes() === 0 &&
+        ((close.hours() === 23 && close.minutes() === 59) ||
+          (close.hours() === 0 && close.minutes() === 0));
       if (isOpen24NS) return "open24";
     }
     return "times";
@@ -287,13 +290,8 @@ const ParkingEditOpening = ({
     if (e.target.checked) {
       switch (whichcheck) {
         case "open24":
-          if (!isNS) {
-            newopen = moment.utc(0);
-            newdicht = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
-          } else {
-            newopen = moment.utc(0);
-            newdicht = moment.utc(0);
-          }
+          newopen = moment.utc(0);
+          newdicht = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
           break;
         case "gesloten":
           newopen = moment.utc(0);
@@ -320,13 +318,8 @@ const ParkingEditOpening = ({
     let newdicht: moment.Moment | null = null;
 
     if (option === "open24") {
-      if (!isNS) {
-        newopen = moment.utc(0);
-        newdicht = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
-      } else {
-        newopen = moment.utc(0);
-        newdicht = moment.utc(0);
-      }
+      newopen = moment.utc(0);
+      newdicht = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
     } else if (option === "gesloten") {
       newopen = moment.utc(0);
       newdicht = moment.utc(0);
@@ -363,13 +356,8 @@ const ParkingEditOpening = ({
       const openkey = getOpenTimeKey(d);
       const dichtkey = getDichtTimeKey(d);
       if (option === "open24") {
-        if (!isNS) {
-          newChanges[openkey] = moment.utc(0);
-          newChanges[dichtkey] = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
-        } else {
-          newChanges[openkey] = moment.utc(0);
-          newChanges[dichtkey] = moment.utc(0);
-        }
+        newChanges[openkey] = moment.utc(0);
+        newChanges[dichtkey] = setMinutesInDate(setHourInDate(moment.utc(0), 23), 59);
       } else if (option === "onbekend") {
         newChanges[openkey] = null;
         newChanges[dichtkey] = null;

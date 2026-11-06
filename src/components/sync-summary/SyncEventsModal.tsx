@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { SyncEvent } from '~/pages/api/protected/sync-summary/sync-events';
+import { APP_TZ } from '~/utils/datetime-nl';
 
 interface SyncEventsModalProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ const SyncEventsModal: React.FC<SyncEventsModalProps> = ({
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'UTC'
+      timeZone: APP_TZ,
     });
   };
 
@@ -91,7 +92,18 @@ const SyncEventsModal: React.FC<SyncEventsModalProps> = ({
       if (event.transactionDate) {
         const date = new Date(event.transactionDate);
         // Group by year, month, day, hour, minute (ignore seconds)
-        dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}_${String(date.getUTCHours()).padStart(2, '0')}-${String(date.getUTCMinutes()).padStart(2, '0')}`;
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: APP_TZ,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).formatToParts(date);
+        const part = (type: Intl.DateTimeFormatPartTypes) =>
+          parts.find((p) => p.type === type)?.value ?? '';
+        dateKey = `${part('year')}-${part('month')}-${part('day')}_${part('hour')}-${part('minute')}`;
       }
       
       if (!grouped.has(dateKey)) {

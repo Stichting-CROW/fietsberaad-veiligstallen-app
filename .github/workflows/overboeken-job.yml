@@ -1,0 +1,41 @@
+name: Overboeken job
+
+on:
+  schedule:
+    # GitHub schedules are UTC. 02:52 and 03:52 cover 04:52 Europe/Amsterdam in summer and winter.
+    - cron: "52 2 * * *"
+    - cron: "52 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Catch up operator stalling credit
+        run: |
+          set -e
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ "$(TZ=Europe/Amsterdam date +%z)" = "+0200" ]; then WANTED="52 2 * * *"; else WANTED="52 3 * * *"; fi
+            if [ "$EVENT_SCHEDULE" != "$WANTED" ]; then
+              echo "Overboeken job skipped: the other schedule is 04:52 Europe/Amsterdam today"
+              exit 0
+            fi
+          fi
+          BASE_URL="${PROD_NEXTAUTH_URL%/}"
+          if [ -z "$CRON_SECRET" ] || [ -z "$BASE_URL" ]; then
+            echo "Overboeken job skipped: URL or token is not configured"
+            exit 0
+          fi
+          CODE=$(curl -sS -o /tmp/overboeken-job.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$BASE_URL/api/cron/overboeken")
+          cat /tmp/overboeken-job.json
+          echo
+          test "$CODE" = "200"
+        env:
+          PROD_NEXTAUTH_URL: ${{ secrets.PROD_NEXTAUTH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}

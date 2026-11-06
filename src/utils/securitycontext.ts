@@ -175,8 +175,17 @@ export const getRoleRights = (
         currentTopics[VSSecurityTopic.instellingen_site_content_faq] = allowNone
     }
     currentTopics[VSSecurityTopic.rapportages] = isViewer ? allowCRUD : allowNone
+    currentTopics[VSSecurityTopic.buurtstallingen_beheer] = isRootAdmin
+      ? allowCRUD
+      : isAdmin
+        ? { create: true, read: true, update: true, delete: false }
+        : isViewer
+          ? { create: false, read: true, update: false, delete: false }
+          : allowNone
     currentTopics[VSSecurityTopic.fmsservices] = isRootAdmin ? allowCRUD : allowNone
     currentTopics[VSSecurityTopic.wachtrij] = isRootAdminFietsberaad ? allowCRUD : (isAdminFietsberaad ? allowRead : allowNone)
+    currentTopics[VSSecurityTopic.diashow_beheer] =
+      isAdminFietsberaad || isAdminDataEigenaar ? allowCRUD : allowNone
 
     return currentTopics;        
 };

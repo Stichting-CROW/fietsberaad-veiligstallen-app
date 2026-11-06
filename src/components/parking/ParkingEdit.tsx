@@ -23,6 +23,7 @@ import { Tabs, Tab, FormHelperText, Typography } from "@mui/material";
 import ParkingEditAbonnementen from "~/components/parking/ParkingEditAbonnementen";
 import ParkingEditLocation from "~/components/parking/ParkingEditLocation";
 import SectiesManagementNew from "~/components/parking/SectiesManagementNew";
+import ParkingBulkReserveringen from "~/components/parking/ParkingBulkReserveringen";
 import ParkingEditAfbeelding from "~/components/parking/ParkingEditAfbeelding";
 import ParkingEditOpening, {
   type OpeningChangedType,
@@ -42,6 +43,7 @@ import { VSSecurityTopic } from "~/types/securityprofile";
 import ParkingEditBeheerder from "./ParkingEditBeheerder";
 import ParkingEditLogs from "~/components/parking/ParkingEditLogs";
 import ParkingEditTarieven from "~/components/parking/ParkingEditTarieven";
+import ParkingEditVerwijssysteem from "~/components/parking/ParkingEditVerwijssysteem";
 
 export type ParkingEditUpdateStructure = {
   ID?: string;
@@ -72,6 +74,11 @@ export type ParkingEditUpdateStructure = {
   OmschrijvingTarieven?: string | null;
   ExtraServices?: string | null;
   BerekentStallingskosten?: boolean;
+  Verwijssysteem?: boolean;
+  VerwijssysteemOverzichten?: boolean;
+  NotaVerwijssysteem?: string | null;
+  BronBezettingsdata?: string | null;
+  dia?: string | null;
 };
 
 type ChangedType = { ID: string; selected: boolean };
@@ -166,6 +173,13 @@ const ParkingEdit = ({
   const [newFMS, setNewFMS] = React.useState<boolean | undefined>(
     undefined,
   );
+
+  const [newVerwijssysteem, setNewVerwijssysteem] = React.useState<boolean | undefined>(undefined);
+  const [newVerwijssysteemOverzichten, setNewVerwijssysteemOverzichten] = React.useState<boolean | undefined>(undefined);
+  const [newNotaVerwijssysteem, setNewNotaVerwijssysteem] = React.useState<string | undefined>(undefined);
+  const [newBronBezettingsdata, setNewBronBezettingsdata] = React.useState<string | undefined>(undefined);
+  const [newDia, setNewDia] = React.useState<string | undefined>(undefined);
+  const [hasFmsModule, setHasFmsModule] = React.useState(false);
 
   const [newStatus, setNewStatus] = React.useState<ParkingStatus | undefined>(
     undefined,
@@ -270,6 +284,7 @@ const ParkingEdit = ({
   const [hasAbonnementenModule, setHasAbonnementenModule] = React.useState(false);
   const hasFmsservices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
   const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
+  const hasDiashowBeheer = userHasRight(session?.user?.securityProfile, VSSecurityTopic.diashow_beheer);
   const canEditAllFields = hasFietsenstallingenAdmin;
   const canEditLimitedFields = hasFietsenstallingenBeperkt || (parkingdata.Status === "aanm");
 
@@ -303,11 +318,13 @@ const ParkingEdit = ({
     const fetchModules = async () => {
       if (!siteIdForModules) {
         setHasAbonnementenModule(false);
+        setHasFmsModule(false);
         return;
       }
 
       if (siteIdForModules === "1") {
         setHasAbonnementenModule(true);
+        setHasFmsModule(true);
         return;
       }
 
@@ -320,11 +337,13 @@ const ParkingEdit = ({
         if (!cancelled) {
           const hasModule = Array.isArray(modules) && modules.some((module: { ModuleID?: string }) => module.ModuleID === "abonnementen");
           setHasAbonnementenModule(hasModule);
+          setHasFmsModule(Array.isArray(modules) && modules.some((module: { ModuleID?: string }) => module.ModuleID === "fms"));
         }
       } catch (error) {
         console.error("Error fetching modules for contact:", error);
         if (!cancelled) {
           setHasAbonnementenModule(false);
+          setHasFmsModule(false);
         }
       }
     };
@@ -619,6 +638,12 @@ const ParkingEdit = ({
         update.IsPopup = newIsPopup;
       }
     }
+
+    if (newVerwijssysteem !== undefined) update.Verwijssysteem = newVerwijssysteem;
+    if (newVerwijssysteemOverzichten !== undefined) update.VerwijssysteemOverzichten = newVerwijssysteemOverzichten;
+    if (newNotaVerwijssysteem !== undefined) update.NotaVerwijssysteem = newNotaVerwijssysteem.slice(0, 100) || null;
+    if (newBronBezettingsdata !== undefined) update.BronBezettingsdata = newBronBezettingsdata;
+    if (newDia !== undefined) update.dia = newDia || null;
 
     // Set DateCreated and DateModified
     const today = new Date();
@@ -1489,12 +1514,54 @@ const ParkingEdit = ({
     );
   };
 
-  const renderTabCapaciteit = (visible = false) => {
+  const showBulkReservationsPanel =
+    hasFmsModule &&
+    !isVoorstel &&
+    parkingdata.Type !== "fietskluizen" &&
+    parkingdata.Type !== "buurtstalling" &&
+    parkingdata.Type !== "fietstrommel";
+
+  const renderTabDiashow = (visible = false) => {
+    const canEditVerwijssysteemFlags = hasFietsberaadSuperadmin || canEditAllFields;
+    const canEditDia =
+      hasDiashowBeheer || hasFietsberaadSuperadmin || canEditAllFields || canEditLimitedFields;
     return (
       <div
-        className="mt-10 flex w-full justify-between"
+        className="mt-10 flex w-full flex-col gap-8"
         style={{ display: visible ? "flex" : "none" }}
       >
+        <ParkingEditVerwijssysteem
+          parkingdata={parkingdata}
+          canEditFlags={canEditVerwijssysteemFlags}
+          canEditDia={canEditDia}
+          newVerwijssysteem={newVerwijssysteem}
+          setNewVerwijssysteem={setNewVerwijssysteem}
+          newVerwijssysteemOverzichten={newVerwijssysteemOverzichten}
+          setNewVerwijssysteemOverzichten={setNewVerwijssysteemOverzichten}
+          newNotaVerwijssysteem={newNotaVerwijssysteem}
+          setNewNotaVerwijssysteem={setNewNotaVerwijssysteem}
+          newBronBezettingsdata={newBronBezettingsdata}
+          setNewBronBezettingsdata={setNewBronBezettingsdata}
+          newDia={newDia}
+          setNewDia={setNewDia}
+        />
+      </div>
+    );
+  };
+
+  const renderTabCapaciteit = (visible = false) => {
+    const canEditBulk = canEditAllFields || canEditLimitedFields;
+    return (
+      <div
+        className="mt-10 flex w-full flex-col gap-8"
+        style={{ display: visible ? "flex" : "none" }}
+      >
+        {showBulkReservationsPanel && hasID && (
+          <ParkingBulkReserveringen
+            fietsenstallingId={parkingdata.ID}
+            canEdit={canEditBulk}
+          />
+        )}
         <SectiesManagementNew
           fietsenstallingId={parkingdata.ID}
           fietsenstallingType={parkingdata.Type}
@@ -1552,6 +1619,8 @@ const ParkingEdit = ({
 
   const isLoggedIn = session !== null;
   const hasID = Boolean(parkingdata.ID);
+  const showDiashowTab =
+    hasID && isLoggedIn && !isVoorstel && (hasFmsModule || hasDiashowBeheer);
 
   let opslaanTekst = "";
   if(isVoorstel) {
@@ -1677,6 +1746,7 @@ const ParkingEdit = ({
         {hasID && isLoggedIn && (
           <Tab label="Capaciteit" value="tab-capaciteit" />
         )}
+        {showDiashowTab && <Tab label="Diashow" value="tab-diashow" />}
         <Tab label="Openingstijden" value="tab-openingstijden" />
         {showTarievenTab && (
           <Tab label="Tarieven" value="tab-tarieven" />
@@ -1693,6 +1763,7 @@ const ParkingEdit = ({
       {renderTabCapaciteit(
         selectedTab === "tab-capaciteit" && hasID && isLoggedIn,
       )}
+      {renderTabDiashow(showDiashowTab && selectedTab === "tab-diashow")}
       {renderTabOpeningstijden(selectedTab === "tab-openingstijden")}
       {renderTabTarieven(
         showTarievenTab && selectedTab === "tab-tarieven"

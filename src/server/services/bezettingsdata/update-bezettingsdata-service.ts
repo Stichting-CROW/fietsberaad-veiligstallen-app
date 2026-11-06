@@ -3,6 +3,7 @@
  * Populates bezettingsdata from:
  * - Lumiguide: new_bezettingsdata_tmp → bezettingsdata (Next.js input; CF uses bezettingsdata_tmp)
  * - FMS: transacties → bezettingsdata (checkins/checkouts per 15-min interval, occupation backfill)
+ * - updateCapacity: copy fietsenstalling_sectie.capaciteit into bezettingsdata where capacity is still NULL
  *
  * Write path: docs/analyse-api/fms-write-paths.md.
  */
@@ -25,8 +26,30 @@ export interface UpdateBezettingsdataResult {
 }
 
 /**
- * Generate 15-minute interval timestamps between dateStart and dateEnd (inclusive).
+ * ColdFusion bezettingsdatahelper.updateCapacity.
+ * Copies the section column into capacity and brutoCapacity.
+ * Rows that already have a capacity, including 0, stay as they are.
+ * A section without a stored total is left alone.
  */
+async function fillNullCapacityFromSection(sectionIDs: string[]): Promise<void> {
+  const ids = [...new Set(sectionIDs.filter((id) => id !== ""))];
+  if (ids.length === 0) return;
+
+  const sections = await prisma.fietsenstalling_sectie.findMany({
+    where: { externalId: { in: ids }, capaciteit: { not: null } },
+    select: { externalId: true, capaciteit: true },
+  });
+
+  for (const section of sections) {
+    if (!section.externalId || section.capaciteit == null) continue;
+    await prisma.bezettingsdata.updateMany({
+      where: { sectionID: section.externalId, capacity: null },
+      data: { capacity: section.capaciteit, brutoCapacity: section.capaciteit },
+    });
+  }
+}
+
+/** Generate 15-minute interval timestamps between dateStart and dateEnd (inclusive). */
 function generateIntervalTimestamps(dateStart: Date, dateEnd: Date): Date[] {
   const timestamps: Date[] = [];
   const current = new Date(dateStart);
@@ -142,6 +165,7 @@ export async function processLumiguidePath(allowedBikeparkIDs: string[] | null):
         where: { bikeparkID: { in: processedParks } },
       });
     }
+  await fillNullCapacityFromSection(tmpRows.map((r) => r.sectionID).filter((id): id is string => !!id));
   return inserted;
 }
 
@@ -269,6 +293,8 @@ async function processFmsPath(
         });
     }
   }
+
+  await fillNullCapacityFromSection(validSections.map((section) => section.externalId));
 
   return { rows: totalRows, sectionsProcessed: validSections.length };
 }

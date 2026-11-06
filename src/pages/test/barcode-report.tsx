@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { Button } from "~/components/Button";
 import { formatDateTimeNl } from "~/utils/datetime-nl";
+import { accountKindLabel } from "~/utils/account-kind-label";
+import {
+  LinkedReportSection,
+  SubscriptionTable,
+  tagLinksFromBarcode,
+} from "~/components/test-reports/LinkedReportSection";
 import type {
   TagReportAccountInfo,
   TagReportFinancialRecord,
   TagReportStallingRecord,
+  TagReportUsedSubscription,
 } from "~/pages/api/protected/test/tag-report";
 import type { BarcodeReportWachtrijRow } from "~/pages/api/protected/test/barcode-report";
 
@@ -46,134 +54,79 @@ function ResolvedCell({
   );
 }
 
-function AccountInfoSection({ accounts }: { accounts: TagReportAccountInfo[] }) {
-  if (accounts.length === 0) {
-    return <p className="text-sm text-gray-600">Geen account of pas gekoppeld aan deze fiets barcode.</p>;
+function AccountCell({
+  name,
+  email,
+  accountType,
+  accountId,
+}: {
+  name: string | null;
+  email: string | null;
+  accountType: string | null;
+  accountId?: string | null;
+}) {
+  if (accountType === "SYSTEM") {
+    return (
+      <div>
+        <div>Anoniem</div>
+        {accountId && <div className="text-xs text-gray-500 font-mono">{accountId}</div>}
+      </div>
+    );
+  }
+  return <ResolvedCell name={name} id={email} />;
+}
+
+function AccountLinks({ accounts }: { accounts: TagReportAccountInfo[] }) {
+  const rows = accounts.map((account, idx) => {
+    const gemeenten = [
+      ...new Set(
+        account.pasids
+          .map((pas) => pas.siteName ?? pas.siteID)
+          .filter((name): name is string => !!name)
+      ),
+    ];
+    return {
+      key: account.accountID ?? `none-${idx}`,
+      accountID: account.accountID,
+      accountType: account.accountType,
+      gemeente: gemeenten.length > 0 ? gemeenten.join(", ") : "—",
+    };
+  });
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-gray-600">Geen account gekoppeld aan deze fiets barcode.</p>;
   }
 
   return (
-    <div className="space-y-4">
-      {accounts.map((account, idx) => (
-        <div
-          key={account.accountID ?? `no-account-${idx}`}
-          className="border border-gray-200 rounded-lg bg-white p-4"
-        >
-          <h3 className="text-base font-semibold text-gray-900 mb-3">
-            {account.name ?? "Account zonder naam"}
-            {account.accountID && (
-              <span className="ml-2 text-xs font-normal text-gray-500 font-mono">
-                {account.accountID}
-              </span>
-            )}
-            {!account.accountID && (
-              <span className="ml-2 text-xs font-normal text-gray-500">(geen account gekoppeld)</span>
-            )}
-          </h3>
-
-          {account.accountID && (
-            <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm mb-4">
-              <div>
-                <dt className="text-gray-500">E-mail</dt>
-                <dd>{account.email ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Telefoon</dt>
-                <dd>{account.phone ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Mobiel</dt>
-                <dd>{account.mobile ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Adres</dt>
-                <dd>
-                  {account.addressLine ?? "—"}
-                  {account.zip || account.city ? (
-                    <span className="text-gray-500">
-                      {account.zip ? `, ${account.zip}` : ""}
-                      {account.city ? ` ${account.city}` : ""}
-                    </span>
-                  ) : null}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Saldo</dt>
-                <dd>{formatMoney(account.saldo)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Saldo bijgewerkt</dt>
-                <dd>{formatDate(account.dateLastSaldoUpdate)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Registratie</dt>
-                <dd>{formatDate(account.dateRegistration)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Laatste login</dt>
-                <dd>{formatDate(account.lastLogin)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Status</dt>
-                <dd>{account.status ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Accounttype</dt>
-                <dd>{account.accountType ?? "—"}</dd>
-              </div>
-            </dl>
-          )}
-
-          <h4 className="text-sm font-medium text-gray-700 mb-2">
-            Pas(sen) voor deze tag ({account.pasids.length})
-          </h4>
-          <div className="tag-report-table-wrap border border-gray-100 rounded-md">
-            <table className="min-w-full text-sm tag-report-table">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">PasID</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Naam</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Type</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Gemeente</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Barcode</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">RFID</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">RFID bike</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Fietstype</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Nu geparkeerd</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">Laatste check</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {account.pasids.map((pas) => (
-                  <tr key={pas.pasidRecordId}>
-                    <td className="px-3 py-2 font-mono text-xs">{pas.pasID}</td>
-                    <td className="px-3 py-2">{pas.naam ?? "—"}</td>
-                    <td className="px-3 py-2">{pas.pastype}</td>
-                    <td className="px-3 py-2">{pas.siteName ?? pas.siteID ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{pas.barcodeFiets ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{pas.RFID ?? "—"}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{pas.RFIDBike ?? "—"}</td>
-                    <td className="px-3 py-2">{pas.bikeTypeName ?? pas.bikeTypeID ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {pas.currentlyParkedStallingTitle || pas.currentlyParkedSectionName ? (
-                        <div>
-                          <div>{pas.currentlyParkedStallingTitle ?? pas.currentlyParkedStallingsID}</div>
-                          {pas.currentlyParkedSectionName && (
-                            <div className="text-xs text-gray-500">{pas.currentlyParkedSectionName}</div>
-                          )}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDate(pas.dateLastCheck)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-    </div>
+    <table className="min-w-full max-w-3xl text-sm tag-report-table">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-3 py-2 text-left font-medium text-gray-600">Account</th>
+          <th className="px-3 py-2 text-left font-medium text-gray-600">Type</th>
+          <th className="px-3 py-2 text-left font-medium text-gray-600">Gemeenten</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {rows.map((row) => (
+          <tr key={row.key} className={row.accountType === "SYSTEM" ? "bg-amber-50" : undefined}>
+            <td className="px-3 py-2 font-mono text-xs">
+              {row.accountID ? (
+                <Link
+                  href={`/test/account-report?accountId=${encodeURIComponent(row.accountID)}`}
+                  className="text-blue-700 underline"
+                >
+                  {row.accountID}
+                </Link>
+              ) : (
+                "geen account gekoppeld"
+              )}
+            </td>
+            <td className="px-3 py-2">{accountKindLabel(row.accountType)}</td>
+            <td className="px-3 py-2">{row.gemeente}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -210,7 +163,7 @@ function StallingTable({ rows }: { rows: TagReportStallingRecord[] }) {
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white">
           {rows.map((row) => (
-            <tr key={row.ID} className="hover:bg-gray-50">
+            <tr key={row.ID} className={row.AccountType === "SYSTEM" ? "bg-amber-50" : "hover:bg-gray-50"}>
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.Date_checkin)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.Date_checkout)}</td>
               <td className="px-3 py-2">{row.StallingTitle ?? "—"}</td>
@@ -239,7 +192,12 @@ function StallingTable({ rows }: { rows: TagReportStallingRecord[] }) {
                 <ResolvedCell name={row.PasNaam} id={row.PasID} description={row.Pastype} />
               </td>
               <td className="px-3 py-2">
-                <ResolvedCell name={row.AccountName} id={row.AccountEmail} />
+                <AccountCell
+                  name={row.AccountName}
+                  email={row.AccountEmail}
+                  accountType={row.AccountType}
+                  accountId={row.AccountID}
+                />
               </td>
               <td className="px-3 py-2 font-mono text-xs">{row.BarcodeFiets_in ?? "—"}</td>
               <td className="px-3 py-2 font-mono text-xs">{row.BarcodeFiets_uit ?? "—"}</td>
@@ -288,7 +246,7 @@ function FinancialTable({ rows }: { rows: TagReportFinancialRecord[] }) {
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white">
           {rows.map((row) => (
-            <tr key={row.ID} className="hover:bg-gray-50">
+            <tr key={row.ID} className={row.AccountType === "SYSTEM" ? "bg-amber-50" : "hover:bg-gray-50"}>
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.transactionDate)}</td>
               <td className="px-3 py-2">{formatMoney(row.amount)}</td>
               <td className="px-3 py-2">
@@ -302,7 +260,12 @@ function FinancialTable({ rows }: { rows: TagReportFinancialRecord[] }) {
               <td className="px-3 py-2">{row.description ?? "—"}</td>
               <td className="px-3 py-2 font-mono text-xs">{row.code ?? "—"}</td>
               <td className="px-3 py-2">
-                <ResolvedCell name={row.AccountName} id={row.AccountEmail} />
+                <AccountCell
+                  name={row.AccountName}
+                  email={row.AccountEmail}
+                  accountType={row.AccountType}
+                  accountId={row.accountID}
+                />
               </td>
               <td className="px-3 py-2">{row.SiteName ?? "—"}</td>
               <td className="px-3 py-2">
@@ -422,10 +385,12 @@ function WachtrijTable({ rows }: { rows: BarcodeReportWachtrijRow[] }) {
 }
 
 const BarcodeReportPage: React.FC = () => {
+  const router = useRouter();
   const { data: session } = useSession();
   const [barcodeFietsInput, setBarcodeFietsInput] = useState("");
   const [activeBarcodeFiets, setActiveBarcodeFiets] = useState("");
   const [accountInfo, setAccountInfo] = useState<TagReportAccountInfo[]>([]);
+  const [usedSubscriptions, setUsedSubscriptions] = useState<TagReportUsedSubscription[]>([]);
   const [stallingRows, setStallingRows] = useState<TagReportStallingRecord[]>([]);
   const [financialRows, setFinancialRows] = useState<TagReportFinancialRecord[]>([]);
   const [wachtrijRows, setWachtrijRows] = useState<BarcodeReportWachtrijRow[]>([]);
@@ -442,16 +407,11 @@ const BarcodeReportPage: React.FC = () => {
     };
   }, []);
 
-  const handleCreateReport = async () => {
-    const barcodeFiets = barcodeFietsInput.replace(/\s+/g, "");
-    if (!barcodeFiets) {
-      setError("Vul een fiets barcode (barcodeFiets) in.");
-      return;
-    }
-
+  const loadReport = async (barcodeFiets: string) => {
     setLoading(true);
     setError(null);
     setAccountInfo([]);
+    setUsedSubscriptions([]);
     setStallingRows([]);
     setFinancialRows([]);
     setWachtrijRows([]);
@@ -468,6 +428,7 @@ const BarcodeReportPage: React.FC = () => {
       }
       setActiveBarcodeFiets(json.barcodeFiets);
       setAccountInfo(json.accountInfo ?? []);
+      setUsedSubscriptions(json.usedSubscriptions ?? []);
       setStallingRows(json.stallingTransacties ?? []);
       setFinancialRows(json.financialTransacties ?? []);
       setWachtrijRows(includeWachtrijTabellen ? (json.wachtrijRows ?? []) : []);
@@ -478,6 +439,27 @@ const BarcodeReportPage: React.FC = () => {
     }
   };
 
+  const handleCreateReport = () => {
+    const barcodeFiets = barcodeFietsInput.replace(/\s+/g, "");
+    if (!barcodeFiets) {
+      setError("Vul een fiets barcode (barcodeFiets) in.");
+      return;
+    }
+    void loadReport(barcodeFiets);
+  };
+
+  useEffect(() => {
+    if (!session || !router.isReady) return;
+    const barcodeFiets = typeof router.query.barcodeFiets === "string"
+      ? router.query.barcodeFiets.replace(/\s+/g, "")
+      : "";
+    if (!barcodeFiets) return;
+    setBarcodeFietsInput(barcodeFiets);
+    void loadReport(barcodeFiets);
+    // The barcode in the URL is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, router.isReady, router.query.barcodeFiets]);
+
   const handlePrintPdf = () => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -485,7 +467,7 @@ const BarcodeReportPage: React.FC = () => {
       now.getHours()
     )}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const previousTitle = document.title;
-    document.title = `${ts} - veiligstallen barcode report - ${activeBarcodeFiets}`;
+    document.title = `${ts}-barcode rapport - ${activeBarcodeFiets}`;
     const restore = () => {
       document.title = previousTitle;
       window.removeEventListener("afterprint", restore);
@@ -694,15 +676,26 @@ const BarcodeReportPage: React.FC = () => {
 
             <div className="space-y-10">
               <section className="tag-report-section">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Account informatie</h2>
-                <AccountInfoSection accounts={accountInfo} />
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">Gekoppelde accounts</h2>
+                <AccountLinks accounts={accountInfo} />
               </section>
+              <LinkedReportSection
+                title="Gekoppelde tags"
+                empty="Geen tag op deze barcode."
+                linkHeader="Tag"
+                detailHeader="Gemeenten"
+                rows={tagLinksFromBarcode(accountInfo, stallingRows)}
+              />
+              <SubscriptionTable title="Gebruikte abonnementen" rows={usedSubscriptions} />
 
               <section className="tag-report-section">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">
                   Stalling transacties ({stallingRows.length})
                 </h2>
                 <StallingTable rows={stallingRows} />
+                <p className="mt-3 text-xs text-gray-500">
+                  Bezoeken ouder dan 18 maanden zijn verwijderd vanwege de bewaartermijn voor privacy.
+                </p>
               </section>
 
               <section className="tag-report-section">
@@ -711,11 +704,13 @@ const BarcodeReportPage: React.FC = () => {
                 </h2>
                 {financialRows.length > 0 && (
                   <p className="text-xs text-gray-500 mb-3 no-print">
-                    Saldo-opwaarderingen, stallingskosten, abonnementen en andere betalingen op het
-                    account gekoppeld aan deze fiets barcode.
+                    Betalingen voor deze barcode: stallingskosten van deze sticker en abonnementen op deze pas.
                   </p>
                 )}
                 <FinancialTable rows={financialRows} />
+                <p className="mt-3 text-xs text-gray-500">
+                  Bij betalingen ouder dan 18 maanden is het account losgekoppeld vanwege de bewaartermijn voor privacy.
+                </p>
               </section>
 
               {includeWachtrijTabellen && (

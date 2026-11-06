@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "~/server/db";
+import { passTopAccountId } from "~/server/services/queue/account-service";
 import {
   addBikeToWachtrij,
   addManagedTransactionToWachtrij,
@@ -213,6 +214,60 @@ function expectClosedTransactie(passSuffix: string): Assertion {
   };
 }
 
+/** Archive rows that share the id of the live transacties row for this external id. */
+async function archiefForManaged(externalTransactionID: string) {
+  const txs = await prisma.transacties.findMany({
+    where: { ExternalTransactionID: externalTransactionID },
+    select: { ID: true },
+  });
+  if (txs.length === 0) return [];
+  return prisma.transacties_archief.findMany({
+    where: { ID: { in: txs.map((row) => row.ID) } },
+  });
+}
+
+/** Archief rows for this run's managed visit (same id as transacties). Open visits stay at 0. */
+function expectArchiefCount(passSuffix: string, expected: number): Assertion {
+  return async (ctx) => {
+    const count = (await archiefForManaged(managedExtId(ctx, passSuffix))).length;
+    return {
+      label: `transacties_archief voor ${passSuffix}`,
+      ok: count === expected,
+      expected: `${expected} archiefrij(en)`,
+      actual: `${count} archiefrij(en)`,
+    };
+  };
+}
+
+/** The single archief row matches the closed managed visit (location, source, price). */
+function expectArchiefRow(
+  passSuffix: string,
+  expected: { price: number; source: string }
+): Assertion {
+  return async (ctx) => {
+    const rows = await archiefForManaged(managedExtId(ctx, passSuffix));
+    const row = rows[0];
+    const price = row ? Number(row.price) : null;
+    const ok =
+      rows.length === 1 &&
+      row != null &&
+      row.locationid === ctx.bikeparkID &&
+      row.source === expected.source &&
+      price != null &&
+      Math.abs(price - expected.price) < 0.005 &&
+      row.checkoutdate != null;
+    return {
+      label: `Archiefrij voor ${passSuffix}`,
+      ok,
+      expected: `1 rij location=${ctx.bikeparkID} source=${expected.source} price=${expected.price.toFixed(2)}`,
+      actual:
+        rows.length === 0
+          ? "geen rij"
+          : `${rows.length} rij(en) location=${row?.locationid ?? "?"} source=${row?.source ?? "?"} price=${price?.toFixed(2) ?? "?"}`,
+    };
+  };
+}
+
 /** Total transacties rows for the synthetic pass equals `expected`. */
 function expectTransactieCount(passSuffix: string, expected: number): Assertion {
   return async (ctx) => {
@@ -232,9 +287,10 @@ async function saldoForPass(passID: string): Promise<number | null> {
     where: { PasID: passID },
     select: { AccountID: true },
   });
-  if (!pasid?.AccountID) return null;
+  const accountID = await passTopAccountId(prisma, pasid?.AccountID ?? null);
+  if (!accountID) return null;
   const acc = await prisma.accounts.findUnique({
-    where: { ID: pasid.AccountID },
+    where: { ID: accountID },
     select: { saldo: true },
   });
   return acc ? Number(acc.saldo ?? 0) : null;
@@ -418,7 +474,11 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     act: async (ctx) => {
       await enqueueManaged(ctx, "ci", { checkindate: ctx.baseTime.toISOString() });
     },
-    assert: [expectManagedQueueProcessed(), expectOpenTransactie("ci")],
+    assert: [
+      expectManagedQueueProcessed(),
+      expectOpenTransactie("ci"),
+      expectArchiefCount("ci", 0),
+    ],
   },
   {
     id: "checkin-checkout",
@@ -440,6 +500,54 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       expectManagedQueueProcessed(),
       expectClosedTransactie("co"),
       expectTransactieCount("co", 1),
+      expectArchiefCount("co", 1),
+      expectArchiefRow("co", { price: 0, source: "fms-v4-managed" }),
+    ],
+  },
+  {
+    id: "checkin-checkout-archief-resync",
+    label: "Check-out archief blijft één rij bij opnieuw versturen",
+    description:
+      "Open check-in schrijft geen archief. Check-out schrijft één transacties_archief-rij. Opnieuw versturen van hetzelfde externaltransactionid werkt prijs en check-out bij en maakt geen tweede rij.",
+    writeMethods: ["queue managedtransactions"],
+    steps: [
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", { checkindate: minutesAfter(ctx, 0).toISOString() });
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 30).toISOString(),
+            checkouttype: "user",
+            stallingsduur: 30,
+            stallingskosten: 1.5,
+          });
+        },
+        processRuns: 1,
+      },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "arch", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 45).toISOString(),
+            checkouttype: "user",
+            stallingsduur: 45,
+            stallingskosten: 2,
+          });
+        },
+        processRuns: 1,
+      },
+    ],
+    assert: [
+      expectManagedQueueProcessed(),
+      expectClosedTransactie("arch"),
+      expectTransactieCount("arch", 1),
+      expectArchiefCount("arch", 1),
+      expectArchiefRow("arch", { price: 2, source: "fms-v4-managed" }),
     ],
   },
   {
@@ -487,9 +595,9 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
   },
   {
     id: "sync-rescan-present",
-    label: "Sync-plaatsing zonder check-in, opnieuw gescand bij inventarisatie",
+    label: "Scanlijst maakt geen transactie",
     description:
-      "Eerste sync plaatst de fiets; een tweede inventarisatie met dezelfde pas in de scanlijst laat één open sync-transactie staan.",
+      "Twee inventarisaties met dezelfde pas in de scanlijst bewaren twee sync-rijen en openen geen transactie.",
     writeMethods: ["queue sync"],
     steps: [
       {
@@ -508,17 +616,15 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     assert: [
       expectSyncRowCount(2),
       expectSyncProcessed(),
-      expectOpenTransactie("rescan"),
-      expectTransactieCount("rescan", 1),
-      expectTypeCheckin("rescan", "sync"),
-      expectParked("rescan", true),
+      expectTransactieCount("rescan", 0),
+      expectParked("rescan", false),
     ],
   },
   {
     id: "checkin-taken-sync-absent",
-    label: "Normale check-in, fiets weg zonder check-out, niet in inventarisatie",
+    label: "Scanlijst sluit een open check-in niet",
     description:
-      "Na een managed check-in verdwijnt de fiets zonder check-out; een lege inventarisatie sluit de transactie via sync-checkout af.",
+      "Na een managed check-in laat een lege scanlijst de transactie open. De uitcheck komt als managed transactie.",
     writeMethods: ["queue managedtransactions", "queue sync"],
     steps: [
       {
@@ -533,6 +639,18 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
         },
         processRuns: 1,
       },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "gone", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 5).toISOString(),
+            checkouttype: "controle",
+            stallingsduur: 5,
+            stallingskosten: 0,
+          });
+        },
+        processRuns: 1,
+      },
     ],
     assert: [
       expectManagedQueueProcessed(),
@@ -540,7 +658,7 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       expectClosedTransactie("gone"),
       expectTransactieCount("gone", 1),
       expectTypeCheckin("gone", "user"),
-      expectTypeCheckout("gone", "sync"),
+      expectTypeCheckout("gone", "controle"),
       expectParked("gone", false),
     ],
   },

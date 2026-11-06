@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { Button } from '~/components/Button';
@@ -13,33 +13,9 @@ const TestIndexPage: React.FC = () => {
     session?.user?.securityProfile,
     session?.user?.mainContactId
   );
-  const [nsConnectorAvailable, setNsConnectorAvailable] = useState<boolean | null>(null);
-
   const handleNavigate = (path: string) => {
     router.push(path);
   };
-
-  // Check if NS Connector is available
-  useEffect(() => {
-    if (!session) return;
-
-    const checkAvailability = async () => {
-      try {
-        const response = await fetch('/api/protected/ns-connector/check-available');
-        if (response.ok) {
-          const data = await response.json();
-          setNsConnectorAvailable(data.available);
-        } else {
-          setNsConnectorAvailable(false);
-        }
-      } catch (error) {
-        console.error('Error checking NS Connector availability:', error);
-        setNsConnectorAvailable(false);
-      }
-    };
-
-    checkAvailability();
-  }, [session]);
 
   if (!session) {
     return (
@@ -94,25 +70,15 @@ const TestIndexPage: React.FC = () => {
           </Button>
 
           <Button
-            onClick={() => handleNavigate('/test/tag-report')}
+            onClick={() => handleNavigate('/test/saldo-overzicht')}
             className="py-6 px-8 text-center w-full"
             style={{
               backgroundColor: '#3B82F6',
             }}
           >
-            Tag rapport
+            Saldo overzicht
           </Button>
 
-          <Button
-            onClick={() => handleNavigate('/test/barcode-report')}
-            className="py-6 px-8 text-center w-full"
-            style={{
-              backgroundColor: '#3B82F6',
-            }}
-          >
-            Barcode rapport
-          </Button>
-          
           <Button
             onClick={() => handleNavigate('/test/wachtrij')}
             className="py-6 px-8 text-center w-full"
@@ -132,18 +98,6 @@ const TestIndexPage: React.FC = () => {
           >
             Fietsenstalling Helpdesk Overzicht
           </Button>
-          
-          {nsConnectorAvailable === true && (
-            <Button
-              onClick={() => handleNavigate('/test/ns-koppeling')}
-              className="py-6 px-8 text-center w-full"
-              style={{
-                backgroundColor: '#3B82F6',
-              }}
-            >
-              NS-Koppeling
-            </Button>
-          )}
           
           <Button
             onClick={() => handleNavigate('/beheer/databasecbsgemeentecodes/0')}
@@ -167,13 +121,6 @@ const TestIndexPage: React.FC = () => {
 
           {hasFietsberaadSuperadmin && (
             <>
-              <Button
-                onClick={() => handleNavigate('/beheer/parking-simulation')}
-                className="py-6 px-8 text-center w-full"
-                style={{ backgroundColor: '#3B82F6' }}
-              >
-                Parkeer Simulatie
-              </Button>
               <Button
                 onClick={() => handleNavigate('/test/fms-api-compare')}
                 className="py-6 px-8 text-center w-full"
@@ -228,6 +175,30 @@ const TestIndexPage: React.FC = () => {
           </Button>
           
         </div>
+
+        <h2 className="text-xl font-bold text-gray-900 mt-10 mb-4">Reports</h2>
+        <div className="grid grid-cols-1 gap-6">
+          <Button
+            onClick={() => handleNavigate('/beheer/report/pas')}
+            className="py-6 px-8 text-center w-full"
+            style={{ backgroundColor: '#3B82F6' }}
+          >
+            Operator Report
+          </Button>
+        </div>
+
+        {hasFietsberaadSuperadmin && (
+          <div className="mt-10">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Kosten</h2>
+            <Button
+              onClick={() => handleNavigate('/beheer/azurekosten')}
+              className="py-6 px-8 text-center w-full"
+              style={{ backgroundColor: '#0F766E' }}
+            >
+              Azure-kosten
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

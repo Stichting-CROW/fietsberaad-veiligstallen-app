@@ -5,6 +5,7 @@ import type {
   TagReportFinancialRecord,
   TagReportPasidInfo,
   TagReportStallingRecord,
+  TagReportUsedSubscription,
 } from "~/pages/api/protected/test/tag-report";
 import type { PasidSelectRow, StallingSourceRow } from "~/server/services/test/pass-report-shared";
 
@@ -72,6 +73,29 @@ function decimalToNumber(value: { toNumber?: () => number } | number | null | un
   return typeof value === "number" ? value : Number(value);
 }
 
+/**
+ * accounts_pasids.AccountID points at gemeenteaccounts.ID. That row's AccountID
+ * is the user account. A pas row that is not a gemeente-account stores accounts.ID directly.
+ */
+async function mapLinkIdsToUserAccountIds(linkIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(linkIds.filter((id) => id.length > 0))];
+  if (unique.length === 0) return new Map();
+  const councils = await prisma.gemeenteaccounts.findMany({
+    where: { ID: { in: unique } },
+    select: { ID: true, AccountID: true },
+  });
+  const map = new Map<string, string>();
+  for (const council of councils) {
+    if (council.AccountID) map.set(council.ID, council.AccountID);
+  }
+  return map;
+}
+
+function userAccountId(linkId: string | null | undefined, linkToUser: Map<string, string>): string | null {
+  if (!linkId) return null;
+  return linkToUser.get(linkId) ?? linkId;
+}
+
 type PasidLookup = {
   Naam: string | null;
   Pastype: string;
@@ -97,6 +121,7 @@ export async function assemblePassReport(
   records: StallingSourceRow[]
 ): Promise<{
   accountInfo: TagReportAccountInfo[];
+  usedSubscriptions: TagReportUsedSubscription[];
   stallingTransacties: TagReportStallingRecord[];
   financialTransacties: TagReportFinancialRecord[];
 }> {
@@ -117,10 +142,9 @@ export async function assemblePassReport(
         ).map((s) => s.ID)
       : [];
 
+  // Only money for this tag or barcode: the visit itself, or a subscription on this pass.
+  // Rows that merely share the user or gemeente account stay off this report.
   const financialOrConditions: Array<Record<string, unknown>> = [];
-  if (tagAccountIds.length > 0) {
-    financialOrConditions.push({ accountID: { in: tagAccountIds } });
-  }
   if (stallingTxIds.length > 0) {
     financialOrConditions.push({ transactionID: { in: stallingTxIds } });
   }
@@ -224,11 +248,15 @@ export async function assemblePassReport(
   }
   const uniqueContactIds = [...new Set(contactIds)];
 
-  const accountIds = [
+  const rawAccountIds = [
     ...new Set([
       ...tagAccountIds,
       ...financialRecords.map((r) => r.accountID).filter((id): id is string => !!id),
     ]),
+  ];
+  const linkToUser = await mapLinkIdsToUserAccountIds(rawAccountIds);
+  const accountIds = [
+    ...new Set(rawAccountIds.map((id) => linkToUser.get(id) ?? id)),
   ];
 
   const [
@@ -380,8 +408,9 @@ export async function assemblePassReport(
   }
 
   function resolveAccount(accountId: string | null | undefined) {
-    if (!accountId) return undefined;
-    return lookups.accountById.get(accountId);
+    const resolved = userAccountId(accountId, linkToUser);
+    if (!resolved) return undefined;
+    return lookups.accountById.get(resolved);
   }
 
   function resolveStallingForTransactie(
@@ -441,6 +470,8 @@ export async function assemblePassReport(
       Pastype: pasid?.Pastype ?? (r.Pastype != null ? String(r.Pastype) : null),
       AccountName: account ? formatAccountName(account) : null,
       AccountEmail: account?.Email ?? null,
+      AccountID: account?.ID ?? null,
+      AccountType: account?.account_type ?? null,
       BarcodeFiets_in: r.BarcodeFiets_in,
       BarcodeFiets_uit: r.BarcodeFiets_uit,
       BikeTypeID: r.BikeTypeID,
@@ -489,7 +520,7 @@ export async function assemblePassReport(
 
   const pasidsByAccount = new Map<string | null, TagReportPasidInfo[]>();
   for (const p of tagPasids) {
-    const key = p.AccountID ?? null;
+    const key = userAccountId(p.AccountID, linkToUser);
     if (!pasidsByAccount.has(key)) pasidsByAccount.set(key, []);
     pasidsByAccount.get(key)!.push(buildPasidInfo(p));
   }
@@ -539,6 +570,7 @@ export async function assemblePassReport(
       accountID: r.accountID,
       AccountName: account ? formatAccountName(account) : null,
       AccountEmail: account?.Email ?? null,
+      AccountType: account?.account_type ?? null,
       siteID: r.siteID,
       SiteName: r.siteID ? lookups.contactById.get(r.siteID) ?? null : null,
       paidToSiteID: r.paidToSiteID,
@@ -567,5 +599,65 @@ export async function assemblePassReport(
     };
   });
 
-  return { accountInfo, stallingTransacties, financialTransacties };
+  const usedIds = [
+    ...new Set(financialRecords.map((row) => row.subscriptionID).filter((id): id is number => id != null)),
+  ];
+  const usedRows = usedIds.length
+    ? await prisma.abonnementen.findMany({
+        where: { ID: { in: usedIds } },
+        select: { ID: true, isActief: true, siteID: true, abonnementsvormen: { select: { naam: true } } },
+      })
+    : [];
+  const missingSiteIds = [
+    ...new Set(usedRows.map((row) => row.siteID).filter((id): id is string => !!id && !lookups.contactById.has(id))),
+  ];
+  if (missingSiteIds.length > 0) {
+    const extraContacts = await prisma.contacts.findMany({
+      where: { ID: { in: missingSiteIds } },
+      select: { ID: true, CompanyName: true },
+    });
+    for (const contact of extraContacts) lookups.contactById.set(contact.ID, contact.CompanyName);
+  }
+  const gemeenteName = (siteId: string | null | undefined): string | null => {
+    if (!siteId) return null;
+    return lookups.contactById.get(siteId) ?? null;
+  };
+  const usedById = new Map(usedRows.map((row) => [row.ID, row]));
+  const usedSubscriptions: TagReportUsedSubscription[] = [];
+  const seenSubscriptions = new Set<string>();
+  for (const row of financialRecords) {
+    if (row.subscriptionID != null) {
+      const key = `id:${row.subscriptionID}`;
+      if (seenSubscriptions.has(key)) continue;
+      seenSubscriptions.add(key);
+      const subscription = usedById.get(row.subscriptionID);
+      usedSubscriptions.push({
+        key,
+        number: row.subscriptionID,
+        name: subscription?.abonnementsvormen?.naam ?? `Abonnement ${row.subscriptionID}`,
+        gemeente: gemeenteName(subscription?.siteID) ?? gemeenteName(row.siteID),
+        status: subscription ? (subscription.isActief ? "Actief" : "Verlopen") : null,
+        pasID: null,
+      });
+    } else if (row.subscriptiontypeID != null) {
+      const key = `type:${row.subscriptiontypeID}:${row.siteID ?? ""}`;
+      if (seenSubscriptions.has(key)) continue;
+      seenSubscriptions.add(key);
+      usedSubscriptions.push({
+        key,
+        number: null,
+        name: lookups.subscriptionTypeById.get(row.subscriptiontypeID) ?? "Abonnement",
+        gemeente: gemeenteName(row.siteID),
+        status: null,
+        pasID: null,
+      });
+    }
+  }
+
+  return {
+    accountInfo,
+    usedSubscriptions,
+    stallingTransacties,
+    financialTransacties,
+  };
 }

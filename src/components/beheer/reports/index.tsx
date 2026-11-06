@@ -7,8 +7,13 @@ import ReportsFilterComponent, {
   type PeriodPreset,
   type ReportsFilterHandle,
   type ReportResultView,
-  getAvailableReports
+  getAvailableReports,
+  PANEL_REPORT_TYPES
 } from "./ReportsFilter";
+import FinancieelMaandoverzichtPanel from "./FinancieelMaandoverzichtPanel";
+import LaagSaldoPanel from "./LaagSaldoPanel";
+import PasPanel from "./PasPanel";
+import MaandrapportBuurtstallingenPanel from "./MaandrapportBuurtstallingenPanel";
 import { type SeriesLabel } from "./WeekdaySelect";
 import { type ReportData } from "~/backend/services/reports/ReportFunctions";
 import { type AvailableDataDetailedResult } from "~/backend/services/reports/availableData";
@@ -102,9 +107,16 @@ const getColorKeyForSeries = (name: string, reportType?: ReportType): string => 
 // Mapping between URL slugs and report types
 export const CHART_TYPE_MAP: Record<string, ReportType> = {
   'afgeronde-transacties': 'transacties_voltooid',
+  'inkomsten': 'inkomsten',
+  'abonnementswijzigingen': 'abonnementen',
+  'lopende-abonnementen': 'abonnementen_lopend',
   'procentuele-bezetting': 'bezetting',
   'absolute-bezetting': 'absolute_bezetting',
   'stallingsduur': 'stallingsduur',
+  'financieel-maandoverzicht': 'financieel_maandoverzicht',
+  'saldotekort': 'laag_saldo',
+  'pas': 'pas',
+  'maandrapport-buurtstallingen': 'maandrapport_buurtstallingen',
 };
 
 export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
@@ -113,15 +125,20 @@ export const REVERSE_CHART_TYPE_MAP: Record<ReportType, string> = {
   'absolute_bezetting': 'absolute-bezetting',
   'stallingsduur': 'stallingsduur',
   'inkomsten': 'inkomsten',
-  'abonnementen': 'abonnementen',
-  'abonnementen_lopend': 'abonnementen_lopend',
+  'abonnementen': 'abonnementswijzigingen',
+  'abonnementen_lopend': 'lopende-abonnementen',
   'volmeldingen': 'volmeldingen',
   'gelijktijdig_vol': 'gelijktijdig_vol',
   'downloads': 'downloads',
+  'financieel_maandoverzicht': 'financieel-maandoverzicht',
+  'laag_saldo': 'saldotekort',
+  'pas': 'pas',
+  'maandrapport_buurtstallingen': 'maandrapport-buurtstallingen',
 };
 
 interface ReportComponentProps {
   showAbonnementenRapporten: boolean;
+  showBuurtstallingenRapporten?: boolean;
   firstDate: Date;
   lastDate: Date;
   bikeparks: ReportBikepark[];
@@ -129,10 +146,13 @@ interface ReportComponentProps {
   warning?: string;
   onDataLoaded?: (hasReportData: boolean) => void;
   initialReportType?: ReportType;
+  initialFilterState?: Partial<ReportState>;
+  persistFilterState?: boolean;
 }
 
 const ReportComponent: React.FC<ReportComponentProps> = ({
   showAbonnementenRapporten,
+  showBuurtstallingenRapporten = false,
   firstDate,
   lastDate,
   bikeparks,
@@ -140,6 +160,8 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   warning,
   onDataLoaded,
   initialReportType,
+  initialFilterState,
+  persistFilterState = true,
 }) => {
   const { data: session } = useSession()
   const router = useRouter()
@@ -156,17 +178,22 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
 
   const [filterState, setFilterState] = useState<ReportState | undefined>(undefined);
   const availableReports = React.useMemo(
-    () => getAvailableReports(showAbonnementenRapporten),
-    [showAbonnementenRapporten]
+    () => getAvailableReports(showAbonnementenRapporten, showBuurtstallingenRapporten),
+    [showAbonnementenRapporten, showBuurtstallingenRapporten]
   );
   const [selectedReportType, setSelectedReportType] = useState<ReportType | undefined>(initialReportType);
   const [resultView, setResultView] = useState<ReportResultView>("chart");
   const filterComponentRef = React.useRef<ReportsFilterHandle>(null);
+  const ownerBikeparkIDs = React.useMemo(
+    () => bikeparks.flatMap((bp) => (bp.StallingsID ? [bp.StallingsID] : [])),
+    [bikeparks],
+  );
 
   const selectedReportTitle = React.useMemo(() => {
     if (!selectedReportType) return '';
     return (
       availableReports.find(r => r.id === selectedReportType)?.title ||
+      (selectedReportType === "maandrapport_buurtstallingen" ? "Maandrapport buurtstallingen" : "") ||
       reportData?.title ||
       ''
     );
@@ -178,6 +205,12 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
       setSelectedReportType(initialReportType);
     }
   }, [initialReportType]);
+
+  useEffect(() => {
+    if (selectedReportType === "abonnementen" || selectedReportType === "abonnementen_lopend") {
+      setResultView("table");
+    }
+  }, [selectedReportType]);
 
   const handlePresetSelect = React.useCallback((preset: PeriodPreset) => {
     filterComponentRef.current?.applyPreset(preset);
@@ -196,7 +229,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     const abortController = new AbortController();
 
     const fetchReportData = async () => {
-      if (undefined === filterState) {
+      if (undefined === filterState || PANEL_REPORT_TYPES.includes(filterState.reportType)) {
         return;
       }
 
@@ -215,17 +248,30 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         }
       }
 
+      // The owner list is still loading, or this data owner has no stallingen.
+      // A saved filter can still hold ids from another owner; do not query those.
+      if (ownerBikeparkIDs.length === 0) {
+        setReportData(undefined);
+        setLoading(false);
+        onDataLoaded && onDataLoaded(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
 
         const apiEndpoint = `/api/reports/${filterState.reportType}`;
-        
+        const ownerIdSet = new Set(ownerBikeparkIDs);
+
         // For bezetting report, derive bikeparkIDs from bikeparkDataSources if selectedBikeparkIDs is empty
-        let bikeparkIDs = filterState.selectedBikeparkIDs;
-        if (filterState.reportType === 'bezetting' && (!bikeparkIDs || bikeparkIDs.length === 0) && filterState.bikeparkDataSources && filterState.bikeparkDataSources.length > 0) {
-          bikeparkIDs = filterState.bikeparkDataSources.map(bp => bp.StallingsID);
+        let bikeparkIDs = (filterState.selectedBikeparkIDs ?? []).filter((id) => ownerIdSet.has(id));
+        if (filterState.reportType === 'bezetting' && bikeparkIDs.length === 0 && filterState.bikeparkDataSources && filterState.bikeparkDataSources.length > 0) {
+          bikeparkIDs = filterState.bikeparkDataSources
+            .map(bp => bp.StallingsID)
+            .filter((id) => ownerIdSet.has(id));
         }
+        const bikeparkDataSources = (filterState.bikeparkDataSources ?? []).filter((bp) => ownerIdSet.has(bp.StallingsID));
         
         const response = await fetch(apiEndpoint, {
           method: 'POST',
@@ -239,7 +285,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               reportGrouping: filterState.reportGrouping,
               reportRangeUnit: filterState.reportRangeUnit,
               bikeparkIDs: bikeparkIDs,
-              bikeparkDataSources: filterState.bikeparkDataSources,
+              bikeparkDataSources: bikeparkDataSources,
               startDT,
               endDT,
               fillups: filterState.fillups,
@@ -290,6 +336,7 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   }, [
     filterState,
     gemeenteInfo?.DayBeginsAt,
+    ownerBikeparkIDs,
     bikeparksWithData?.length ?? 0// Force reloading data if available bikeparks change
   ]);
 
@@ -370,13 +417,31 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
   const selectedGemeenteID = session?.user?.activeContactId || "";
 
   useEffect(() => {
-    // Do API call to get gemeente inffo based on selectedGemeenteID
+    if (!selectedGemeenteID) {
+      setGemeenteInfo(undefined);
+      return;
+    }
+
+    const controller = new AbortController();
     const fetchGemeenteInfo = async () => {
-      const response = await fetch(`/api/contacts?ID=${selectedGemeenteID}`);
-      const data = await response.json();
-      setGemeenteInfo(data);
+      try {
+        const response = await fetch(`/api/contacts?ID=${encodeURIComponent(selectedGemeenteID)}`, {
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setGemeenteInfo(data);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        console.error(error);
+      }
     };
     fetchGemeenteInfo();
+
+    return () => {
+      controller.abort();
+    };
   }, [selectedGemeenteID]);
 
   const renderReportParams = (params: ReportParams) => {
@@ -420,6 +485,20 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
     }
   };
 
+  if (selectedReportType && PANEL_REPORT_TYPES.includes(selectedReportType)) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
+        <h2 className="mb-4 text-2xl font-semibold text-gray-900">{selectedReportTitle}</h2>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-gray-300 bg-white p-2 md:p-6">
+          {selectedReportType === "financieel_maandoverzicht" && <FinancieelMaandoverzichtPanel />}
+          {selectedReportType === "laag_saldo" && <LaagSaldoPanel />}
+          {selectedReportType === "pas" && <PasPanel />}
+          {selectedReportType === "maandrapport_buurtstallingen" && <MaandrapportBuurtstallingenPanel />}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="noPrint flex h-full min-h-0 w-full flex-col container mx-auto" id="ReportComponent">
       <div className="flex w-full mb-4">
@@ -459,11 +538,14 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
               <ReportsFilterComponent
                 ref={filterComponentRef}
                 showAbonnementenRapporten={showAbonnementenRapporten}
+                showBuurtstallingenRapporten={showBuurtstallingenRapporten}
                 firstDate={firstDate}
                 lastDate={lastDate}
                 bikeparks={bikeparksWithData}
                 activeReportType={selectedReportType}
                 onStateChange={handleFilterChange}
+                initialFilterState={initialFilterState}
+                persistFilterState={persistFilterState}
                 resultView={resultView}
                 onResultViewChange={setResultView}
               />
@@ -481,10 +563,25 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="relative min-h-0 flex-1 overflow-hidden">
+              <div
+                className={`relative min-h-0 flex-1 ${(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? "overflow-auto" : "overflow-hidden"}`}
+                style={(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? { minHeight: "24rem" } : undefined}
+              >
                 {reportData ? (
-                  <div className={resultView === "chart" ? "absolute inset-0" : "absolute inset-0 overflow-x-hidden overflow-y-auto"}>
+                  <div className={resultView === "chart" ? "absolute inset-0" : (filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") ? "overflow-auto" : "absolute inset-0 overflow-x-hidden overflow-y-auto"} style={(filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend") && resultView === "table" ? { minHeight: "24rem" } : undefined}>
                     {(() => {
+                        if (
+                          resultView === "table" &&
+                          (filterState?.reportType === "abonnementen" || filterState?.reportType === "abonnementen_lopend")
+                        ) {
+                          return (
+                            <SubscriptionNumbersTable
+                              series={reportData.series}
+                              categories={reportData.options?.xaxis?.categories ?? []}
+                            />
+                          );
+                        }
+
                         const shouldRenderAbsoluteBezettingChart = (() => {
                           if (filterState?.reportType !== "absolute_bezetting") return true;
                           const { startDT, endDT } = getStartEndDT(filterState, firstDate, lastDate);
@@ -710,6 +807,45 @@ const ReportComponent: React.FC<ReportComponentProps> = ({
         </div>
       </div>
     </div>
+  );
+};
+
+/** Plain numbers table for the subscription reports. Stays in normal flow so it is not clipped by the chart box. */
+const SubscriptionNumbersTable: React.FC<{
+  series: Array<{ name: string; data: number[] }>;
+  categories: string[];
+}> = ({ series, categories }) => {
+  const columnCount = Math.max(
+    categories.length,
+    ...series.map((s) => (Array.isArray(s.data) ? s.data.length : 0)),
+  );
+  const headers = Array.from({ length: columnCount }, (_, i) => categories[i] ?? String(i + 1));
+  if (series.length === 0 || columnCount === 0) {
+    return <p className="p-4 text-gray-800">Geen rijen voor deze periode.</p>;
+  }
+  return (
+    <table className="w-full border-collapse text-sm text-gray-900">
+      <thead>
+        <tr>
+          <th className="border border-gray-300 bg-gray-100 px-2 py-1 text-left"> </th>
+          {headers.map((label, i) => (
+            <th key={`${i}-${label}`} className="border border-gray-300 bg-gray-100 px-2 py-1 text-right">{label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {series.map((row) => (
+          <tr key={row.name}>
+            <td className="border border-gray-300 px-2 py-1">{row.name}</td>
+            {headers.map((_, i) => (
+              <td key={i} className="border border-gray-300 px-2 py-1 text-right tabular-nums">
+                {Number(row.data?.[i] ?? 0).toLocaleString("nl-NL")}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 };
 

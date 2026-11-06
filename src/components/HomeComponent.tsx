@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
+import { clientLogoFallback } from "~/utils/library-url";
 
 import {
   setIsParkingListVisible,
@@ -274,7 +275,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         return <img src={activecontact?.CompanyLogo} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
       }
   
-      let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+      let logofile = clientLogoFallback();
   
       // If logo URL is not null and mapZoom is 12 or higher, return the image
       if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
@@ -288,7 +289,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
   
         return <ImageWithFallback
           src={logofile}
-          fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+          fallbackSrc={clientLogoFallback()}
           alt="Logo"
           width={64}
           height={64}
@@ -297,7 +298,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         />
       }
   
-      return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
+      return <img src={clientLogoFallback()} className="max-h-12 w-auto bg-white mr-2" width={64} height={48} alt="Logo" />
     }
 
     const renderDesktopParkingList = () => {
@@ -599,10 +600,13 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
     const updateStallingId = (id: string | undefined): void => {
       const municipality = getCurrentMunicipalityFromUrl();
       const pathname = municipality ? `/${municipality}` : "/";
+      if (activeParkingId !== id) {
+        dispatch(setActiveParkingId(id));
+      }
       if (undefined === id) {
         delete query.stallingid;
         delete query.name;
-        router.push({ pathname, query: { ...query } });
+        router.push({ pathname, query: { ...query } }, undefined, { shallow: true });
       } else {
         const parking = allparkingdata?.find((p) => p.ID === id);
         const nameSlug = parking?.Title ? titleToSlug(parking.Title) : undefined;
@@ -614,11 +618,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         }
         if (municipality) newQuery.municipality = municipality;
         else delete newQuery.municipality;
-        router.push({ pathname, query: newQuery });
-      }
-  
-      if (activeParkingId !== id) {
-        dispatch(setActiveParkingId(id));
+        router.push({ pathname, query: newQuery }, undefined, { shallow: true });
       }
     };
   
@@ -628,7 +628,7 @@ const HomeComponent = ({ online, message, url_municipality, url_municipalitypage
         const pathname = municipality ? `/${municipality}` : "/";
         delete query.stallingid;
         delete query.name;
-        router.push({ pathname, query: { ...query } });
+        router.push({ pathname, query: { ...query } }, undefined, { shallow: true });
       }
       dispatch(setActiveParkingId(undefined));
     };

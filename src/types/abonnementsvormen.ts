@@ -13,6 +13,7 @@ export type VSAbonnementsvormInLijst = {
   naam: string | null;
   tijdsduur: number | null;
   prijs: number | null;
+  bikeparkTypeID?: string | null;
   bikeparkTypeName: string | null;
   isActief: boolean;
   hasSubscriptions?: boolean;

@@ -1,0 +1,324 @@
+@charset "UTF-8";
+
+/* ==========================================================================
+   FONTS
+   ========================================================================== */
+
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-black-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-black-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-black-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-black-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-black-webfont.svg#nerisblack') format('svg');
+    font-weight: bold;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-blackitalic-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-blackitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-blackitalic-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-blackitalic-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-blackitalic-webfont.svg#nerisblack_italic') format('svg');
+    font-weight: bold;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-bolditalic-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-bolditalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-bolditalic-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-bolditalic-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-bolditalic-webfont.svg#nerisbold_italic') format('svg');
+    font-weight: 500;
+    font-style: italic;
+
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-light-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-light-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-light-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-light-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-light-webfont.svg#nerislight') format('svg');
+    font-weight: 200;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-lightitalic-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-lightitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-lightitalic-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-lightitalic-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-lightitalic-webfont.svg#nerislight_italic') format('svg');
+    font-weight: 200;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-semibold-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-semibold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-semibold-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-semibold-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-semibold-webfont.svg#nerissemibold') format('svg');
+    font-weight:normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-semibolditalic-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-semibolditalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-semibolditalic-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-semibolditalic-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-semibolditalic-webfont.svg#nerissemibold_italic') format('svg');
+    font-weight: normal;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-thin-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-thin-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-thin-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-thin-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-thin-webfont.svg#neristhin') format('svg');
+    font-weight: 100;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/verwijssysteem/fonts/neris-thinitalic-webfont.eot');
+    src: url('/display/verwijssysteem/fonts/neris-thinitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/verwijssysteem/fonts/neris-thinitalic-webfont.woff') format('woff'),
+         url('/display/verwijssysteem/fonts/neris-thinitalic-webfont.ttf') format('truetype'),
+         url('/display/verwijssysteem/fonts/neris-thinitalic-webfont.svg#neristhin_italic') format('svg');
+    font-weight: 100;
+    font-style: italic;
+}
+
+/* ==========================================================================
+   HTML
+   ========================================================================== */
+
+html, body { 
+	height: 100% !important;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-family: neris, arial;
+	color: #fff;
+	background-color: #1d99d7;
+	}
+
+#wrapper {
+	display: table;
+	width: 100%;
+	height: 100%;
+}
+
+.tbl {
+	display: table;
+}
+.tbl_row {
+	display: table-row;
+}
+.tbl_cell {
+	display: table-cell;
+}
+
+#header { 
+	height: 110px;
+	padding: 25px;
+	}
+	.headerCell {
+		height: 110px;
+		padding: 0px 25px 0px 25px;
+		font-size: 44px;
+		line-height: 110px;
+	}
+
+#content { 
+	padding: 25px;
+}
+
+#footer {
+	height: 70px; 
+	padding: 25px;
+	background-color: #fff;
+	}
+	.footerCell {
+		vertical-align: bottom;
+		height: 70px;
+		padding: 0px 25px 0px 25px;
+		line-height: 60px;
+		color: #1d99d7;
+		background-color: #fff;
+	}
+
+/* 
+ * Content
+ */ 
+
+.item_wrapper { /* is table cell */
+	vertical-align: middle;
+	padding: 30px;
+	padding-bottom: 45px;
+}
+
+/* generic */
+	.item {
+		display: table;
+		width: 100%;
+		margin-bottom: 30px;
+		background-color: #fff;
+	}
+	.col_color { width:25px !important; }
+	.col_text {  /* is table cell */
+		vertical-align: middle;
+		padding-left: 30px;
+		padding-right: 30px;
+		color: #545454;
+	}
+	.col_plaatsen {  /* is table cell */
+		text-align: center;
+		vertical-align: middle;
+		font-size: 80px;
+		color: #96c11f;
+		background-color: #000;
+	}
+
+/* small */
+	.small .item {
+		float: left;
+		width: calc(50% - 15px);
+		margin-right: 30px;
+		height: calc(100% / 3);
+		vertical-align: top; 
+		}
+		.small .item.last { margin: 0; }
+		/*.small .item .col_text {
+			height: 160px;
+		}*/
+		.small .item .col_text h2 {
+			margin: 0;
+			margin-bottom: 12px;
+			font-size: 34px;
+			font-weight: normal;
+			line-height: 34px; 
+			color: #000;
+		}
+		.small .item .col_text p {
+			margin: 0;
+			font-size: 25px;
+			font-weight: 100;
+			line-height: 22px; 
+		}
+		.small .item .col_plaatsen {
+			width: 220px !important;
+			/*height: 160px;*/
+		}
+
+/* big */
+	.big .item {
+		width: 100%;
+		height: calc(100% / 3);
+		vertical-align: middle;
+		}
+		/*
+		.big .item .col_text {
+			height: 250px;
+		}*/
+		.big .item .col_text h2 {
+			margin: 0;
+			margin-bottom: 12px;
+			font-size: 46px;
+			font-weight: normal;
+			line-height: 46px; 
+			color: #000;
+		}
+		.big .item .col_text p {
+			margin: 0;
+			font-size: 26px;
+			font-weight: 100;
+			line-height: 26px; 
+		}
+		.big .item .col_plaatsen {
+			width: 350px !important;
+			/*height: 250px;*/
+		}
+
+/* 
+ Above styles are default 
+ For screen widths > 1920 : 
+ */
+
+@media all and (min-width: 1920px){
+  #header { 
+		height: 165px;
+		}
+		.headerCell {
+			height: 165px;
+			font-size: 66px;
+			line-height: 145px;
+		}
+	
+	.small .item .col_text h2 {
+		font-size: 49px;
+		line-height: 49px; 
+		}
+		.small .item .col_text p {
+			font-size: 37px;
+			line-height: 37px; 
+		}
+		.small .item .col_plaatsen {
+			width: 330px !important;
+			font-size: 120px;
+		}
+		
+	.big .item .col_text h2 {
+		font-size: 65px;
+		line-height: 65px; 
+		}
+		.big .item .col_text p {
+			font-size: 37px;
+			line-height: 37px; 
+		}
+		.big .item .col_plaatsen {
+			width: 530px !important;
+			font-size: 120px;
+		}
+}
+/*
+@media all and (max-width: 1920px) and (min-width: 1280px){
+  #header { 
+	height: 110px;
+	}
+	.headerCell {
+		height: 110px;
+		font-size: 44px;
+		line-height: 90px;
+	}
+	.small .item .col_plaatsen {
+		width: 220px !important;
+	}
+}*/
+
+/* common */
+a {
+	color: #fff;
+	text-decoration: none;
+	}
+	a:hover { text-decoration: underline; }
+	
+.full .free  { color: #b63d10; }
+.red  { color: red; }
+
+.floatLeft { float: left; }
+.floatRight { float: right; }
+.alignLeft { text-align: left; }
+.alignRight { text-align: right; }
+
+/* apply a natural box layout model to all elements */
+*, *:before, *:after {
+	-moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
+}

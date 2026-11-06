@@ -79,7 +79,8 @@ export interface VSContactExploitant {
   "CompanyLogo" | 
   "ThemeColor1" |
   "ThemeColor2" |
-  "Status"
+  "Status" |
+  "Status_website"
   > & {
     hasStallingen: boolean;
     hasUsers: boolean;
@@ -116,7 +117,8 @@ export interface VSContactExploitant {
       "CompanyLogo" | 
       "CompanyLogo2" |
       "ThemeColor1" |
-      "ThemeColor2"
+      "ThemeColor2" |
+      "Status_website"
   > & {
           isManagingContacts?: {
               ID: number;
@@ -138,6 +140,7 @@ export interface VSContactExploitant {
         ThemeColor1: true,
         ThemeColor2: true,
         Status: true,
+        Status_website: true,
         fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
           where: {
             StallingsID: { not: null },
@@ -200,6 +203,7 @@ export interface VSContactExploitant {
       Notes: true,
       DateRegistration: true,
       Status: true,
+      Status_website: true,
       fietsenstallingen_fietsenstallingen_SiteIDTocontacts: {
         where: {
           StallingsID: { not: null },

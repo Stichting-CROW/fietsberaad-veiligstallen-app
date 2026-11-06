@@ -1,0 +1,23 @@
+name: Privacy retention
+
+on:
+  workflow_dispatch:
+  # Nightly schedule stays off until the scratch rehearsal is signed off.
+  # schedule:
+  #   - cron: "30 1 * * *"
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dry-run until done
+        run: |
+          for i in $(seq 1 20); do
+            body=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "https://beta.veiligstallen.nl/api/cron/privacy-retention")
+            echo "$body"
+            echo "$body" | grep -q '"done":true' && exit 0
+          done
+          echo "privacy retention dry-run did not finish"
+          exit 1

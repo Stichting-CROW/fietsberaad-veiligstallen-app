@@ -15,6 +15,8 @@ import {
 } from "~/server/services/tarieven";
 import { sectionTotalCapacity, storedBikeTypeCapacity } from "~/server/services/section-capacity";
 import { generateUniqueSectionExternalId } from "~/server/services/section-external-id";
+import { assertSectionDeletable, syncSectionPlaces } from "~/modules/buurtstallingen/application/service";
+import { DomainError } from "~/modules/buurtstallingen/domain/types";
 
 /**
  * Calculate total capacity for a fietsenstalling from all its sections
@@ -70,6 +72,19 @@ const syncSectionTotalCapacity = async (sectionId: number): Promise<void> => {
     data: { capaciteit: sectionTotalCapacity(bikeTypes.map((bt) => bt.Capaciteit)) },
   });
 };
+
+async function syncBuurtstallingPlaces(sectionId: number, res: NextApiResponse<SectiesResponse>): Promise<boolean> {
+  try {
+    await syncSectionPlaces(sectionId);
+    return true;
+  } catch (error) {
+    if (error instanceof DomainError) {
+      res.status(400).json({ error: error.message });
+      return false;
+    }
+    throw error;
+  }
+}
 
 export default async function handle(
   req: NextApiRequest,
@@ -246,6 +261,7 @@ export default async function handle(
 
       // Update the fietsenstalling Capacity field
       await updateFietsenstallingCapacity(data.fietsenstallingsId);
+      if (!(await syncBuurtstallingPlaces(newSection.sectieId, res))) return;
 
       // Update editorModified and dateModified on the fietsenstalling record
       const userName = session.user?.name || session.user?.email || 'unknown';
@@ -290,6 +306,10 @@ export default async function handle(
           kleur: req.body.kleur || "00FF00",
           qualificatie: req.body.qualificatie || "NONE",
           isactief: req.body.isactief !== undefined ? req.body.isactief : true,
+          NotaVerwijssysteem:
+            req.body.NotaVerwijssysteem != null
+              ? String(req.body.NotaVerwijssysteem).slice(0, 100)
+              : undefined,
         },
         select: selectSectieDetailsType
       });
@@ -369,6 +389,7 @@ export default async function handle(
         // Update the fietsenstalling Capacity field
         if (existingSection.fietsenstallingsId) {
           await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
+          if (!(await syncBuurtstallingPlaces(sectionIdNum, res))) return;
           
           // Update editorModified and dateModified on the fietsenstalling record
           const userName = session.user?.name || session.user?.email || 'unknown';
@@ -392,6 +413,7 @@ export default async function handle(
         // Update the fietsenstalling Capacity field (even if only section metadata changed)
         if (existingSection.fietsenstallingsId) {
           await updateFietsenstallingCapacity(existingSection.fietsenstallingsId);
+          if (!(await syncBuurtstallingPlaces(sectionIdNum, res))) return;
           
           // Update editorModified and dateModified on the fietsenstalling record
           const userName = session.user?.name || session.user?.email || 'unknown';
@@ -440,6 +462,16 @@ export default async function handle(
           res.status(400).json({ error: "Cannot delete the last section. Each fietsenstalling must have at least one section." });
           return;
         }
+      }
+
+      try {
+        await assertSectionDeletable(sectionIdNum);
+      } catch (error) {
+        if (error instanceof DomainError) {
+          res.status(400).json({ error: error.message });
+          return;
+        }
+        throw error;
       }
 
       // Clean up tariff records for the deleted section

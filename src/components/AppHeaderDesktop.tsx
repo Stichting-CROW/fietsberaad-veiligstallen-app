@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { type AppState } from "~/store/store";
 import { setActiveArticle } from "~/store/appSlice";
 import Logo from './Logo';
+import { clientLogoFallback } from "~/utils/library-url";
 import { ToggleMenuIcon } from "~/components/ToggleMenuIcon";
 import ImageWithFallback from "~/components/common/ImageWithFallback";
 
@@ -122,7 +123,7 @@ function AppHeaderDesktop({
       return <img src={activecontact?.CompanyLogo} className="max-h-full w-auto bg-white mr-2" width={64} height={64} alt="Logo" />
     }
 
-    let logofile ="https://fms.veiligstallen.nl/resources/client/logo.png";
+    let logofile = clientLogoFallback();
 
     // If logo URL is not null and mapZoom is 12 or higher, return the image
     if(mapZoom >= 12 && activecontact?.CompanyLogo && activecontact?.CompanyLogo !== null) {
@@ -136,7 +137,7 @@ function AppHeaderDesktop({
 
       return <ImageWithFallback
         src={logofile}
-        fallbackSrc="https://fms.veiligstallen.nl/resources/client/logo.png"
+        fallbackSrc={clientLogoFallback()}
         alt="Logo"
         width={64}
         height={64}
@@ -144,7 +145,7 @@ function AppHeaderDesktop({
       />
     }
 
-    return <img src="https://fms.veiligstallen.nl/resources/client/logo.png" className="max-h-full w-auto bg-white mr-2" width={64} height={64} alt="Logo" />
+    return <img src={clientLogoFallback()} className="max-h-full w-auto bg-white mr-2" width={64} height={64} alt="Logo" />
   }
 
   return (

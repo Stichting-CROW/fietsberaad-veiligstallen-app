@@ -23,10 +23,10 @@ export const PrimaryMenuItem = (props: any) => {
     PrimaryMenuItem
     px-5
   ">
-    <a href={props.url} className="flex flex-col justify-center h-full" onClick={(e) => {
+    <a href={props.url || "#"} className="flex flex-col justify-center h-full" onClick={(e) => {
       e.preventDefault();
-
-      push(props.url);
+      if (props.onClick) props.onClick();
+      else push(props.url);
     }}>
       {props.icon ? <img src={props.icon} alt={props.title ? `${props.title} - icoon` : 'Menu icoon'} width={30} height={30} style={{ height: '30px', width: 'auto' }} /> : ''}
       {props.title}

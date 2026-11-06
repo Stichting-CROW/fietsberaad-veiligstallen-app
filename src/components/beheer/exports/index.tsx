@@ -199,7 +199,7 @@ const ExportComponent: React.FC<ReportComponentProps> = ({
     // "Absolute bezetting" has no CSV export of its own; the bezetting export
     // already contains both the absolute and the procentuele columns.
     const availableReports = getAvailableReports(false).filter(
-      (report) => report.id !== "absolute_bezetting"
+      (report) => report.id !== "absolute_bezetting" && report.id !== "pas"
     );
     return (
       <div className="form-group row flex flex-row">

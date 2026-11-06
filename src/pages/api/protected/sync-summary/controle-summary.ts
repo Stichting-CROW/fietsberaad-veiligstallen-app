@@ -7,6 +7,7 @@ import { userHasRight } from "~/types/utils";
 import { validateUserSession, getOrganisationTypeByID } from "~/utils/server/database-tools";
 import { VSContactItemType } from "~/types/contacts";
 import type { ControleSummaryResponse, ControleSummary } from "~/types/sync-summary";
+import { SYNC_QUEUE_LATEST_BY_BIKEPARK_JOIN } from "~/utils/server/wachtrij-sync-read";
 
 export default async function handler(
   req: NextApiRequest,
@@ -81,7 +82,7 @@ export default async function handler(
       FROM 
         contacts c 
         JOIN fietsenstallingen f ON (c.ID = f.SiteID)
-        LEFT JOIN wachtrij_sync ws ON (ws.bikeparkID = f.StallingsID)
+        ${SYNC_QUEUE_LATEST_BY_BIKEPARK_JOIN}
       WHERE 
         ${onlyActive ? "f.Status = '1'" : "1=1"}
         ${siteFilter}

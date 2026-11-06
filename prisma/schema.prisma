@@ -283,6 +283,8 @@ model bezettingsdata {
   @@index([sectionID], map: "sectionID")
   @@index([source], map: "source")
   @@index([timestamp], map: "timestamp")
+  @@index([timestamp, bikeparkID, sectionID, source, fillup, open], map: "idx_bezettingcache_1")
+  @@index([bikeparkID, timestamp], map: "idx_bezettingcache_2")
 }
 
 model bezettingsdata_tmp {
@@ -819,7 +821,7 @@ model fietstypen {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model financialtransactions {
   ID                  String    @id @db.VarChar(35)
-  mollieTransactionID String?   @db.VarChar(20)
+  mollieTransactionID String?   @db.VarChar(32)
   amount              Decimal?  @db.Decimal(8, 2)
   btw                 Decimal?  @db.Decimal(8, 2)
   btwPercentage       Float?
@@ -1381,6 +1383,10 @@ model transacties {
   @@index([dateModified], map: "dateModified")
 }
 
+/// Closed visits copied for rapportage.
+/// A row copied from transacties uses that row's ID. Completed transactions insert their own id.
+/// A correction with the same externaltransactionid updates this row only while the live
+/// transacties row still exists (before the 18-month retention delete).
 model transacties_archief {
   ID              Int                               @id @default(autoincrement())
   citycode        String                            @db.VarChar(4)
@@ -1417,6 +1423,10 @@ model transacties_archief {
   @@index([placeid], map: "placeid")
   @@index([sectionid], map: "sectionid")
   @@index([source], map: "source")
+  @@index([locationid, checkoutdate, checkintype, checkouttype, checkindate], map: "idx_transactionscache_1")
+  @@index([sectionid, clienttypeid], map: "idx_transactionscache_2")
+  @@index([locationid, checkoutdate, sectionid, clienttypeid], map: "idx_stallingduurcache_1")
+  @@index([checkindate, checkoutdate], map: "idx_stallingduurcache_2")
 }
 
 model transacties_archief_tmp {
@@ -1911,6 +1921,7 @@ model bezettingsdata_day_hour_cache {
   @@index([source, bikeparkID], map: "idx_bikeparkID_source")
   @@index([bikeparkID, timestamp], map: "idx_bikeparkID_timestamp")
   @@index([bikeparkID, sectionID, source, interval, timestamp], map: "idx_bikeparkID_sectionID_source_interval_timestamp")
+  @@index([bikeparkID, source, interval, timestamp], map: "idx_bikeparkID_source_interval_timestamp")
 }
 
 model stallingsduur_cache {
@@ -2012,69 +2023,31 @@ model new_wachtrij_managed_transacties {
 }
 
 
+model privacy_retention_runs {
+  id             Int       @id @default(autoincrement())
+  mode           String    @db.VarChar(16)
+  status         String    @db.VarChar(16)
+  startedBy      String?   @db.VarChar(255)
+  startedAt      DateTime  @db.DateTime(0)
+  updatedAt      DateTime  @db.DateTime(0)
+  finishedAt     DateTime? @db.DateTime(0)
+  currentAction  String?   @db.VarChar(64)
+  cursorId       String?   @db.VarChar(64)
+  logText        String?   @db.MediumText
+  errorText      String?   @db.Text
 
-
-
-
-// Parking simulation (separate from Veiligstallen core)
-model parkingsimulation_simulation_config {
-  id                    String    @id @default(cuid()) @db.VarChar(36)
-  siteID                String    @db.VarChar(35)
-  apiUsername           String?   @db.VarChar(255)
-  apiPasswordEncrypted  String?   @db.VarChar(255)
-  baseUrl               String?   @db.VarChar(500)
-  processQueueBaseUrl   String?   @db.VarChar(500)
-  useLocalProcessor     Boolean   @default(true)
-  defaultBiketypeID              Int       @default(1)
-  defaultIdtype                  Int       @default(0)
-  simulationTimeOffsetSeconds    Int       @default(0)
-  simulationStartDate            DateTime? @db.DateTime(0)
-  createdAt             DateTime  @default(now()) @db.DateTime(0)
-  updatedAt             DateTime  @updatedAt @db.DateTime(0)
-
-  bicycles            parkingsimulation_bicycles[]
-  sectionAssignments  parkingsimulation_section_assignments[]
-
-  @@unique([siteID], map: "parkingsimulation_simulation_config_siteID_key")
-  @@index([siteID], map: "parkingsimulation_simulation_config_siteID_idx")
+  @@index([status], map: "privacy_retention_runs_status")
 }
 
-model parkingsimulation_bicycles {
-  id                  String   @id @default(cuid()) @db.VarChar(36)
-  simulationConfigId  String   @db.VarChar(36)
-  barcode    String   @db.VarChar(50)
-  RFIDBike   String?  @db.VarChar(50)
-  passID     String?  @db.VarChar(50)
-  RFID       String?  @db.VarChar(50)
-  biketypeID Int      @default(1)
-  status     String   @default("available") @db.VarChar(20)
-  createdAt  DateTime @default(now()) @db.DateTime(0)
-  updatedAt  DateTime @updatedAt @db.DateTime(0)
+model privacy_retention_actions {
+  id          Int     @id @default(autoincrement())
+  runId       Int
+  actionKey   String  @db.VarChar(64)
+  heading     String  @db.VarChar(255)
+  rowsMatched Int     @default(0)
+  rowsChanged Int     @default(0)
+  status      String  @db.VarChar(16)
+  detail      String? @db.Text
 
-  simulationConfig   parkingsimulation_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
-  sectionAssignments parkingsimulation_section_assignments[]
-
-  @@index([simulationConfigId], map: "parkingsimulation_bicycles_simulationConfigId_idx")
-  @@index([barcode], map: "parkingsimulation_bicycles_barcode_idx")
-}
-
-model parkingsimulation_section_assignments {
-  id                 String   @id @default(cuid()) @db.VarChar(36)
-  simulationConfigId String   @db.VarChar(36)
-  bicycleId          String   @db.VarChar(36)
-  locationid         String   @db.VarChar(35)
-  sectionid          String   @db.VarChar(35)
-  checkedIn               Boolean   @default(false)
-  passID                  String?   @db.VarChar(36)
-  externalTransactionID   String?   @db.VarChar(100)
-  checkInDate             DateTime? @db.DateTime(0)
-  createdAt               DateTime  @default(now()) @db.DateTime(0)
-  updatedAt               DateTime  @updatedAt @db.DateTime(0)
-
-  simulationConfig parkingsimulation_simulation_config @relation(fields: [simulationConfigId], references: [id], onDelete: Cascade)
-  bicycle          parkingsimulation_bicycles          @relation(fields: [bicycleId], references: [id], onDelete: Cascade)
-
-  @@unique([bicycleId], map: "parkingsimulation_section_assignments_bicycleId_key")
-  @@index([simulationConfigId, locationid, sectionid], map: "parkingsimulation_section_assignments_location_idx")
-  @@index([bicycleId], map: "parkingsimulation_section_assignments_bicycleId_idx")
+  @@index([runId], map: "privacy_retention_actions_run")
 }
