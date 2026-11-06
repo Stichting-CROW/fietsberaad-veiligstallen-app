@@ -5,7 +5,7 @@
 #   npm run docker-acc:dev:down
 #
 # The checked-in Prisma baseline migration is a no-op, so `migrate` creates the
-# schema with `prisma db push` and then seeds the beheer login.
+# schema with `prisma db push`, MySQL views, and then seeds the beheer login.
 
 name: acc-docker
 

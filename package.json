@@ -4,7 +4,7 @@
   "private": true,
   "engines": {
     "node": ">=22.0.0 <23.0.0",
-    "npm": ">=10.0.0"
+    "npm": ">=11.0.0"
   },
   "scripts": {
     "docs:api": "node scripts/generate-openapi-docs.mjs",
@@ -44,6 +44,7 @@
     "docker-acc:ps": "docker compose --env-file docker/acceptance/.env -f docker-compose.acceptance.yml ps -a",
     "docker-acc:images": "docker compose --env-file docker/acceptance/.env -f docker-compose.acceptance.yml images",
     "docker-acc:seed-admin": "node docker/acceptance/seed-admin.mjs",
+    "docker-acc:ensure-views": "node docker/acceptance/ensure-mysql-views.mjs",
     "docker-build": "bash scripts/build-docker-local.sh",
     "docker-run": "docker rm -f veiligstallen-app && docker run -p 3000:3000 --network=host --name veiligstallen-app nextjs-docker"
   },

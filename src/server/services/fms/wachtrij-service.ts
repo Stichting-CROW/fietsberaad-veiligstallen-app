@@ -4,6 +4,11 @@
  */
 
 import { prisma } from "~/server/db";
+import {
+  managedPayloadCheckoutType,
+  managedPayloadHasCheckout,
+  shouldLowerOccupationForManagedCheckout,
+} from "./managed-occupation";
 
 type BikeInput = {
   barcode: string;
@@ -94,6 +99,16 @@ export async function addBikeToWachtrij(
     biketypeID: bike.biketypeID ?? null,
     bike: bikeJson,
   };
+  const existing = await prisma.new_wachtrij_pasids.findFirst({
+    where: {
+      transactionDate,
+      bikeparkID,
+      passID: bike.passID,
+      barcode: bike.barcode,
+    },
+    select: { ID: true },
+  });
+  if (existing) return { id: existing.ID };
   const row = await prisma.new_wachtrij_pasids.create({ data });
   return { id: row.ID };
 }
@@ -162,14 +177,26 @@ export async function addSaldoToWachtrij(
   if (!passID) throw new Error("passID or idcode required");
   const paymentTypeID = saldo.paymentTypeID ?? saldo.paymenttypeid ?? 1;
   const transactionDate = parseDate(saldo.transactionDate);
+  const amount = toDecimal(saldo.amount) ?? 0;
   const data = {
     bikeparkID,
     passID,
     idtype: saldo.idtype ?? null,
     transactionDate,
     paymentTypeID,
-    amount: toDecimal(saldo.amount) ?? 0,
+    amount,
   };
+  const existing = await prisma.new_wachtrij_betalingen.findFirst({
+    where: {
+      bikeparkID,
+      passID,
+      transactionDate,
+      paymentTypeID,
+      amount,
+    },
+    select: { ID: true },
+  });
+  if (existing) return { id: existing.ID };
   const row = await prisma.new_wachtrij_betalingen.create({ data });
   return { id: row.ID };
 }
@@ -195,7 +222,88 @@ export async function addManagedTransactionToWachtrij(
     payload,
   };
   const row = await prisma.new_wachtrij_managed_transacties.create({ data });
+  try {
+    await lowerOccupationForClosedManaged({
+      bikeparkID,
+      sectionID,
+      managed,
+      externalTransactionID,
+      queueId: row.ID,
+    });
+  } catch (e) {
+    console.warn("Managed checkout: bezetting niet verlaagd", e);
+  }
   return { id: row.ID };
+}
+
+/**
+ * Lower section occupation when a queued managed transaction closes a visit
+ * that was still open. processQueues leaves Bezetting unchanged.
+ */
+async function lowerOccupationForClosedManaged(input: {
+  bikeparkID: string;
+  sectionID: string;
+  managed: ManagedTransactionPayload;
+  externalTransactionID: string;
+  queueId: number;
+}): Promise<void> {
+  const sectionID =
+    input.sectionID.trim() ||
+    String(input.managed.sectionid_checkin ?? input.managed.sectionid ?? "").trim();
+  if (!sectionID) return;
+
+  const [existingTx, priorQueue] = await Promise.all([
+    prisma.transacties.findFirst({
+      where: {
+        FietsenstallingID: input.bikeparkID,
+        ExternalTransactionID: input.externalTransactionID,
+      },
+      select: { Date_checkout: true },
+    }),
+    prisma.new_wachtrij_managed_transacties.findMany({
+      where: {
+        bikeparkID: input.bikeparkID,
+        externalTransactionID: input.externalTransactionID,
+        ID: { not: input.queueId },
+      },
+      select: { payload: true },
+    }),
+  ]);
+
+  const priorParsed = priorQueue.map((row) => parseManagedQueuePayload(row.payload));
+  const priorOpenVisit =
+    (existingTx != null && existingTx.Date_checkout == null) ||
+    priorParsed.some((payload) => payload != null && !managedPayloadHasCheckout(payload));
+
+  const lower = shouldLowerOccupationForManagedCheckout({
+    hasCheckout: managedPayloadHasCheckout(input.managed),
+    checkoutType: managedPayloadCheckoutType(input.managed),
+    transactionAlreadyClosed: existingTx != null && existingTx.Date_checkout != null,
+    priorQueueHasCheckout: priorParsed.some(
+      (payload) => payload != null && managedPayloadHasCheckout(payload)
+    ),
+    priorOpenVisit,
+  });
+  if (!lower) return;
+
+  await prisma.fietsenstalling_sectie.updateMany({
+    where: {
+      externalId: sectionID,
+      Bezetting: { gt: 0 },
+      fietsenstalling: { StallingsID: input.bikeparkID, BronBezettingsdata: "FMS" },
+    },
+    data: { Bezetting: { decrement: 1 } },
+  });
+}
+
+function parseManagedQueuePayload(payload: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 export async function addSyncToWachtrij(sync: SyncInput): Promise<{ id: number }> {

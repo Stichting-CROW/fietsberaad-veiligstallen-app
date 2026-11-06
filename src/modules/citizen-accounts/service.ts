@@ -649,7 +649,7 @@ async function setPassName(pass: { PasID: string; Pastype: string }, name: strin
 }
 
 /** BikeparkAccount.takeOverSystemAccount: the citizen gets the SYSTEM account's transactions, subscriptions and passes in every municipality. */
-async function takeOverSystemAccount(accountId: string, systemId: string) {
+export async function takeOverSystemAccount(accountId: string, systemId: string) {
   if (systemId === accountId) return;
   const system = await prisma.accounts.findUnique({ where: { ID: systemId }, select: { account_type: true } });
   if (system?.account_type !== "SYSTEM") return;
@@ -2324,10 +2324,20 @@ Als u geen printer heeft, noteer dan de volgende code: <strong>${escapeHtml(pass
 
 /** FinancialGateway.getStallingstegoedForAccount: the view total, or 0 when the account has no row. */
 export async function recalculateSaldo(accountId: string): Promise<number> {
-  const rows = await prisma.$queryRaw<{ stallingstegoed: unknown }[]>`
-    SELECT stallingstegoed FROM vw_stallingstegoeden WHERE accountID = ${accountId} LIMIT 1
-  `;
-  const total = rows[0] ? Number(rows[0].stallingstegoed ?? 0) : 0;
+  let total = 0;
+  try {
+    const rows = await prisma.$queryRaw<{ stallingstegoed: unknown }[]>`
+      SELECT stallingstegoed FROM vw_stallingstegoeden WHERE accountID = ${accountId} LIMIT 1
+    `;
+    total = rows[0] ? Number(rows[0].stallingstegoed ?? 0) : 0;
+  } catch {
+    const account = await prisma.accounts.findUnique({
+      where: { ID: accountId },
+      select: { saldo: true },
+    });
+    total = account?.saldo == null ? 0 : Number(account.saldo);
+  }
+  if (!Number.isFinite(total)) total = 0;
   await prisma.accounts.update({
     where: { ID: accountId },
     data: { saldo: total, dateLastSaldoUpdate: new Date() },

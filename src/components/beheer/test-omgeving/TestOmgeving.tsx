@@ -344,7 +344,7 @@ export default function TestOmgeving() {
             </Typography>
             <Typography variant="subtitle2">4. Schema en login, eenmalig</Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              <code>npx prisma db push</code> maakt de tabellen. <code>npm run docker-acc:seed-admin</code> maakt de login <code>beheer@example.test</code> / <code>teststalling</code> op Fietsberaad.
+              <code>npx prisma db push</code> maakt de tabellen. <code>npm run docker-acc:ensure-views</code> zet de MySQL-views (o.a. stallingstegoed). <code>npm run docker-acc:seed-admin</code> maakt de login <code>beheer@example.test</code> / <code>teststalling</code> op Fietsberaad.
             </Typography>
             <Typography variant="subtitle2">5. App en kopie</Typography>
             <Typography variant="body2" sx={{ mb: 2 }}>

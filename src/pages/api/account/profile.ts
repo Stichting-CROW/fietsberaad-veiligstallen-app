@@ -26,7 +26,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
     res.status(405).json({ error: "Methode niet toegestaan" });
   } catch (error) {
-    const message = error instanceof AccountError ? error.message : "Opslaan mislukt";
-    res.status(400).json({ error: message });
+    const fallback = req.method === "GET" ? "Gegevens laden mislukt" : "Opslaan mislukt";
+    const message = error instanceof AccountError ? error.message : fallback;
+    res.status(req.method === "GET" ? 500 : 400).json({ error: message });
   }
 }

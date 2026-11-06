@@ -42,6 +42,11 @@ type Transactions = {
   payments: { id: string; date: string | null; description: string | null; amount: number; status: string | null }[];
 };
 
+function formatEuro(value: unknown): string {
+  const amount = typeof value === "number" ? value : Number(value ?? 0);
+  return (Number.isFinite(amount) ? amount : 0).toFixed(2);
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const owner = useCitizenOwner();
@@ -60,7 +65,14 @@ export default function AccountPage() {
       await router.replace("/account/login");
       return;
     }
-    setHome(await profile.json());
+    const data = await profile.json();
+    if (!profile.ok) {
+      setHome(null);
+      setError(typeof data.error === "string" ? data.error : "Gegevens laden mislukt");
+      return;
+    }
+    setError("");
+    setHome(data);
     const txs = await fetch("/api/account/transactions");
     if (txs.ok) setTransactions(await txs.json());
   }
@@ -85,13 +97,19 @@ export default function AccountPage() {
     await load();
   }
 
-  if (!home) return <CitizenShell title="Mijn gegevens" page="MijnGegevens"><p>Laden…</p></CitizenShell>;
+  if (!home) {
+    return (
+      <CitizenShell title="Mijn gegevens" page="MijnGegevens">
+        {error ? <p className="rounded bg-red-50 p-3 text-red-800">{error}</p> : <p>Laden…</p>}
+      </CitizenShell>
+    );
+  }
 
   return (
     <CitizenShell title="Mijn gegevens" page="MijnGegevens">
       {message && <p className="mb-3 rounded bg-green-50 p-3">{message}</p>}
       {error && <p className="mb-3 rounded bg-red-50 p-3 text-red-800">{error}</p>}
-      <p className="mb-3">Stallingstegoed: € {home.saldo.toFixed(2)}.</p>
+      <p className="mb-3">Stallingstegoed: € {formatEuro(home.saldo)}.</p>
 
       <Section title="Mijn inloggegevens wijzigen">
         <LoginForm email={home.email ?? ""} onSave={save} />

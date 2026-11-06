@@ -1,5 +1,7 @@
 FROM node:22-bookworm-slim AS base
-RUN apt-get update \
+# Match local dev npm 11 so `npm ci` resolves the lockfile the same way as on the host.
+RUN npm install -g npm@11 \
+  && apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
@@ -35,7 +37,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma
 COPY package.json ./
 COPY docker/acceptance/seed-admin.mjs ./docker/acceptance/seed-admin.mjs
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && node docker/acceptance/seed-admin.mjs"]
+COPY docker/acceptance/ensure-mysql-views.mjs ./docker/acceptance/ensure-mysql-views.mjs
+COPY docker/acceptance/pre-db-push.mjs ./docker/acceptance/pre-db-push.mjs
+COPY prisma/sql ./prisma/sql
+CMD ["sh", "-c", "node docker/acceptance/pre-db-push.mjs && npx prisma db push --skip-generate --accept-data-loss && node docker/acceptance/ensure-mysql-views.mjs && node docker/acceptance/seed-admin.mjs"]
 
 FROM base AS runner
 WORKDIR /app

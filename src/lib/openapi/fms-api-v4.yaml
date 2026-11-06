@@ -28,7 +28,7 @@ info:
     | Permit | Betekenis |
     | --- | --- |
     | `operator` | Alle rechten (lezen én schrijven) |
-    | `dataprovider.type1` | Inventarisatie/sync (`occupation` met `bikes`) |
+    | `dataprovider.type1` | Inventarisatie (`occupation` met `bikes`) en `managedtransactions` |
     | `dataprovider.type2` | `managedtransactions` + bezettingsdata |
 
     - **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,
@@ -38,8 +38,10 @@ info:
       permit krijgt u een uitgeklede weergave (geen foutmelding).
     - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.
     - **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.
-      Uitzonderingen: `managedtransactions` en `occupation` vereisen
-      `operator` of `dataprovider.type2`; sync via `occupation`+`bikes` accepteert ook `dataprovider.type1`.
+      Uitzonderingen: `managedtransactions` en `occupation` met `bikes` of
+      `managedtransactions` accepteren `operator`, `dataprovider.type1` en
+      `dataprovider.type2`. Het bezettingsgetal (`occupation`) vereist
+      `operator` of `dataprovider.type2`.
 
     ## Catalogus
 
@@ -729,7 +731,11 @@ paths:
                 $ref: '#/components/schemas/Result'
   /v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation:
     post:
-      summary: Sector synchroniseren en/of bezetting doorgeven
+      summary: Sectorcontrole vastleggen en/of bezetting doorgeven
+      description: >
+        data.bikes wordt opgeslagen als controlemoment en maakt geen transacties.
+        Afwijkingen gaan mee in data.managedtransactions (maximaal 2500).
+        data.occupation zet het schermgetal.
       tags:
       - V4 Write
       parameters:
@@ -1193,6 +1199,7 @@ components:
           format: date-time
         bikes:
           type: array
+          description: Scanlijst. Wordt opgeslagen als controlemoment en maakt geen transacties.
           items:
             type: object
             properties:
@@ -1206,6 +1213,12 @@ components:
                 type: string
         occupation:
           type: integer
+        managedtransactions:
+          type: array
+          maxItems: 2500
+          description: Afwijkingen bij deze controle. Zelfde object als een managed transactie. Maximaal 2500.
+          items:
+            $ref: '#/components/schemas/V3ManagedTransaction'
         checkins:
           type: integer
         checkouts:

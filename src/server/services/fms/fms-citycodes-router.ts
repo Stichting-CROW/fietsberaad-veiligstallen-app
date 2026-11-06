@@ -304,7 +304,7 @@ async function handleWrite(
     // POST …/locations/{id}/managedtransactions (single or batch)
     if (path[3] === "managedtransactions" && !path[4]) {
       if (method !== "POST") return methodNotAllowed(res, method);
-      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1,dataprovider.type2"))) return;
       const result = await v3Write.uploadManagedTransactionsRequestV3(locationid, locationid, body);
       res.status(200).json(result);
       return;
@@ -372,6 +372,9 @@ async function handleWrite(
         res.status(400).json({ message: "data.bikes or data.occupation required", status: 0 });
         return;
       }
+      if (Array.isArray(data.managedtransactions) && data.managedtransactions.length > 0) {
+        if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1,dataprovider.type2"))) return;
+      }
       if (data.bikes != null) {
         if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1,dataprovider.type2"))) return;
       }
@@ -396,7 +399,7 @@ async function handleWrite(
     // POST …/sections/{sec}/managedtransactions (single or batch)
     if (path[5] === "managedtransactions" && !path[6]) {
       if (method !== "POST") return methodNotAllowed(res, method);
-      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
+      if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type1,dataprovider.type2"))) return;
       const result = await v3Write.uploadManagedTransactionsRequestV3(locationid, sectionid, body);
       res.status(200).json(result);
       return;
@@ -509,7 +512,8 @@ async function handleWrite(
         locationid,
         idtype,
         path[9],
-        newidcodes
+        newidcodes,
+        { sectionid, placeid }
       );
       res.status(200).json(result);
       return;

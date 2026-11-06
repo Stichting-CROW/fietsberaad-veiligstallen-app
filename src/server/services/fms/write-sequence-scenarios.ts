@@ -102,7 +102,8 @@ function rememberSyncId(ctx: ApiWriteTestContext, body: Record<string, unknown>)
 async function postOccupationBikes(
   ctx: ApiWriteTestContext,
   when: Date,
-  suffixes: string[]
+  suffixes: string[],
+  managedtransactions?: Record<string, unknown>[]
 ): Promise<void> {
   const body = await requireOk(ctx, "POST", v4LocationPath(ctx, `/sections/${ctx.sectionID}/occupation`), {
     data: {
@@ -112,14 +113,8 @@ async function postOccupationBikes(
         idtype: 0,
         transactiondate: when.toISOString(),
       })),
+      ...(managedtransactions ? { managedtransactions } : {}),
     },
-  });
-  rememberSyncId(ctx, body);
-}
-
-async function postEmptyOccupationBikes(ctx: ApiWriteTestContext, when: Date): Promise<void> {
-  const body = await requireOk(ctx, "POST", v4LocationPath(ctx, `/sections/${ctx.sectionID}/occupation`), {
-    data: { transactiondate: when.toISOString(), bikes: [] },
   });
   rememberSyncId(ctx, body);
 }
@@ -311,29 +306,42 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
   },
   {
     id: "seq-visit-bike-gone",
-    label: "Visit + bike gone (sync checkout)",
+    label: "Visit + bike gone (managed checkout on occupation)",
     description:
-      "Managed check-in, then occupation sync with empty bikes. Expect Type_checkout=sync.",
+      "Managed check-in, then occupation with empty bikes and a managed checkout. Expect Type_checkout=controle.",
     writeMethods: ["v4 managedtransactions", "v4 occupationAndSync"],
     act: async (ctx) => {
       await postManaged(ctx, "gone", { checkindate: minutesAfter(ctx, 0).toISOString() });
       await processThisRun(ctx);
-      await postEmptyOccupationBikes(ctx, minutesAfter(ctx, 5));
+      await postOccupationBikes(ctx, minutesAfter(ctx, 5), [], [
+        {
+          externaltransactionid: extId(ctx, "gone"),
+          idcode: ctx.pass("gone"),
+          idtype: 0,
+          checkindate: minutesAfter(ctx, 0).toISOString(),
+          checkintype: "user",
+          checkoutdate: minutesAfter(ctx, 5).toISOString(),
+          checkouttype: "controle",
+          stallingsduur: 5,
+          stallingskosten: 0,
+          sectionid: ctx.sectionID,
+        },
+      ]);
       await processUntilSyncDone(ctx);
     },
     assert: async (ctx) => {
       const tx = await latestTx(ctx.pass("gone"));
       return [
         ok("transacties closed", !!tx?.Date_checkout, "Date_checkout set", tx?.Date_checkout ? "set" : "open/geen rij"),
-        ok("Type_checkout", tx?.Type_checkout?.toLowerCase() === "sync", "sync", tx?.Type_checkout ?? "geen"),
+        ok("Type_checkout", tx?.Type_checkout?.toLowerCase() === "controle", "controle", tx?.Type_checkout ?? "geen"),
       ];
     },
     teardown: teardownSequence,
   },
   {
     id: "seq-sync-only",
-    label: "Sync-only placement",
-    description: "Occupation data.bikes only — no managed check-in. Expect Type_checkin=sync.",
+    label: "Scanlijst zonder transactie",
+    description: "Occupation data.bikes only. The scan list is stored and does not open a transactie.",
     writeMethods: ["v4 occupationAndSync"],
     act: async (ctx) => {
       await postOccupationBikes(ctx, minutesAfter(ctx, 1), ["sync"]);
@@ -344,8 +352,7 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
       const tx = await latestTx(ctx.pass("sync"));
       return [
         ok("new_wachtrij_sync processed", sync?.processed === PROCESSED_OK, "1", String(sync?.processed ?? "geen rij")),
-        ok("transacties open", !!tx && tx.Date_checkout == null, "open", tx ? (tx.Date_checkout ? "closed" : "open") : "geen"),
-        ok("Type_checkin", tx?.Type_checkin?.toLowerCase() === "sync", "sync", tx?.Type_checkin ?? "geen"),
+        ok("geen transactie uit de scanlijst", tx == null, "geen rij", tx ? "transactie aanwezig" : "geen rij"),
       ];
     },
     teardown: teardownSequence,

@@ -595,9 +595,9 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
   },
   {
     id: "sync-rescan-present",
-    label: "Sync-plaatsing zonder check-in, opnieuw gescand bij inventarisatie",
+    label: "Scanlijst maakt geen transactie",
     description:
-      "Eerste sync plaatst de fiets; een tweede inventarisatie met dezelfde pas in de scanlijst laat één open sync-transactie staan.",
+      "Twee inventarisaties met dezelfde pas in de scanlijst bewaren twee sync-rijen en openen geen transactie.",
     writeMethods: ["queue sync"],
     steps: [
       {
@@ -616,17 +616,15 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
     assert: [
       expectSyncRowCount(2),
       expectSyncProcessed(),
-      expectOpenTransactie("rescan"),
-      expectTransactieCount("rescan", 1),
-      expectTypeCheckin("rescan", "sync"),
-      expectParked("rescan", true),
+      expectTransactieCount("rescan", 0),
+      expectParked("rescan", false),
     ],
   },
   {
     id: "checkin-taken-sync-absent",
-    label: "Normale check-in, fiets weg zonder check-out, niet in inventarisatie",
+    label: "Scanlijst sluit een open check-in niet",
     description:
-      "Na een managed check-in verdwijnt de fiets zonder check-out; een lege inventarisatie sluit de transactie via sync-checkout af.",
+      "Na een managed check-in laat een lege scanlijst de transactie open. De uitcheck komt als managed transactie.",
     writeMethods: ["queue managedtransactions", "queue sync"],
     steps: [
       {
@@ -641,6 +639,18 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
         },
         processRuns: 1,
       },
+      {
+        run: async (ctx) => {
+          await enqueueManaged(ctx, "gone", {
+            checkindate: minutesAfter(ctx, 0).toISOString(),
+            checkoutdate: minutesAfter(ctx, 5).toISOString(),
+            checkouttype: "controle",
+            stallingsduur: 5,
+            stallingskosten: 0,
+          });
+        },
+        processRuns: 1,
+      },
     ],
     assert: [
       expectManagedQueueProcessed(),
@@ -648,7 +658,7 @@ export const WRITE_SCENARIOS: WriteScenario[] = [
       expectClosedTransactie("gone"),
       expectTransactieCount("gone", 1),
       expectTypeCheckin("gone", "user"),
-      expectTypeCheckout("gone", "sync"),
+      expectTypeCheckout("gone", "controle"),
       expectParked("gone", false),
     ],
   },
