@@ -106,8 +106,9 @@ paths:
       responses:
         '200':
           description: >
-            Array van fietstypen (`id`, `name`, `singular`). Eén type ophalen
-            door te filteren op `id` (geen aparte `/biketypes/{id}`).
+            Array van fietstypen (`id`, `name`, `singular`) uit `fietstypen`.
+            Eén type ophalen door te filteren op `id` (geen aparte `/biketypes/{id}`).
+            Een transactie kan een id bevatten dat in deze lijst ontbreekt.
           content:
             application/json:
               schema:
@@ -117,6 +118,21 @@ paths:
                   properties:
                     id:
                       type: integer
+                      description: |
+                        Bekende ids:
+
+                        - `1` fiets
+                        - `2` bromfiets
+                        - `3` afwijkende maten
+                        - `4` elektrisch
+                        - `5` motor
+                        - `6` mindervaliden
+                        - `7` bakfiets
+                        - `8` ligfiets / tandem
+                        - `9` racefiets
+                        - `10` kinderfiets
+                        - `11` brede fiets
+                        - `12` takel
                     name:
                       type: string
                     singular:
@@ -139,6 +155,9 @@ paths:
                   properties:
                     paymenttypeid:
                       type: integer
+                      description: |
+                        - `1` fysieke betaling of restitutie
+                        - `2` kwijtschelding (geen fysiek geld)
                     name:
                       type: string
                     description:
@@ -147,7 +166,9 @@ paths:
     get:
       summary: Klanttypen (algemene catalogus)
       description: |
-        Algemene catalogus van klanttypen (`id`, `name`).
+        Algemene catalogus van klanttypen (`id`, `name`) uit `klanttypen`.
+        Bekende ids: `1` dagstaller, `2` abonnement via VeiligStallen, `3` abonnement anders.
+        Bij 2 en 3 worden geen stallingskosten gerekend.
       tags:
       - V4
       security: []
@@ -163,6 +184,10 @@ paths:
                   properties:
                     id:
                       type: integer
+                      description: |
+                        - `1` dagstaller (standaard op een transactie)
+                        - `2` abonnement via VeiligStallen
+                        - `3` abonnement anders
                     name:
                       type: string
   /v4/citycodes:
@@ -971,7 +996,8 @@ components:
       properties:
         bikeTypeID:
           type: integer
-          description: 1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden
+          description: |
+            1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel
         name:
           type: string
         naamenkelvoud:
@@ -989,6 +1015,7 @@ components:
       properties:
         clientTypeID:
           type: integer
+          description: 1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten.
         name:
           type: string
     V2BikeTypeLegacy:
@@ -1090,6 +1117,14 @@ components:
           format: date-time
         checkintype:
           type: string
+          description: |
+            Soort check-in. Standaard `user`.
+
+            - `user` — gewone check door de staller
+            - `controle` — controlescan. Geen stallingskosten. Een controle-in kort na een controle-uit maakt die uitcheck ongedaan.
+            - `system` — door het systeem gezet, bijvoorbeeld een open bezoek dat wordt afgesloten of een uitcheck zonder bijbehorende incheck. Geen stallingskosten.
+            - `sync` — bezettingssynchronisatie: de fiets verschijnt of verdwijnt. Telt niet mee in de transactierapporten. Geen stallingskosten.
+            - `reservation` — reservering. Geen stallingskosten.
           enum:
           - user
           - controle
@@ -1101,6 +1136,7 @@ components:
           format: date-time
         checkouttype:
           type: string
+          description: Zelfde waarden als `checkintype`, voor de check-out. Standaard `user`.
           enum:
           - user
           - controle
@@ -1127,8 +1163,16 @@ components:
           type: string
         biketypeid:
           type: integer
+          description: |
+            Fietstype. Standaard `1`. Namen via `GET /v4/biketypes`.
+
+            1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel.
         clienttypeid:
           type: integer
+          description: |
+            Klanttype. Standaard `1`. Namen via `GET /v4/clienttypes`.
+
+            1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten.
         tariefstaffels:
           type: string
         reserveringsduur:

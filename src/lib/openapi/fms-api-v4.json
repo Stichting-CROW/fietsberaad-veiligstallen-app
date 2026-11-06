@@ -48,7 +48,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "Array van fietstypen (`id`, `name`, `singular`). Eén type ophalen door te filteren op `id` (geen aparte `/biketypes/{id}`).\n",
+            "description": "Array van fietstypen (`id`, `name`, `singular`) uit `fietstypen`. Eén type ophalen door te filteren op `id` (geen aparte `/biketypes/{id}`). Een transactie kan een id bevatten dat in deze lijst ontbreekt.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -57,7 +57,8 @@
                     "type": "object",
                     "properties": {
                       "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Bekende ids:\n\n- `1` fiets\n- `2` bromfiets\n- `3` afwijkende maten\n- `4` elektrisch\n- `5` motor\n- `6` mindervaliden\n- `7` bakfiets\n- `8` ligfiets / tandem\n- `9` racefiets\n- `10` kinderfiets\n- `11` brede fiets\n- `12` takel\n"
                       },
                       "name": {
                         "type": "string"
@@ -92,7 +93,8 @@
                     "type": "object",
                     "properties": {
                       "paymenttypeid": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "- `1` fysieke betaling of restitutie\n- `2` kwijtschelding (geen fysiek geld)\n"
                       },
                       "name": {
                         "type": "string"
@@ -112,7 +114,7 @@
     "/v4/clienttypes": {
       "get": {
         "summary": "Klanttypen (algemene catalogus)",
-        "description": "Algemene catalogus van klanttypen (`id`, `name`).\n",
+        "description": "Algemene catalogus van klanttypen (`id`, `name`) uit `klanttypen`.\nBekende ids: `1` dagstaller, `2` abonnement via VeiligStallen, `3` abonnement anders.\nBij 2 en 3 worden geen stallingskosten gerekend.\n",
         "tags": [
           "V4"
         ],
@@ -128,7 +130,8 @@
                     "type": "object",
                     "properties": {
                       "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "- `1` dagstaller (standaard op een transactie)\n- `2` abonnement via VeiligStallen\n- `3` abonnement anders\n"
                       },
                       "name": {
                         "type": "string"
@@ -1544,7 +1547,7 @@
         "properties": {
           "bikeTypeID": {
             "type": "integer",
-            "description": "1=fiets, 2=bromfiets, 3=speciaal, 4=elektrisch, 5=motor, 6=mindervaliden"
+            "description": "1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel\n"
           },
           "name": {
             "type": "string"
@@ -1570,7 +1573,8 @@
         "type": "object",
         "properties": {
           "clientTypeID": {
-            "type": "integer"
+            "type": "integer",
+            "description": "1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten."
           },
           "name": {
             "type": "string"
@@ -1718,6 +1722,7 @@
           },
           "checkintype": {
             "type": "string",
+            "description": "Soort check-in. Standaard `user`.\n\n- `user` — gewone check door de staller\n- `controle` — controlescan. Geen stallingskosten. Een controle-in kort na een controle-uit maakt die uitcheck ongedaan.\n- `system` — door het systeem gezet, bijvoorbeeld een open bezoek dat wordt afgesloten of een uitcheck zonder bijbehorende incheck. Geen stallingskosten.\n- `sync` — bezettingssynchronisatie: de fiets verschijnt of verdwijnt. Telt niet mee in de transactierapporten. Geen stallingskosten.\n- `reservation` — reservering. Geen stallingskosten.\n",
             "enum": [
               "user",
               "controle",
@@ -1732,6 +1737,7 @@
           },
           "checkouttype": {
             "type": "string",
+            "description": "Zelfde waarden als `checkintype`, voor de check-out. Standaard `user`.",
             "enum": [
               "user",
               "controle",
@@ -1768,10 +1774,12 @@
             "type": "string"
           },
           "biketypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Fietstype. Standaard `1`. Namen via `GET /v4/biketypes`.\n\n1=fiets, 2=bromfiets, 3=afwijkende maten, 4=elektrisch, 5=motor, 6=mindervaliden, 7=bakfiets, 8=ligfiets/tandem, 9=racefiets, 10=kinderfiets, 11=brede fiets, 12=takel.\n"
           },
           "clienttypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Klanttype. Standaard `1`. Namen via `GET /v4/clienttypes`.\n\n1=dagstaller, 2=abonnement via VeiligStallen, 3=abonnement anders. Bij 2 en 3 geen stallingskosten.\n"
           },
           "tariefstaffels": {
             "type": "string"

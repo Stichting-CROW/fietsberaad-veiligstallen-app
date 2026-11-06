@@ -320,7 +320,7 @@
     "/v4/citycodes/{citycode}/locations/{location}/transactions": {
       "get": {
         "summary": "Ruwe transacties van een stalling",
-        "description": "Standaard `type` is `checkout` en de periode is de vorige maand. Geef `from` en `to` samen, of `year` en `month`.\n",
+        "description": "Standaard `type` is `checkout` en de periode is de vorige maand. Geef `from` en `to` samen, of `year` en `month`.\nEen rij bevat alleen velden die afwijken van `defaults`. `checkintype` en `checkouttype` ontbreken bij `user`. `biketypeid` en `clienttypeid` ontbreken bij `1`. `price` ontbreekt bij `0`.\nNamen van fietstypen: `GET /api/fms/v4/biketypes`. Namen van klanttypen: `GET /api/fms/v4/clienttypes`.\n",
         "tags": [
           "Transacties"
         ],
@@ -345,6 +345,7 @@
           {
             "name": "type",
             "in": "query",
+            "description": "Welke transacties in `data` zitten. `checkout`: check-out in de periode (standaard). `checkin`: check-in in de periode. `overlap`: check-in, check-out, of een bezoek dat over de periode heen loopt.\n",
             "schema": {
               "type": "string",
               "enum": [
@@ -819,19 +820,38 @@
             "type": "string"
           },
           "checkintype": {
-            "type": "string"
+            "type": "string",
+            "description": "Soort check-in. Alleen aanwezig als de waarde niet `user` is; `user` staat in `defaults`.\n\n- `user` — gewone check door de staller\n- `controle` — controlescan. Geen stallingskosten. Een controle-in kort na een controle-uit maakt die uitcheck ongedaan.\n- `system` — door het systeem gezet, bijvoorbeeld een open bezoek dat wordt afgesloten of een uitcheck zonder bijbehorende incheck. Geen stallingskosten.\n- `sync` — bezettingssynchronisatie: de fiets verschijnt of verdwijnt. Telt niet mee in de transactierapporten. Geen stallingskosten.\n- `reservation` — reservering. Geen stallingskosten.\n",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
           },
           "checkouttype": {
-            "type": "string"
+            "type": "string",
+            "description": "Zelfde waarden als `checkintype`, voor de check-out. Alleen aanwezig als de waarde niet `user` is.",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
           },
           "price": {
-            "type": "number"
+            "type": "number",
+            "description": "Stallingskosten. Alleen aanwezig als het bedrag niet 0 is."
           },
           "clienttypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Klanttype. Alleen aanwezig als de waarde niet `1` is; `1` staat in `defaults`.\nNamen: `GET /api/fms/v4/clienttypes`.\n\n- `1` — dagstaller\n- `2` — abonnement via VeiligStallen\n- `3` — abonnement anders\n\nBij 2 en 3 worden geen stallingskosten gerekend.\n"
           },
           "biketypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Fietstype. Alleen aanwezig als de waarde niet `1` is; `1` staat in `defaults`.\nNamen: `GET /api/fms/v4/biketypes`. De lijst is de inhoud van `fietstypen`; een id kan op een transactie staan terwijl de rij in die lijst ontbreekt.\n\n- `1` — fiets\n- `2` — bromfiets\n- `3` — afwijkende maten\n- `4` — elektrisch\n- `5` — motor\n- `6` — mindervaliden\n- `7` — bakfiets\n- `8` — ligfiets / tandem\n- `9` — racefiets\n- `10` — kinderfiets\n- `11` — brede fiets\n- `12` — takel\n"
           }
         }
       },
@@ -839,16 +859,34 @@
         "type": "object",
         "properties": {
           "clienttypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Standaard klanttype (`1`, dagstaller) wanneer de rij het veld weglaat."
           },
           "checkouttype": {
-            "type": "string"
+            "type": "string",
+            "description": "Standaard check-outtype (`user`) wanneer de rij het veld weglaat. Waarden gelijk aan `TransactionRow.checkintype`.",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
           },
           "checkintype": {
-            "type": "string"
+            "type": "string",
+            "description": "Standaard check-intype (`user`) wanneer de rij het veld weglaat. Waarden gelijk aan `TransactionRow.checkintype`.",
+            "enum": [
+              "user",
+              "controle",
+              "system",
+              "sync",
+              "reservation"
+            ]
           },
           "biketypeid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Standaard fietstype (`1`, fiets) wanneer de rij het veld weglaat."
           },
           "locationid": {
             "type": "string"
@@ -883,6 +921,7 @@
           },
           "type": {
             "type": "string",
+            "description": "Welke transacties in `data` zitten. `checkout`: check-out in de periode (standaard). `checkin`: check-in in de periode. `overlap`: check-in, check-out, of een bezoek dat over de periode heen loopt.\n",
             "enum": [
               "checkout",
               "checkin",
