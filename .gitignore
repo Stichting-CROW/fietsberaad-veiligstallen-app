@@ -122,4 +122,6 @@ logs/*
 /docs/analyse-change-dataowner/
 !/docs/analyse-api/
 !/docs/analyse-api/**
+!/docs/deploy/
+!/docs/deploy/**
 .tmp/

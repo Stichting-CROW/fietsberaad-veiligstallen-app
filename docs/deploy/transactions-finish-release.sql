@@ -1,11 +1,13 @@
 -- Database changes for the experiments/transactions-finish release.
 -- Run by hand in MySQL Workbench on the target database (acceptance first, then production).
 -- Not a Prisma migration. Safe to run more than once: every change checks information_schema first.
+-- Instructions and the acceptance run log: docs/deploy/transactions-finish-release.md
 --
 -- Workbench:
 --   * Select the target schema first (double-click it), the script uses DATABASE().
 --   * Keep "Stop Script Execution on Errors" on.
---   * Edit > Preferences > SQL Editor > "DBMS connection read timeout": set to 3600.
+--   * Edit > Preferences > SQL Editor > MySQL Session > "DBMS connection read time out": 3600 (0 = no limit),
+--     then Query > Reconnect to Server.
 --     Section 4 builds an index on bezettingsdata_day_hour_cache (millions of rows); online, but slow.
 --
 -- Sections:
