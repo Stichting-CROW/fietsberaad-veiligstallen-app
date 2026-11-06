@@ -1,49 +1,56 @@
 # Deel 1 — Interne setup (niet naar Wilmar sturen)
 
-Handleiding om een testomgeving klaar te zetten zodat Wilmar v4 kan testen zonder productie-stallingen aan te raken.
+Handleiding om Azure-acceptatie klaar te zetten zodat Wilmar v4 kan testen zonder productie-stallingen aan te raken.
 
-Vereist: fietsberaad-superadmin, `acceptatie_ontwikkeling`, `TEST_ENV_BOOTSTRAP=1`, en `ENABLE_WRITE_API=true` op de host (anders geven writes HTTP 403).
+Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) (of de PDF) naar Wilmar.
 
-Aanbevolen: lokale **Acceptatie (docker)**-stack (`acc_docker` op `127.0.0.1:5556`) met `npm run dev`. Zie [acceptance-docker.md](../acceptance-docker.md).
+## 0. Voorwaarden op acceptatie
 
-Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) naar Wilmar. Pas daarin de basis-URL aan (`http://localhost:3000` of je tunnel).
+Host: `https://vstfb-eu-acc-app01.azurewebsites.net`. De acceptance-workflow (`.github/workflows/azure-webapps-node-acceptance.yml`) zet:
 
----
+| Variabele | Waarde | Waarom |
+| --- | --- | --- |
+| `ENABLE_WRITE_API` | `true` | Anders geven FMS-writes HTTP 403. |
+| `BACKGROUND_INTERNAL_TICK` | `true` | Verwerkt de FMS-wachtrij elke minuut. Zonder deze vlag blijven managed transactions in de wachtrij staan. |
+| `TEST_DATA_EIGENAAR_BOOTSTRAP` | `1` | Staat het aanmaken en verwijderen van de test data-eigenaar toe. Wist verder niets. Nooit in de production-workflow zetten. |
 
-## 1. Testgemeente
+Je hebt een beheerlogin nodig met de rechten `fietsberaad_superadmin` en `acceptatie_ontwikkeling`.
 
-1. **Beheer → Ontwikkeling → Acceptatie (docker)** → tab **Test data-eigenaar**.
-2. Klik **Test data-eigenaar aanmaken** (beheerlogin + data-eigenaar testgemeente API, citycode `9933`).
+## 1. Testgemeente aanmaken
 
-Dat maakt o.a. aan:
+1. **Beheer → Acceptatie (docker)** → tab **Test data-eigenaar**.
+2. Klik **Test data-eigenaar aanmaken**.
 
-- Data-eigenaar `testgemeente API` (citycode `9933`) met standaardstallings zoals **`9933_001`**
+Dat maakt aan:
+
+- Data-eigenaar `testgemeente API` (citycode `9933`) met de stallingen `9933_001` tot en met `9933_007`
 - Test-exploitant **Test exploitant API**
-- Test-dataleverancier **Test dataleverancier API** (`api-test` / `api-test-$$`) met FMS operator-rechten op alle stallingen
+- Test-dataleverancier **Test dataleverancier API** (`api-test` / `api-test-$$`) met FMS-permit `operator` op alle stallingen van de testgemeente
 - Beheeraccounts `beheerder@testgemeente.test` en `exploitant@testgemeente.test` (wachtwoord `teststalling`)
 
-De inloggegevens staan in de tabel **Testaccounts** op hetzelfde tabblad.
+De inloggegevens staan ook in de tabel **Testaccounts** op hetzelfde tabblad.
 
-Extra layout-kloon: **Stalling klonen** → type *bewaakt* → bron *Utrecht* → *Vredenburg* → **Aanmaken**.
-
-### NS koppeling (optioneel)
-
-1. Zet `NSCONNECTOR_SUBSCRIPTION_KEY` in `.env` / `.env.local`.
-2. Tab **NS koppeling** → **NS data-eigenaar bootstrap** (organisatie `ns` + exploitant `ns-stations`).
-3. **Beheer → Achtergrondprocessen → NS Koppeling** → voorbeeld-import of echte import (zelfde sync als productie).
+Opnieuw beginnen: **Test data-eigenaar verwijderen** verwijdert alleen de testgemeente en de gekoppelde testaccounts.
 
 ## 2. Smoke-test
 
-Met de app op je dev-host:
-
 ```bash
-curl -sS -u 'api-test:api-test-$$' \
-  'http://localhost:3000/api/fms/v4/citycodes/9933/locations/9933_001'
+V4='https://vstfb-eu-acc-app01.azurewebsites.net/api/fms/v4'
+LOC="$V4/citycodes/9933/locations/9933_001"
+
+# lezen met auth: JSON van de stalling, geen 401
+curl -sS -u 'api-test:api-test-$$' "$LOC"
+
+# check-in via de wachtrij: {"message":"OK","status":1,"id":…}
+curl -sS -u 'api-test:api-test-$$' -H 'Content-Type: application/json' -X POST \
+  "$LOC/sections/9933_001_1/managedtransactions" \
+  -d '{"managedtransaction":{"externaltransactionid":"SMOKE-001","idcode":"SMOKE-PASS",
+       "checkindate":"2026-11-06T10:00:00","checkintype":"user"}}'
 ```
 
-Verwacht: JSON van de stalling, geen 401.
+Controleer daarna in **Beheer → Wachtrij** dat het item binnen een paar minuten verwerkt is. Blijft het staan, kijk dan of `BACKGROUND_INTERNAL_TICK` aan staat (**Beheer → Achtergrondprocessen**, taak *Wachtrij verwerken (FMS)*).
 
-Transacties en bezetting test je via de FMS v4 API of [FMS schrijf-tests](/test/fms-write-tests) (superadmin).
+Meer scenario's: [FMS schrijf-tests](/test/fms-write-tests) (superadmin).
 
 ## 3. Checklist voor Wilmar
 
@@ -51,10 +58,20 @@ Geef hen [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) plus:
 
 | Gegeven | Waarde |
 | --- | --- |
-| Host | jouw Next.js-basis-URL (bijv. tunnel naar localhost) |
+| Host | `https://vstfb-eu-acc-app01.azurewebsites.net` |
 | User / wachtwoord | `api-test` / `api-test-$$` |
 | Citycode | `9933` |
 | Locationid | `9933_001` |
 | Sectionid | `9933_001_1` |
 
 Deze stalling is **alleen v4** op de Next.js-host. Niet ook v2/v3 op ColdFusion aanroepen voor dezelfde stalling.
+
+## Lokaal alternatief
+
+Testen tegen de lokale **Acceptatie (docker)**-stack (`acc_docker` op `127.0.0.1:5556`) kan ook, met `TEST_ENV_BOOTSTRAP=1` en een tunnel naar `localhost:3000`. Zie [acceptance-docker.md](../acceptance-docker.md). Pas dan de basis-URL in de handleiding aan.
+
+### NS koppeling (alleen lokaal)
+
+1. Zet `NSCONNECTOR_SUBSCRIPTION_KEY` in `.env` / `.env.local`.
+2. Tab **NS koppeling** → **NS data-eigenaar bootstrap** (organisatie `ns` + exploitant `ns-stations`).
+3. **Beheer → Achtergrondprocessen → NS Koppeling** → voorbeeld-import of echte import (zelfde sync als productie).

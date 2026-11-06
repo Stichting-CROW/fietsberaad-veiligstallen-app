@@ -28,20 +28,22 @@ info:
     | Permit | Betekenis |
     | --- | --- |
     | `operator` | Alle rechten (lezen én schrijven) |
-    | `dataprovider.type1` | Inventarisatie (`occupation` met `bikes`) en `managedtransactions` |
-    | `dataprovider.type2` | `managedtransactions` + bezettingsdata |
+    | `dataprovider.type1` | Inventarisatie (`occupation` met `bikes`), `managedtransactions` en `bikeupdates` lezen |
+    | `dataprovider.type2` | `managedtransactions`, bezettingsgetal, abonnementen toevoegen/koppelen, saldo opwaarderen, fiets koppelen |
 
     - **Openbaar leesbaar** (geen auth): catalogus van gemeenten, locaties,
       secties, plekken en abonnementsvormen, plus de algemene keuzelijsten
       (fietstypen, betalingstypen, klanttypen, servertijd).
     - **Beschermde velden**: alleen zichtbaar met het `operator`-permit. Zonder
       permit krijgt u een uitgeklede weergave (geen foutmelding).
-    - **Gevoelige reads** (saldi, abonnementen): vereisen het `operator`-permit.
+    - **Gevoelige reads** (saldi, abonnementen, fietsen): vereisen het `operator`-permit.
     - **Schrijfacties** (POST/PUT/DELETE): vereisen het `operator`-permit.
       Uitzonderingen: `managedtransactions` en `occupation` met `bikes` of
       `managedtransactions` accepteren `operator`, `dataprovider.type1` en
-      `dataprovider.type2`. Het bezettingsgetal (`occupation`) vereist
-      `operator` of `dataprovider.type2`.
+      `dataprovider.type2`. Het bezettingsgetal (`occupation`), abonnementen
+      toevoegen of koppelen, saldo opwaarderen en fiets koppelen vereisen
+      `operator` of `dataprovider.type2`. Koppelpas vereist `operator`.
+    - **`bikeupdates`**: `operator` of `dataprovider.type1`.
 
     ## Catalogus
 
