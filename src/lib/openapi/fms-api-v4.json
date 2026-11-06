@@ -881,7 +881,7 @@
     "/v4/citycodes/{citycode}/locations/{locationid}/managedtransactions": {
       "post": {
         "summary": "Beheerde transactie(s) (bikepark-niveau)",
-        "description": "Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).\nBij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden\neerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.\n",
+        "description": "Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 500).\nBij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden\neerst gevalideerd (all-or-nothing) voordat iets in de wachtrij komt.\n",
         "tags": [
           "V4 Write"
         ],
@@ -917,7 +917,7 @@
                     "properties": {
                       "managedtransactions": {
                         "type": "array",
-                        "maxItems": 50,
+                        "maxItems": 500,
                         "items": {
                           "$ref": "#/components/schemas/V3ManagedTransaction"
                         }
@@ -926,7 +926,7 @@
                   },
                   {
                     "type": "array",
-                    "maxItems": 50,
+                    "maxItems": 500,
                     "items": {
                       "$ref": "#/components/schemas/V3ManagedTransaction"
                     }
@@ -1230,7 +1230,7 @@
                     "properties": {
                       "managedtransactions": {
                         "type": "array",
-                        "maxItems": 50,
+                        "maxItems": 500,
                         "items": {
                           "$ref": "#/components/schemas/V3ManagedTransaction"
                         }
@@ -1239,7 +1239,7 @@
                   },
                   {
                     "type": "array",
-                    "maxItems": 50,
+                    "maxItems": 500,
                     "items": {
                       "$ref": "#/components/schemas/V3ManagedTransaction"
                     }

@@ -78,7 +78,7 @@ Default scope is ZipID `9933`. `--all` covers every city. The archive id is `tra
 
 `daybeginsat` on the archief row is the organisation `contacts.DayBeginsAt` (fallback `00:00:00`). Rebuild `transacties_archief_day_cache` after a backfill if rapportage reads the cache. Sync check-outs (inventory, bike absent) still close `transacties` only; they do not write archief.
 
-Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Batch: max 50, all-or-nothing validate then enqueue.
+Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Batch: max 500, all-or-nothing validate then enqueue.
 
 ## 410 on v4 (use CF v2/v3)
 

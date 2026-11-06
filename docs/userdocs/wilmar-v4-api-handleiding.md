@@ -70,7 +70,7 @@ Migratieoverzicht: `{basis-URL}/test/fms-api-docs-migrate-v2` en `…/fms-api-do
 Ook zonder sectie in de URL: `POST …/locations/9933_001/managedtransactions` (sectie dan in het payload).
 
 Enkel record: `{ "managedtransaction": { … } }`  
-Batch: `{ "managedtransactions": [ … ] }` (max 50, all-or-nothing).
+Batch: `{ "managedtransactions": [ … ] }` (max 500, all-or-nothing).
 
 Verplicht: `externaltransactionid`, `idcode`, `checkindate`, `checkintype` (`user`  `controle`  `system`  `sync`  `reservation`).
 

@@ -41,7 +41,7 @@ export function okResult(extra?: { id?: number; ids?: number[]; subscriptionid?:
 }
 
 /** Max items per client POST on …/managedtransactions. The queue processor drains a larger batch on its own. */
-export const MAX_MANAGED_TRANSACTIONS_BATCH = 50;
+export const MAX_MANAGED_TRANSACTIONS_BATCH = 500;
 
 /** Max managed transactions posted together with one occupation scan list. */
 export const MAX_OCCUPATION_MANAGED_TRANSACTIONS = 2500;

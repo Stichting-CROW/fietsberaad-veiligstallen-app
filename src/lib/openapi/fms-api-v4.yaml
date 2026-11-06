@@ -616,7 +616,7 @@ paths:
   /v4/citycodes/{citycode}/locations/{locationid}/managedtransactions:
     post:
       summary: Beheerde transactie(s) (bikepark-niveau)
-      description: 'Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 50).
+      description: 'Enkel record via `managedtransaction`, of batch via `managedtransactions` (array, max 500).
 
         Bij dubbele `externaltransactionid` in één request wint het **laatste** item; alle items worden
 
@@ -645,11 +645,11 @@ paths:
                 properties:
                   managedtransactions:
                     type: array
-                    maxItems: 50
+                    maxItems: 500
                     items:
                       $ref: '#/components/schemas/V3ManagedTransaction'
               - type: array
-                maxItems: 50
+                maxItems: 500
                 items:
                   $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
@@ -835,11 +835,11 @@ paths:
                 properties:
                   managedtransactions:
                     type: array
-                    maxItems: 50
+                    maxItems: 500
                     items:
                       $ref: '#/components/schemas/V3ManagedTransaction'
               - type: array
-                maxItems: 50
+                maxItems: 500
                 items:
                   $ref: '#/components/schemas/V3ManagedTransaction'
       responses:
