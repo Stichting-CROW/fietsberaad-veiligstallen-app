@@ -11,7 +11,7 @@ Host: `https://vstfb-eu-acc-app01.azurewebsites.net`. De acceptance-workflow (`.
 | Variabele | Waarde | Waarom |
 | --- | --- | --- |
 | `ENABLE_WRITE_API` | `true` | Anders geven FMS-writes HTTP 403. |
-| `BACKGROUND_INTERNAL_TICK` | `true` | Verwerkt de FMS-wachtrij elke minuut. Zonder deze vlag blijven managed transactions in de wachtrij staan. |
+| `BACKGROUND_INTERNAL_TICK` | `true` | Verwerkt de FMS-wachtrij elke minuut. Zonder deze vlag blijven managed transactions in de wachtrij staan. Op een gedeployde omgeving staan alle taken na de eerste start uit: zet *Wachtrij verwerken (FMS)* eenmalig aan in **Beheer → Achtergrondprocessen**. |
 | `TEST_DATA_EIGENAAR_BOOTSTRAP` | `1` | Staat het aanmaken en verwijderen van de test data-eigenaar toe. Wist verder niets. Nooit in de production-workflow zetten. |
 
 Je hebt een beheerlogin nodig met de rechten `fietsberaad_superadmin` en `acceptatie_ontwikkeling`.
@@ -48,7 +48,7 @@ curl -sS -u 'api-test:api-test-$$' -H 'Content-Type: application/json' -X POST \
        "checkindate":"2026-11-06T10:00:00","checkintype":"user"}}'
 ```
 
-Controleer daarna in **Beheer → Wachtrij** dat het item binnen een paar minuten verwerkt is. Blijft het staan, kijk dan of `BACKGROUND_INTERNAL_TICK` aan staat (**Beheer → Achtergrondprocessen**, taak *Wachtrij verwerken (FMS)*).
+Controleer daarna in **Beheer → Wachtrij** dat het item binnen een paar minuten verwerkt is. Blijft het staan, kijk dan of `BACKGROUND_INTERNAL_TICK` aan staat en of de taak *Wachtrij verwerken (FMS)* is ingeschakeld (**Beheer → Achtergrondprocessen**).
 
 Meer scenario's: [FMS schrijf-tests](/test/fms-write-tests) (superadmin).
 
