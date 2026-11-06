@@ -399,7 +399,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
               />
               <LeftMenuItem
                 component={VSMenuTopic.TestOmgeving}
-                title={'Acceptatie (docker)'}
+                title={'Testomgeving'}
                 compact={true}
                 activecomponent={activecomponent}
                 onSelect={onSelect}

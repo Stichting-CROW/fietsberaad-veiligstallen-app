@@ -18,7 +18,7 @@ Je hebt een beheerlogin nodig met de rechten `fietsberaad_superadmin` en `accept
 
 ## 1. Testgemeente aanmaken
 
-1. **Beheer → Acceptatie (docker)** → tab **Test data-eigenaar**.
+1. **Beheer → Testomgeving** → tab **Test data-eigenaar**.
 2. Klik **Test data-eigenaar aanmaken**.
 
 Dat maakt aan:

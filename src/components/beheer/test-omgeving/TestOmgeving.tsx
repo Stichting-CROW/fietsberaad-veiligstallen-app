@@ -297,7 +297,7 @@ export default function TestOmgeving() {
       "@media (min-width: 1024px)": { height: "calc(100vh - 64px - 64px)" },
     }}>
       <Box sx={{ flexShrink: 0 }}>
-        <Typography variant="h5">Acceptatie (docker)</Typography>
+        <Typography variant="h5">Testomgeving</Typography>
         <Typography variant="body2">
           Vult de database van deze teststack. Productiegegevens worden alleen gelezen als <code>PROD_DATABASE_URL</code> op deze machine staat.
         </Typography>
