@@ -574,8 +574,8 @@
         }
       },
       "post": {
-        "summary": "Abonnement toevoegen",
-        "description": "Vereist ENABLE_WRITE_API en Basic Auth (operator of dataprovider.type2).",
+        "summary": "Verwijderd in v4 — abonnement verkopen",
+        "description": "Abonnementen worden alleen via de website verkocht. Een pas koppelen aan een bestaand abonnement kan via POST …/subscriptions/{subscriptionid}.",
         "tags": [
           "V4 Write"
         ],
@@ -587,40 +587,9 @@
             "$ref": "#/components/parameters/V4Locationid"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "subscription": {
-                    "$ref": "#/components/schemas/V3SubscriptionWrite"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "description": "Resultaat",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Result"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V4BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/V4Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/V4WriteDisabled"
+          "410": {
+            "description": "Abonnementen verkopen is verwijderd in v4."
           }
         }
       }
@@ -1275,7 +1244,7 @@
     "/v4/citycodes/{citycode}/locations/{locationid}/sections/{sectionid}/occupation": {
       "post": {
         "summary": "Sectorcontrole vastleggen en/of bezetting doorgeven",
-        "description": "data.bikes wordt opgeslagen als controlemoment en maakt geen transacties. Afwijkingen gaan mee in data.managedtransactions (maximaal 2500). data.occupation zet het schermgetal. Minstens één van data.bikes en data.occupation is verplicht, anders 400. Het vereiste permit hangt af van de velden: data.bikes en data.managedtransactions vragen operator, dataprovider.type1 of dataprovider.type2; data.occupation vraagt operator of dataprovider.type2.\n",
+        "description": "data.bikes wordt opgeslagen als controlemoment en maakt geen transacties. Afwijkingen gaan mee in data.managedtransactions (maximaal 2500). data.occupation wordt opgeslagen met de inlognaam als bron en zet het schermgetal. Minstens één van data.bikes en data.occupation is verplicht, anders 400. Het vereiste permit hangt af van de velden: data.bikes en data.managedtransactions vragen operator, dataprovider.type1 of dataprovider.type2; data.occupation vraagt operator of dataprovider.type2.\n",
         "tags": [
           "V4 Write"
         ],

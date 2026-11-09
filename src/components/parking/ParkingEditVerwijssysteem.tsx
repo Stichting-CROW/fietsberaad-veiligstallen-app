@@ -21,7 +21,29 @@ type Props = {
   setNewDia: (v: string) => void;
 };
 
-const BRON_OPTIONS = ["FMS", "v4"] as const;
+/** Sources that have delivered occupation data for this stalling, or null while loading. */
+function useOccupationSources(parkingId: string | undefined): string[] | null {
+  const [sources, setSources] = React.useState<string[] | null>(null);
+  React.useEffect(() => {
+    if (!parkingId || parkingId === "new") {
+      setSources([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/protected/fietsenstallingen/${parkingId}/bezettingsbronnen`)
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((json: { data?: string[] }) => {
+        if (!cancelled) setSources(json.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSources([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [parkingId]);
+  return sources;
+}
 
 const ParkingEditVerwijssysteem: React.FC<Props> = ({
   parkingdata,
@@ -41,8 +63,10 @@ const ParkingEditVerwijssysteem: React.FC<Props> = ({
   const verwijssysteem = newVerwijssysteem ?? parkingdata.Verwijssysteem ?? false;
   const overzichten = newVerwijssysteemOverzichten ?? parkingdata.VerwijssysteemOverzichten ?? false;
   const nota = newNotaVerwijssysteem ?? parkingdata.NotaVerwijssysteem ?? "";
-  const bron = newBronBezettingsdata ?? parkingdata.BronBezettingsdata ?? "FMS";
+  const bron = (newBronBezettingsdata ?? parkingdata.BronBezettingsdata ?? "").trim();
+  const bronLabel = bron === "" ? "(geen)" : bron;
   const dia = newDia ?? parkingdata.dia ?? "";
+  const sources = useOccupationSources(parkingdata.ID);
 
   return (
     <SectionBlock heading="Verwijssysteem en diashow">
@@ -77,20 +101,42 @@ const ParkingEditVerwijssysteem: React.FC<Props> = ({
           />
         </div>
         <fieldset>
-          <legend className="text-sm font-medium mb-2">Bron bezettingsdata</legend>
-          {BRON_OPTIONS.map((opt) => (
-            <label key={opt} className="flex items-center gap-2 mr-4 inline-flex">
-              <input
-                type="radio"
-                name="bronBezettingsdata"
-                value={opt}
-                checked={bron === opt}
-                disabled={!canEditFlags}
-                onChange={() => setNewBronBezettingsdata(opt)}
-              />
-              {opt}
-            </label>
-          ))}
+          <legend className="text-sm font-medium mb-2">Hoofdbron van bezettingsdata</legend>
+          {sources === null ? (
+            <p className="text-sm text-gray-600">Bronnen laden…</p>
+          ) : sources.length === 0 ? (
+            <p className="text-sm text-gray-600">
+              Nog geen bezettingsdata ontvangen. Ingestelde bron: {bronLabel}.
+            </p>
+          ) : (
+            <>
+              {sources.map((opt) => (
+                <label key={opt} className="flex items-center gap-2 mr-4 inline-flex">
+                  <input
+                    type="radio"
+                    name="bronBezettingsdata"
+                    value={opt}
+                    checked={bron.toLowerCase() === opt.toLowerCase()}
+                    disabled={!canEditFlags}
+                    onChange={() => setNewBronBezettingsdata(opt)}
+                  />
+                  {opt}
+                </label>
+              ))}
+              {bron === "" ? (
+                <p className="text-sm text-gray-600 mt-1">Ingestelde bron: (geen).</p>
+              ) : (
+                !sources.some((opt) => opt.toLowerCase() === bron.toLowerCase()) && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Ingestelde bron {bron} heeft geen bezettingsdata voor deze stalling.
+                  </p>
+                )
+              )}
+            </>
+          )}
+          <p className="text-sm text-gray-600 mt-2">
+            Bij FMS volgt de bezetting de in- en uitchecks. Een bezettingsmelding zet het getal altijd; komt die van een andere login dan de gekozen bron, dan staat er een waarschuwing (occupationSourceWarning) in de webservice-log.
+          </p>
         </fieldset>
         <div>
           <label className="block text-sm font-medium mb-1">Dia (HTML voor diashow type Bikepark)</label>

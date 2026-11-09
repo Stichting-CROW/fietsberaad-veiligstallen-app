@@ -25,6 +25,7 @@ import {
   writeTransactiesArchiefFromManaged,
   type WriteTransactiesArchiefInput,
 } from "./transacties-archief-service";
+import { bookManagedVisitFees, type ManagedFeeVisit } from "./stallingskosten-booking";
 
 type Prisma = Omit<
   PrismaClient,
@@ -35,6 +36,10 @@ type Prisma = Omit<
 type ArchiefDb = Parameters<typeof writeTransactiesArchiefFromManaged>[0];
 function archiefDb(tx: Prisma): ArchiefDb {
   return tx as unknown as ArchiefDb;
+}
+type FeeDb = Parameters<typeof bookManagedVisitFees>[0];
+function feeDb(tx: Prisma): FeeDb {
+  return tx as unknown as FeeDb;
 }
 
 const CHECK_TYPES = new Set(["user", "controle", "system", "sync", "reservation"]);
@@ -256,7 +261,43 @@ export async function putManagedTransaction(
     await deleteManagedTransactiesArchief(archiefDb(tx), saved.ID);
   }
 
+  if (bikepark.SiteID) {
+    await bookManagedVisitFees(feeDb(tx), [
+      feeVisitFromRow(rowData, saved.ID, bikepark.SiteID, pastypeFromIdtype(input.managed.idtype ?? 0)),
+    ]);
+  }
+
   return { transactionID: saved.ID, created: !existing };
+}
+
+function feeVisitFromRow(
+  row: {
+    Stallingskosten: Decimal | number | null;
+    Date_checkout: Date | null;
+    Date_checkin: Date;
+    FietsenstallingID: string;
+    SectieID: string;
+    SectieID_uit: string | null;
+    BikeTypeID: number;
+    PlaceID: bigint | null;
+    PasID: string;
+  },
+  transactionID: number,
+  siteID: string,
+  pastype: string
+): ManagedFeeVisit {
+  return {
+    transactionID,
+    stallingskosten: Number(row.Stallingskosten),
+    eventDate: row.Date_checkout ?? row.Date_checkin,
+    stallingsID: row.FietsenstallingID,
+    sectionExternalId: row.SectieID_uit ?? row.SectieID,
+    bikeTypeID: row.BikeTypeID,
+    placeID: row.PlaceID,
+    siteID,
+    passID: row.PasID,
+    pastype,
+  };
 }
 
 function pastypeFromIdtype(idtype: number): string {
@@ -603,6 +644,15 @@ export async function putManagedTransactionsBatch(
       }];
     }),
     { dateModified: now }
+  );
+
+  await bookManagedVisitFees(
+    feeDb(tx),
+    visits.flatMap((item) => {
+      const transactionID = transactionIdOf(item);
+      if (typeof transactionID !== "number" || !item.parked) return [];
+      return [feeVisitFromRow(item.rowData, transactionID, item.parked.siteID, item.parked.pastype)];
+    })
   );
 
   return { ok, failed };

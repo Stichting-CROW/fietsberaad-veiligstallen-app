@@ -8,7 +8,8 @@
  *
  * SCOPE & SAFETY
  * - Writes go through new_wachtrij_* and then production output, scoped to testgemeente.
- * - Stallingskosten come from API payloads (no FMS tariff / afboeking in Next.js; intentional).
+ * - Stallingskosten on the visit come from the API payload (no FMS tariff). The managed
+ *   processor then books the difference as Stallingstransactie or Afwaardering in stalling.
  * - All synthetic passIDs are namespaced `WTEST_<runId>_<suffix>`, so seed/teardown can
  *   delete exactly this run's rows by prefix.
  * - The runner additionally guards that the chosen bikepark belongs to the testgemeente

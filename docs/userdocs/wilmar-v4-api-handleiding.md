@@ -4,19 +4,23 @@ Deze omgeving is bedoeld om jullie app van FMS **v2/v3** (ColdFusion) naar **v4*
 
 ## Toegang
 
+Basis-URL: `https://vstfb-eu-acc-app01.azurewebsites.net`  
+Auth voor beide API's: HTTP Basic. De accounts zijn niet uitwisselbaar.
 
-|                |                                                |
-| -------------- | ---------------------------------------------- |
-| Basis-URL      | `https://vstfb-eu-acc-app01.azurewebsites.net` |
-| Auth           | HTTP Basic                                     |
-| Gebruikersnaam | `api-test`                                     |
-| Wachtwoord     | `api-test-$$`                                  |
-| Citycode       | `9933`                                         |
-| Locationid     | `9933_001`                                     |
-| Sectionid      | `9933_001_1`                                   |
+| | FMS API v4 | Reporting API v4 |
+| --- | --- | --- |
+| Gebruikersnaam | `api-test` | `api-test@testgemeente.text` |
+| Wachtwoord | `skm*A&oc871*` | `Yavc1Gwo8dzW` |
+| Swagger | [FMS API v4](https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/v4) | [Reporting API v4](https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/reporting/v4) |
 
+| | |
+| --- | --- |
+| Citycode | `9933` |
+| Locationid | `9933_001` |
+| Sectionid | `9933_001_1` |
 
-Interactieve referentie: `{basis-URL}/docs/api/v4`  
+De voorbeelden hieronder gebruiken het FMS-account. Het reporting-account geldt alleen voor `/api/reporting/v4`.
+
 Migratieoverzicht: `{basis-URL}/test/fms-api-docs-migrate-v2` en `…/fms-api-docs-migrate-v3`
 
 ## Wat verandert er
@@ -60,9 +64,10 @@ Migratieoverzicht: `{basis-URL}/test/fms-api-docs-migrate-v2` en `…/fms-api-do
 | `POST …/idcodes/{idtype}/{idcode}/balance`                   | zelfde (saldo opwaarderen)              |
 | `GET …/idcodes/{idtype}/{idcode}/balance`, `GET …/balances`  | zelfde (saldo lezen)                    |
 | `POST …/idcodes/{idtype}/{idcode}` (koppelpas)               | zelfde; de sectie-variant `…/sections/{sec}/idcodes/…` werkt ook |
-| `GET`/`POST …/subscriptions`, `POST …/subscriptions/{id}`    | zelfde                                  |
+| `GET …/subscriptions`, `POST …/subscriptions/{id}`           | zelfde (lezen, pas koppelen)            |
 | `GET …/bikeupdates`                                          | zelfde                                  |
 | `POST /v2/uploadJsonTransaction(s)` of `POST …/transactions` | **410** — gebruik `managedtransactions` |
+| `POST …/subscriptions` (abonnement verkopen)                 | **410** — alleen via de website         |
 
 
 
@@ -99,7 +104,7 @@ LOC="$V4/citycodes/9933/locations/9933_001"
 Check-in:
 
 ```bash
-curl -sS -u 'api-test:api-test-$$' \
+curl -sS -u 'api-test:skm*A&oc871*' \
   -H 'Content-Type: application/json' \
   -X POST \
   "$LOC/sections/9933_001_1/managedtransactions" \
@@ -120,7 +125,7 @@ curl -sS -u 'api-test:api-test-$$' \
 Check-out (zelfde `externaltransactionid`):
 
 ```bash
-curl -sS -u 'api-test:api-test-$$' \
+curl -sS -u 'api-test:skm*A&oc871*' \
   -H 'Content-Type: application/json' \
   -X POST \
   "$LOC/sections/9933_001_1/managedtransactions" \
@@ -147,15 +152,15 @@ Writes gaan eerst in een wachtrij en worden kort daarna verwerkt. Even wachten v
 
 ## Bezetting en sectorcontrole
 
-`POST …/sections/9933_001_1/occupation` met `{ "data": { … } }`. Minstens één van deze velden is verplicht:
+`POST …/sections/9933_001_1/occupation` met `{ "data": { … } }`. `data.bikes` of `data.occupation` is verplicht. Alleen `data.managedtransactions` geeft 400.
 
 - `data.bikes` — lijst van fietsen die bij een controle in de sectie stonden. Wordt opgeslagen als controlemoment en maakt zelf geen transacties.
-- `data.managedtransactions` — afwijkingen bij die controle (max 2500).
-- `data.occupation` — het bezettingsgetal voor het scherm.
+- `data.managedtransactions` — afwijkingen bij die controle (max 2500). Alleen samen met `data.bikes` en/of `data.occupation`.
+- `data.occupation` — het bezettingsgetal voor het scherm. Wordt opgeslagen met je inlognaam als bron. Staat de bron bezettingsdata van de stalling op `FMS`, dan houdt VeiligStallen de bezetting ook zelf bij uit de managed transacties: +1 bij een nieuw open bezoek, −1 bij het afsluiten, ook bij `controle` en `sync`. Een meegestuurd bezettingsgetal overschrijft die telling.
 
 ## Rechten
 
-Het testaccount heeft **operator**-rechten op alle stallingen van citycode `9933`.
+Het FMS-account `api-test` heeft **operator**-rechten op alle stallingen van citycode `9933`.
 
 | Permit               | Mag                                                               |
 | -------------------- | ----------------------------------------------------------------- |
@@ -198,7 +203,7 @@ curl -sS "$V4/servertime"
 curl -sS "$V4/citycodes/9933"
 
 # met auth
-curl -sS -u 'api-test:api-test-$$' "$V4/citycodes/9933/locations/9933_001"
+curl -sS -u 'api-test:skm*A&oc871*' "$V4/citycodes/9933/locations/9933_001"
 ```
 
-`$` in het wachtwoord: gebruik enkele quotes (`'api-test:api-test-$$'`), anders eet de shell de `$$` op.
+`&` en `*` in het wachtwoord: gebruik enkele quotes (`'api-test:skm*A&oc871*'`). Zonder quotes ziet de shell `&` als achtergrond en `*` als wildcard.

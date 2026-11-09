@@ -8,6 +8,7 @@
   },
   "scripts": {
     "docs:api": "node scripts/generate-openapi-docs.mjs",
+    "docs:wilmar": "node scripts/generate-wilmar-guide-pdf.mjs",
     "predev": "npm run docs:api",
     "prebuild": "([ -d mysql-db ] && mv mysql-db /tmp/mysql-db-veiligstallen-bak) || ([ -d .mysql-db.bak ] && mv .mysql-db.bak /tmp/mysql-db-veiligstallen-bak) || true",
     "build": "next build",

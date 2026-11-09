@@ -185,7 +185,8 @@ export async function isAllowedToUseV3(
 
 /**
  * GET …/locations/{locationid}/subscriptions
- * ColdFusion: BaseRestService.getSubscriptions
+ * ColdFusion: BaseRestService.getSubscriptions. The subscription-type collection only
+ * includes rows that are active today: isActief = 1, ingangsdatum <= now, afloopdatum >= now.
  */
 export async function getSubscriptions(locationid: string): Promise<V3SubscriptionEntry[]> {
   const bikepark = await getBikeparkByExternalID(locationid);
@@ -193,9 +194,13 @@ export async function getSubscriptions(locationid: string): Promise<V3Subscripti
     throw new Error("Stalling niet gevonden");
   }
 
+  const now = new Date();
   const rows = await prisma.abonnementen.findMany({
     where: {
       bikepassID: { not: null },
+      isActief: true,
+      ingangsdatum: { lte: now },
+      afloopdatum: { gte: now },
       abonnementsvormen: {
         abonnementsvorm_fietsenstalling: {
           some: { BikeparkID: bikepark.ID },
