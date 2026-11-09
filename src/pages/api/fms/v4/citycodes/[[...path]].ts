@@ -1,12 +1,18 @@
 /**
  * V4 citycodes API — public owner of the shared citycodes router.
- * Legacy In/Uit and completedtransaction writes return 410.
+ * Legacy In/Uit, completedtransaction and subscription-sale writes return 410.
  */
 import type { NextApiRequest, NextApiResponse } from "next";
 import handleCitycodes from "~/server/services/fms/fms-citycodes-router";
 
 const REMOVED_MESSAGE =
   "Dit endpoint is verwijderd in API v4. Gebruik POST …/managedtransactions.";
+const SUBSCRIPTION_SALE_REMOVED_MESSAGE =
+  "Abonnementen verkopen kan in API v4 niet meer. Abonnementen worden alleen via de website verkocht.";
+
+function isRemovedV4SubscriptionSale(path: string[], method: string | undefined): boolean {
+  return method === "POST" && path[1] === "locations" && !!path[2] && path[3] === "subscriptions" && !path[4];
+}
 
 /** Legacy In/Uit, completedtransaction, locker writes, and unused place idcodes blocked on v4. */
 function isRemovedV4WritePath(path: string[], method: string | undefined): boolean {
@@ -50,6 +56,10 @@ function isRemovedV4WritePath(path: string[], method: string | undefined): boole
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   const path = (req.query.path as string[]) ?? [];
+  if (isRemovedV4SubscriptionSale(path, req.method)) {
+    res.status(410).json({ message: SUBSCRIPTION_SALE_REMOVED_MESSAGE, status: 0 });
+    return;
+  }
   if (isRemovedV4WritePath(path, req.method)) {
     res.status(410).json({ message: REMOVED_MESSAGE, status: 0 });
     return;

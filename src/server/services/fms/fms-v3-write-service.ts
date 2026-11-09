@@ -606,10 +606,12 @@ export async function syncSectorV3(
   return okResult({ id: result.id });
 }
 
+/** `login` is the FMS user that reports; it is stored as the occupation source. */
 export async function setOccupationV3(
   locationid: string,
   sectionid: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  login: string
 ): Promise<FmsOkResult> {
   const transactionDate = parseDate(data.transactiondate ?? data.transactionDate);
   const interval = Number(data.intervalinminutes ?? 15);
@@ -620,7 +622,7 @@ export async function setOccupationV3(
     checkins: data.checkins != null ? Number(data.checkins) : undefined,
     checkouts: data.checkouts != null ? Number(data.checkouts) : undefined,
     interval,
-    source: data.source != null ? String(data.source) : undefined,
+    source: login,
     rawData: JSON.stringify(data).slice(0, 255),
   };
   const result = await reportOccupationData(locationid, sectionid, payload);
@@ -638,7 +640,8 @@ function occupationManagedRaws(data: Record<string, unknown>): Record<string, un
 export async function occupationAndSyncV3(
   locationid: string,
   sectionid: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  login: string
 ): Promise<FmsOkResult> {
   const managedRaws = occupationManagedRaws(data);
   const prepared =
@@ -661,7 +664,7 @@ export async function occupationAndSyncV3(
     );
   }
   if (data.occupation != null) {
-    const occupation = await setOccupationV3(locationid, sectionid, data);
+    const occupation = await setOccupationV3(locationid, sectionid, data, login);
     last = okResult({ id: occupation.id ?? last.id, ids: last.ids });
   }
   return last;

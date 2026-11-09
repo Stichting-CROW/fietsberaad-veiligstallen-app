@@ -5,9 +5,10 @@
 
 import { prisma } from "~/server/db";
 import {
-  managedPayloadCheckoutType,
-  managedPayloadHasCheckout,
-  shouldLowerOccupationForManagedCheckout,
+  managedOccupationDeltas,
+  managedVisitFromPayload,
+  managedVisitFromTransactie,
+  type ManagedVisitState,
 } from "./managed-occupation";
 
 type BikeInput = {
@@ -223,7 +224,7 @@ export async function addManagedTransactionToWachtrij(
   };
   const row = await prisma.new_wachtrij_managed_transacties.create({ data });
   try {
-    await lowerOccupationForClosedManaged({
+    await applyManagedOccupation({
       bikeparkID,
       sectionID,
       managed,
@@ -231,69 +232,87 @@ export async function addManagedTransactionToWachtrij(
       queueId: row.ID,
     });
   } catch (e) {
-    console.warn("Managed checkout: bezetting niet verlaagd", e);
+    console.warn("Managed transaction: bezetting niet bijgewerkt", e);
   }
   return { id: row.ID };
 }
 
 /**
- * Lower section occupation when a queued managed transaction closes a visit
- * that was still open. processQueues leaves Bezetting unchanged.
+ * Move section occupation by what this queued managed transaction changes in
+ * the visit: +1 on the check-in section when a visit opens, −1 on the
+ * check-out section when it closes. Only for stallingen whose occupation
+ * source is FMS. processQueues leaves Bezetting unchanged.
+ *
+ * The visit before this message is the newest earlier queue row for the same
+ * external id (lower ID), else the transacties row, so a resend of the same
+ * state moves nothing.
  */
-async function lowerOccupationForClosedManaged(input: {
+async function applyManagedOccupation(input: {
   bikeparkID: string;
   sectionID: string;
   managed: ManagedTransactionPayload;
   externalTransactionID: string;
   queueId: number;
 }): Promise<void> {
-  const sectionID =
-    input.sectionID.trim() ||
-    String(input.managed.sectionid_checkin ?? input.managed.sectionid ?? "").trim();
-  if (!sectionID) return;
-
-  const [existingTx, priorQueue] = await Promise.all([
-    prisma.transacties.findFirst({
-      where: {
-        FietsenstallingID: input.bikeparkID,
-        ExternalTransactionID: input.externalTransactionID,
-      },
-      select: { Date_checkout: true },
-    }),
-    prisma.new_wachtrij_managed_transacties.findMany({
-      where: {
-        bikeparkID: input.bikeparkID,
-        externalTransactionID: input.externalTransactionID,
-        ID: { not: input.queueId },
-      },
-      select: { payload: true },
-    }),
-  ]);
-
-  const priorParsed = priorQueue.map((row) => parseManagedQueuePayload(row.payload));
-  const priorOpenVisit =
-    (existingTx != null && existingTx.Date_checkout == null) ||
-    priorParsed.some((payload) => payload != null && !managedPayloadHasCheckout(payload));
-
-  const lower = shouldLowerOccupationForManagedCheckout({
-    hasCheckout: managedPayloadHasCheckout(input.managed),
-    checkoutType: managedPayloadCheckoutType(input.managed),
-    transactionAlreadyClosed: existingTx != null && existingTx.Date_checkout != null,
-    priorQueueHasCheckout: priorParsed.some(
-      (payload) => payload != null && managedPayloadHasCheckout(payload)
-    ),
-    priorOpenVisit,
+  const stalling = await prisma.fietsenstallingen.findFirst({
+    where: { StallingsID: input.bikeparkID },
+    select: { BronBezettingsdata: true },
   });
-  if (!lower) return;
+  if (stalling?.BronBezettingsdata !== "FMS") return;
 
-  await prisma.fietsenstalling_sectie.updateMany({
-    where: {
+  const after = managedVisitFromPayload(input.managed, input.sectionID);
+  const before = await managedVisitBefore(input);
+  const deltas = managedOccupationDeltas(before, after);
+
+  for (const [sectionID, delta] of deltas) {
+    const where = {
       externalId: sectionID,
-      Bezetting: { gt: 0 },
-      fietsenstalling: { StallingsID: input.bikeparkID, BronBezettingsdata: "FMS" },
+      fietsenstalling: { StallingsID: input.bikeparkID },
+    };
+    if (delta > 0) {
+      await prisma.fietsenstalling_sectie.updateMany({
+        where,
+        data: { Bezetting: { increment: delta } },
+      });
+    } else {
+      for (let i = 0; i < -delta; i++) {
+        await prisma.fietsenstalling_sectie.updateMany({
+          where: { ...where, Bezetting: { gt: 0 } },
+          data: { Bezetting: { decrement: 1 } },
+        });
+      }
+    }
+  }
+}
+
+async function managedVisitBefore(input: {
+  bikeparkID: string;
+  sectionID: string;
+  externalTransactionID: string;
+  queueId: number;
+}): Promise<ManagedVisitState | null> {
+  const priorQueue = await prisma.new_wachtrij_managed_transacties.findFirst({
+    where: {
+      bikeparkID: input.bikeparkID,
+      externalTransactionID: input.externalTransactionID,
+      ID: { lt: input.queueId },
     },
-    data: { Bezetting: { decrement: 1 } },
+    orderBy: { ID: "desc" },
+    select: { payload: true },
   });
+  if (priorQueue) {
+    const payload = parseManagedQueuePayload(priorQueue.payload);
+    if (payload) return managedVisitFromPayload(payload, input.sectionID);
+  }
+
+  const existingTx = await prisma.transacties.findFirst({
+    where: {
+      FietsenstallingID: input.bikeparkID,
+      ExternalTransactionID: input.externalTransactionID,
+    },
+    select: { SectieID: true, SectieID_uit: true, Date_checkout: true },
+  });
+  return existingTx ? managedVisitFromTransactie(existingTx) : null;
 }
 
 function parseManagedQueuePayload(payload: string): Record<string, unknown> | null {

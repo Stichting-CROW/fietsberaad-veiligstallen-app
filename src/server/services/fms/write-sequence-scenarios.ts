@@ -10,6 +10,8 @@ import { processQueuesForPassPrefix } from "~/server/services/queue/processor";
 import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
 import {
   fmsHttp,
+  occupationSourceForRun,
+  occupationTimestamp,
   v4LocationPath,
   type ApiWriteScenario,
   type ApiWriteTestContext,
@@ -26,8 +28,16 @@ function extId(ctx: ApiWriteTestContext, suffix: string): string {
   return `${ctx.passPrefix}mt_${suffix}`;
 }
 
-function occSource(ctx: ApiWriteTestContext): string {
-  return `WTEST_${ctx.runId}`;
+const OCC_INTERVAL_MINUTES = 1;
+
+/** The occupation row this run writes: reporting login as source, at the run's interval start. */
+function occRowWhere(ctx: ApiWriteTestContext) {
+  return {
+    bikeparkID: ctx.bikeparkID,
+    sectionID: ctx.sectionID,
+    source: occupationSourceForRun(ctx),
+    timestamp: occupationTimestamp(ctx.baseTime, OCC_INTERVAL_MINUTES),
+  };
 }
 
 function syncMinDate(ctx: ApiWriteTestContext): Date {
@@ -211,12 +221,8 @@ async function teardownSequence(ctx: ApiWriteTestContext): Promise<void> {
   await prisma.new_wachtrij_sync.deleteMany({
     where: { bikeparkID: ctx.bikeparkID, transactionDate: { gte: ctx.baseTime } },
   });
-  await prisma.bezettingsdata.deleteMany({
-    where: { bikeparkID: ctx.bikeparkID, source: occSource(ctx) },
-  });
-  await prisma.new_bezettingsdata_tmp.deleteMany({
-    where: { bikeparkID: ctx.bikeparkID, source: occSource(ctx) },
-  });
+  await prisma.bezettingsdata.deleteMany({ where: occRowWhere(ctx) });
+  await prisma.new_bezettingsdata_tmp.deleteMany({ where: occRowWhere(ctx) });
 }
 
 export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
@@ -371,15 +377,14 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
           capacity: 40,
           checkins: 0,
           checkouts: 0,
-          intervalinminutes: 1,
-          source: occSource(ctx),
+          intervalinminutes: OCC_INTERVAL_MINUTES,
         },
       });
       if (!res.ok || Number(res.body.status) !== 1) {
         throw new Error(`occupation failed: ${JSON.stringify(res.body)}`);
       }
       const tmp = await prisma.new_bezettingsdata_tmp.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, source: occSource(ctx) },
+        where: occRowWhere(ctx),
         orderBy: { ID: "desc" },
       });
       const tmpId = tmp?.ID ?? Number(res.body.id);
@@ -388,11 +393,11 @@ export const SEQUENCE_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
     assert: async (ctx) => {
       const row = await prisma.bezettingsdata.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, sectionID: ctx.sectionID, source: occSource(ctx) },
+        where: occRowWhere(ctx),
         orderBy: { ID: "desc" },
       });
       const tmpAfter = await prisma.new_bezettingsdata_tmp.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, source: occSource(ctx) },
+        where: occRowWhere(ctx),
       });
       return [
         ok(

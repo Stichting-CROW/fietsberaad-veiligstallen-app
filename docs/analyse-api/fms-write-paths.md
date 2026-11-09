@@ -42,7 +42,7 @@ Simulation Process and cron `/api/cron/process-queues` always run Next.js `proce
 | `POST …/occupation` (and occupation+sync) | `new_bezettingsdata_tmp`; also sets `fietsenstalling_sectie.Bezetting` to the reported value | rollup → `bezettingsdata` |
 | `POST …` bike / pas | `new_wachtrij_pasids` | `accounts_pasids` / `accounts` |
 | `POST …` saldo | `new_wachtrij_betalingen` | `financialtransactions` / `accounts` |
-| `POST …` subscriptions / subscribe | (none — direct write) | `abonnementen`, `financialtransactions`, `accounts` |
+| `POST …/subscriptions/{id}` (subscribe) | (none — direct write) | `abonnementen`, `accounts_pasids` |
 | occupation body with `data.bikes` | `new_wachtrij_sync` | `transacties` (inventarisatie) |
 
 Check-in/out on v4 is **managedtransactions** only (Wilmar). Occupation rollup is the Lumiguide path.
@@ -83,6 +83,7 @@ Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Ba
 ## 410 on v4 (use CF v2/v3)
 
 - `POST …/transactions` and `…/completedtransactions` (In/Uit / completed)
+- Subscription sale: `POST …/locations/{id}/subscriptions`. Subscriptions are only sold on the website.
 - Locker writes: `PUT`/`POST …/places/{id}`, `/logs`, `/actions`, place `/subscriptions`
 - Place-level `isAllowedToUse` (`GET …/places/{id}/idcodes/…`) and place-level `koppelpas` (`POST` same path). Location-level `POST …/idcodes/…` stays.
 
@@ -90,8 +91,8 @@ Reads: place list and one place stay (catalog / compare). Buurtstallingen occupa
 
 ## What Next.js does not do
 
-- No FMS tariff / `afboeking` on check-in/out. `Stallingskosten` comes from the managed payload. `fietsenstallingen.BerekentStallingskosten` is unused by the Next.js processor. A leftover `type=afboeking` queue row is marked error, not applied.
-- No CF-style `Bezetting` +1/−1 on In/Uit. Occupation sets `Bezetting` from the reported number; managedtransactions does not change it.
+- No FMS tariff on check-in/out. `Stallingskosten` comes from the managed payload. After the visit is saved, the processor books the difference against existing `Stallingstransactie` and `Afwaardering in stalling` rows and refreshes `accounts.saldo` from `vw_stallingstegoeden`. `fietsenstallingen.BerekentStallingskosten` is unused. A leftover `type=afboeking` queue row is marked error, not applied.
+- `fietsenstalling_sectie.Bezetting` follows the stalling's `BronBezettingsdata`. When it is `FMS`, accepting a managed transaction into the queue moves `Bezetting` by what that message changes in the visit: +1 on the check-in section when a new visit opens, −1 on the check-out section (`sectionid_out`, else the check-in section) when an open visit closes, never below 0. One message with both check-in and check-out in the same section changes nothing. A resend of the same state changes nothing. Check-in and check-out types do not matter: `controle` and `sync` count like `user`. The visit before the message is the newest earlier queue row for that external id, else the `transacties` row. Draining the queue does not touch `Bezetting`, and there is no periodic recount. `POST …/occupation` stores the reported number in `new_bezettingsdata_tmp` with the authenticated login as `source`, and always copies it onto `Bezetting`, as in ColdFusion REST v3 `setOccupation`. When that login is not `BronBezettingsdata` (case-insensitive), it writes a warning to `webservice_log` with method `occupationSourceWarning`; on an `FMS` stalling that report has overwritten the +1/−1 count. The parking editor offers the distinct `bezettingsdata.source` values for that stalling as choices.
 - No processing of CF `wachtrij_*` / `bezettingsdata_tmp`.
 - No In/Uit HTTP, completedtransactions, locker control, or `new_wachtrij_transacties` drain.
 

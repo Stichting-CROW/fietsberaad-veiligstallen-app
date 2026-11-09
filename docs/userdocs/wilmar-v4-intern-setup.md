@@ -2,7 +2,7 @@
 
 Handleiding om Azure-acceptatie klaar te zetten zodat Wilmar v4 kan testen zonder productie-stallingen aan te raken.
 
-Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) (of de PDF) naar Wilmar.
+Na afronding: stuur [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) (of de PDF) naar Wilmar. PDF opnieuw maken: `npm run docs:wilmar`.
 
 ## 0. Voorwaarden op acceptatie
 
@@ -16,21 +16,18 @@ Host: `https://vstfb-eu-acc-app01.azurewebsites.net`. De acceptance-workflow (`.
 
 Je hebt een beheerlogin nodig met de rechten `fietsberaad_superadmin` en `acceptatie_ontwikkeling`.
 
-## 1. Testgemeente aanmaken
+## 1. Accounts op acceptatie
 
-1. **Beheer → Testomgeving** → tab **Test data-eigenaar**.
-2. Klik **Test data-eigenaar aanmaken**.
+Deze accounts zijn handmatig aangemaakt. De knop **Test data-eigenaar aanmaken** maakt een andere set (`api-test` / `api-test-$$`, `beheerder@testgemeente.test` en `exploitant@testgemeente.test` met wachtwoord `teststalling`). Die knop niet gebruiken op deze acceptatie: die logins horen hier niet.
 
-Dat maakt aan:
+| API | Login | Wachtwoord |
+| --- | --- | --- |
+| FMS API v4 (permit `operator`) | `api-test` | `skm*A&oc871*` |
+| Reporting API v4 | `api-test@testgemeente.text` | `Yavc1Gwo8dzW` |
 
-- Data-eigenaar `testgemeente API` (citycode `9933`) met de stallingen `9933_001` tot en met `9933_007`
-- Test-exploitant **Test exploitant API**
-- Test-dataleverancier **Test dataleverancier API** (`api-test` / `api-test-$$`) met FMS-permit `operator` op alle stallingen van de testgemeente
-- Beheeraccounts `beheerder@testgemeente.test` en `exploitant@testgemeente.test` (wachtwoord `teststalling`)
+Swagger op acceptatie: [FMS API v4](https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/v4) en [Reporting API v4](https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/reporting/v4).
 
-De inloggegevens staan ook in de tabel **Testaccounts** op hetzelfde tabblad.
-
-Opnieuw beginnen: **Test data-eigenaar verwijderen** verwijdert alleen de testgemeente en de gekoppelde testaccounts.
+Stalling: citycode `9933`, location `9933_001`, sectie `9933_001_1`. Gecontroleerd op acceptatie: FMS `GET …/bikes` met `api-test` geeft 200, reporting `GET /api/reporting/v4/occupation/organisations` met het e-mailaccount geeft 200. Het andere account op dezelfde route geeft 401. Het oude bootstrap-wachtwoord `api-test-$$` geeft 401.
 
 ## 2. Smoke-test
 
@@ -39,10 +36,10 @@ V4='https://vstfb-eu-acc-app01.azurewebsites.net/api/fms/v4'
 LOC="$V4/citycodes/9933/locations/9933_001"
 
 # lezen met auth: JSON van de stalling, geen 401
-curl -sS -u 'api-test:api-test-$$' "$LOC"
+curl -sS -u 'api-test:skm*A&oc871*' "$LOC"
 
 # check-in via de wachtrij: {"message":"OK","status":1,"id":…}
-curl -sS -u 'api-test:api-test-$$' -H 'Content-Type: application/json' -X POST \
+curl -sS -u 'api-test:skm*A&oc871*' -H 'Content-Type: application/json' -X POST \
   "$LOC/sections/9933_001_1/managedtransactions" \
   -d '{"managedtransaction":{"externaltransactionid":"SMOKE-001","idcode":"SMOKE-PASS",
        "checkindate":"2026-11-06T10:00:00","checkintype":"user"}}'
@@ -59,7 +56,10 @@ Geef hen [wilmar-v4-api-handleiding.md](wilmar-v4-api-handleiding.md) plus:
 | Gegeven | Waarde |
 | --- | --- |
 | Host | `https://vstfb-eu-acc-app01.azurewebsites.net` |
-| User / wachtwoord | `api-test` / `api-test-$$` |
+| FMS API v4 | `api-test` / `skm*A&oc871*` |
+| Reporting API v4 | `api-test@testgemeente.text` / `Yavc1Gwo8dzW` |
+| Swagger FMS | `https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/v4` |
+| Swagger reporting | `https://vstfb-eu-acc-app01.azurewebsites.net/docs/api/reporting/v4` |
 | Citycode | `9933` |
 | Locationid | `9933_001` |
 | Sectionid | `9933_001_1` |

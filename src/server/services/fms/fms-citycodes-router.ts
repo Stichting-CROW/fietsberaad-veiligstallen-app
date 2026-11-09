@@ -262,6 +262,7 @@ async function handleWrite(
   const method = req.method ?? "POST";
 
   try {
+    // KEEP FOR REFERENCE — subscription sale is 410 on v4 (see v4/citycodes handler).
     // POST …/locations/{id}/subscriptions
     if (path[3] === "subscriptions" && !path[4]) {
       if (method !== "POST") return methodNotAllowed(res, method);
@@ -381,7 +382,8 @@ async function handleWrite(
       if (data.occupation != null) {
         if (!(await requireV3Auth(req, res, locationid, "operator,dataprovider.type2"))) return;
       }
-      const result = await v3Write.occupationAndSyncV3(locationid, sectionid, data);
+      const login = parseBasicAuth(req.headers.authorization)?.username ?? "";
+      const result = await v3Write.occupationAndSyncV3(locationid, sectionid, data, login);
       res.status(200).json(result);
       return;
     }
