@@ -11,6 +11,7 @@ import {
   requireSmtpConfig,
 } from "~/utils/server/mail-tools";
 import { resolveMailBaseUrl } from "~/utils/server/mail-base-url";
+import { logSentReminderEmail } from "~/utils/server/contactpersonen-reminder-mail";
 import { titleToSlug } from "~/utils/slug";
 import { z } from "zod";
 
@@ -227,6 +228,12 @@ export default async function handle(
         html,
         text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
         replyTo: cfg.replyTo,
+      });
+      await logSentReminderEmail({
+        contactId,
+        userId: row.UserID,
+        recipient: user.UserName,
+        source: "manual",
       });
     } catch (e) {
       console.error("send-reminder-mail - error:", e);

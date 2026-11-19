@@ -505,6 +505,7 @@ model contacts {
 
   user_contact_roles user_contact_role[] @relation("ContactUserContactRole")
   contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
+  contacts_controlemails          contacts_controlemails[]
 
   @@unique([ItemType, CompanyName], map: "ItemType")
   @@index([CompanyName], map: "CompanyName")
@@ -535,6 +536,22 @@ model contacts_datakwaliteitcontroles {
   @@index([contact_id])
   @@index([user_id])
   @@index([createdAt])
+}
+
+/// Log of sent "controleer je stallingen" reminder emails. source: "auto" (cron) or "manual" (beheer).
+model contacts_controlemails {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  sentAt     DateTime @default(now())
+  contact_id String   @db.VarChar(35)
+  user_id    String   @db.VarChar(35)
+  recipient  String   @db.VarChar(255)
+  source     String   @db.VarChar(10)
+
+  contact contacts       @relation(fields: [contact_id], references: [ID], onDelete: Restrict, onUpdate: Restrict)
+  user    security_users @relation(fields: [user_id], references: [UserID], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([contact_id, user_id, sentAt])
+  @@index([sentAt])
 }
 
 model contacts_fietsberaad {
@@ -1240,6 +1257,7 @@ model security_users {
   security_users_sites  security_users_sites[]
   user_contact_roles    user_contact_role[]
   contacts_datakwaliteitcontroles contacts_datakwaliteitcontroles[]
+  contacts_controlemails          contacts_controlemails[]
 
   @@unique([UserID, SiteID], map: "unique_userID_siteID")
   @@index([RoleID], map: "RoleID")
