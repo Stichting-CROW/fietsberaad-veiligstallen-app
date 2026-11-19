@@ -1,0 +1,111 @@
+@charset "UTF-8";
+
+html,body { 
+	margin: 0;
+	padding: 0;
+}
+body { 
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 62.5%;
+	color: #000;
+	background-color: #fff;
+}
+.wrapper_slide,
+#wrapper_slide {
+	width: 600px; 
+	height: 650px;
+	margin: 0;
+	padding: 0; 
+	font-size: 2.2em;
+	line-height: 1.5em;
+}
+
+/* slides */
+.slide { 
+	width: 470px;
+}
+
+.text_small { font-size: .85em; line-height: 1.4em; }
+.text_big { font-size: 1.2em; line-height: 1.4em; }
+
+/* ========== content styles ========== */
+
+h1, h2, h3, h4, h5 { color: #1f99d2; }
+h1 { margin: 0; font-size: 1.7em;  line-height: 1.3em; }
+
+h2 { font-size: 1.3em; }
+
+.red { color: red; }
+
+table { border-collapse: separate; }
+
+td { font-size: 100%; }
+td p { margin-top: 0; }
+
+/* table with grey layout */
+.TBL_data { 
+	background-color: #fff;
+	border: 1px solid #23b0d9; 
+}
+.TBL_data th { 
+	padding: 5px;
+	color: #fff;
+	font-weight: bold;
+	text-align: left;
+	background-color: #23b0d9;
+}
+.TBL_data td { padding: 5px; }
+.TBL_data td.data {  
+	background-color: #e5e5e5;
+}
+.TBL_data td.label {  
+	background-color: #daf2f9;
+}
+
+/* Ticker Styling 
+#ticker_container {
+  width: 100%;
+  height: 90px;
+  background: #1f99d2;
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+  margin: 0;
+  z-index: 10;
+}
+.ticker_content {
+	height: 50px;   
+	line-height: 50px; 
+	font-family: Arial;
+	font-size: 46px;
+	text-transform: none;
+	float: left;
+	margin:20px 50px 0 0;
+	padding-left:50px;
+	border-left:2px solid #1f99d2;
+	color:#FFFFFF
+}*/
+.red {color: red;}
+
+.note {font-size: 90%;font-style:italic;}
+
+#digits {
+	margin: 10% 0;
+	padding: 10px 0;
+}
+
+.dot {
+	font-size: 160%;
+	padding: 3px;
+}
+.digit {
+	margin: 0 2px;
+	text-align: center;
+	font-size: 160%;
+	font-weight: bold;
+    border-radius: 5px;
+    background: #EEE;
+    padding: 20px;
+	box-shadow: 6px 6px 3px #888888;
+}

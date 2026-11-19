@@ -4,7 +4,7 @@ import {
   interpolateSQL
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
-import moment from "moment";
+import { formatReportInstant } from "~/utils/datetime-nl";
 
 const filter_locations_sql = (params: {
   bikeparkIDs: string[],
@@ -37,6 +37,9 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
   }
 
   const { timeIntervalInMinutes, adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDate, endDate);
+  if (!startDate || !endDate || adjustedStartDate === undefined || adjustedEndDate === undefined) {
+    throw new Error("Start or end date is undefined");
+  }
 
   const statementItems = [];
   switch (reportCategories) {
@@ -84,8 +87,8 @@ export const getSQL = (params: ReportParams, useCache = true): string | false =>
 
   // Prepare parameters for the query
   const queryParams = [
-    moment(startDate).format('YYYY-MM-DD 00:00:00'),
-    moment(endDate).format('YYYY-MM-DD 23:59:59')
+    formatReportInstant(startDate, "YYYY-MM-DD 00:00:00"),
+    formatReportInstant(endDate, "YYYY-MM-DD 23:59:59"),
   ];
 
   const sqlfilledin = interpolateSQL(sql, queryParams);

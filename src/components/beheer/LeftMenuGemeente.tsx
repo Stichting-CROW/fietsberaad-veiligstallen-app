@@ -21,6 +21,7 @@ interface LeftMenuGemeenteProps {
   onSelect: (component: VSMenuTopic) => void;
   hasAbonnementenModule: boolean;
   hasFmsModule: boolean;
+  hasBuurtstallingenModule: boolean;
 }
 
 import { LeftMenuItem } from './LeftMenuCommon';
@@ -31,6 +32,7 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   onSelect,
   hasAbonnementenModule,
   hasFmsModule,
+  hasBuurtstallingenModule,
 }) => {
   const router = useRouter();
   const isOnReportPage = router.pathname.startsWith('/beheer/report');
@@ -46,6 +48,8 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
   const hasInstellingenFietsenstallingenBeperkt = userHasRight(securityProfile, VSSecurityTopic.instellingen_fietsenstallingen_beperkt);
   const hasRapportages = userHasRight(securityProfile, VSSecurityTopic.rapportages);
   const hasFmsServices = userHasRight(securityProfile, VSSecurityTopic.fmsservices);
+  const hasBuurtstallingen = userHasRight(securityProfile, VSSecurityTopic.buurtstallingen_beheer);
+  const hasDiashow = userHasRight(securityProfile, VSSecurityTopic.diashow_beheer);
 
   const handleReportClick = () => {
     router.push('/beheer/report/afgeronde-transacties');
@@ -56,6 +60,23 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
     { slug: 'procentuele-bezetting', title: 'Procentuele bezetting' },
     { slug: 'absolute-bezetting', title: 'Absolute bezetting' },
     { slug: 'stallingsduur', title: 'Stallingsduur' },
+    ...(hasBuurtstallingen && hasBuurtstallingenModule
+      ? [{ slug: 'maandrapport-buurtstallingen', title: 'Maandrapport buurtstallingen' }]
+      : []),
+    { slug: 'inkomsten', title: 'Inkomsten (€)' },
+    ...(hasAbonnementenModule
+      ? [
+          { slug: 'abonnementswijzigingen', title: 'Abonnementswijzigingen' },
+          { slug: 'lopende-abonnementen', title: 'Lopende abonnementen' },
+        ]
+      : []),
+    ...(hasFmsModule
+      ? [
+          { slug: 'financieel-maandoverzicht', title: 'Financieel maandoverzicht' },
+          { slug: 'saldotekort', title: 'Saldotekort' },
+          { slug: 'pas', title: 'Pas' },
+        ]
+      : []),
   ];
 
   return (
@@ -103,10 +124,40 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
           />
         )}
 
+        {hasBuurtstallingen && hasBuurtstallingenModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Buurtstallingen}
+            title={'Buurtstallingen / fietstrommels'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiMapPin}
+          />
+        )}
+
         {hasAbonnementsvormen && hasAbonnementenModule && (
           <LeftMenuItem
             component={VSMenuTopic.Abonnementsvormen}
             title={'Abonnementsvormen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiFileText}
+          />
+        )}
+
+        {hasAbonnementsvormen && hasAbonnementenModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Accounts}
+            title={'Accounts en abonnementen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiUsers}
+          />
+        )}
+
+        {hasAbonnementsvormen && (hasAbonnementenModule || hasBuurtstallingenModule) && (
+          <LeftMenuItem
+            component={VSMenuTopic.Documents}
+            title={'Documenten'}
             activecomponent={activecomponent}
             onSelect={onSelect}
             icon={FiFileText}
@@ -142,6 +193,17 @@ const LeftMenuGemeente: React.FC<LeftMenuGemeenteProps> = ({
             activecomponent={activecomponent}
             onSelect={onSelect}
             icon={FiHelpCircle}
+          />
+        )}
+
+        {hasDiashow && hasFmsModule && (
+          <LeftMenuItem
+            component={VSMenuTopic.Presentations}
+            title="Diashow"
+            compact={true}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiFileText}
           />
         )}
 

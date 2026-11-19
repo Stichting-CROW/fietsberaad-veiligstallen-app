@@ -49,7 +49,7 @@ info:
     | --- | --- |
     | `POST /v2/saveJsonBike(s)/{bikeparkID}` | `POST …/idcodes/{idtype}/{idcode}/bike` |
     | `POST /v2/addJsonSaldo(s)/{bikeparkID}` | `POST …/idcodes/{idtype}/{idcode}/balance` |
-    | `POST /v2/addSubscription/{bikeparkID}` | `POST …/locations/{locationid}/subscriptions` |
+    | `POST /v2/addSubscription/{bikeparkID}` | **410** — abonnementen alleen via de website |
     | `POST /v2/subscribe/{bikeparkID}` | `POST …/locations/{locationid}/subscriptions/{subscriptionid}` |
     | `POST /v2/reportOccupationData/…` | `POST …/sections/{sectionid}/occupation` (`data.occupation`) |
     | `POST /v2/syncSector/…` | `POST …/sections/{sectionid}/occupation` (`data.bikes`) |

@@ -1,5 +1,6 @@
-import moment from "moment";
+import moment from "moment-timezone";
 import { type ReportGrouping } from "~/components/beheer/reports/ReportsFilter";
+import { APP_TZ } from "~/utils/datetime-nl";
 // import { debugLog } from "~/backend/services/reports/ReportFunctions";
 
 export type XAxisLabelMap = Record<string, string>;
@@ -78,14 +79,14 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
   switch (reportGrouping) {
     case 'per_hour_time': {
       const labelMap: XAxisLabelMap = {};
-      for (let date = moment(startDate); date.isSameOrBefore(endDate); date.add(1, 'hour')) {
+      for (let date = moment(startDate).tz(APP_TZ); date.isSameOrBefore(endDate); date.add(1, 'hour')) {
         labelMap[date.format('YYYY-MM-DD HH:00')] = date.format('DD MMM HH:00');
       }
       return labelMap;
     }
     case 'per_quarter_hour': {
       const labelMap: XAxisLabelMap = {};
-      for (let date = moment(startDate); date.isSameOrBefore(endDate); date.add(15, 'minutes')) {
+      for (let date = moment(startDate).tz(APP_TZ); date.isSameOrBefore(endDate); date.add(15, 'minutes')) {
         labelMap[date.format('YYYY-MM-DD HH:mm')] = date.format('DD MMM HH:mm');
       }
       return labelMap;
@@ -112,7 +113,7 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
       // Dutch day abbreviations
       const dayAbbreviations = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
       // Use isSameOrBefore to include the end date, matching SQL BETWEEN clause
-      for (let date = moment(startDate).startOf('day'); date.isSameOrBefore(moment(endDate).startOf('day')); date.add(1, 'day')) {
+      for (let date = moment(startDate).tz(APP_TZ).startOf('day'); date.isSameOrBefore(moment(endDate).tz(APP_TZ).startOf('day')); date.add(1, 'day')) {
         const dayOfWeek = dayAbbreviations[date.day()] || '';
         labelMap[date.format('YYYY-DDD')] = `${dayOfWeek} ${date.format('D MMM')}`;
       }
@@ -120,10 +121,10 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_month': {
       const labelMap: XAxisLabelMap = {};
-      const startKey = moment(startDate).startOf('month');
-      const endKey = moment(endDate).endOf('month');
+      const startKey = moment(startDate).tz(APP_TZ).startOf('month');
+      const endKey = moment(endDate).tz(APP_TZ).endOf('month');
       for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'month')) {
-        if (moment(startDate).year() === moment(endDate).year()) {
+        if (moment(startDate).tz(APP_TZ).year() === moment(endDate).tz(APP_TZ).year()) {
           // use locale month name
           labelMap[date.format('YYYY-M')] = date.format('MMM');
         } else {
@@ -134,8 +135,8 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_week': {
       const labelMap: XAxisLabelMap = {};
-      const startKey = moment(startDate).isoWeek(moment(startDate).isoWeek()).startOf('isoWeek');
-      const endKey = moment(endDate).isoWeek(moment(endDate).isoWeek()).startOf('isoWeek');
+      const startKey = moment(startDate).tz(APP_TZ).isoWeek(moment(startDate).tz(APP_TZ).isoWeek()).startOf('isoWeek');
+      const endKey = moment(endDate).tz(APP_TZ).isoWeek(moment(endDate).tz(APP_TZ).isoWeek()).startOf('isoWeek');
       // Use isSameOrBefore to include the end week, matching SQL BETWEEN clause
       for (let date = moment(startKey); date.isSameOrBefore(endKey); date.add(1, 'week')) {
         // Match MySQL's DATE_FORMAT(..., '%x-%v') format: YYYY-WW (with zero-padded week)
@@ -152,8 +153,8 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_quarter': {
       const labelMap: XAxisLabelMap = {};
-      const startKey = moment(startDate).startOf('quarter');
-      const endKey = moment(endDate).endOf('quarter');
+      const startKey = moment(startDate).tz(APP_TZ).startOf('quarter');
+      const endKey = moment(endDate).tz(APP_TZ).endOf('quarter');
       for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'quarter')) {
         labelMap[date.format('YYYY-Q')] = date.format('YYYY-Q');
       }
@@ -161,8 +162,8 @@ export const getLabelMapForXAxis = (reportGrouping: ReportGrouping, startDate: D
     }
     case 'per_year': {
       const labelMap: XAxisLabelMap = {};
-      const startKey = moment(startDate).startOf('year');
-      const endKey = moment(endDate).endOf('year');
+      const startKey = moment(startDate).tz(APP_TZ).startOf('year');
+      const endKey = moment(endDate).tz(APP_TZ).endOf('year');
       for (let date = moment(startKey); date.isBefore(endKey); date.add(1, 'year')) {
         labelMap[date.format('YYYY')] = date.format('YYYY');
       }

@@ -108,6 +108,7 @@ export default async function handle(
             ThemeColor1: gemeente.ThemeColor1,
             ThemeColor2: gemeente.ThemeColor2,
             Status: gemeente.Status,
+            Status_website: gemeente.Status_website,
             hasStallingen,
             hasUsers,
             contactpersoon: contactpersoonBySiteId.get(gemeente.ID) ?? null,

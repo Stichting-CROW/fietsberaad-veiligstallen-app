@@ -1,6 +1,7 @@
 import { type Session } from "next-auth";
 import { reverseGeocode } from "~/utils/nomatim";
 import { getMunicipalityBasedOnLatLng } from "~/utils/map/active_municipality";
+import { cbsCodeFromMunicipality, getMunicipalityBasedOnCbsCode } from "~/utils/municipality";
 import type { fietsenstallingen, contacts } from "~/generated/prisma-client";
 import type { ParkingDetailsType } from "~/types/parking";
 import type { VSContactGemeente } from "~/types/contacts";
@@ -191,8 +192,27 @@ export const createVeiligstallenOrgLink = async (parkingdata: ParkingDetailsType
   const params = new URLSearchParams();
   if (nameSlug) params.set("name", nameSlug);
   params.set("stallingid", parkingdata.ID);
-  return `/?${params.toString()}`;
-}
+
+  let municipalityUrl = parkingdata.contacts_fietsenstallingen_SiteIDTocontacts?.UrlName ?? undefined;
+  const useGeoMunicipality =
+    parkingdata.EditorCreated === "NS-connector" ||
+    parkingdata.IsStationsstalling === true ||
+    municipalityUrl === "ns";
+
+  if (useGeoMunicipality && parkingdata.Coordinaten) {
+    const [lat, lng] = parkingdata.Coordinaten.split(",").map((s) => s.trim());
+    const geo = await getMunicipalityBasedOnLatLng([lat ?? "", lng ?? ""]);
+    const cbs = cbsCodeFromMunicipality(geo);
+    if (cbs) {
+      const gemeente = await getMunicipalityBasedOnCbsCode(cbs);
+      if (gemeente?.UrlName) municipalityUrl = gemeente.UrlName;
+    }
+  }
+
+  if (municipalityUrl) params.set("municipality", municipalityUrl);
+  const qs = params.toString();
+  return municipalityUrl ? `/${municipalityUrl}?${qs}` : `/?${qs}`;
+};
 
 export const createVeiligstallenOrgOpwaardeerLink = (parkingdata: ParkingDetailsType, fietsenstallingen: fietsenstallingen[], contacts: contacts[]): string => {
   const thecontact = contacts.find((contact) => contact.ID === parkingdata.SiteID);

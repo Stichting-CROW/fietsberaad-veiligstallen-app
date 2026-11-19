@@ -8,7 +8,7 @@ import { resolveTestFmsCredentials } from "~/server/services/fms/fms-test-creden
 /**
  * Returns FMS test credentials for the API compare page.
  * Uses FMS_TEST_USER/FMS_TEST_PASS when both set; otherwise the testgemeente dataprovider in DB.
- * Not used by parkeersimulatie (browser localStorage there).
+ * Server-side FMS test credentials for Beheer.
  */
 export default async function handle(
   req: NextApiRequest,

@@ -25,7 +25,8 @@ import FaqComponent from '~/components/beheer/faq';
 import HomeInfoComponent from '~/components/beheer/home';
 import LogboekComponent from '~/components/beheer/logboek';
 import FietsenstallingenComponent from '~/components/beheer/fietsenstallingen';
-// import PresentationsComponent from '~/components/beheer/presentations';
+import BuurtstallingenComponent from '~/components/beheer/buurtstallingen';
+import PresentationsComponent from '~/components/beheer/presentations';
 // import ProductsComponent from '~/components/beheer/producten';
 import ReportComponent from '~/components/beheer/reports';
 import SettingsComponent from '~/components/beheer/settings';
@@ -35,8 +36,15 @@ import TariefcodesTableComponent from '~/components/beheer/database/TariefcodesT
 import DatabaseExport from '~/components/beheer/database/DatabaseExport';
 import DatabaseModules from '~/components/beheer/database/DatabaseModules';
 import DatabaseCBSGemeentecodes from '~/components/beheer/database/DatabaseCBSGemeentecodes';
+import BulkreserveringenTable from '~/components/beheer/database/BulkreserveringenTable';
 import ExploreUsersComponent from '~/components/ExploreUsersComponent';
 import WachtrijMonitorComponent from '~/components/wachtrij/WachtrijMonitorComponent';
+import NsKoppelingComponent from '~/components/beheer/ns-koppeling';
+import StallingsschermenComponent from '~/components/beheer/stallingsschermen';
+import PrivacyBeheerComponent from '~/components/beheer/privacy';
+import AzureKostenComponent from '~/components/beheer/azure-kosten';
+import AchtergrondtakenComponent from '~/components/beheer/achtergrondtaken';
+import TestOmgeving from '~/components/beheer/test-omgeving/TestOmgeving';
 
 import { VSMenuTopic } from "~/types/index";
 import { VSSecurityTopic } from "~/types/securityprofile";
@@ -163,6 +171,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
   const showAbonnementenRapporten = true;
   const [hasAbonnementenModule, setHasAbonnementenModule] = useState(false);
   const [hasFmsModule, setHasFmsModule] = useState(false);
+  const [hasBuurtstallingenModule, setHasBuurtstallingenModule] = useState(false);
 
   const firstDate = new Date("2018-03-01");
 
@@ -258,12 +267,14 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       if (!selectedContactID) {
         setHasAbonnementenModule(false);
         setHasFmsModule(false);
+        setHasBuurtstallingenModule(false);
         return;
       }
 
       if (selectedContactID === "1") {
         setHasAbonnementenModule(true);
         setHasFmsModule(true);
+        setHasBuurtstallingenModule(false);
         return;
       }
 
@@ -278,12 +289,14 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         if (!cancelled) {
           setHasAbonnementenModule(modules.some(module => module.ModuleID === "abonnementen"));
           setHasFmsModule(modules.some(module => module.ModuleID === "fms"));
+          setHasBuurtstallingenModule(modules.some(module => module.ModuleID === "buurtstallingen"));
         }
       } catch (error) {
         if (!cancelled) {
           console.error("Error fetching modules for contact:", error);
           setHasAbonnementenModule(false);
           setHasFmsModule(false);
+          setHasBuurtstallingenModule(false);
         }
       }
     };
@@ -314,6 +327,8 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
       const hasAbonnementsvormenAccess = hasAbonnementsvormenRights && hasAbonnementenModule;
       const hasFmsServices = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fmsservices);
       const hasFmsPermitsAccess = hasFmsServices && hasFmsModule && selectedContactID !== "1";
+      const hasBuurtstallingenAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.buurtstallingen_beheer) && hasBuurtstallingenModule;
+      const hasDocumentenAccess = userHasRight(session?.user?.securityProfile, VSSecurityTopic.abonnementsvormen_beheerrecht) && (hasAbonnementenModule || hasBuurtstallingenModule);
       const hasFietsberaadSuperadmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin);
       
       switch (activecomponent) {
@@ -410,7 +425,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Documents:
-          selectedComponent = <DocumentsComponent />;
+          selectedComponent = hasDocumentenAccess ? <DocumentsComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.ContactsGemeenten:
         case VSMenuTopic.Contactpersonen:
@@ -473,11 +488,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         case VSMenuTopic.Buurtstallingen:
-          if (!hasFietsenstallingenAccess) {
-            selectedComponent = <AccessDenied />;
-          } else {
-            selectedComponent = <FietsenstallingenComponent type="buurtstallingen" openControleModal={queryRouter.query.id === 'controle'} />;
-          }
+          selectedComponent = hasBuurtstallingenAccess ? <BuurtstallingenComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.BarcodereeksenSleutelhangers: {
           const hasBarcodeAdmin = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin);
@@ -499,9 +510,11 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           }
           break;
         }
-        // case VSMenuTopic.Presentations:
-        //   selectedComponent = <PresentationsComponent />;
-        //   break;
+        case VSMenuTopic.Presentations: {
+          const hasDiashow = userHasRight(session?.user?.securityProfile, VSSecurityTopic.diashow_beheer);
+          selectedComponent = hasDiashow ? <PresentationsComponent /> : <AccessDenied />;
+          break;
+        }
         case VSMenuTopic.Settings:
           selectedComponent = <SettingsComponent />;
           break;
@@ -534,7 +547,13 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
           selectedComponent = hasAbonnementsvormenAccess ? <AbonnementsvormenComponent /> : <AccessDenied />;
           break;
         case VSMenuTopic.Accounts:
-          selectedComponent = <AccountsComponent />;
+          selectedComponent = hasAbonnementsvormenAccess ? <AccountsComponent mode="gemeente" /> : <AccessDenied />;
+          break;
+        case VSMenuTopic.Products:
+          selectedComponent =
+            userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_admin) && selectedContactID === "1"
+              ? <AccountsComponent mode="producten" />
+              : <AccessDenied />;
           break;
         case VSMenuTopic.ApisGekoppeldeLocaties:
           selectedComponent = hasFmsPermitsAccess ? (
@@ -548,6 +567,56 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
         //   break;
         case VSMenuTopic.TestDatabaseApi:
           selectedComponent = <DatabaseApiTest />;
+          break;
+        case VSMenuTopic.NsKoppeling:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <NsKoppelingComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.Stallingsschermen:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <StallingsschermenComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.PrivacyBeheer:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <PrivacyBeheerComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.DatabaseBulkreserveringen:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <BulkreserveringenTable />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.TestOmgeving:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin)
+            && userHasRight(session?.user?.securityProfile, VSSecurityTopic.acceptatie_ontwikkeling) ? (
+            <TestOmgeving />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.AzureKosten:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <AzureKostenComponent />
+          ) : (
+            <AccessDenied />
+          );
+          break;
+        case VSMenuTopic.Achtergrondtaken:
+          selectedComponent = userHasRight(session?.user?.securityProfile, VSSecurityTopic.fietsberaad_superadmin) ? (
+            <AchtergrondtakenComponent />
+          ) : (
+            <AccessDenied />
+          );
           break;
         default:
           console.warn("unknown component", activecomponent);
@@ -571,6 +640,7 @@ const BeheerPage: React.FC<BeheerPageProps> = ({
     onSelect: (componentKey: VSMenuTopic) => handleSelectComponent(componentKey),
     hasAbonnementenModule,
     hasFmsModule,
+    hasBuurtstallingenModule,
   });
 
   return (

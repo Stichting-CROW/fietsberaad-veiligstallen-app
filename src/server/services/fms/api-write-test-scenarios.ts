@@ -8,6 +8,8 @@ import { prisma } from "~/server/db";
 import { processQueues } from "~/server/services/queue/processor";
 import { processLumiguidePath } from "~/server/services/bezettingsdata/update-bezettingsdata-service";
 import { fetchApiUrl } from "~/server/utils/internal-api-fetch";
+import { parseBasicAuth } from "~/server/services/fms/fms-auth";
+import { addSubscription } from "~/server/services/fms/subscription-service";
 
 export const API_SYNTHETIC_PREFIX = "WTEST_API_";
 
@@ -35,6 +37,7 @@ export type ApiWriteTestContext = {
   baseTime: Date;
   /** Set during scenarios that create subscriptions etc. */
   createdSubscriptionID?: number;
+  lastHttpStatus?: number;
   createdBezettingTmpId?: number;
   createdSyncId?: number;
   previousLockerUrl?: string | null;
@@ -86,6 +89,17 @@ export async function fmsHttp(
     parsed = { raw: text };
   }
   return { ok: res.ok, status: res.status, body: parsed };
+}
+
+/** Occupation rows carry the reporting login as source. */
+export function occupationSourceForRun(ctx: ApiWriteTestContext): string {
+  return (parseBasicAuth(ctx.authHeader)?.username ?? "").slice(0, 25);
+}
+
+/** reportOccupationData stores the timestamp rounded down to the interval start. */
+export function occupationTimestamp(date: Date, intervalMinutes: number): Date {
+  const intervalMs = intervalMinutes * 60 * 1000;
+  return new Date(Math.floor(date.getTime() / intervalMs) * intervalMs);
 }
 
 export function v4LocationPath(ctx: ApiWriteTestContext, extra = ""): string {
@@ -225,9 +239,9 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
   },
   {
     id: "api-v4-location-subscription",
-    label: "HTTP V4 location subscription → abonnementen",
-    description: "POST v4 …/subscriptions.",
-    writeMethods: ["v4 addSubscription"],
+    label: "HTTP V4 location subscription → 410",
+    description: "POST v4 …/subscriptions is verwijderd: abonnementen worden alleen via de website verkocht.",
+    writeMethods: ["v4 addSubscription (410)"],
     act: async (ctx) => {
       const res = await fmsHttp(ctx, "POST", v4LocationPath(ctx, "/subscriptions"), {
         subscription: {
@@ -238,49 +252,44 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
           cost: 0,
         },
       });
-      if (!res.ok || Number(res.body.status) !== 1) {
-        throw new Error(`addSubscription failed: ${JSON.stringify(res.body)}`);
-      }
-      ctx.createdSubscriptionID = Number(res.body.subscriptionid ?? res.body.id);
+      ctx.lastHttpStatus = res.status;
     },
     assert: async (ctx) => {
-      const row = ctx.createdSubscriptionID
-        ? await prisma.abonnementen.findFirst({ where: { ID: ctx.createdSubscriptionID } })
-        : null;
+      const pas = await prisma.accounts_pasids.findFirst({ where: { PasID: ctx.pass("sub") } });
       return [
         {
-          label: "abonnementen row",
-          ok: !!row,
-          expected: `subscription id=${ctx.createdSubscriptionID}`,
-          actual: row ? `id=${row.ID}` : "geen rij",
+          label: "HTTP 410",
+          ok: ctx.lastHttpStatus === 410,
+          expected: "410",
+          actual: String(ctx.lastHttpStatus ?? "geen antwoord"),
+        },
+        {
+          label: "geen pas aangemaakt",
+          ok: !pas,
+          expected: "geen accounts_pasids rij",
+          actual: pas ? pas.PasID : "geen rij",
         },
       ];
     },
     teardown: async (ctx) => {
-      if (ctx.createdSubscriptionID) {
-        await prisma.financialtransactions.deleteMany({ where: { subscriptionID: ctx.createdSubscriptionID } });
-        await prisma.abonnementen.delete({ where: { ID: ctx.createdSubscriptionID } }).catch(() => undefined);
-      }
       await prisma.accounts_pasids.deleteMany({ where: { PasID: { startsWith: ctx.passPrefix } } });
     },
   },
   {
     id: "api-v4-subscribe",
     label: "HTTP V4 subscribe → abonnement koppelen",
-    description: "Maakt abonnement aan zonder pas, koppelt daarna via POST …/subscriptions/{id}.",
-    writeMethods: ["v4 addSubscription", "v4 subscribe"],
+    description: "Maakt abonnement zonder pas aan in de database, koppelt daarna via POST …/subscriptions/{id}.",
+    writeMethods: ["v4 subscribe"],
     act: async (ctx) => {
-      const create = await fmsHttp(ctx, "POST", v4LocationPath(ctx, "/subscriptions"), {
-        subscription: {
-          subscriptiontypeid: ctx.subscriptionTypeID,
-          startdate: ctx.baseTime.toISOString(),
-          cost: 0,
-        },
+      const create = await addSubscription(ctx.bikeparkID, {
+        subscriptiontypeID: ctx.subscriptionTypeID,
+        ingangsdatum: ctx.baseTime.toISOString(),
+        amount: 0,
       });
-      if (!create.ok || Number(create.body.status) !== 1) {
-        throw new Error(`addSubscription failed: ${JSON.stringify(create.body)}`);
+      if (create.status !== 1 || !create.id) {
+        throw new Error(`abonnement aanmaken mislukt: ${create.message ?? ""}`);
       }
-      ctx.createdSubscriptionID = Number(create.body.subscriptionid ?? create.body.id);
+      ctx.createdSubscriptionID = create.id;
       const sub = await fmsHttp(
         ctx,
         "POST",
@@ -564,7 +573,6 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
             checkins: 0,
             checkouts: 0,
             intervalinminutes: 15,
-            source: `WTEST_${ctx.runId}`,
           },
         }
       );
@@ -575,7 +583,12 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
     },
     assert: async (ctx) => {
       const row = await prisma.bezettingsdata.findFirst({
-        where: { bikeparkID: ctx.bikeparkID, sectionID: ctx.sectionID, source: `WTEST_${ctx.runId}` },
+        where: {
+          bikeparkID: ctx.bikeparkID,
+          sectionID: ctx.sectionID,
+          source: occupationSourceForRun(ctx),
+          timestamp: occupationTimestamp(ctx.baseTime, 15),
+        },
         orderBy: { ID: "desc" },
       });
       return [
@@ -588,12 +601,14 @@ export const API_WRITE_SCENARIOS: ApiWriteScenario[] = [
       ];
     },
     teardown: async (ctx) => {
-      await prisma.bezettingsdata.deleteMany({
-        where: { bikeparkID: ctx.bikeparkID, source: `WTEST_${ctx.runId}` },
-      });
-      await prisma.new_bezettingsdata_tmp.deleteMany({
-        where: { bikeparkID: ctx.bikeparkID, source: `WTEST_${ctx.runId}` },
-      });
+      const where = {
+        bikeparkID: ctx.bikeparkID,
+        sectionID: ctx.sectionID,
+        source: occupationSourceForRun(ctx),
+        timestamp: occupationTimestamp(ctx.baseTime, 15),
+      };
+      await prisma.bezettingsdata.deleteMany({ where });
+      await prisma.new_bezettingsdata_tmp.deleteMany({ where });
     },
   },
   {

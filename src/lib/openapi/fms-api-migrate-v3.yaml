@@ -58,7 +58,6 @@ info:
     | --- | --- |
     | `POST …/managedtransactions` | zelfde pad onder `/api/fms/v4` |
     | `POST …/sections/{sectionid}/occupation` | zelfde (`data.occupation` en/of `data.bikes`) |
-    | `POST …/subscriptions` | addSubscription |
     | `POST …/subscriptions/{subscriptionid}` | subscribe (pas koppelen) |
     | `POST …/idcodes/{idtype}/{idcode}` | koppelpas |
     | `POST …/idcodes/{idtype}/{idcode}/balance` | saldo |
@@ -75,6 +74,7 @@ info:
     | `PUT`/`POST …/places/{placeid}` | **410** — fietskluizen uitgefaseerd |
     | `POST …/places/{placeid}/logs` | **410** |
     | `POST …/places/{placeid}/actions` | **410** |
+    | `POST …/subscriptions` (abonnement verkopen) | **410** — abonnementen alleen via de website |
     | `POST …/places/{placeid}/subscriptions` | **410** |
     | `GET`/`POST …/places/{placeid}/idcodes/…` | **410** — `isAllowedToUse` / place koppelpas |
 

@@ -1,0 +1,16 @@
+{
+  "resources": [
+    {
+      "match": "example-prod-app",
+      "environment": "prod",
+      "platform": "core",
+      "hosts": ["example.example.nl"]
+    },
+    {
+      "match": "example-acc-db",
+      "environment": "acc",
+      "platform": "database",
+      "hosts": []
+    }
+  ]
+}

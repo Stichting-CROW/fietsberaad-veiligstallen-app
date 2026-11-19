@@ -46,7 +46,7 @@ export async function findTestgemeenteLinkedDataprovider() {
 
 /**
  * Credentials for FMS compare/write tests: env overrides, else dataprovider linked via FMS rechten.
- * Not used by parkeersimulatie (browser localStorage there).
+ * Server-side FMS test credentials (Beheer API).
  */
 export async function resolveTestFmsCredentials(): Promise<{
   username: string;

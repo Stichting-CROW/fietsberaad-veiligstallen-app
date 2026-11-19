@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "~/pages/api/auth/[...nextauth]";
 import { prisma } from "~/server/db";
 import { validateUserSession } from "~/utils/server/database-tools";
+import { findSyncQueueRowsForBikepark } from "~/utils/server/wachtrij-sync-read";
 
 export interface SyncEvent {
   sectionName: string;
@@ -55,18 +56,12 @@ export default async function handler(
       return res.status(403).json({ error: "No access to this stalling" });
     }
 
-    const syncEvents = await prisma.wachtrij_sync.findMany({
-      where: {
-        bikeparkID: stalling.StallingsID || undefined
-      },
-      select: {
-        sectionID: true,
-        transactionDate: true
-      },
-      orderBy: {
-        transactionDate: "desc"
-      }
-    });
+    const bikeparkID = stalling.StallingsID;
+    if (!bikeparkID) {
+      return res.status(200).json({ data: [] });
+    }
+
+    const syncEvents = await findSyncQueueRowsForBikepark(bikeparkID);
 
     const sectionIds = syncEvents
       .map(e => e.sectionID)

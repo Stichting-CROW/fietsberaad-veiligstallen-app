@@ -244,32 +244,30 @@ function ParkingFacilityBrowser({
           filtered = sorted;
         }
       }
-      // If no searchQuery is given and zoomed in: 
-      // - First show parkings that are on the map, also if not part of the municipality
-      // - Then other parkings of that municipality
+      // Zoomed in, no search: markers in viewport first, then other stallings of active municipality
       else if (
-        mapZoom >= 12
-        && (!filterQuery || filterQuery.length <= 0)
-        && activeMunicipalityInfo && activeMunicipalityInfo.ID
+        mapZoom !== undefined &&
+        mapZoom >= 12 &&
+        (!filterQuery || filterQuery.length <= 0)
       ) {
-        // Get parkings for this municipality
-        const parkingsInThisMunicipality = allParkings.filter((p) => {
-          return p.SiteID === activeMunicipalityInfo.ID
-            || p.Plaats === activeMunicipalityInfo.CompanyName;// Also show NS stallingen that have an other SiteID
-        });
+        const visibleParkingIds = mapVisibleFeatures.map((x: { id?: string }) => x.id);
+        filtered = allParkings.filter((p) => visibleParkingIds.indexOf(p.ID) > -1);
 
-        // Put the visible parkings on top
-        const visibleParkingIds = mapVisibleFeatures.map((x: any) => x.id);
-        filtered = allParkings.filter((p) => {
-          return visibleParkingIds.indexOf(p.ID) > -1;
-        });
-        parkingsInThisMunicipality.forEach((p) => {
-          if (visibleParkingIds.indexOf(p.ID) <= -1) {
-            filtered.push(p);
-          }
-        });
+        if (activeMunicipalityInfo?.ID) {
+          const parkingsInThisMunicipality = allParkings.filter((p) => {
+            return (
+              p.SiteID === activeMunicipalityInfo.ID ||
+              p.Plaats === activeMunicipalityInfo.CompanyName
+            );
+          });
+          parkingsInThisMunicipality.forEach((p) => {
+            if (visibleParkingIds.indexOf(p.ID) <= -1) {
+              filtered.push(p);
+            }
+          });
+        }
       }
-      // If zoomed out and no searchQuery: Don't show results
+      // Zoomed out and no searchQuery: no list
       else {
         filtered = [];
       }
@@ -288,6 +286,8 @@ function ParkingFacilityBrowser({
     filterQuery,
     filterTypes,
     filterTypes2,
+    mapZoom,
+    mapVisibleFeatures,
     mapVisibleFeaturesHash,
   ]);
 

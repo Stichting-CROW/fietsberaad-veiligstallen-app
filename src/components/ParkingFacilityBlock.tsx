@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import moment from "moment";
 import { useSelector } from "react-redux";
 
+import { libraryFileUrl } from "~/utils/library-url";
 import { getParkingColor } from "~/utils/theme";
 import { openRoute } from "~/utils/map/index";
 
@@ -52,7 +53,7 @@ function ParkingFacilityBlock({
   }
   // If parking has an image URL not starting with http: Create veiligstallen URL
   else if (!parkingImageUrl.includes('http')) {
-    parkingImageUrl = `https://static.veiligstallen.nl/library/fietsenstallingen/${parkingImageUrl}`;
+    parkingImageUrl = libraryFileUrl("fietsenstallingen", parkingImageUrl);
   }
 
   return (

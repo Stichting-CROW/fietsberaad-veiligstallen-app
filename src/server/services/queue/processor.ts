@@ -1,21 +1,21 @@
 /**
  * Queue processor for new_wachtrij_* tables.
  * Does not implement FMS tariff calculation or afboeking (intentional).
- * Processing order: pasids (50) → managed (50) → betalingen (200) → sync (1).
+ * Processing order: pasids (500) → managed (500) → betalingen (200) → sync (1).
  * In/Uit (new_wachtrij_transacties) is not processed — v4 uses managedtransactions.
  */
 
 import { prisma } from "~/server/db";
-import { getBikeparkByExternalID, getBikeparkSectionByExternalID } from "./bikepark-service";
-import { getBikepassByPassId, addSaldoObject } from "./account-service";
+import { loadBikeparksByStallingsID, loadSectionsByExternalID } from "./bikepark-service";
+import { bikepassKey, findBikepassIds, getBikepassByPassId, updatePasidBikes, addSaldoObject } from "./account-service";
 import {
-  putManagedTransaction,
+  putManagedTransactionsBatch,
   type ManagedTransactionInput,
 } from "./managed-transaction-service";
 import { processLumiguidePath } from "../bezettingsdata/update-bezettingsdata-service";
 
-const LIMIT_PASIDS = 50;
-const LIMIT_MANAGED = 50;
+const LIMIT_PASIDS = 500;
+const LIMIT_MANAGED = 500;
 const LIMIT_BETALINGEN = 200;
 const LIMIT_SYNC = 1;
 const QUEUE_PROCESSOR_TIMEOUT = 3 * 60 * 1000; // 3 minutes
@@ -130,49 +130,32 @@ async function processPasids(
     data: { processed: PROCESSED.LOCKED },
   });
 
-  let processed = 0;
   let errors = 0;
+  const bikeparks = await loadBikeparksByStallingsID(rows.map((row) => row.bikeparkID));
+  const pending: { queueID: number; siteID: string; passID: string; pastype: string; barcode: string | null; rfid: string | null; rfidBike: string | null; biketypeID: number }[] = [];
 
   for (const row of rows) {
     try {
-      const bikepark = await getBikeparkByExternalID(row.bikeparkID);
+      const bikepark = bikeparks.get(row.bikeparkID) ?? null;
       if (!bikepark?.SiteID) {
         throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
       }
-
       let bike: unknown = null;
       try {
         bike = JSON.parse(row.bike);
       } catch {
         bike = {};
       }
-      const pastype = parsePastypeFromBike(bike);
-
-      const bikepass = await getBikepassByPassId(
-        tx,
-        row.passID,
-        bikepark.SiteID,
-        pastype
-      );
-
-      const pasidsModel = tx.accounts_pasids;
-      await pasidsModel.update({
-        where: { ID: bikepass.ID },
-        data: {
-          barcodeFiets: row.barcode || undefined,
-          RFID: row.RFID || undefined,
-          RFIDBike: row.RFIDBike || undefined,
-          BikeTypeID: row.biketypeID ?? 1,
-          dateLastIdUpdate: new Date(),
-          dateModified: new Date(),
-        },
+      pending.push({
+        queueID: row.ID,
+        siteID: bikepark.SiteID,
+        passID: row.passID,
+        pastype: parsePastypeFromBike(bike),
+        barcode: row.barcode,
+        rfid: row.RFID,
+        rfidBike: row.RFIDBike,
+        biketypeID: row.biketypeID ?? 1,
       });
-
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-      });
-      processed++;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       await model.update({
@@ -183,7 +166,47 @@ async function processPasids(
     }
   }
 
-  return { processed, errors };
+  const passIds = await findBikepassIds(
+    tx,
+    pending.map((row) => ({ siteID: row.siteID, passID: row.passID, pastype: row.pastype }))
+  );
+  const ready: { queueID: number; id: string; barcode?: string; rfid?: string; rfidBike?: string; biketypeID: number }[] = [];
+  for (const row of pending) {
+    const key = bikepassKey(row.siteID, row.passID, row.pastype);
+    let id = passIds.get(key);
+    if (!id) {
+      try {
+        id = (await getBikepassByPassId(tx, row.passID, row.siteID, row.pastype)).ID;
+        passIds.set(key, id);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        await model.update({
+          where: { ID: row.queueID },
+          data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
+        });
+        errors++;
+        continue;
+      }
+    }
+    ready.push({
+      queueID: row.queueID,
+      id,
+      barcode: row.barcode || undefined,
+      rfid: row.rfid || undefined,
+      rfidBike: row.rfidBike || undefined,
+      biketypeID: row.biketypeID,
+    });
+  }
+
+  await updatePasidBikes(tx, ready);
+  if (ready.length > 0) {
+    await model.updateMany({
+      where: { ID: { in: ready.map((row) => row.queueID) } },
+      data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+    });
+  }
+
+  return { processed: ready.length, errors };
 }
 
 
@@ -244,37 +267,62 @@ async function processManagedTransacties(
     data: { processed: PROCESSED.LOCKED },
   });
 
-  let processed = 0;
   let errors = 0;
-
-  for (const row of rows) {
+  const prepared = rows.map((row) => {
     try {
       const managed = parseManagedPayload(row.payload);
       const sectionID = managed.sectionid_checkin ?? managed.sectionid ?? "";
-      if (!sectionID) {
-        throw new Error("sectionid ontbreekt in payload");
-      }
-      await putManagedTransaction(tx, {
-        bikeparkID: row.bikeparkID,
-        sectionID,
-        managed,
-      });
-      await model.update({
-        where: { ID: row.ID },
-        data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
-      });
-      processed++;
+      return { row, managed, sectionID, parseError: null as string | null };
     } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
+      const parseError = e instanceof Error ? e.message : String(e);
+      return { row, managed: null, sectionID: "", parseError };
+    }
+  });
+  const bikeparks = await loadBikeparksByStallingsID(prepared.map((item) => item.row.bikeparkID));
+  const sections = await loadSectionsByExternalID(
+    prepared.flatMap((item) => [item.sectionID, item.managed?.sectionid_out ?? ""])
+  );
+
+  const batchItems: { queueID: number; input: { bikeparkID: string; sectionID: string; managed: ManagedTransactionInput; bikeparks: typeof bikeparks; sections: typeof sections } }[] = [];
+  for (const { row, managed, sectionID, parseError } of prepared) {
+    if (parseError || !managed) {
       await model.update({
         where: { ID: row.ID },
-        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: errMsg },
+        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: parseError ?? "payload onleesbaar" },
       });
       errors++;
+      continue;
     }
+    if (!sectionID) {
+      await model.update({
+        where: { ID: row.ID },
+        data: { processed: PROCESSED.ERROR, processDate: new Date(), error: "sectionid ontbreekt in payload" },
+      });
+      errors++;
+      continue;
+    }
+    batchItems.push({
+      queueID: row.ID,
+      input: { bikeparkID: row.bikeparkID, sectionID, managed, bikeparks, sections },
+    });
   }
 
-  return { processed, errors };
+  const { ok, failed } = await putManagedTransactionsBatch(tx, batchItems);
+  for (const failure of failed) {
+    await model.update({
+      where: { ID: failure.queueID },
+      data: { processed: PROCESSED.ERROR, processDate: new Date(), error: failure.error },
+    });
+    errors++;
+  }
+  if (ok.length > 0) {
+    await model.updateMany({
+      where: { ID: { in: ok } },
+      data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
+    });
+  }
+
+  return { processed: ok.length, errors };
 }
 
 async function processBetalingen(
@@ -310,10 +358,11 @@ async function processBetalingen(
 
   let processed = 0;
   let errors = 0;
+  const bikeparks = await loadBikeparksByStallingsID(rows.map((row) => row.bikeparkID));
 
   for (const row of rows) {
     try {
-      const bikepark = await getBikeparkByExternalID(row.bikeparkID);
+      const bikepark = bikeparks.get(row.bikeparkID) ?? null;
       if (!bikepark?.SiteID) {
         throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
       }
@@ -347,14 +396,14 @@ async function processBetalingen(
 }
 
 /**
- * Process new_wachtrij_sync. Due when transactionDate is null or <= NOW()
- * (no In/Uit latestProcessedTransactionDate coupling).
+ * Mark a stored scan list as processed. The bikes JSON stays on the row for the
+ * controle report. It does not open or close transacties; those arrive as
+ * managedtransactions on the same occupation call.
  */
 async function processSync(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   scope?: QueueProcessScope
 ): Promise<{ processed: number; errors: number }> {
-  const transactiesModel = tx.transacties;
   const model = tx.new_wachtrij_sync;
 
   const syncBikeparkSql = scope?.syncBikeparkID ? " AND bikeparkID = ?" : "";
@@ -390,128 +439,9 @@ async function processSync(
   });
 
   try {
-    let bikes: Array<{ idcode?: string; bikeid?: string; idtype?: number; transactiondate?: string }> = [];
-    try {
-      bikes = JSON.parse(row.bikes) as typeof bikes;
-    } catch {
-      bikes = [];
-    }
-
-    const bikepark = await getBikeparkByExternalID(row.bikeparkID);
-    if (!bikepark?.SiteID || !bikepark.StallingsID) {
-      throw new Error(`Bikepark niet gevonden: ${row.bikeparkID}`);
-    }
-
-    const section = await getBikeparkSectionByExternalID(row.sectionID);
-    if (!section) {
-      throw new Error(`Sectie niet gevonden: ${row.sectionID}`);
-    }
-
-    const transactionDate = row.transactionDate ?? new Date();
-    const pasidsModel = tx.accounts_pasids;
-
-    const bikeIds = new Set(
-      bikes.map((b) => (b.idcode ?? b.bikeid ?? "").toString().toLowerCase()).filter(Boolean)
-    );
-
-    const openInSection = await pasidsModel.findMany({
-      where: {
-        huidigeFietsenstallingId: row.bikeparkID,
-        huidigeSectieId: row.sectionID,
-      },
-      select: { ID: true, PasID: true, Pastype: true, barcodeFiets: true, dateLastCheck: true },
-    });
-
-    for (const ap of openInSection) {
-      const barcode = (ap.barcodeFiets ?? ap.PasID ?? "").toString().toLowerCase();
-      if (bikeIds.has(barcode)) continue;
-      if (ap.dateLastCheck && ap.dateLastCheck >= transactionDate) continue;
-
-      const openTx = await transactiesModel.findFirst({
-        where: {
-          PasID: ap.PasID,
-          SectieID: row.sectionID,
-          Date_checkout: null,
-        },
-        orderBy: { Date_checkin: "desc" },
-      });
-
-      if (openTx) {
-        const rawMinutes = Math.floor(
-          (transactionDate.getTime() - openTx.Date_checkin.getTime()) / 60000
-        );
-        const stallingsduur = Math.max(0, Math.min(rawMinutes, 4294967295));
-        await transactiesModel.update({
-          where: { ID: openTx.ID },
-          data: {
-            Date_checkout: transactionDate,
-            Type_checkout: "sync",
-            SectieID_uit: row.sectionID,
-            BarcodeFiets_uit: barcode || openTx.BarcodeFiets_uit,
-            Stallingsduur: stallingsduur,
-            dateModified: new Date(),
-          },
-        });
-      }
-
-      await pasidsModel.update({
-        where: { ID: ap.ID },
-        data: {
-          huidigeFietsenstallingId: null,
-          huidigeSectieId: null,
-          dateModified: new Date(),
-        },
-      });
-    }
-
-    const parkedBarcodes = new Set(
-      openInSection.map((ap) => (ap.barcodeFiets ?? ap.PasID ?? "").toString().toLowerCase()).filter(Boolean)
-    );
-
-    for (const bike of bikes) {
-      const idcode = (bike.idcode ?? bike.bikeid ?? "").toString().toLowerCase();
-      if (!idcode || parkedBarcodes.has(idcode)) continue;
-      parkedBarcodes.add(idcode);
-
-      const bikepass = await getBikepassByPassId(
-        tx,
-        idcode,
-        bikepark.SiteID,
-        bike.idtype === 1 ? "ovchip" : bike.idtype === 2 ? "barcodebike" : "sleutelhanger"
-      );
-
-      await transactiesModel.create({
-        data: {
-          FietsenstallingID: bikepark.StallingsID,
-          SectieID: row.sectionID,
-          PasID: bikepass.PasID,
-          Pastype: bikepass.Pastype === "ovchip" ? 1 : bikepass.Pastype === "barcodebike" ? 2 : 0,
-          Date_checkin: transactionDate,
-          Type_checkin: "sync",
-          BarcodeFiets_in: idcode,
-          BikeTypeID: 1,
-          ClientTypeID: 1,
-          ZipID: bikepark.ZipID,
-          ExploitantID: bikepark.ExploitantID,
-        },
-      });
-
-      await pasidsModel.update({
-        where: { ID: bikepass.ID },
-        data: {
-          huidigeFietsenstallingId: row.bikeparkID,
-          huidigeSectieId: row.sectionID,
-          barcodeFiets: idcode,
-          dateLastCheck: transactionDate,
-          typeLastCheckin: "sync",
-          dateModified: new Date(),
-        },
-      });
-    }
-
     await model.update({
       where: { ID: row.ID },
-      data: { processed: 1, processDate: new Date() },
+      data: { processed: PROCESSED.SUCCESS, processDate: new Date() },
     });
 
     return { processed: 1, errors: 0 };

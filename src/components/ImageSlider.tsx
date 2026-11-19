@@ -1,13 +1,14 @@
 // @ts-nocheck
 
 import React, { useState } from 'react';
+import { libraryDirectoryUrl } from "~/utils/library-url";
 import Image from 'next/image';
 import { useKeenSlider } from "keen-slider/react";
 import "keen-slider/keen-slider.min.css";
 
 const ImageSlider = ({
   images,
-  baseUrl = "https://static.veiligstallen.nl/library/fietsenstallingen/"
+  baseUrl = libraryDirectoryUrl("fietsenstallingen")
 }: {
   images: Array<string>
   baseUrl?: string

@@ -197,7 +197,12 @@ export const formatOpeningTimes = (
   const hoursclose = tmpclose.hours();
   const minutesclose = String(tmpclose.minutes()).padStart(2, "0");
 
-  let value = `${hoursopen}:${minutesopen} - ${hoursclose}:${minutesclose}`;
+  const openIsMidnight = hoursopen === 0 && minutesopen === "00";
+  const closeIsMidnight = hoursclose === 0 && minutesclose === "00";
+  const closeLabel =
+    closeIsMidnight && !openIsMidnight ? "24:00" : `${hoursclose}:${minutesclose}`;
+  const openLabel = `${String(hoursopen).padStart(2, "0")}:${minutesopen}`;
+  let value = `${openLabel} - ${closeLabel}`;
 
   if (getExceptionTypes().includes(parkingdata.Type||"")) {
     return null; // no opening times

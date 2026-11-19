@@ -43,17 +43,21 @@ export const dropParentIndices = async (indicesinfo: IndicesInfo) => {
 export const createParentIndices = async (indicesinfo: IndicesInfo) => {
   try {
     console.log(`Creating parent indices for ${indicesinfo.basetable}`);
-    for (const index_name of Object.keys(indicesinfo.indices) ) {
-      const result = await prisma.$queryRawUnsafe(`CREATE INDEX ${index_name} ON ${indicesinfo.basetable} (${indicesinfo.indices[index_name]});`);
-      if (!result) {
-        console.error(`Unable to create index on ${indicesinfo.basetable} [${index_name}]`, result);
-        return false;
-      }
+    for (const index_name of Object.keys(indicesinfo.indices)) {
+      const existing = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+        `SELECT COUNT(*) AS n FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+        indicesinfo.basetable,
+        index_name
+      );
+      if (existing[0] && Number(existing[0].n) > 0) continue;
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX ${index_name} ON ${indicesinfo.basetable} (${indicesinfo.indices[index_name]})`
+      );
     }
-    
+
     return true;
   } catch (error) {
-    console.error("Unable to create index on bezettingsdata table", error);
+    console.error(`Unable to create index on ${indicesinfo.basetable}`, error);
     return false;
   }
 }

@@ -1,0 +1,257 @@
+/* ============================================ */
+/* 
+	Layout styles 
+*/
+/* ============================================ */
+
+@charset "UTF-8";
+
+/* ==========================================================================
+   FONTS
+   ========================================================================== */
+
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-black-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-black-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-black-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-black-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-black-webfont.svg#nerisblack') format('svg');
+    font-weight: bold;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-blackitalic-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-blackitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-blackitalic-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-blackitalic-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-blackitalic-webfont.svg#nerisblack_italic') format('svg');
+    font-weight: bold;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-bolditalic-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-bolditalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-bolditalic-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-bolditalic-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-bolditalic-webfont.svg#nerisbold_italic') format('svg');
+    font-weight: 500;
+    font-style: italic;
+
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-light-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-light-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-light-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-light-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-light-webfont.svg#nerislight') format('svg');
+    font-weight: 200;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-lightitalic-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-lightitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-lightitalic-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-lightitalic-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-lightitalic-webfont.svg#nerislight_italic') format('svg');
+    font-weight: 200;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-semibold-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-semibold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-semibold-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-semibold-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-semibold-webfont.svg#nerissemibold') format('svg');
+    font-weight:normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-semibolditalic-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-semibolditalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-semibolditalic-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-semibolditalic-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-semibolditalic-webfont.svg#nerissemibold_italic') format('svg');
+    font-weight: normal;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-thin-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-thin-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-thin-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-thin-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-thin-webfont.svg#neristhin') format('svg');
+    font-weight: 100;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'neris';
+    src: url('/display/overzichten/fonts/neris/neris-thinitalic-webfont.eot');
+    src: url('/display/overzichten/fonts/neris/neris-thinitalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/display/overzichten/fonts/neris/neris-thinitalic-webfont.woff') format('woff'),
+         url('/display/overzichten/fonts/neris/neris-thinitalic-webfont.ttf') format('truetype'),
+         url('/display/overzichten/fonts/neris/neris-thinitalic-webfont.svg#neristhin_italic') format('svg');
+    font-weight: 100;
+    font-style: italic;
+}
+
+/* ==========================================================================
+   HTML
+   ========================================================================== */
+
+html, body { 
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-family: arial, helvetica, verdana; 
+	color: #484848;
+	background-color: white;
+	}
+
+div { 
+	margin: 0;
+	padding: 0;
+}
+
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
+   
+#wrapper {
+	position: relative;
+	width: 960px;
+	height: 100%;
+	margin: 0 auto;
+	background-color: #fff;
+}
+
+#header { 
+	position: relative;
+	width: 100%;
+	min-height: 105px;
+	padding: 16px; 
+	}
+	#header_logo {
+		position: absolute;
+		display: inline-block;
+		width: 140px;
+		height: 81px;
+		background-image: url(/display/overzichten/images/logo_big.png);
+		background-repeat: no-repeat;
+		cursor: pointer;
+	}
+	#header_text { 
+		margin-left: 80px; 
+		text-align: center;
+	}
+	#header_text h1, #header_text h2 {
+		margin: 0; 
+		padding: 0;
+		line-height: 1em;
+	}
+	#header_text h1 {
+		margin-bottom: .2em;
+	}
+	#header_utils { 
+		position: absolute; 
+		top: 20px; 
+		right: 10px;
+		font-size: .7em;
+		letter-spacing: 1px;
+		color: #666; 
+		}
+		#header_utils a { font-size: .8em; color: #666; text-decoration: none; }
+		#header_utils a:hover { color: #000; text-decoration: underline; }
+
+#nav { /* = table row */
+	height: 43px;
+	background-color: #1f99d2;
+	}
+
+#content { 
+	padding: 0px 12px;
+	}
+	
+
+/* ==========================================================================
+   NAVIGATION
+   ========================================================================== */
+
+/* small version of topNav */
+#smallNav_title { 
+	display: none;
+	position: relative;
+    width: auto;
+    height: 432px;
+    margin: 0;
+    padding: 0;
+    font-family: neris, arial, helvetica, verdana;
+    font-size: 0.8em;
+    font-weight: 500;
+    letter-spacing: 1px;
+    background-color: #1F99D2;
+	}
+	#smallNav_title span.menutitle {
+		display: inline-block;
+		margin: 10px 0 0 22px;	
+		color: #fff;
+	}
+	
+/* Top main menu container */ 
+#main_nav_container {
+	position: relative;
+	width: 100%;
+	height: 43px;
+	margin: 0;
+	padding: 0;
+	padding-left: 12px;
+	font-family: neris, arial, helvetica, verdana;
+	font-size: 10pt;
+	font-weight: 500;
+	background-color: #1f99d2;
+	}
+	#main_nav_container ul { 
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	#main_nav_container li {
+		display: inline;
+		margin: 0;
+		padding: 0;
+		line-height: 43px;
+	}
+	#main_nav_container a {
+		float: left;
+		display: block;
+		margin: 0;
+		padding: 0 6px 0 6px;
+		color: #fff;
+		text-decoration: none;
+		-moz-transition: background ease-in-out 300ms;
+		-webkit-transition: background ease-in-out 300ms;
+		-o-transition: background ease-in-out 300ms;
+		-ms-transition: background ease-in-out 300ms;
+		-khtml-transition: background ease-in-out 300ms;
+		transition: background ease-in-out 300ms;
+	}
+	#main_nav_container a:hover, #main_nav_container a.selected {
+		background-color: #2ea7e0;
+	}
+
+/* ==========================================================================
+   MISC
+   ========================================================================== */
+
+/* apply a natural box layout model to all elements */
+*, *:before, *:after {
+  -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
+ }

@@ -9,6 +9,30 @@ export const REMINDER_FREQUENCY_KEY = "mailfrequentie-reminder-contactpersonen";
 export const REMINDER_SUBJECT = "VeiligStallen: zijn de fietsenstallingen up to date?";
 export const SITE_ID_FIETSBERAAD = "1";
 export const REMINDER_START_DATE_UTC = new Date("2026-07-01T00:00:00.000Z");
+export const AUTO_REMINDER_BCC = "info@veiligstallen.nl";
+// Minimum time between two reminders to the same contactpersoon when no controle was done in between.
+export const REMINDER_RESEND_INTERVAL_DAYS = 30;
+// Maximum number of reminders to the same contactpersoon since the last controle of the organisation.
+export const REMINDER_MAX_WITHOUT_CONTROLE = 3;
+
+export function isReminderProductionEnvironment(): boolean {
+  const explicit = process.env.REMINDER_RUNTIME_ENV?.trim().toLowerCase();
+  if (explicit) {
+    return explicit === "production" || explicit === "prod";
+  }
+
+  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
+  if (nodeEnv) {
+    return nodeEnv === "production";
+  }
+
+  const genericEnv = process.env.APP_ENV?.trim().toLowerCase();
+  if (genericEnv) {
+    return genericEnv === "production" || genericEnv === "prod";
+  }
+
+  return false;
+}
 
 const BASE_URL = resolveMailBaseUrl();
 const BASE_URL_WITHOUT_TRAILING_SLASH = BASE_URL.replace(/\/$/, "");
@@ -61,6 +85,28 @@ function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
   d.setMonth(d.getMonth() + months);
   return d;
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+export async function logSentReminderEmail(entry: {
+  contactId: string;
+  userId: string;
+  recipient: string;
+  source: "auto" | "manual";
+}) {
+  await prisma.contacts_controlemails.create({
+    data: {
+      contact_id: entry.contactId,
+      user_id: entry.userId,
+      recipient: entry.recipient,
+      source: entry.source,
+    },
+  });
 }
 
 function formatStallingName(name: string, status: string | null): string {
@@ -199,11 +245,15 @@ export async function getAutoReminderPreview(now = new Date()): Promise<Recipien
 
   const siteIds = [...new Set(pairs.map((p) => p.contactId))];
 
-  const [controles, gemeenten, fietsenstallingen] = await Promise.all([
+  const [controles, sentMails, gemeenten, fietsenstallingen] = await Promise.all([
     prisma.contacts_datakwaliteitcontroles.groupBy({
       by: ["contact_id"],
       where: { contact_id: { in: siteIds } },
       _max: { createdAt: true },
+    }),
+    prisma.contacts_controlemails.findMany({
+      where: { contact_id: { in: siteIds } },
+      select: { contact_id: true, user_id: true, sentAt: true },
     }),
     prisma.contacts.findMany({
       where: { ID: { in: siteIds } },
@@ -231,6 +281,13 @@ export async function getAutoReminderPreview(now = new Date()): Promise<Recipien
   const lastControleBySite = new Map(
     controles.map((c) => [c.contact_id, c._max.createdAt ?? null])
   );
+  const sentAtByPair = new Map<string, Date[]>();
+  for (const m of sentMails) {
+    const key = `${m.user_id}:${m.contact_id}`;
+    const list = sentAtByPair.get(key) ?? [];
+    list.push(m.sentAt);
+    sentAtByPair.set(key, list);
+  }
   const urlNameMap = new Map(gemeenten.map((g) => [g.ID, g.UrlName]));
   const contactNameMap = new Map(gemeenten.map((g) => [g.ID, g.CompanyName ?? g.ID]));
 
@@ -271,6 +328,16 @@ export async function getAutoReminderPreview(now = new Date()): Promise<Recipien
       if (now < nextReminderAt) continue;
     }
 
+    const sentSinceControle = (sentAtByPair.get(`${pair.userId}:${pair.contactId}`) ?? []).filter(
+      (sentAt) => !lastControleAt || sentAt > lastControleAt
+    );
+    if (sentSinceControle.length >= REMINDER_MAX_WITHOUT_CONTROLE) continue;
+    const lastSentAt = sentSinceControle.reduce<Date | null>(
+      (latest, sentAt) => (!latest || sentAt > latest ? sentAt : latest),
+      null
+    );
+    if (lastSentAt && now < addDays(lastSentAt, REMINDER_RESEND_INTERVAL_DAYS)) continue;
+
     const tabelHtml = buildTabelHtml(stallingenForSite, pair.email);
     const dataEigenaar = contactNameMap.get(pair.contactId) ?? pair.contactId;
     const body = removeEmptyShortcodes(templateBody, "", "");
@@ -305,10 +372,17 @@ export async function sendAutoReminderEmails(now = new Date()) {
     await transporter.sendMail({
       from: formatFrom(cfg.from),
       to: item.to,
+      bcc: AUTO_REMINDER_BCC,
       subject: item.subject,
       html: item.html,
       text: item.text,
       replyTo: cfg.replyTo,
+    });
+    await logSentReminderEmail({
+      contactId: item.contactId,
+      userId: item.userId,
+      recipient: item.to,
+      source: "auto",
     });
   }
 

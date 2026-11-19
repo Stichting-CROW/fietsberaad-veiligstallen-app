@@ -39,6 +39,19 @@ interface Settings {
 
 type CheckType = 'user' | 'controle' | 'system' | 'sync' | 'reservation' | 'unknown';
 
+/** Calendar day in local time. toISOString() shifts the key to the previous day in CET. */
+function localDayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function parseLocalDay(key: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!match) return new Date(key);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
 const OpenTransactiesOverzichtComponent: React.FC = () => {
   const { data: session } = useSession();
   const { gemeenten } = useGemeentenInLijst();
@@ -53,7 +66,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [aggregationProgress, setAggregationProgress] = useState<number | null>(null);
-  const [hideRecentCheckins, setHideRecentCheckins] = useState<boolean>(true);
+  const [hideRecentCheckins, setHideRecentCheckins] = useState<boolean>(false);
   const [showControles, setShowControles] = useState<boolean>(true);
   const [controleRecords, setControleRecords] = useState<Array<{ checkindate: Date | string }>>([]);
   
@@ -76,6 +89,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   // Storage keys
   const STORAGE_KEY = 'VS_openTransactiesoverzicht_filterState';
   const CACHE_STORAGE_KEY = 'VS_openTransactiesoverzicht_cache';
+  const cacheKeyFor = (contactID: string | null, locationID: string | null, year: number) =>
+    `${contactID}-${locationID}-${year}-all-checkins`;
 
   // Load initial state from localStorage (only once on mount)
   useEffect(() => {
@@ -99,23 +114,6 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       }
     }
 
-    // Load cached data from localStorage (will be checked against filters after they load)
-    const savedCache = localStorage.getItem(CACHE_STORAGE_KEY);
-    if (savedCache) {
-      try {
-        const parsed = JSON.parse(savedCache);
-        if (parsed.cachedRawData && parsed.cacheKey) {
-          setCachedRawData(parsed.cachedRawData);
-          setCacheKey(parsed.cacheKey);
-          // Also load aggregated data if available
-          if (parsed.cachedAggregatedData) {
-            setCachedAggregatedData(parsed.cachedAggregatedData);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse saved cache:', e);
-      }
-    }
   }, []); // Empty dependency array - only run once on mount
 
   // Aggregate raw transaction data into grouped data (date, checkintype, checkouttype)
@@ -145,7 +143,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
           checkoutDate,
           checkintype: tx.checkintype || null,
           checkouttype: tx.checkouttype || null,
-          checkinDateStr: checkinDate.toISOString().split('T')[0] || ''
+          checkinDateStr: localDayKey(checkinDate)
         };
       });
 
@@ -171,7 +169,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
         const currentDate = new Date(selectedYear, 0, 1);
         currentDate.setDate(currentDate.getDate() + day);
         currentDate.setHours(0, 0, 0, 0);
-        const dateStr = currentDate.toISOString().split('T')[0] || '';
+        const dateStr = localDayKey(currentDate);
         dates.push(dateStr);
         dateObjs.push(currentDate);
       }
@@ -210,18 +208,17 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
 
             if (!matchesGroup) return;
 
-            // Check if transaction is open on this date
-            const isOpenOnDate = 
+            if (tx.checkinDate.getTime() === dateObj.getTime()) {
+              openTransactionsForDay++;
+            }
+
+            // Still parked at the end of this day. A same-day check-out is not open then.
+            const isOpenOnDate =
               tx.checkinDate <= dateEnd &&
               (tx.checkoutDate === null || tx.checkoutDate > dateEnd);
 
             if (isOpenOnDate) {
               totalOpenTransactions++;
-              
-              // Check if checked in on this specific day
-              if (tx.checkinDate.getTime() === dateObj.getTime()) {
-                openTransactionsForDay++;
-              }
             }
           });
 
@@ -309,7 +306,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
   // Filter cached aggregated data based on checkintype/checkouttype filters (same as chart)
   useEffect(() => {
     if (cachedAggregatedData && cacheKey && selectedLocationID && selectedYear) {
-      const currentCacheKey = `${selectedContactID}-${selectedLocationID}-${selectedYear}`;
+      const currentCacheKey = cacheKeyFor(selectedContactID, selectedLocationID, selectedYear);
       if (cacheKey === currentCacheKey) {
         console.log('[open_transacties] [CLIENT] Filtering cached aggregated data for table...');
         // Filter aggregated data based on checkintype/checkouttype filters (same as chart)
@@ -478,7 +475,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
     }
     
     return data.filter((row: T) => {
-      const rowDate = new Date(row.date);
+      const rowDate = parseLocalDay(row.date);
       rowDate.setHours(0, 0, 0, 0);
       
       // Filter out future dates
@@ -502,109 +499,8 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
       return;
     }
 
-    // Generate cache key based on filters that affect the query (not checkintype/checkouttype)
-    const currentCacheKey = `${selectedContactID}-${selectedLocationID}-${selectedYear}`;
-    
-    // Check if we have cached aggregated data in state for this combination
-    if (cacheKey === currentCacheKey && cachedAggregatedData) {
-      console.log('[open_transacties] [CLIENT] Using cached aggregated data from state:', cachedAggregatedData.length, 'records');
-      // Filter and use cached aggregated data directly (no re-aggregation needed)
-      const filteredData = cachedAggregatedData.filter(record => {
-        const checkinType = (record.checkintype || 'unknown') as CheckType;
-        const checkoutType = (record.checkouttype || 'unknown') as CheckType;
-      const checkinMatch = selectedCheckinTypes.has(checkinType);
-      const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
-      return checkinMatch && checkoutMatch;
-    });
-    const processedData = processData<AggregatedTransactionData>(filteredData);
-    setTransactionData(processedData);
-      return;
-    }
-
-    // Check localStorage cache
-    const savedCache = localStorage.getItem(CACHE_STORAGE_KEY);
-    if (savedCache) {
-      try {
-        const parsed = JSON.parse(savedCache);
-        // Check if cache key matches and we have either raw data or aggregated data
-        if (parsed.cacheKey === currentCacheKey && (parsed.cachedRawData || parsed.cachedAggregatedData)) {
-          if (parsed.cachedRawData) {
-          // Use cached data from localStorage
-          setCachedRawData(parsed.cachedRawData);
-          }
-          setCacheKey(parsed.cacheKey);
-          
-          // If we have cached aggregated data, use it; otherwise aggregate once
-          if (parsed.cachedAggregatedData) {
-            console.log('[open_transacties] [CLIENT] Using cached aggregated data from localStorage:', parsed.cachedAggregatedData.length, 'records');
-            setCachedAggregatedData(parsed.cachedAggregatedData);
-            // Filter based on checkintype/checkouttype
-            const filteredData = parsed.cachedAggregatedData.filter((record: AggregatedTransactionData) => {
-              const checkinType = (record.checkintype || 'unknown') as CheckType;
-              const checkoutType = (record.checkouttype || 'unknown') as CheckType;
-              const checkinMatch = selectedCheckinTypes.has(checkinType);
-              const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
-              return checkinMatch && checkoutMatch;
-            });
-            const processedData = processData<AggregatedTransactionData>(filteredData);
-            setTransactionData(processedData);
-          } else if (parsed.cachedRawData) {
-            // Need to aggregate (shouldn't happen if cache is complete, but handle it)
-            setAggregationProgress(0);
-            const aggregated = await aggregateRawDataAsync(parsed.cachedRawData, (progress) => {
-              setAggregationProgress(progress);
-            });
-            setCachedAggregatedData(aggregated);
-            setAggregationProgress(null);
-            // Filter based on checkintype/checkouttype
-            const filteredData = aggregated.filter(record => {
-              const checkinType = (record.checkintype || 'unknown') as CheckType;
-              const checkoutType = (record.checkouttype || 'unknown') as CheckType;
-              const checkinMatch = selectedCheckinTypes.has(checkinType);
-              const checkoutMatch = selectedCheckoutTypes.has(checkoutType);
-              return checkinMatch && checkoutMatch;
-            });
-            const processedData = processData<AggregatedTransactionData>(filteredData);
-            setTransactionData(processedData);
-            
-            // Update localStorage with aggregated data
-            try {
-              const updateCacheData = {
-                cachedRawData: parsed.cachedRawData,
-                cachedAggregatedData: aggregated,
-                cacheKey: parsed.cacheKey
-              };
-              const updateCacheString = JSON.stringify(updateCacheData);
-              const updateCacheSizeMB = updateCacheString.length / (1024 * 1024);
-              
-              if (updateCacheSizeMB > 4) {
-                console.warn('[open_transacties] [CLIENT] Updated cache size too large (' + updateCacheSizeMB.toFixed(2) + 'MB), saving aggregated data only');
-                // Save only aggregated data
-                const aggregatedOnly = {
-                  cachedAggregatedData: aggregated,
-                  cacheKey: parsed.cacheKey
-                };
-                localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(aggregatedOnly));
-              } else {
-                localStorage.setItem(CACHE_STORAGE_KEY, updateCacheString);
-              }
-            } catch (e) {
-              const errorMessage = e instanceof Error ? e.message : String(e);
-              if (errorMessage.includes('QuotaExceededError') || errorMessage.includes('quota')) {
-                console.warn('[open_transacties] [CLIENT] localStorage quota exceeded when updating cache');
-              } else {
-              console.warn('[open_transacties] [CLIENT] Failed to update cache with aggregated data:', e);
-              }
-            }
-          }
-          return;
-        }
-      } catch (e) {
-        console.warn('[open_transacties] [CLIENT] Failed to parse saved cache:', e);
-      }
-    }
-
-    // Cache is invalid or missing, fetch new data
+    // Go always loads the archive again. Check-in and check-out type filters still use the result of this load.
+    const currentCacheKey = cacheKeyFor(selectedContactID, selectedLocationID, selectedYear);
     const fetchStart = Date.now();
     setLoading(true);
     setError(null);
@@ -1140,7 +1036,7 @@ const OpenTransactiesOverzichtComponent: React.FC = () => {
               {/* Chart descriptions */}
               <div className="mb-4 text-xs text-gray-600 space-y-1">
                 <p>
-                  Aantal transacties (op deze dag) geeft het aantal transacties weer dat op die specifieke dag is ingecheckt.
+                  Aantal transacties (op deze dag) geeft het aantal transacties weer dat op die specifieke dag is ingecheckt, ook als ze dezelfde dag zijn uitgecheckt.
                 </p>
                 <p>
                   Aantal transacties (tot en met dag) geeft het totaal aantal nog openstaande transacties weer tot en met die dag (transacties die zijn ingecheckt maar nog niet zijn uitgecheckt).

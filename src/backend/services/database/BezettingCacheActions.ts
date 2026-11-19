@@ -1,13 +1,13 @@
 import { prisma } from "~/server/db";
 import { type CacheParams, type CacheStatus } from "~/backend/services/database-service";
-import moment from "moment";
+import { formatReportInstant } from "~/utils/datetime-nl";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
 import { type IndicesInfo, getParentIndicesStatus, dropParentIndices, createParentIndices } from "./cachetools";
 
 const cacheInfo: IndicesInfo = {
   basetable: 'bezettingsdata',
   indices: {
-    idx_bezettingcache_1: `timestamp, bikeparkID, sectionID, source, fillup, open`,
+    idx_bezettingcache_1: "timestamp, bikeparkID, sectionID, source, fillup, `open`",
     idx_bezettingcache_2: `bikeparkID, timestamp`,
   },
 };
@@ -76,7 +76,7 @@ export const updateBezettingCache = async (params: CacheParams) => {
 
   const conditions = [];
   if (!params.allDates) {
-    conditions.push(`timestamp >= DATE_ADD('${adjustedStartDate.format('YYYY-MM-DD 00:00:00')}', INTERVAL -${timeIntervalInMinutes} MINUTE)`);
+    conditions.push(`timestamp >= DATE_ADD('${formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00")}', INTERVAL -${timeIntervalInMinutes} MINUTE)`);
   }
   if (!params.allBikeparks) {
     const bikeparkIDs = params.selectedBikeparkIDs.length > 0 ? params.selectedBikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
@@ -149,7 +149,7 @@ export const clearBezettingCache = async (params: CacheParams) => {
 
   const conditions = [];
   if (!params.allDates) {
-    conditions.push(`timestamp >= '${moment(params.startDate).format('YYYY-MM-DD 00:00:00')}'`);
+    conditions.push(`timestamp >= '${formatReportInstant(params.startDate, "YYYY-MM-DD 00:00:00")}'`);
   }
   if (!params.allBikeparks) {
     const bikeparkIDs = params.selectedBikeparkIDs.length > 0 ? params.selectedBikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
@@ -195,11 +195,9 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
     `CREATE INDEX idx_source ON bezettingsdata_day_hour_cache(source);`,
     'CREATE INDEX idx_interval ON bezettingsdata_day_hour_cache(`interval`);',
     `CREATE INDEX idx_bikeparkID_source ON bezettingsdata_day_hour_cache(source, bikeparkID);`,
-    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,// Used for /api/database/availableDataPerBikepark
-    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',// Matches unique constraint for upsert performance
-    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`, // Used for /api/database/availableDataPerBikepark
-    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);', // Matches unique constraint for upsert performance
-    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);' // Used for /api/reports/bezetting
+    `CREATE INDEX idx_bikeparkID_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, timestamp);`,
+    'CREATE INDEX idx_bikeparkID_sectionID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, sectionID, source, `interval`, timestamp);',
+    'CREATE INDEX idx_bikeparkID_source_interval_timestamp ON bezettingsdata_day_hour_cache (bikeparkID, source, `interval`, timestamp);'
   ];
 
   for (const sqlCreateIndex of sqlCreateIndexes) {
@@ -208,6 +206,12 @@ export const createBezettingCacheTable = async (params: CacheParams) => {
       console.error("Unable to create index on bezettingsdata_day_hour_cache table", result);
       return false;
     }
+  }
+
+  const indicesCreated = await createParentIndices(cacheInfo);
+  if (!indicesCreated) {
+    console.error("Unable to create bezetting parent indices");
+    return false;
   }
 
   return getBezettingCacheStatus(params);

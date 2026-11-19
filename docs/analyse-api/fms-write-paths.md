@@ -38,20 +38,52 @@ Simulation Process and cron `/api/cron/process-queues` always run Next.js `proce
 
 | v4 call | Input | After `processQueues()` / rollup |
 |---|---|---|
-| `POST …/managedtransactions` | `new_wachtrij_managed_transacties` | `transacties` upsert on `FietsenstallingID` + `ExternalTransactionID` |
+| `POST …/managedtransactions` | `new_wachtrij_managed_transacties` | `transacties` upsert on `FietsenstallingID` + `ExternalTransactionID`. A payload with `checkoutdate` also writes `transacties_archief` with the same `transacties.ID` (`source=fms-v4-managed`). Open visits do not write archief. |
 | `POST …/occupation` (and occupation+sync) | `new_bezettingsdata_tmp`; also sets `fietsenstalling_sectie.Bezetting` to the reported value | rollup → `bezettingsdata` |
 | `POST …` bike / pas | `new_wachtrij_pasids` | `accounts_pasids` / `accounts` |
 | `POST …` saldo | `new_wachtrij_betalingen` | `financialtransactions` / `accounts` |
-| `POST …` subscriptions / subscribe | (none — direct write) | `abonnementen`, `financialtransactions`, `accounts` |
+| `POST …/subscriptions/{id}` (subscribe) | (none — direct write) | `abonnementen`, `accounts_pasids` |
 | occupation body with `data.bikes` | `new_wachtrij_sync` | `transacties` (inventarisatie) |
 
 Check-in/out on v4 is **managedtransactions** only (Wilmar). Occupation rollup is the Lumiguide path.
 
-Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Batch: max 50, all-or-nothing validate then enqueue.
+`POST …/completedtransactions` stays **410**. Archief is not a second client call. `putManagedTransaction` writes it after the `transacties` upsert when the visit has a check-out. Resending the same `externaltransactionid` updates that archive row, because it still points at the same `transacties.ID`. After the 18-month retention delete the live row is gone, so a later post with that external id is a new visit. Corrections have to arrive before that cleanup.
+
+### Local processing
+
+A managed POST only enqueues `new_wachtrij_managed_transacties`. Nothing reaches `transacties` or `transacties_archief` until the queue runs.
+
+```bash
+curl -sS http://localhost:3000/api/cron/process-queues
+# when CRON_SECRET is set:
+curl -sS -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/process-queues
+```
+
+There is no GitHub Actions schedule for this route (unlike abonnementen / info-files). Production needs its own scheduler, or the simulation “Process” action, or visits stay in the queue. Each run takes at most 50 managed rows.
+
+After a check-out for stalling `9933_001`:
+
+```sql
+SELECT COUNT(*) FROM transacties_archief WHERE locationid = '9933_001';
+```
+
+Closed `transacties` that predate this writer can be copied once:
+
+```bash
+npx tsx scripts/backfill-transacties-archief.ts --dry-run
+npx tsx scripts/backfill-transacties-archief.ts --location 9933_001
+```
+
+Default scope is ZipID `9933`. `--all` covers every city. The archive id is `transacties.ID`. Migration `20261105120000_drop_transacties_archief_external_tx` removes `transacties_archief.externaltransactionid` where that column was added.
+
+`daybeginsat` on the archief row is the organisation `contacts.DayBeginsAt` (fallback `00:00:00`). Rebuild `transacties_archief_day_cache` after a backfill if rapportage reads the cache. Sync check-outs (inventory, bike absent) still close `transacties` only; they do not write archief.
+
+Auth for managedtransactions: Basic Auth, `operator` or `dataprovider.type2`. Batch: max 500, all-or-nothing validate then enqueue.
 
 ## 410 on v4 (use CF v2/v3)
 
 - `POST …/transactions` and `…/completedtransactions` (In/Uit / completed)
+- Subscription sale: `POST …/locations/{id}/subscriptions`. Subscriptions are only sold on the website.
 - Locker writes: `PUT`/`POST …/places/{id}`, `/logs`, `/actions`, place `/subscriptions`
 - Place-level `isAllowedToUse` (`GET …/places/{id}/idcodes/…`) and place-level `koppelpas` (`POST` same path). Location-level `POST …/idcodes/…` stays.
 
@@ -59,8 +91,8 @@ Reads: place list and one place stay (catalog / compare). Buurtstallingen occupa
 
 ## What Next.js does not do
 
-- No FMS tariff / `afboeking` on check-in/out. `Stallingskosten` comes from the managed payload. `fietsenstallingen.BerekentStallingskosten` is unused by the Next.js processor. A leftover `type=afboeking` queue row is marked error, not applied.
-- No CF-style `Bezetting` +1/−1 on In/Uit. Occupation sets `Bezetting` from the reported number; managedtransactions does not change it.
+- No FMS tariff on check-in/out. `Stallingskosten` comes from the managed payload. After the visit is saved, the processor books the difference against existing `Stallingstransactie` and `Afwaardering in stalling` rows and refreshes `accounts.saldo` from `vw_stallingstegoeden`. `fietsenstallingen.BerekentStallingskosten` is unused. A leftover `type=afboeking` queue row is marked error, not applied.
+- `fietsenstalling_sectie.Bezetting` follows the stalling's `BronBezettingsdata`. When it is `FMS`, accepting a managed transaction into the queue moves `Bezetting` by what that message changes in the visit: +1 on the check-in section when a new visit opens, −1 on the check-out section (`sectionid_out`, else the check-in section) when an open visit closes, never below 0. One message with both check-in and check-out in the same section changes nothing. A resend of the same state changes nothing. Check-in and check-out types do not matter: `controle` and `sync` count like `user`. The visit before the message is the newest earlier queue row for that external id, else the `transacties` row. Draining the queue does not touch `Bezetting`, and there is no periodic recount. `POST …/occupation` stores the reported number in `new_bezettingsdata_tmp` with the authenticated login as `source`, and always copies it onto `Bezetting`, as in ColdFusion REST v3 `setOccupation`. When that login is not `BronBezettingsdata` (case-insensitive), it writes a warning to `webservice_log` with method `occupationSourceWarning`; on an `FMS` stalling that report has overwritten the +1/−1 count. The parking editor offers the distinct `bezettingsdata.source` values for that stalling as choices.
 - No processing of CF `wachtrij_*` / `bezettingsdata_tmp`.
 - No In/Uit HTTP, completedtransactions, locker control, or `new_wachtrij_transacties` drain.
 

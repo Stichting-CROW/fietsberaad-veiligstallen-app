@@ -4,7 +4,7 @@ import {
   interpolateSQL
 } from "~/backend/services/reports/ReportFunctions";
 import { getAdjustedStartEndDates } from "~/components/beheer/reports/ReportsDateFunctions";
-import moment from 'moment';
+import { formatReportInstant } from "~/utils/datetime-nl";
 
 export type AvailableDataDetailedResult = {
   locationID: string;
@@ -55,8 +55,8 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
         `ORDER BY locationID, yearmonth `
 
       const queryParams = [
-        adjustedStartDate.format('YYYY-MM-DD 00:00:00'),
-        adjustedEndDate.format('YYYY-MM-DD 23:59:59')
+        formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00"),
+        formatReportInstant(adjustedEndDate, "YYYY-MM-DD 23:59:59"),
       ];
 
       const sqlfilledin = interpolateSQL(sql, queryParams);
@@ -81,8 +81,8 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
         `ORDER BY bikeparkID, yearmonth `
 
       const queryParams = [
-        adjustedStartDate.format('YYYY-MM-DD 00:00:00'),
-        adjustedEndDate.format('YYYY-MM-DD 23:59:59')
+        formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00"),
+        formatReportInstant(adjustedEndDate, "YYYY-MM-DD 23:59:59"),
       ];
 
       const sqlfilledin = interpolateSQL(sql, queryParams);
@@ -102,6 +102,9 @@ export const getSQLDetailed = (reportType: ReportType, bikeparkIDs: string[], st
 export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[], startDT: Date | undefined, endDT: Date | undefined, useCache = true): string | false => {
 
   const { adjustedStartDate, adjustedEndDate } = getAdjustedStartEndDates(startDT, endDT, undefined);
+  if (adjustedStartDate === undefined || adjustedEndDate === undefined) {
+    return false;
+  }
 
   const idString = bikeparkIDs.length > 0 ? bikeparkIDs.map(bp => `'${bp}'`).join(',') : '""';
 
@@ -121,8 +124,8 @@ export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[],
         `ORDER BY locationID `
 
       const queryParams = [
-        moment(adjustedStartDate).format('YYYY-MM-DD 00:00:00'),
-        moment(adjustedEndDate).format('YYYY-MM-DD 23:59:59')
+        formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00"),
+        formatReportInstant(adjustedEndDate, "YYYY-MM-DD 23:59:59"),
       ];
 
       const sqlfilledin = interpolateSQL(sql, queryParams);
@@ -141,8 +144,8 @@ export const getSQLPerBikepark = (reportType: ReportType, bikeparkIDs: string[],
         `ORDER BY bikeparkID `
 
       const queryParams = [
-        moment(adjustedStartDate).format('YYYY-MM-DD 00:00:00'),
-        moment(adjustedEndDate).format('YYYY-MM-DD 23:59:59')
+        formatReportInstant(adjustedStartDate, "YYYY-MM-DD 00:00:00"),
+        formatReportInstant(adjustedEndDate, "YYYY-MM-DD 23:59:59"),
       ];
 
       const sqlfilledin = interpolateSQL(sql, queryParams);

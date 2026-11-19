@@ -3,6 +3,7 @@ import React from 'react';
 import { useRouter } from 'next/router';
 import {
   FiBriefcase,
+  FiCalendar,
   FiCheckSquare,
   FiClock,
   FiDownload,
@@ -13,9 +14,12 @@ import {
   FiHome,
   FiMail,
   FiMap,
+  FiLink,
+  FiMonitor,
   FiMapPin,
   FiServer,
   FiSettings,
+  FiShield,
   FiTag,
   FiUsers,
 } from 'react-icons/fi';
@@ -182,8 +186,28 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 onSelect={onSelect}
                 icon={FiHelpCircle}
               />
+              {hasFietsberaadSuperadmin && (
+                <LeftMenuItem
+                  component={VSMenuTopic.Stallingsschermen}
+                  title="Stallingsschermen"
+                  compact={true}
+                  activecomponent={activecomponent}
+                  onSelect={onSelect}
+                  icon={FiMonitor}
+                />
+              )}
             </>
           </LeftMenuItem>
+        )}
+
+        {hasFietsberaadAdmin && (
+          <LeftMenuItem
+            component={VSMenuTopic.Products}
+            title={'Producten'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+            icon={FiTag}
+          />
         )}
 
         {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
@@ -214,6 +238,93 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           </LeftMenuItem>
         )}
 
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Achtergrondprocessen'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.Achtergrondtaken}
+                title={'Achtergrondtaken'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiClock}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.NsKoppeling}
+                title={'NS Koppeling'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiLink}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.PrivacyBeheer}
+                title={'Retentie & Anonimisering'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiShield}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.DatabaseBulkreserveringen}
+                title={'Bulkreserveringen'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiCalendar}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
+
+        {hasFietsberaadSuperadmin && (
+          <LeftMenuItem
+            component={false}
+            title={'Support'}
+            activecomponent={activecomponent}
+            onSelect={onSelect}
+          >
+            <>
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Tag rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/tag-report')}
+                isActive={router.asPath.startsWith('/test/tag-report')}
+                icon={FiTag}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Barcode rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/barcode-report')}
+                isActive={router.asPath.startsWith('/test/barcode-report')}
+                icon={FiLink}
+              />
+              <LeftMenuItem
+                component={VSMenuTopic.Report}
+                title={'Account rapport'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                onClick={() => router.push('/test/account-report')}
+                isActive={router.asPath.startsWith('/test/account-report')}
+                icon={FiUsers}
+              />
+            </>
+          </LeftMenuItem>
+        )}
+
         {(hasFietsberaadAdmin || hasFietsberaadSuperadmin) && (
           <LeftMenuItem
             component={false}
@@ -223,14 +334,16 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
           >
             <>
               {hasFietsberaadSuperadmin && (
-                <LeftMenuItem
-                  component={VSMenuTopic.Database}
-                  title={'Beheer'}
-                  compact={true}
-                  activecomponent={activecomponent}
-                  onSelect={onSelect}
-                  icon={FiSettings}
-                />
+                <>
+                  <LeftMenuItem
+                    component={VSMenuTopic.Database}
+                    title={'Beheer'}
+                    compact={true}
+                    activecomponent={activecomponent}
+                    onSelect={onSelect}
+                    icon={FiSettings}
+                  />
+                </>
               )}
               <LeftMenuItem
                 component={VSMenuTopic.Tariefcodes}
@@ -284,6 +397,14 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
                 onSelect={onSelect}
                 icon={FiUsers}
               />
+              <LeftMenuItem
+                component={VSMenuTopic.TestOmgeving}
+                title={'Testomgeving'}
+                compact={true}
+                activecomponent={activecomponent}
+                onSelect={onSelect}
+                icon={FiServer}
+              />
               {hasWachtrijAccess && (
                 <LeftMenuItem
                   component={VSMenuTopic.Wachtrij}
@@ -306,6 +427,7 @@ const LeftMenuFietsberaad: React.FC<LeftMenuFietsberaadProps> = ({
             </>
           </LeftMenuItem>
         )}
+
       </ul>
     </nav>
   );

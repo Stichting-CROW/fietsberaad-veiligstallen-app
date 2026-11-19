@@ -3,8 +3,11 @@ import { processQueues } from "~/server/services/queue/processor";
 
 /**
  * GET: Trigger the Next.js queue processor (new_wachtrij_* / new_bezettingsdata_tmp → production tables).
+ * A managed check-out also writes transacties_archief in the same queue run.
  * Secured via CRON_SECRET: Authorization: Bearer <CRON_SECRET>.
- * For use by Vercel Cron or external schedulers.
+ * Local: curl http://localhost:3000/api/cron/process-queues
+ * No in-repo schedule; production must call this (or the simulation Process action) or the queue sits.
+ * For use by an external scheduler.
  */
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {

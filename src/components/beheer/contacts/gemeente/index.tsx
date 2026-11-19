@@ -242,6 +242,7 @@ const GemeenteComponent: React.FC<GemeenteComponentProps> = (props) => {
             showUsersFilter={true}
             showExploitantenFilter={true}
             showModulesFilter={true}
+            showWebsiteFilter={true}
           />
         ) : (
           <GemeenteFilter

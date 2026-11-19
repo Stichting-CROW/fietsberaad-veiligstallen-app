@@ -344,6 +344,7 @@ const ParkingView = ({
   isLoggedIn: boolean;
 }) => {
   const router = useRouter();
+  const isNsConnectorStalling = parkingdata.EditorCreated === "NS-connector";
   const [urlOpwaarderen, setUrlOpwaarderen] = useState<string>("");
   const [structuredDataJson, setStructuredDataJson] = useState<string>("");
   const { getTariefcodeText } = useTariefcodes();
@@ -377,7 +378,7 @@ const ParkingView = ({
     // 'fietstrommel',
     // 'fietskluizen'
 
-    if (parkingdata.Type !== "fietskluizen") {
+    if (isNsConnectorStalling || parkingdata.Type !== "fietskluizen") {
       setUrlOpwaarderen("");
       return;
     }
@@ -389,7 +390,7 @@ const ParkingView = ({
         setUrlOpwaarderen(data.url || "");
       })
       .catch(() => setUrlOpwaarderen(""));
-  }, [parkingdata]);
+  }, [parkingdata, isNsConnectorStalling]);
 
   useEffect(() => {
     const tariefOmschrijving = getTariefcodeText(parkingdata.Tariefcode);
@@ -540,7 +541,7 @@ const ParkingView = ({
         >
           <PageTitle className="flex w-full sm:justify-start">
             <div className="mr-4 font-bold sm:font-normal">{parkingdata?.Title}</div>
-            {onEdit !== undefined ? (
+            {!isNsConnectorStalling && onEdit !== undefined ? (
               <Button
                 key="b-1"
                 className="mt-3 sm:mt-0 hidden sm:block"
@@ -552,7 +553,10 @@ const ParkingView = ({
                 Bewerken
               </Button>
             ) : null}
-            {isLoggedIn && onToggleStatus !== undefined && ["0", "1"].includes(parkingdata.Status || "") ? (
+            {!isNsConnectorStalling &&
+            isLoggedIn &&
+            onToggleStatus !== undefined &&
+            ["0", "1"].includes(parkingdata.Status || "") ? (
               <Button
                 key="b-2"
                 className="mt-3 ml-3 sm:mt-0 hidden sm:block"
@@ -595,12 +599,14 @@ const ParkingView = ({
             {/* Add Tarief section for tariefcodes 1-5 above Abonnementen */}
             {showTariefCompact ? <ParkingViewTariefAboveAbonnementen parkingdata={parkingdata} /> : null}
 
-            <ParkingViewAbonnementen parkingdata={parkingdata} />
+            {!isNsConnectorStalling ? (
+              <ParkingViewAbonnementen parkingdata={parkingdata} />
+            ) : null}
 
             <SectionBlock heading="Soort stalling">
               <div className="flex flex-col">
                 {parkingdata.Type || "Onbekend"}
-                {urlOpwaarderen !== "" ? buttonOpwaarderen : null}
+                {!isNsConnectorStalling && urlOpwaarderen !== "" ? buttonOpwaarderen : null}
               </div>
             </SectionBlock>
 
@@ -726,6 +732,15 @@ const Reports = ({ bikeparks }: { bikeparks: ReportBikepark[] }) => {
   const firstDate = new Date("2018-03-01");
   const lastDate = new Date(); lastDate.setHours(0, 0, 0, 0); // set time to midnight
 
+  const stallingsId = bikeparks[0]?.StallingsID;
+  const initialFilterState = React.useMemo(
+    () =>
+      stallingsId
+        ? { selectedBikeparkIDs: [stallingsId] as string[] }
+        : undefined,
+    [stallingsId],
+  );
+
   return (
      <div data-name="content-bottom" className={`mt-0 ${hasReportData ? 'block' : 'hidden'} h-[350px]`}>
         <h2 className="
@@ -742,6 +757,9 @@ const Reports = ({ bikeparks }: { bikeparks: ReportBikepark[] }) => {
           showAbonnementenRapporten={showAbonnementenRapporten}
           firstDate={firstDate}
           lastDate={lastDate}
+          bikeparks={bikeparks}
+          persistFilterState={false}
+          initialFilterState={initialFilterState}
           onDataLoaded={(hasReportData: boolean) => {
             setHasReportData(hasReportData);
           }}

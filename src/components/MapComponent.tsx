@@ -149,6 +149,10 @@ function MapboxMap({
     (state: AppState) => state.map.selectedParkingId
   );
 
+  const activeParkingId = useSelector(
+    (state: AppState) => state.map.activeParkingId
+  );
+
   const isParkingListVisible = useSelector(
     (state: AppState) => state.app.isParkingListVisible
   );
@@ -239,6 +243,8 @@ function MapboxMap({
   React.useEffect(() => {
     if (!stateMap) return;
     if (!initialLatLng) return;
+    // Stalling modal open: keep current map view (avoid gemeente fly after remount).
+    if (activeParkingId) return;
     // Only skip when we have restore position AND the requested position matches it (redundant fly).
     // User-initiated flies (e.g. clicking municipality in search) must still work.
     if (createdWithRestorePosition.current && defaultCenter) {
@@ -264,7 +270,7 @@ function MapboxMap({
       });
       dispatch(setInitialViewAnimate(true));
     }
-  }, [stateMap, initialLatLng, initialZoom, dispatch]);
+  }, [stateMap, initialLatLng, initialZoom, dispatch, activeParkingId]);
 
   // If 'fietsenstallingen' variable changes: Update source data
   React.useEffect(() => {
@@ -577,7 +583,7 @@ function MapboxMap({
           : undefined;
         if (municipality) newQuery.municipality = municipality;
         const pathname = municipality ? `/${municipality}` : "/";
-        router.push({ pathname, query: newQuery });
+        router.push({ pathname, query: newQuery }, undefined, { shallow: true });
       }
       // If desktop: Make clicked parking active
       else {

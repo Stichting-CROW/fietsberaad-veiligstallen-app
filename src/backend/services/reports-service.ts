@@ -30,6 +30,10 @@ const ReportService = {
         return false;
       }
       const data = await getData(sql, params);
+      if (data && params.reportType === "inkomsten") {
+        data.options.yaxis = { title: { text: "Inkomsten (€)" } };
+        data.series = data.series.map((s) => ({ ...s, data: s.data.map((v) => Math.round(v * 100) / 100) }));
+      }
 
       return data;
     } catch (error) {

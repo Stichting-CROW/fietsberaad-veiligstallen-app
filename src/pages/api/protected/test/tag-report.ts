@@ -4,7 +4,6 @@ import { assemblePassReport } from "~/server/services/test/pass-report-assembler
 import {
   ACCOUNTS_PASIDS_SELECT,
   ensurePassReportAccess,
-  loadArchiefRecords,
   mergeStallingRecords,
   normalizeBarcodeInput,
   TRANSACTIES_SELECT,
@@ -37,6 +36,8 @@ export interface TagReportStallingRecord {
   Pastype: string | null;
   AccountName: string | null;
   AccountEmail: string | null;
+  AccountID: string | null;
+  AccountType: string | null;
   BarcodeFiets_in: string | null;
   BarcodeFiets_uit: string | null;
   BikeTypeID: number;
@@ -67,6 +68,7 @@ export interface TagReportFinancialRecord {
   accountID: string | null;
   AccountName: string | null;
   AccountEmail: string | null;
+  AccountType: string | null;
   siteID: string | null;
   SiteName: string | null;
   paidToSiteID: string | null;
@@ -133,12 +135,22 @@ export interface TagReportAccountInfo {
   pasids: TagReportPasidInfo[];
 }
 
+export interface TagReportUsedSubscription {
+  key: string;
+  number: number | null;
+  name: string;
+  gemeente: string | null;
+  status: "Actief" | "Verlopen" | null;
+  pasID: string | null;
+}
+
 export interface TagReportResponse {
   /** Normalized sleutelhanger barcode (12 digits). */
   barcode: string;
   /** @deprecated Use `barcode`. Kept for backwards compatibility. */
   tag: string;
   accountInfo: TagReportAccountInfo[];
+  usedSubscriptions: TagReportUsedSubscription[];
   stallingTransacties: TagReportStallingRecord[];
   financialTransacties: TagReportFinancialRecord[];
   totals: {
@@ -188,7 +200,7 @@ export default async function handler(
       select: ACCOUNTS_PASIDS_SELECT,
     });
 
-    let pasIds = [...new Set([...tagPasids.map((r) => r.PasID), barcode])];
+    const pasIds = [...new Set([...tagPasids.map((r) => r.PasID), barcode])];
 
     const transactieRecords: TransactieSelectRow[] = await prisma.transacties.findMany({
       where: buildSleutelhangerTransactiesWhere(barcode, pasIds),
@@ -196,29 +208,16 @@ export default async function handler(
       orderBy: { Date_checkin: "desc" },
     });
 
-    if (tagPasids.length === 0 && transactieRecords.length > 0) {
-      const pasIdsFromTransacties = [...new Set(transactieRecords.map((r) => r.PasID))];
+    if (tagPasids.length === 0 && transactieRecords.some((r) => r.PasID === barcode)) {
       tagPasids = await prisma.accounts_pasids.findMany({
-        where: { PasID: { in: pasIdsFromTransacties } },
+        where: { PasID: barcode },
         select: ACCOUNTS_PASIDS_SELECT,
       });
-      pasIds = [...new Set([...tagPasids.map((r) => r.PasID), barcode, ...pasIdsFromTransacties])];
     }
 
-    const tagAccountIds = [
-      ...new Set(tagPasids.map((r) => r.AccountID).filter((id): id is string => !!id)),
-    ];
-    const primaryPasId = tagPasids[0]?.PasID ?? transactieRecords[0]?.PasID ?? barcode;
-    const liveTransactieIds = new Set(transactieRecords.map((r) => r.ID));
+    const records = mergeStallingRecords(transactieRecords, []);
 
-    const archiefRecords = await loadArchiefRecords(
-      tagAccountIds,
-      liveTransactieIds,
-      primaryPasId
-    );
-    const records = mergeStallingRecords(transactieRecords, archiefRecords);
-
-    const { accountInfo, stallingTransacties, financialTransacties } = await assemblePassReport(
+    const { accountInfo, usedSubscriptions, stallingTransacties, financialTransacties } = await assemblePassReport(
       tagPasids,
       records
     );
@@ -227,6 +226,7 @@ export default async function handler(
       barcode,
       tag: barcode,
       accountInfo,
+      usedSubscriptions,
       stallingTransacties,
       financialTransacties,
       totals: {

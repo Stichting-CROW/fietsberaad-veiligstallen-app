@@ -50,7 +50,8 @@ jobs:
           touch .env
           echo "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" >> .env
           echo "NEXT_PUBLIC_WEB_BASE_URL=$NEXT_PUBLIC_WEB_BASE_URL" >> .env
-          echo "NODE_ENV=acceptance >>" .env
+          echo "NEXT_PUBLIC_APP_ENV=acceptance" >> .env
+          echo "NEXT_PUBLIC_SITE_URL=https://vstfb-eu-acc-app01.azurewebsites.net" >> .env
           echo "DATABASE_URL=$DATABASE_URL" >> .env
           echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env
           echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env
@@ -66,8 +67,10 @@ jobs:
           echo "SMTP_FROM=$SMTP_FROM" >> .env
           echo "ENABLE_WRITE_API=true" >> .env
           echo "CRON_SECRET=$CRON_SECRET" >> .env
-      - name: print env file
-        run: cat .env
+          echo "BACKGROUND_INTERNAL_TICK=true" >> .env
+      # Prints DATABASE_URL and NEXTAUTH_SECRET unmasked: they are vars, not secrets.
+      # - name: print env file
+      #   run: cat .env
 
       - name: npm install, build, and test
         env:

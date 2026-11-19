@@ -88,6 +88,7 @@ export default async function handle(
           ItemType: VSContactItemType.Organizations,
           CompanyName: parsed.CompanyName,
           Status: "1", // Default status
+          ParentID: "0",
             
           // Optional fields with defaults
           AlternativeCompanyName: parsed.AlternativeCompanyName ?? undefined,
@@ -106,6 +107,7 @@ export default async function handle(
           Tnv: parsed.Tnv ?? undefined,
           Notes: parsed.Notes ?? undefined,
           DateRegistration: parsed.DateRegistration ?? undefined,
+          Status_website: parsed.Status_website ?? "0",
         }
 
         const newOrg = await prisma.contacts.create({data: newData, select: gemeenteSelect}) as unknown as VSContactGemeente;
@@ -196,6 +198,10 @@ export default async function handle(
           DateConfirmed: parsed.DateConfirmed === null ? null : parsed.DateConfirmed ? new Date(parsed.DateConfirmed) : undefined,
           DateRejected: parsed.DateRejected === null ? null : parsed.DateRejected ? new Date(parsed.DateRejected) : undefined,
         };
+
+        if (parsed.Status_website !== undefined) {
+          updateData.Status_website = parsed.Status_website;
+        }
 
         // Only allow fietsberaad admins to update restricted fields
         if (isFietsberaadAdmin) {

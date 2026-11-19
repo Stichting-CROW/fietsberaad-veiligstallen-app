@@ -158,17 +158,23 @@ export async function getBikeUpdates(
     }),
     prisma.gemeenteaccounts.findMany({
       where: { SiteID: bikepark.SiteID },
-      select: { AccountID: true },
+      select: { ID: true, AccountID: true },
     }),
   ]);
 
-  const siteAccountIds = new Set(gemeenteAccountIds.map((g) => g.AccountID));
+  // accounts_pasids.AccountID -> gemeenteaccounts.ID -> accounts.ID (BaseRestService getBikeUpdates)
+  const topAccountByCouncilId = new Map(gemeenteAccountIds.map((g) => [g.ID, g.AccountID]));
   const pasidByPasId = new Map(pasids.map((p) => [p.PasID, p]));
   const validPasIds = new Set(
-    pasids.filter((p) => p.AccountID && siteAccountIds.has(p.AccountID)).map((p) => p.PasID)
+    pasids.filter((p) => p.AccountID && topAccountByCouncilId.has(p.AccountID)).map((p) => p.PasID)
+  );
+  const accountIdByPasId = new Map(
+    pasids
+      .filter((p) => p.AccountID && topAccountByCouncilId.has(p.AccountID))
+      .map((p) => [p.PasID, topAccountByCouncilId.get(p.AccountID!)!])
   );
 
-  const accountIds = [...new Set(pasids.map((p) => p.AccountID).filter((id): id is string => !!id && siteAccountIds.has(id)))];
+  const accountIds = [...new Set(accountIdByPasId.values())];
   const accounts =
     accountIds.length > 0
       ? await prisma.accounts.findMany({
@@ -177,10 +183,6 @@ export async function getBikeUpdates(
         })
       : [];
   const saldoByAccountId = new Map(accounts.map((a) => [a.ID, Number(a.saldo ?? 0)]));
-  const accountIdByPasId = new Map(
-    pasids.filter((p) => p.AccountID).map((p) => [p.PasID, p.AccountID!])
-  );
-
   return rows
     .filter((r) => validPasIds.has(r.PasID))
     .map((r) => {

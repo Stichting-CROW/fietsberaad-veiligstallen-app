@@ -4,6 +4,7 @@ import { authOptions } from '~/pages/api/auth/[...nextauth]'
 import { prisma } from "~/server/db";
 import { validateUserSession, getOrganisationTypeByID } from "~/utils/server/database-tools";
 import { VSContactItemType } from "~/types/contacts";
+import { findSyncQueueRowsForBikepark } from "~/utils/server/wachtrij-sync-read";
 
 interface Settings {
   locationID: string; // This is StallingsID
@@ -98,31 +99,25 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     const yearStart = new Date(`${settings.year}-01-01T00:00:00Z`);
     const yearEnd = new Date(`${settings.year}-12-31T23:59:59Z`);
     
-    // Use the same data source as sync-events: wachtrij_sync table
-    // This shows sync moments (which are called "controle" in the GUI)
+    // Same sources as sync-events: legacy wachtrij_sync + FMS v4 new_wachtrij_sync
     const sqlQueryStart = Date.now();
-    
-    const syncEvents = await prisma.wachtrij_sync.findMany({
-      where: {
-        bikeparkID: stalling.StallingsID || undefined,
-        transactionDate: {
+
+    const syncEvents = stalling.StallingsID
+      ? await findSyncQueueRowsForBikepark(stalling.StallingsID, {
           gte: yearStart,
-          lte: yearEnd
-        }
-      },
-      select: {
-        transactionDate: true
-      },
-      orderBy: {
-        transactionDate: "asc"
-      }
-    });
+          lte: yearEnd,
+        })
+      : [];
 
     console.log('[controles] Query took', Date.now() - sqlQueryStart, 'ms');
     console.log('[controles] Found', syncEvents.length, 'sync events (controle records)');
 
     // Convert to expected format (same as before for compatibility)
-    const result: ControleRecord[] = syncEvents
+    const result: ControleRecord[] = [...syncEvents]
+      .sort(
+        (a, b) =>
+          (a.transactionDate?.getTime() ?? 0) - (b.transactionDate?.getTime() ?? 0)
+      )
       .filter(event => event.transactionDate !== null)
       .map(event => ({
         checkindate: event.transactionDate!,
